@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import gymnasium as gym
+import pytest
 
 from ant_byte_env import AntByteForagingEnv
 
@@ -73,6 +74,56 @@ def test_byte_write_updates_grid() -> None:
     assert obs["bytes"][ant_y, ant_x] == 137
     assert info["num_writes"] == 1
     assert info["num_overwrites"] == 0
+    env.close()
+
+
+def test_multiple_ants_on_same_tile_record_overwrites() -> None:
+    env = AntByteForagingEnv(width=4, height=4, num_ants=3, food_count=0)
+    env.reset(seed=13, options={"hub_pos": (1, 1)})
+
+    obs, _, _, _, info = env.step(np.array([0, 10, 0, 20, 0, 30], dtype=np.int64))
+
+    assert obs["bytes"][1, 1] == 30
+    assert info["num_writes"] == 3
+    assert info["num_overwrites"] == 2
+    env.close()
+
+
+def test_movement_stays_inside_grid_bounds() -> None:
+    env = AntByteForagingEnv(width=2, height=2, num_ants=1, food_count=0)
+    env.reset(seed=19, options={"hub_pos": (0, 0)})
+
+    obs, _, _, _, _ = env.step(np.array([1, 0], dtype=np.int64))
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([0, 0], dtype=np.int32))
+
+    obs, _, _, _, _ = env.step(np.array([4, 0], dtype=np.int64))
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([0, 0], dtype=np.int32))
+    env.close()
+
+
+def test_invalid_constructor_and_action_inputs_raise() -> None:
+    for kwargs in (
+        {"width": 0},
+        {"height": 0},
+        {"num_ants": 0},
+        {"food_count": -1},
+        {"max_steps": 0},
+        {"tile_size": 0},
+        {"write_penalty": -0.1},
+        {"render_mode": "ansi"},
+    ):
+        with pytest.raises(ValueError):
+            AntByteForagingEnv(**kwargs)
+
+    env = AntByteForagingEnv(width=3, height=3, num_ants=1)
+    env.reset(seed=23)
+    for action in (
+        np.array([0], dtype=np.int64),
+        np.array([5, 0], dtype=np.int64),
+        np.array([0, 256], dtype=np.int64),
+    ):
+        with pytest.raises(ValueError):
+            env.step(action)
     env.close()
 
 
