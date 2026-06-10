@@ -90,11 +90,22 @@ reported in `info["num_overwrites"]`.
 ## Random Rollout
 
 ```bash
+./launch_random_rollout.py
+```
+
+or:
+
+```bash
 python examples/random_rollout.py
 ```
 
-The example opens a Pygame window, samples random actions, prints delivered and
-remaining food counts, and closes the environment cleanly.
+The launcher opens a Pygame window, samples random actions, prints delivered and
+remaining food counts, and closes the environment cleanly. Use `--seed` for a
+repeatable random rollout:
+
+```bash
+./launch_random_rollout.py --seed 123
+```
 
 ## Assets
 
