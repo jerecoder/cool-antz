@@ -43,11 +43,23 @@ def test_jax_observation_builders_match_mappo_shapes() -> None:
     actor_obs = build_actor_observations(obs, food_scale=3)
 
     assert central_obs.shape == (1, 34)
-    assert actor_obs.shape == (1, 2, 76)
+    assert actor_obs.shape == (1, 2, 101)
     assert bool(jnp.all(central_obs >= 0.0))
     assert bool(jnp.all(central_obs <= 1.0))
     assert bool(jnp.all(actor_obs >= 0.0))
     assert bool(jnp.all(actor_obs <= 1.0))
+
+
+def test_jax_actor_observation_exposes_border_mask() -> None:
+    obs = _batched_reset_obs()
+
+    actor_obs = build_actor_observations(obs, food_scale=3, actor_vision_radius=1)
+
+    assert actor_obs.shape == (1, 2, 37)
+    np.testing.assert_allclose(
+        np.asarray(actor_obs[0, 0, 27:36]),
+        np.array([1, 1, 1, 1, 0, 0, 1, 0, 0.0], dtype=np.float32),
+    )
 
 
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
@@ -70,7 +82,7 @@ def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     )
     flat_actions = flatten_agent_actions(actions)
 
-    assert actor_obs.shape == (1, 2, 126)
+    assert actor_obs.shape == (1, 2, 151)
     assert actions.shape == (1, 2, 2)
     assert logprob.shape == (1, 2)
     assert entropy.shape == (1, 2)

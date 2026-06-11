@@ -46,7 +46,7 @@ def test_observation_builders_create_stable_mappo_tensors() -> None:
     actor_obs = build_actor_observations(obs, central_obs, food_scale=3)
 
     assert central_obs.shape == (1, 34)
-    assert actor_obs.shape == (1, 2, 76)
+    assert actor_obs.shape == (1, 2, 101)
     assert torch.all(central_obs >= 0.0)
     assert torch.all(central_obs <= 1.0)
     assert torch.all(actor_obs >= 0.0)
@@ -71,11 +71,11 @@ def test_observation_builders_can_pad_to_larger_curriculum_map() -> None:
     )
 
     assert central_obs.shape == (1, 82)
-    assert actor_obs.shape == (1, 2, 76)
+    assert actor_obs.shape == (1, 2, 101)
     torch.testing.assert_close(central_obs[:, -2:], torch.tensor([[4 / 6, 3 / 6]]))
 
 
-def test_actor_observation_contains_local_grids_and_carrying_flag_only() -> None:
+def test_actor_observation_contains_local_grids_border_mask_and_carrying_flag() -> None:
     obs = obs_to_tensor(_batched_reset_obs(), torch.device("cpu"))
     central_obs = build_central_observations(obs, food_scale=3)
 
@@ -86,7 +86,7 @@ def test_actor_observation_contains_local_grids_and_carrying_flag_only() -> None
         actor_vision_radius=1,
     )
 
-    assert actor_obs.shape == (1, 2, 28)
+    assert actor_obs.shape == (1, 2, 37)
     torch.testing.assert_close(
         actor_obs[0, 0, :9],
         torch.tensor([0, 0, 0, 0, 0, 1, 0, 0, 0.0]),
@@ -97,7 +97,11 @@ def test_actor_observation_contains_local_grids_and_carrying_flag_only() -> None
         torch.tensor([0, 0, 0, 0, 1, 0, 0, 0, 0.0]),
     )
     torch.testing.assert_close(
-        actor_obs[0, 0, 27:],
+        actor_obs[0, 0, 27:36],
+        torch.tensor([1, 1, 1, 1, 0, 0, 1, 0, 0.0]),
+    )
+    torch.testing.assert_close(
+        actor_obs[0, 0, 36:],
         torch.tensor([0.0]),
     )
 
@@ -152,7 +156,7 @@ def test_actor_observation_write_bits_controls_local_bit_planes() -> None:
     patch_size = 9
     bit_patches = actor_obs[0, 0, patch_size : 4 * patch_size].reshape(3, patch_size)
     expected_bit = torch.tensor([0, 0, 0, 0, 0, 1, 0, 0, 0.0])
-    assert actor_obs.shape == (1, 1, 46)
+    assert actor_obs.shape == (1, 1, 55)
     torch.testing.assert_close(bit_patches[0], expected_bit)
     torch.testing.assert_close(bit_patches[1], torch.zeros(patch_size))
     torch.testing.assert_close(bit_patches[2], expected_bit)
@@ -247,7 +251,7 @@ def test_agent_write_head_size_follows_write_bits() -> None:
     move_logits, write_logits = agent.get_action_logits(actor_obs)
     actions, _, _, _ = agent.get_action_and_value(actor_obs, central_obs)
 
-    assert actor_obs.shape == (1, 2, 126)
+    assert actor_obs.shape == (1, 2, 151)
     assert move_logits.shape == (1, 2, 5)
     assert write_logits.shape == (1, 2, 8)
     assert torch.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7))
@@ -436,7 +440,7 @@ class ScriptedForageAgent:
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         del action, deterministic
         del central_obs
-        patch_size = (actor_obs.shape[-1] - 1) // 3
+        patch_size = (actor_obs.shape[-1] - 1) // 4
         patch_width = int(patch_size**0.5)
         center_index = patch_size // 2
         carrying = actor_obs[:, :, -1] > 0.5
@@ -645,5 +649,5 @@ def test_checkpoint_can_resume_on_larger_padded_map(tmp_path) -> None:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     assert metrics["global_step"] == 4
     assert checkpoint["central_obs_dim"] == 57
-    assert checkpoint["actor_obs_dim"] == 76
+    assert checkpoint["actor_obs_dim"] == 101
     assert checkpoint["args"]["width"] == 5

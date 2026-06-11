@@ -521,8 +521,17 @@ def build_actor_observations(
         grid_width=food.shape[2],
         radius=actor_vision_radius,
     )
+    local_border = build_local_border_patches(
+        obs["ants_pos"],
+        grid_height=food.shape[1],
+        grid_width=food.shape[2],
+        radius=actor_vision_radius,
+    )
 
-    return torch.cat([local_food, local_byte_bits, local_hub, own_carrying], dim=-1)
+    return torch.cat(
+        [local_food, local_byte_bits, local_hub, local_border, own_carrying],
+        dim=-1,
+    )
 
 
 def build_local_food_patches(
@@ -596,6 +605,33 @@ def build_local_grid_patches(
                         ]
 
     return patches.reshape(batch_size, num_agents, -1)
+
+
+def build_local_border_patches(
+    ants_pos: torch.Tensor,
+    *,
+    grid_height: int,
+    grid_width: int,
+    radius: int,
+) -> torch.Tensor:
+    """Return flattened out-of-bounds masks centered on each ant."""
+
+    if radius < 0:
+        raise ValueError("radius must be non-negative.")
+
+    offsets = torch.arange(
+        -radius,
+        radius + 1,
+        dtype=torch.long,
+        device=ants_pos.device,
+    )
+    offset_y, offset_x = torch.meshgrid(offsets, offsets, indexing="ij")
+    offset_pairs = torch.stack([offset_x.reshape(-1), offset_y.reshape(-1)], dim=-1)
+    positions = ants_pos.long().unsqueeze(2) + offset_pairs.view(1, 1, -1, 2)
+    x_pos = positions[..., 0]
+    y_pos = positions[..., 1]
+    valid = (0 <= x_pos) & (x_pos < grid_width) & (0 <= y_pos) & (y_pos < grid_height)
+    return (~valid).float()
 
 
 def build_local_hub_patches(

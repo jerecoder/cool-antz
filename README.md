@@ -225,7 +225,8 @@ For headless export without opening a Pygame window:
 The training script uses TorchRL's MAPPO loss and multi-agent GAE. The shared
 actor chooses a joint `(move, write_value)` action for each ant. Each actor
 observation is coordinate-free and local: food values, the local write bit-plane
-patches, a colony mask in the ant's vision square, and that ant's carrying flag.
+patches, a colony mask, an out-of-bounds border mask in the ant's vision square,
+and that ant's carrying flag.
 The centralized critic still receives the padded global map state. Use
 `--write-bits` to choose how many bits each ant can write; the notebook starts
 with `1`.
