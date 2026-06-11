@@ -23,13 +23,13 @@ class VideoWriter(Protocol):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Launch a Pygame random rollout.")
-    parser.add_argument("--width", type=int, default=8)
-    parser.add_argument("--height", type=int, default=8)
+    parser.add_argument("--width", type=int, default=16)
+    parser.add_argument("--height", type=int, default=16)
     parser.add_argument("--num-ants", type=int, default=4)
-    parser.add_argument("--food-count", type=int, default=8)
-    parser.add_argument("--food-sources", type=int, default=1)
+    parser.add_argument("--food-count", type=int, default=24)
+    parser.add_argument("--food-sources", type=int, default=4)
     parser.add_argument("--max-steps", type=int, default=300)
-    parser.add_argument("--tile-size", type=int, default=56)
+    parser.add_argument("--tile-size", type=int, default=36)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--video", type=Path, default=None, help="Export rollout video.")
     parser.add_argument(

@@ -118,19 +118,20 @@ python examples/random_rollout.py
 ```
 
 The launcher opens a Pygame window, samples random actions, prints delivered and
-remaining food counts, and closes the environment cleanly. Use `--seed` for a
-repeatable random rollout:
+remaining food counts, and closes the environment cleanly. By default it uses a
+16x16 map with four randomly placed food sources and 24 total bites. Use
+`--seed` for a repeatable random rollout:
 
 ```bash
 ./launch_random_rollout.py --seed 123
 ```
 
 The launcher is a random policy: each step calls `env.action_space.sample()`, so
-the ants are not planning yet. Use `--food-sources` to show several depleted
-food sources:
+the ants are not planning yet. Use `--food-sources`, `--food-count`, `--width`,
+and `--height` to tune the generated map:
 
 ```bash
-./launch_random_rollout.py --food-count 24 --food-sources 3
+./launch_random_rollout.py --width 20 --height 20 --food-count 40 --food-sources 5
 ```
 
 To export the rollout as a video:
