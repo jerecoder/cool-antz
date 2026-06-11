@@ -2,6 +2,14 @@
 
 from gymnasium.envs.registration import register, registry
 
+from ant_byte_env.agent import (
+    AntAction,
+    AntAgent,
+    AntColonyController,
+    AntContext,
+    AntModel,
+    AntTransition,
+)
 from ant_byte_env.env import AntByteForagingEnv
 
 if "AntByteForaging-v0" not in registry:
@@ -10,4 +18,12 @@ if "AntByteForaging-v0" not in registry:
         entry_point="ant_byte_env.env:AntByteForagingEnv",
     )
 
-__all__ = ["AntByteForagingEnv"]
+__all__ = [
+    "AntAction",
+    "AntAgent",
+    "AntByteForagingEnv",
+    "AntColonyController",
+    "AntContext",
+    "AntModel",
+    "AntTransition",
+]
