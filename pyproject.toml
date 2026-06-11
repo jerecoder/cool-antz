@@ -28,6 +28,9 @@ rl = [
 jax = [
   "jax>=0.4"
 ]
+jax-cuda13 = [
+  "jax[cuda13]>=0.4"
+]
 notebooks = [
   "notebook>=7.0",
   "tqdm>=4.66"

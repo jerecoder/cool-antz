@@ -14,6 +14,26 @@ The environment is rendered with Pygame and supports `render_mode="human"` and
 python -m pip install -e ".[dev]"
 ```
 
+For NVIDIA GPU training on a CUDA 13-capable driver, install the CUDA JAX extra:
+
+```bash
+python -m pip install -e ".[jax-cuda13,notebooks]"
+```
+
+Then verify that JAX sees the GPU:
+
+```bash
+python - <<'PY'
+import jax
+print(jax.default_backend())
+print(jax.devices())
+PY
+```
+
+The CUDA 13 wheels require a recent NVIDIA driver. If `nvidia-smi -q` reports
+`GPU Recovery Action: Reboot`, reboot before expecting JAX or PyTorch to create
+CUDA contexts.
+
 ## Basic Usage
 
 ```python
