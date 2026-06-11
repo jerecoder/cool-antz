@@ -128,6 +128,18 @@ food sources:
 ./launch_random_rollout.py --food-count 24 --food-sources 3
 ```
 
+To export the rollout as a video:
+
+```bash
+./launch_random_rollout.py --video rollout.mp4
+```
+
+For headless export without opening a Pygame window:
+
+```bash
+./launch_random_rollout.py --no-window --video rollout.mp4
+```
+
 ## Assets
 
 The repository includes generated placeholder sprites in
