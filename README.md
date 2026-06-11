@@ -105,38 +105,6 @@ unwritable. Attempts to write those tiles are ignored and are not counted in
 `info["num_writes"]`. If a food source is depleted, that tile becomes writable
 on later steps.
 
-## Model-Controlled Ants
-
-The environment remains a normal centralized Gymnasium environment, which is the
-cleanest interface for PPO and other RL libraries. For custom per-ant logic, the
-package also exposes a thin adapter:
-
-```python
-from ant_byte_env import AntAction, AntAgent, AntColonyController
-
-
-class MyModel:
-    def act(self, observation, context):
-        # observation is an MxM integer matrix centered on this ant.
-        # context has ant_id, position, carrying_food, hub_position, and info.
-        return AntAction(move=2, write_byte=0)
-
-    def observe(self, transition):
-        # Store transition for replay/training.
-        pass
-
-
-ants = [AntAgent(ant_id=i, model=MyModel(), observation_size=5) for i in range(4)]
-controller = AntColonyController(ants)
-```
-
-Each `AntAgent` converts the full environment observation into an `MxM` local
-matrix. Normal writable tiles contain their byte value `0..255`; the hub, food,
-and out-of-bounds cells use reserved integer codes. The model can be any object
-with either `act(observation, context)` or a PPO-like `predict(observation, ...)`
-method. If the model has `observe(transition)`, the controller sends feedback
-after each environment step so the model can train or fill a replay buffer.
-
 ## Random Rollout
 
 ```bash
