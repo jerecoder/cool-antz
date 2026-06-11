@@ -2,8 +2,8 @@
 
 `AntByteForagingEnv` is a Gymnasium gridworld where a centralized controller
 moves several ants, lets each ant read the byte stored on its current tile, and
-lets each ant overwrite one tile byte per step. Ants collect food from the grid
-and deliver it back to a hub.
+lets each ant overwrite one tile byte per step. Ants bite food from a source,
+carry one bite at a time, and drop it at the colony hub.
 
 The environment is rendered with Pygame and supports `render_mode="human"` and
 `render_mode="rgb_array"`.
@@ -70,14 +70,27 @@ spaces.Dict({
 
 TODO: add an optional local partial-observation mode for decentralized policies.
 
+## Food Sources
+
+`food_count` is the total number of bites available at food sources. By default
+there is one visible source, so `food_count=8` means one apple with eight bites.
+Set `food_source_count` to split those bites across multiple source tiles.
+
+When an ant picks up a bite, the source count decreases. The rendered food
+sprite becomes dimmer as the source is depleted and disappears when its count
+reaches zero.
+
 ## Rewards
 
-- `+1` when an ant picks up food.
-- `+10` when an ant delivers food to the hub.
-- `-0.01` per step per ant.
+- `+1` when an ant drops a carried bite at the colony hub.
+- `-step_penalty` per step per ant when `step_penalty > 0`.
 - `-write_penalty` per write when `write_penalty > 0`.
 
-Episodes terminate when all food has been delivered. They truncate when
+Picking up food does not give reward. The default `step_penalty` and
+`write_penalty` are both `0.0`, so the default reward is exactly the number of
+bites delivered to the colony during that step.
+
+Episodes terminate when all food bites have been delivered. They truncate when
 `max_steps` is reached.
 
 ## Tile Bytes
@@ -105,6 +118,14 @@ repeatable random rollout:
 
 ```bash
 ./launch_random_rollout.py --seed 123
+```
+
+The launcher is a random policy: each step calls `env.action_space.sample()`, so
+the ants are not planning yet. Use `--food-sources` to show several depleted
+food sources:
+
+```bash
+./launch_random_rollout.py --food-count 24 --food-sources 3
 ```
 
 ## Assets

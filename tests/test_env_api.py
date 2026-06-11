@@ -132,7 +132,7 @@ def test_pickup_and_delivery_flow() -> None:
         width=3,
         height=3,
         num_ants=1,
-        food_count=1,
+        food_count=2,
         random_food=False,
         seed=5,
     )
@@ -142,19 +142,45 @@ def test_pickup_and_delivery_flow() -> None:
         np.array([2, 0], dtype=np.int64)
     )
     assert obs["ants_carrying"][0] == 1
-    assert pickup_reward > 0
+    assert pickup_reward == 0.0
     assert not terminated
     assert not truncated
+    assert info["remaining_food"] == 1
+    assert obs["food"][0, 1] == 1
+
+    obs, delivery_reward, terminated, truncated, info = env.step(
+        np.array([4, 0], dtype=np.int64)
+    )
+    assert obs["ants_carrying"][0] == 0
+    assert delivery_reward == 1.0
+    assert not terminated
+    assert not truncated
+    assert info["delivered_food"] == 1
+
+    obs, pickup_reward, _, _, info = env.step(np.array([2, 0], dtype=np.int64))
+    assert obs["ants_carrying"][0] == 1
+    assert pickup_reward == 0.0
     assert info["remaining_food"] == 0
 
     obs, delivery_reward, terminated, truncated, info = env.step(
         np.array([4, 0], dtype=np.int64)
     )
     assert obs["ants_carrying"][0] == 0
-    assert delivery_reward >= 9.0
+    assert delivery_reward == 1.0
     assert terminated
     assert not truncated
-    assert info["delivered_food"] == 1
+    assert info["delivered_food"] == 2
+    env.close()
+
+
+def test_default_food_count_is_multiple_bites_in_one_source() -> None:
+    env = AntByteForagingEnv(width=5, height=5, num_ants=1, food_count=8, seed=31)
+
+    obs, info = env.reset(seed=31)
+
+    assert info["remaining_food"] == 8
+    assert np.count_nonzero(obs["food"]) == 1
+    assert obs["food"].max() == 8
     env.close()
 
 

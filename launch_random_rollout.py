@@ -16,6 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=8)
     parser.add_argument("--num-ants", type=int, default=4)
     parser.add_argument("--food-count", type=int, default=8)
+    parser.add_argument("--food-sources", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=300)
     parser.add_argument("--tile-size", type=int, default=56)
     parser.add_argument("--seed", type=int, default=None)
@@ -29,6 +30,7 @@ def main() -> None:
         height=args.height,
         num_ants=args.num_ants,
         food_count=args.food_count,
+        food_source_count=args.food_sources,
         max_steps=args.max_steps,
         render_mode="human",
         tile_size=args.tile_size,

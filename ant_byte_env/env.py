@@ -18,6 +18,15 @@ from ant_byte_env.sprites import load_sprites
 ObsType = dict[str, np.ndarray]
 
 
+def food_alpha(remaining: int, initial: int) -> int:
+    """Return sprite alpha for a food source based on remaining bites."""
+
+    if remaining <= 0 or initial <= 0:
+        return 0
+    ratio = min(1.0, max(0.0, remaining / initial))
+    return int(72 + 183 * ratio)
+
+
 class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
     """Centralized-control gridworld where ants forage and write tile bytes."""
 
@@ -29,10 +38,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         height: int = 16,
         num_ants: int = 4,
         food_count: int = 8,
+        food_source_count: int = 1,
         max_steps: int = 500,
         render_mode: str | None = None,
         tile_size: int = 32,
         random_food: bool = True,
+        step_penalty: float = 0.0,
         write_penalty: float = 0.0,
         seed: int | None = None,
     ) -> None:
@@ -41,9 +52,11 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             height=height,
             num_ants=num_ants,
             food_count=food_count,
+            food_source_count=food_source_count,
             max_steps=max_steps,
             render_mode=render_mode,
             tile_size=tile_size,
+            step_penalty=step_penalty,
             write_penalty=write_penalty,
         )
 
@@ -51,10 +64,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.height = height
         self.num_ants = num_ants
         self.food_count = food_count
+        self.food_source_count = food_source_count
         self.max_steps = max_steps
         self.render_mode = render_mode
         self.tile_size = tile_size
         self.random_food = random_food
+        self.step_penalty = step_penalty
         self.write_penalty = write_penalty
         self._constructor_seed = seed
         self._has_reset = False
@@ -95,6 +110,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.ants_pos = np.zeros((num_ants, 2), dtype=np.int32)
         self.ants_carrying = np.zeros(num_ants, dtype=bool)
         self.food = np.zeros((height, width), dtype=np.int32)
+        self.initial_food = np.zeros((height, width), dtype=np.int32)
         self.bytes = np.zeros((height, width), dtype=np.uint8)
         self.delivered_food = 0
         self.step_count = 0
@@ -127,6 +143,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.ants_carrying = np.zeros(self.num_ants, dtype=bool)
         self.bytes = np.zeros((self.height, self.width), dtype=np.uint8)
         self.food = self._build_food_grid(reset_options)
+        self.initial_food = self.food.astype(np.int32, copy=True)
         self.delivered_food = 0
         self.step_count = 0
         self._initial_food_total = int(self.food.sum())
@@ -138,7 +155,8 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
     ) -> tuple[ObsType, float, bool, bool, dict[str, int]]:
         flat_action = self._validate_action(action)
 
-        reward = -0.01 * self.num_ants
+        reward = 0.0
+        reward -= self.step_penalty * self.num_ants
         num_writes = 0
         num_overwrites = 0
         written_tiles: set[tuple[int, int]] = set()
@@ -153,12 +171,11 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             if not self.ants_carrying[ant_index] and self.food[y_pos, x_pos] > 0:
                 self.food[y_pos, x_pos] -= 1
                 self.ants_carrying[ant_index] = True
-                reward += 1.0
 
             if self.ants_carrying[ant_index] and np.array_equal(next_pos, self.hub_pos):
                 self.ants_carrying[ant_index] = False
                 self.delivered_food += 1
-                reward += 10.0
+                reward += 1.0
 
             tile_key = (x_pos, y_pos)
             if tile_key in written_tiles:
@@ -216,9 +233,11 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         height: int,
         num_ants: int,
         food_count: int,
+        food_source_count: int,
         max_steps: int,
         render_mode: str | None,
         tile_size: int,
+        step_penalty: float,
         write_penalty: float,
     ) -> None:
         if width <= 0 or height <= 0:
@@ -227,10 +246,14 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             raise ValueError("num_ants must be positive.")
         if food_count < 0:
             raise ValueError("food_count must be non-negative.")
+        if food_source_count <= 0:
+            raise ValueError("food_source_count must be positive.")
         if max_steps <= 0:
             raise ValueError("max_steps must be positive.")
         if tile_size <= 0:
             raise ValueError("tile_size must be positive.")
+        if step_penalty < 0:
+            raise ValueError("step_penalty must be non-negative.")
         if write_penalty < 0:
             raise ValueError("write_penalty must be non-negative.")
         if render_mode is not None and render_mode not in AntByteForagingEnv.metadata["render_modes"]:
@@ -243,34 +266,45 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
     def _build_food_grid(self, options: dict[str, Any]) -> np.ndarray:
         food = np.zeros((self.height, self.width), dtype=np.int32)
-        raw_positions = options.get("food_positions")
-        if raw_positions is not None:
-            for raw_pos in raw_positions:
-                pos = self._coerce_position(raw_pos)
-                food[int(pos[1]), int(pos[0])] += 1
-            return food
-
-        candidates = self._candidate_food_positions()
         if self.food_count == 0:
             return food
+
+        raw_positions = options.get("food_positions")
+        if raw_positions is not None:
+            positions = [
+                (int(pos[0]), int(pos[1]))
+                for pos in (self._coerce_position(raw_pos) for raw_pos in raw_positions)
+            ]
+            return self._distribute_food_units(food, positions)
+
+        candidates = self._candidate_food_positions()
         if not candidates:
             raise ValueError("food_count requires at least one non-hub tile.")
 
+        source_count = min(self.food_source_count, len(candidates))
         if self.random_food:
-            replace = self.food_count > len(candidates)
             chosen_indices = self.np_random.choice(
                 len(candidates),
-                size=self.food_count,
-                replace=replace,
+                size=source_count,
+                replace=False,
             )
-            for index in np.atleast_1d(chosen_indices):
-                x_pos, y_pos = candidates[int(index)]
-                food[y_pos, x_pos] += 1
-            return food
+            positions = [candidates[int(index)] for index in np.atleast_1d(chosen_indices)]
+            return self._distribute_food_units(food, positions)
 
-        for index in range(self.food_count):
-            x_pos, y_pos = candidates[index % len(candidates)]
-            food[y_pos, x_pos] += 1
+        return self._distribute_food_units(food, candidates[:source_count])
+
+    def _distribute_food_units(
+        self,
+        food: np.ndarray,
+        positions: list[tuple[int, int]],
+    ) -> np.ndarray:
+        if not positions:
+            raise ValueError("food_positions must contain at least one position.")
+
+        base_amount, extra_units = divmod(self.food_count, len(positions))
+        for index, (x_pos, y_pos) in enumerate(positions):
+            amount = base_amount + int(index < extra_units)
+            food[y_pos, x_pos] += amount
         return food
 
     def _candidate_food_positions(self) -> list[tuple[int, int]]:
@@ -400,7 +434,10 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                 if food_amount <= 0:
                     continue
                 position = np.array([x_pos, y_pos], dtype=np.int32)
-                self._blit_tile_sprite("food", position)
+                initial_amount = int(self.initial_food[y_pos, x_pos])
+                food_sprite = self._sprites["food"].copy()
+                food_sprite.set_alpha(food_alpha(food_amount, initial_amount))
+                self._blit_tile_surface(food_sprite, position)
                 if food_amount > 1:
                     label = self._font.render(str(food_amount), True, (23, 87, 38))
                     self._canvas.blit(
@@ -419,9 +456,13 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
     def _blit_tile_sprite(self, sprite_name: str, position: np.ndarray) -> None:
         assert self._canvas is not None
         assert self._sprites is not None
+        self._blit_tile_surface(self._sprites[sprite_name], position)
+
+    def _blit_tile_surface(self, surface: pygame.Surface, position: np.ndarray) -> None:
+        assert self._canvas is not None
         x_pos, y_pos = int(position[0]), int(position[1])
         self._canvas.blit(
-            self._sprites[sprite_name],
+            surface,
             (x_pos * self.tile_size, y_pos * self.tile_size),
         )
 
