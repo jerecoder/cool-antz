@@ -25,6 +25,29 @@ def test_reset_returns_obs_and_info() -> None:
     env.close()
 
 
+def test_action_space_defaults_to_one_write_bit_per_ant() -> None:
+    env = AntByteForagingEnv(width=5, height=4, num_ants=2, food_count=3, seed=123)
+
+    np.testing.assert_array_equal(env.action_space.nvec, np.array([5, 2, 5, 2]))
+    assert env.observation_space["bytes"].high.max() == 1
+    env.close()
+
+
+def test_write_bits_controls_action_space_and_tile_value_range() -> None:
+    env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, write_bits=3)
+    env.reset(seed=3, options={"hub_pos": (0, 0)})
+
+    np.testing.assert_array_equal(env.action_space.nvec, np.array([5, 8]))
+    assert env.observation_space["bytes"].high.max() == 7
+    obs, _, _, _, _ = env.step(np.array([2, 7], dtype=np.int64))
+
+    ant_x, ant_y = obs["ants_pos"][0]
+    assert obs["bytes"][ant_y, ant_x] == 7
+    with pytest.raises(ValueError, match="0 to 7"):
+        env.step(np.array([2, 8], dtype=np.int64))
+    env.close()
+
+
 def test_environment_is_registered_with_gymnasium() -> None:
     env = gym.make("AntByteForaging-v0", width=4, height=4, num_ants=1, food_count=1)
 
@@ -68,10 +91,10 @@ def test_byte_write_updates_grid() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, seed=3)
     env.reset(seed=3, options={"hub_pos": (0, 0)})
 
-    obs, _, _, _, info = env.step(np.array([2, 137], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 1], dtype=np.int64))
 
     ant_x, ant_y = obs["ants_pos"][0]
-    assert obs["bytes"][ant_y, ant_x] == 137
+    assert obs["bytes"][ant_y, ant_x] == 1
     assert info["num_writes"] == 1
     assert info["num_overwrites"] == 0
     env.close()
@@ -81,9 +104,9 @@ def test_multiple_ants_on_same_tile_record_overwrites() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=3, food_count=0)
     env.reset(seed=13, options={"hub_pos": (0, 1)})
 
-    obs, _, _, _, info = env.step(np.array([2, 10, 2, 20, 2, 30], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 0, 2, 1, 2, 0], dtype=np.int64))
 
-    assert obs["bytes"][1, 1] == 30
+    assert obs["bytes"][1, 1] == 0
     assert info["num_writes"] == 3
     assert info["num_overwrites"] == 2
     env.close()
@@ -93,7 +116,7 @@ def test_hub_tile_is_unwritable() -> None:
     env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=0)
     env.reset(seed=37, options={"hub_pos": (1, 1)})
 
-    obs, _, _, _, info = env.step(np.array([0, 99], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([0, 1], dtype=np.int64))
 
     assert obs["bytes"][1, 1] == 0
     assert info["num_writes"] == 0
@@ -105,7 +128,7 @@ def test_food_tile_is_unwritable_while_bitten() -> None:
     env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=1)
     env.reset(seed=41, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
 
-    obs, _, _, _, info = env.step(np.array([2, 123], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 1], dtype=np.int64))
 
     assert obs["ants_carrying"][0] == 1
     assert obs["food"][0, 1] == 0
@@ -118,12 +141,12 @@ def test_depleted_food_tile_becomes_writable_afterward() -> None:
     env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=1)
     env.reset(seed=43, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
 
-    env.step(np.array([2, 123], dtype=np.int64))
+    env.step(np.array([2, 1], dtype=np.int64))
     env.step(np.array([4, 0], dtype=np.int64))
-    obs, _, _, _, info = env.step(np.array([2, 77], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 1], dtype=np.int64))
 
     assert obs["food"][0, 1] == 0
-    assert obs["bytes"][0, 1] == 77
+    assert obs["bytes"][0, 1] == 1
     assert info["num_writes"] == 1
     env.close()
 
@@ -166,6 +189,8 @@ def test_invalid_constructor_and_action_inputs_raise() -> None:
         {"max_steps": 0},
         {"tile_size": 0},
         {"write_penalty": -0.1},
+        {"write_bits": 0},
+        {"write_bits": 9},
         {"render_mode": "ansi"},
     ):
         with pytest.raises(ValueError):
@@ -176,7 +201,7 @@ def test_invalid_constructor_and_action_inputs_raise() -> None:
     for action in (
         np.array([0], dtype=np.int64),
         np.array([5, 0], dtype=np.int64),
-        np.array([0, 256], dtype=np.int64),
+        np.array([0, 2], dtype=np.int64),
     ):
         with pytest.raises(ValueError):
             env.step(action)
@@ -226,6 +251,33 @@ def test_pickup_and_delivery_flow() -> None:
     assert terminated
     assert not truncated
     assert info["delivered_food"] == 2
+    env.close()
+
+
+def test_carrying_ant_does_not_consume_another_food_bite() -> None:
+    env = AntByteForagingEnv(
+        width=3,
+        height=3,
+        num_ants=1,
+        food_count=2,
+        random_food=False,
+        seed=47,
+    )
+    env.reset(seed=47, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
+
+    obs, _, _, _, info = env.step(np.array([2, 0], dtype=np.int64))
+    assert obs["ants_carrying"][0] == 1
+    assert obs["food"][0, 1] == 1
+    assert info["remaining_food"] == 1
+
+    obs, reward, terminated, truncated, info = env.step(np.array([0, 0], dtype=np.int64))
+
+    assert obs["ants_carrying"][0] == 1
+    assert reward == 0.0
+    assert not terminated
+    assert not truncated
+    assert obs["food"][0, 1] == 1
+    assert info["remaining_food"] == 1
     env.close()
 
 

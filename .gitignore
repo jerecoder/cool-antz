@@ -7,3 +7,7 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+checkpoints/
+vault/*
+!vault/.gitkeep
+notebooks/.ipynb_checkpoints/

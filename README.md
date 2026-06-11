@@ -1,8 +1,8 @@
 # Ant Byte Foraging
 
 `AntByteForagingEnv` is a Gymnasium gridworld where a centralized controller
-moves several ants, lets each ant read the byte stored on its current tile, and
-lets each ant overwrite one tile byte per step. Ants bite food from a source,
+moves several ants, lets each ant read the writable value stored on its current
+tile, and lets each ant overwrite that tile value. Ants bite food from a source,
 carry one bite at a time, and drop it at the colony hub.
 
 The environment is rendered with Pygame and supports `render_mode="human"` and
@@ -38,10 +38,12 @@ from ant_byte_env import AntByteForagingEnv
 For `num_ants = N`, the action space is:
 
 ```python
-spaces.MultiDiscrete([5, 256] * N)
+spaces.MultiDiscrete([5, 2 ** write_bits] * N)
 ```
 
-Each ant receives a pair `(move_i, write_byte_i)`.
+Each ant receives a pair `(move_i, write_value_i)`. The write range is controlled
+by `write_bits`; the default is `write_bits=1`, so there are `2` write values.
+For `write_bits=3`, the action space becomes `spaces.MultiDiscrete([5, 8] * N)`.
 
 Movement actions:
 
@@ -51,8 +53,8 @@ Movement actions:
 - `3`: down
 - `4`: left
 
-The write action is an integer from `0` to `255`. It is written to the ant's
-tile after movement, pickup, and delivery are processed.
+The write action is an integer from `0` to `2 ** write_bits - 1`. It is written
+to the ant's tile after movement, pickup, and delivery are processed.
 
 ## Observation Space
 
@@ -63,7 +65,7 @@ spaces.Dict({
     "ants_pos": Box(low=0, high=max(width, height), shape=(N, 2), dtype=np.int32),
     "ants_carrying": MultiBinary(N),
     "food": Box(low=0, high=food_count, shape=(height, width), dtype=np.int32),
-    "bytes": Box(low=0, high=255, shape=(height, width), dtype=np.uint8),
+    "bytes": Box(low=0, high=2 ** write_bits - 1, shape=(height, width), dtype=np.uint8),
     "hub_pos": Box(low=0, high=max(width, height), shape=(2,), dtype=np.int32),
 })
 ```
@@ -93,12 +95,13 @@ bites delivered to the colony during that step.
 Episodes terminate when all food bites have been delivered. They truncate when
 `max_steps` is reached.
 
-## Tile Bytes
+## Tile Values
 
-Every tile stores one unsigned byte. At reset all bytes are `0`. During each
-step, ants are processed in index order. If several ants write to the same tile
-in the same step, later ants overwrite earlier ants, and the overwrite count is
-reported in `info["num_overwrites"]`.
+Every tile stores a writable integer value with `write_bits` bits. The
+observation key is still named `"bytes"` for API compatibility. At reset all
+values are `0`. During each step, ants are processed in index order. If several
+ants write to the same tile in the same step, later ants overwrite earlier ants,
+and the overwrite count is reported in `info["num_overwrites"]`.
 
 The colony hub and any tile that has food at the moment an ant lands there are
 unwritable. Attempts to write those tiles are ignored and are not counted in
@@ -148,6 +151,47 @@ For headless export without opening a Pygame window:
 ./launch_random_rollout.py --no-window --video rollout.mp4
 ```
 
+## MAPPO Curriculum
+
+The training script uses TorchRL's MAPPO loss and multi-agent GAE. The shared
+actor chooses a joint `(move, write_value)` action for each ant. Each actor
+observation is coordinate-free and local: food values, the local write bit-plane
+patches, a colony mask in the ant's vision square, and that ant's carrying flag.
+The centralized critic still receives the padded global map state. Use
+`--write-bits` to choose how many bits each ant can write; the notebook starts
+with `1`.
+
+```bash
+python train_mappo.py \
+  --total-timesteps 100000 \
+  --num-envs 8 \
+  --num-steps 128 \
+  --num-ants 1 \
+  --width 5 \
+  --height 5 \
+  --food-count 4 \
+  --write-bits 1
+```
+
+By default this stage fixes one cookie source near the hub and adds small
+curriculum rewards for picking up a bite and moving closer to the current target
+(cookie when empty, hub when carrying). The environment reward is still the
+normal delivery reward.
+
+Use `--random-food --random-hub --food-sources N` to randomize the colony
+location and split cookies across multiple random source tiles on each reset.
+
+For the current curriculum schedule, install the notebook extras and open
+`notebooks/train_mappo_curriculum.ipynb`:
+
+```bash
+python -m pip install -e ".[rl,notebooks]"
+jupyter notebook notebooks/train_mappo_curriculum.ipynb
+```
+
+The notebook contains the live curriculum settings, checkpoint warm-starting,
+and rollout video generation.
+
 ## Assets
 
 The repository includes generated placeholder sprites in
@@ -158,12 +202,13 @@ authors, source, and license.
 To replace them with real art, drop files named `ant.png`, `food.png`,
 `hub.png`, and `tile.png` into `ant_byte_env/assets/`.
 
-## Stable-Baselines3 Later
+## MAPPO Implementation Notes
 
-This environment uses a `Dict` observation space and a `MultiDiscrete` action
-space. For Stable-Baselines3 experiments, start with `MultiInputPolicy`, wrap or
-flatten observations if needed, and keep the centralized action vector shape
-`(2 * num_ants,)`.
+The environment still exposes a centralized Gymnasium `MultiDiscrete` action
+vector, but the trainer keeps the MAPPO view internally: local per-ant actor
+observations, a shared actor, and a centralized critic over the global state.
+TorchRL handles the clipped PPO objective, entropy/value losses, and
+multi-agent advantage estimation.
 
 ## Tests
 

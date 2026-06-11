@@ -20,6 +20,10 @@ ObsType = dict[str, np.ndarray]
 FOOD_COUNT_COLOR = (255, 250, 235)
 CARRIED_FOOD_COLOR = (188, 112, 45)
 CARRIED_FOOD_HIGHLIGHT = (239, 167, 82)
+DEFAULT_WRITE_BITS = 1
+MAX_WRITE_BITS = 8
+WRITE_VALUE_COUNT = 2
+MAX_WRITE_VALUE = WRITE_VALUE_COUNT - 1
 
 MOVE_STAY = 0
 MOVE_UP = 1
@@ -34,6 +38,18 @@ FACING_ROTATIONS = {
     MOVE_DOWN: -90,
     MOVE_LEFT: 180,
 }
+
+
+def write_value_count(write_bits: int) -> int:
+    """Return the number of discrete values representable by ``write_bits``."""
+
+    return 1 << int(write_bits)
+
+
+def max_write_value(write_bits: int) -> int:
+    """Return the largest integer value representable by ``write_bits``."""
+
+    return write_value_count(write_bits) - 1
 
 
 def food_alpha(remaining: int, initial: int) -> int:
@@ -80,6 +96,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         random_food: bool = True,
         step_penalty: float = 0.0,
         write_penalty: float = 0.0,
+        write_bits: int = DEFAULT_WRITE_BITS,
         seed: int | None = None,
     ) -> None:
         self._validate_constructor_args(
@@ -93,6 +110,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             tile_size=tile_size,
             step_penalty=step_penalty,
             write_penalty=write_penalty,
+            write_bits=write_bits,
         )
 
         self.width = width
@@ -106,11 +124,14 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.random_food = random_food
         self.step_penalty = step_penalty
         self.write_penalty = write_penalty
+        self.write_bits = int(write_bits)
+        self.write_value_count = write_value_count(self.write_bits)
+        self.max_write_value = max_write_value(self.write_bits)
         self._constructor_seed = seed
         self._has_reset = False
 
         max_coord = max(width, height)
-        self.action_space = spaces.MultiDiscrete([5, 256] * num_ants)
+        self.action_space = spaces.MultiDiscrete([5, self.write_value_count] * num_ants)
         self.observation_space = spaces.Dict(
             {
                 "ants_pos": spaces.Box(
@@ -128,7 +149,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                 ),
                 "bytes": spaces.Box(
                     low=0,
-                    high=255,
+                    high=self.max_write_value,
                     shape=(height, width),
                     dtype=np.uint8,
                 ),
@@ -200,7 +221,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
         for ant_index in range(self.num_ants):
             move = int(flat_action[2 * ant_index])
-            write_byte = int(flat_action[2 * ant_index + 1])
+            write_bit = int(flat_action[2 * ant_index + 1])
             next_pos = self._move_position(self.ants_pos[ant_index], move)
             if move != MOVE_STAY:
                 self.ants_facing[ant_index] = move
@@ -225,7 +246,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             if tile_key in written_tiles:
                 num_overwrites += 1
             written_tiles.add(tile_key)
-            self.bytes[y_pos, x_pos] = np.uint8(write_byte)
+            self.bytes[y_pos, x_pos] = np.uint8(write_bit)
             num_writes += 1
 
         reward -= self.write_penalty * num_writes
@@ -283,6 +304,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         tile_size: int,
         step_penalty: float,
         write_penalty: float,
+        write_bits: int,
     ) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("width and height must be positive.")
@@ -300,6 +322,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             raise ValueError("step_penalty must be non-negative.")
         if write_penalty < 0:
             raise ValueError("write_penalty must be non-negative.")
+        if (
+            not isinstance(write_bits, (int, np.integer))
+            or write_bits <= 0
+            or write_bits > MAX_WRITE_BITS
+        ):
+            raise ValueError(f"write_bits must be an integer from 1 to {MAX_WRITE_BITS}.")
         if render_mode is not None and render_mode not in AntByteForagingEnv.metadata["render_modes"]:
             raise ValueError(f"Unsupported render_mode: {render_mode!r}.")
 
@@ -382,8 +410,10 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         writes = flat_action[1::2]
         if np.any(moves < MOVE_STAY) or np.any(moves > MOVE_LEFT):
             raise ValueError("movement actions must be integers from 0 to 4.")
-        if np.any(writes < 0) or np.any(writes > 255):
-            raise ValueError("write actions must be integers from 0 to 255.")
+        if np.any(writes < 0) or np.any(writes > self.max_write_value):
+            raise ValueError(
+                f"write actions must be integers from 0 to {self.max_write_value}."
+            )
         return flat_action
 
     def _move_position(self, position: np.ndarray, move: int) -> np.ndarray:
@@ -463,8 +493,9 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         if byte_value == 0:
             return
 
+        ratio = byte_value / max(float(self.max_write_value), 1.0)
         overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
-        overlay.fill((byte_value, 92, 255 - byte_value, min(96, 28 + byte_value // 3)))
+        overlay.fill((int(40 + 180 * ratio), 92, int(255 - 120 * ratio), 96))
         self._canvas.blit(overlay, rect.topleft)
         label = self._font.render(str(byte_value), True, (24, 31, 36))
         self._canvas.blit(label, (rect.x + 2, rect.y + 1))
