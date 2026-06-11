@@ -343,7 +343,11 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
     }
 
 
-def main(argv: list[str] | None = None) -> dict[str, float]:
+def main(
+    argv: list[str] | None = None,
+    *,
+    progress_callback: Any | None = None,
+) -> dict[str, float]:
     args = parse_args(argv)
     key = jax.random.PRNGKey(args.seed)
     run_name = f"{args.exp_name}__seed_{args.seed}__{int(time.time())}"
@@ -445,6 +449,8 @@ def main(argv: list[str] | None = None) -> dict[str, float]:
             "global_step": float(global_step),
             "learning_rate": float(learning_rate),
         }
+        if progress_callback is not None:
+            progress_callback(update, num_updates, final_metrics)
         if not args.quiet:
             print(
                 "update={update}/{num_updates} step={step} loss={loss:.4f} "

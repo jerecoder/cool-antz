@@ -106,10 +106,12 @@ def test_jax_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
 
 
 def test_tiny_jax_mappo_training_run_completes() -> None:
+    progress_updates = []
+
     metrics = main(
         [
             "--total-timesteps",
-            "4",
+            "8",
             "--num-envs",
             "1",
             "--num-steps",
@@ -135,10 +137,14 @@ def test_tiny_jax_mappo_training_run_completes() -> None:
             "--seed",
             "7",
             "--quiet",
-        ]
+        ],
+        progress_callback=lambda update, total, row: progress_updates.append(
+            (update, total, row["global_step"])
+        ),
     )
 
-    assert metrics["global_step"] == 4
+    assert metrics["global_step"] == 8
+    assert progress_updates == [(1, 2, 4.0), (2, 2, 8.0)]
     assert np.isfinite(metrics["loss"])
     assert np.isfinite(metrics["policy_loss"])
     assert np.isfinite(metrics["value_loss"])
