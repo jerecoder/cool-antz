@@ -17,7 +17,7 @@ from ant_byte_env.sprites import load_sprites
 
 ObsType = dict[str, np.ndarray]
 
-FOOD_COUNT_COLOR = (70, 37, 20)
+FOOD_COUNT_COLOR = (255, 250, 235)
 CARRIED_FOOD_COLOR = (188, 112, 45)
 CARRIED_FOOD_HIGHLIGHT = (239, 167, 82)
 
