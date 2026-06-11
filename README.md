@@ -100,6 +100,11 @@ step, ants are processed in index order. If several ants write to the same tile
 in the same step, later ants overwrite earlier ants, and the overwrite count is
 reported in `info["num_overwrites"]`.
 
+The colony hub and any tile that has food at the moment an ant lands there are
+unwritable. Attempts to write those tiles are ignored and are not counted in
+`info["num_writes"]`. If a food source is depleted, that tile becomes writable
+on later steps.
+
 ## Random Rollout
 
 ```bash

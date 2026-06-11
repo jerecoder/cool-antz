@@ -66,9 +66,9 @@ def test_action_space_sample_runs_for_twenty_steps() -> None:
 
 def test_byte_write_updates_grid() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, seed=3)
-    env.reset(seed=3)
+    env.reset(seed=3, options={"hub_pos": (0, 0)})
 
-    obs, _, _, _, info = env.step(np.array([0, 137], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 137], dtype=np.int64))
 
     ant_x, ant_y = obs["ants_pos"][0]
     assert obs["bytes"][ant_y, ant_x] == 137
@@ -79,13 +79,52 @@ def test_byte_write_updates_grid() -> None:
 
 def test_multiple_ants_on_same_tile_record_overwrites() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=3, food_count=0)
-    env.reset(seed=13, options={"hub_pos": (1, 1)})
+    env.reset(seed=13, options={"hub_pos": (0, 1)})
 
-    obs, _, _, _, info = env.step(np.array([0, 10, 0, 20, 0, 30], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 10, 2, 20, 2, 30], dtype=np.int64))
 
     assert obs["bytes"][1, 1] == 30
     assert info["num_writes"] == 3
     assert info["num_overwrites"] == 2
+    env.close()
+
+
+def test_hub_tile_is_unwritable() -> None:
+    env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=0)
+    env.reset(seed=37, options={"hub_pos": (1, 1)})
+
+    obs, _, _, _, info = env.step(np.array([0, 99], dtype=np.int64))
+
+    assert obs["bytes"][1, 1] == 0
+    assert info["num_writes"] == 0
+    assert info["num_overwrites"] == 0
+    env.close()
+
+
+def test_food_tile_is_unwritable_while_bitten() -> None:
+    env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=1)
+    env.reset(seed=41, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
+
+    obs, _, _, _, info = env.step(np.array([2, 123], dtype=np.int64))
+
+    assert obs["ants_carrying"][0] == 1
+    assert obs["food"][0, 1] == 0
+    assert obs["bytes"][0, 1] == 0
+    assert info["num_writes"] == 0
+    env.close()
+
+
+def test_depleted_food_tile_becomes_writable_afterward() -> None:
+    env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=1)
+    env.reset(seed=43, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
+
+    env.step(np.array([2, 123], dtype=np.int64))
+    env.step(np.array([4, 0], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([2, 77], dtype=np.int64))
+
+    assert obs["food"][0, 1] == 0
+    assert obs["bytes"][0, 1] == 77
+    assert info["num_writes"] == 1
     env.close()
 
 

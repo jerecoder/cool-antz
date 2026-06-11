@@ -207,14 +207,19 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             self.ants_pos[ant_index] = next_pos
 
             x_pos, y_pos = int(next_pos[0]), int(next_pos[1])
-            if not self.ants_carrying[ant_index] and self.food[y_pos, x_pos] > 0:
+            tile_had_food = self.food[y_pos, x_pos] > 0
+            tile_is_hub = self._is_hub_position(x_pos=x_pos, y_pos=y_pos)
+            if not self.ants_carrying[ant_index] and tile_had_food:
                 self.food[y_pos, x_pos] -= 1
                 self.ants_carrying[ant_index] = True
 
-            if self.ants_carrying[ant_index] and np.array_equal(next_pos, self.hub_pos):
+            if self.ants_carrying[ant_index] and tile_is_hub:
                 self.ants_carrying[ant_index] = False
                 self.delivered_food += 1
                 reward += 1.0
+
+            if tile_had_food or tile_is_hub:
+                continue
 
             tile_key = (x_pos, y_pos)
             if tile_key in written_tiles:
@@ -363,6 +368,9 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         if not (0 <= x_pos < self.width and 0 <= y_pos < self.height):
             raise ValueError(f"position {(x_pos, y_pos)!r} is outside the grid.")
         return np.array([x_pos, y_pos], dtype=np.int32)
+
+    def _is_hub_position(self, *, x_pos: int, y_pos: int) -> bool:
+        return x_pos == int(self.hub_pos[0]) and y_pos == int(self.hub_pos[1])
 
     def _validate_action(self, action: np.ndarray) -> np.ndarray:
         flat_action = np.asarray(action, dtype=np.int64).reshape(-1)
