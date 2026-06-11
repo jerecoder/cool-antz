@@ -101,6 +101,23 @@ def test_movement_stays_inside_grid_bounds() -> None:
     env.close()
 
 
+def test_ant_facing_tracks_last_non_stay_move() -> None:
+    env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=0)
+    env.reset(seed=29, options={"hub_pos": (1, 1)})
+
+    assert env.ants_facing.tolist() == [2]
+
+    env.step(np.array([1, 0], dtype=np.int64))
+    assert env.ants_facing.tolist() == [1]
+
+    env.step(np.array([0, 0], dtype=np.int64))
+    assert env.ants_facing.tolist() == [1]
+
+    env.step(np.array([4, 0], dtype=np.int64))
+    assert env.ants_facing.tolist() == [4]
+    env.close()
+
+
 def test_invalid_constructor_and_action_inputs_raise() -> None:
     for kwargs in (
         {"width": 0},

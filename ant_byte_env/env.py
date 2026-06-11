@@ -17,6 +17,20 @@ from ant_byte_env.sprites import load_sprites
 
 ObsType = dict[str, np.ndarray]
 
+MOVE_STAY = 0
+MOVE_UP = 1
+MOVE_RIGHT = 2
+MOVE_DOWN = 3
+MOVE_LEFT = 4
+DEFAULT_FACING = MOVE_RIGHT
+
+FACING_ROTATIONS = {
+    MOVE_UP: 90,
+    MOVE_RIGHT: 0,
+    MOVE_DOWN: -90,
+    MOVE_LEFT: 180,
+}
+
 
 def food_alpha(remaining: int, initial: int) -> int:
     """Return sprite alpha for a food source based on remaining bites."""
@@ -25,6 +39,23 @@ def food_alpha(remaining: int, initial: int) -> int:
         return 0
     ratio = min(1.0, max(0.0, remaining / initial))
     return int(72 + 183 * ratio)
+
+
+def facing_rotation_degrees(facing: int) -> int:
+    """Return Pygame rotation degrees for a sprite whose source art faces right."""
+
+    if facing not in FACING_ROTATIONS:
+        raise ValueError(f"Unsupported ant facing direction: {facing}.")
+    return FACING_ROTATIONS[facing]
+
+
+def rotate_ant_sprite(surface: pygame.Surface, facing: int) -> pygame.Surface:
+    """Rotate an ant sprite so it points in the given movement direction."""
+
+    rotated = pygame.transform.rotate(surface, facing_rotation_degrees(facing))
+    if rotated.get_size() == surface.get_size():
+        return rotated
+    return pygame.transform.smoothscale(rotated, surface.get_size())
 
 
 class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
@@ -108,6 +139,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
         self.hub_pos = np.zeros(2, dtype=np.int32)
         self.ants_pos = np.zeros((num_ants, 2), dtype=np.int32)
+        self.ants_facing = np.full(num_ants, DEFAULT_FACING, dtype=np.int8)
         self.ants_carrying = np.zeros(num_ants, dtype=bool)
         self.food = np.zeros((height, width), dtype=np.int32)
         self.initial_food = np.zeros((height, width), dtype=np.int32)
@@ -140,6 +172,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         reset_options = options or {}
         self.hub_pos = self._resolve_hub_pos(reset_options)
         self.ants_pos = np.repeat(self.hub_pos.reshape(1, 2), self.num_ants, axis=0)
+        self.ants_facing = np.full(self.num_ants, DEFAULT_FACING, dtype=np.int8)
         self.ants_carrying = np.zeros(self.num_ants, dtype=bool)
         self.bytes = np.zeros((self.height, self.width), dtype=np.uint8)
         self.food = self._build_food_grid(reset_options)
@@ -165,6 +198,8 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             move = int(flat_action[2 * ant_index])
             write_byte = int(flat_action[2 * ant_index + 1])
             next_pos = self._move_position(self.ants_pos[ant_index], move)
+            if move != MOVE_STAY:
+                self.ants_facing[ant_index] = move
             self.ants_pos[ant_index] = next_pos
 
             x_pos, y_pos = int(next_pos[0]), int(next_pos[1])
@@ -333,7 +368,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             )
         moves = flat_action[0::2]
         writes = flat_action[1::2]
-        if np.any(moves < 0) or np.any(moves > 4):
+        if np.any(moves < MOVE_STAY) or np.any(moves > MOVE_LEFT):
             raise ValueError("movement actions must be integers from 0 to 4.")
         if np.any(writes < 0) or np.any(writes > 255):
             raise ValueError("write actions must be integers from 0 to 255.")
@@ -341,13 +376,13 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
     def _move_position(self, position: np.ndarray, move: int) -> np.ndarray:
         x_pos, y_pos = int(position[0]), int(position[1])
-        if move == 1:
+        if move == MOVE_UP:
             y_pos -= 1
-        elif move == 2:
+        elif move == MOVE_RIGHT:
             x_pos += 1
-        elif move == 3:
+        elif move == MOVE_DOWN:
             y_pos += 1
-        elif move == 4:
+        elif move == MOVE_LEFT:
             x_pos -= 1
         return np.array(
             [
@@ -449,7 +484,11 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                     )
 
         for ant_index, position in enumerate(self.ants_pos):
-            self._blit_tile_sprite("ant", position)
+            ant_sprite = rotate_ant_sprite(
+                self._sprites["ant"],
+                int(self.ants_facing[ant_index]),
+            )
+            self._blit_tile_surface(ant_sprite, position)
             if self.ants_carrying[ant_index]:
                 self._draw_carried_food_marker(position)
 
