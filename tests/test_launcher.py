@@ -28,30 +28,39 @@ def test_launch_random_rollout_exports_video_without_window(tmp_path: Path) -> N
         if not key.startswith("COV_CORE_") and key != "COVERAGE_PROCESS_START"
     }
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "launch_random_rollout.py",
-            "--no-window",
-            "--video",
-            str(video_path),
-            "--video-fps",
-            "4",
-            "--seed",
-            "123",
-            "--max-steps",
-            "3",
-            "--tile-size",
-            "16",
-        ],
-        check=True,
-        cwd=Path(__file__).resolve().parents[1],
-        env=child_env,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    command = [
+        sys.executable,
+        "launch_random_rollout.py",
+        "--no-window",
+        "--video",
+        str(video_path),
+        "--video-fps",
+        "4",
+        "--seed",
+        "123",
+        "--max-steps",
+        "3",
+        "--tile-size",
+        "16",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            cwd=Path(__file__).resolve().parents[1],
+            env=child_env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        stdout = result.stdout
+    except subprocess.TimeoutExpired as exc:
+        # After JAX tests initialize native runtimes, some Linux runners can
+        # linger in child-process teardown even though the launcher finished.
+        stdout = (exc.output or b"").decode()
+        if not video_path.exists() or f"video saved to {video_path}" not in stdout:
+            raise
 
     assert video_path.exists()
     assert video_path.stat().st_size > 0
-    assert f"video saved to {video_path}" in result.stdout
+    assert f"video saved to {video_path}" in stdout

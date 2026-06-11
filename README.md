@@ -60,6 +60,28 @@ state, obs, reward, terminated, truncated, info = step(
 The JAX core mirrors the Gymnasium dynamics but does not render. It is designed
 for `jax.jit`, `jax.vmap`, and rollout loops built with `jax.lax.scan`.
 
+## JAX MAPPO Training
+
+`train_mappo_jax.py` runs the same MAPPO-style setup with a JAX rollout loop,
+shared per-ant actor heads, a centralized critic, GAE, PPO clipping, and a
+small built-in Adam optimizer. It uses the JAX environment core directly, so
+rollouts and updates are JIT compiled without TorchRL or PyTorch.
+
+```bash
+python train_mappo_jax.py \
+  --total-timesteps 100000 \
+  --num-envs 64 \
+  --num-steps 128 \
+  --num-ants 1 \
+  --width 5 \
+  --height 5 \
+  --food-count 4 \
+  --write-bits 1
+```
+
+Use `--save-model checkpoints/jax-mappo.pkl` and `--load-model` to checkpoint
+and resume JAX params, optimizer state, and run metadata.
+
 ## Action Space
 
 For `num_ants = N`, the action space is:
