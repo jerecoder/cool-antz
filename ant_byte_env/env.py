@@ -17,6 +17,10 @@ from ant_byte_env.sprites import load_sprites
 
 ObsType = dict[str, np.ndarray]
 
+FOOD_COUNT_COLOR = (70, 37, 20)
+CARRIED_FOOD_COLOR = (188, 112, 45)
+CARRIED_FOOD_HIGHLIGHT = (239, 167, 82)
+
 MOVE_STAY = 0
 MOVE_UP = 1
 MOVE_RIGHT = 2
@@ -474,7 +478,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                 food_sprite.set_alpha(food_alpha(food_amount, initial_amount))
                 self._blit_tile_surface(food_sprite, position)
                 if food_amount > 1:
-                    label = self._font.render(str(food_amount), True, (23, 87, 38))
+                    label = self._font.render(str(food_amount), True, FOOD_COUNT_COLOR)
                     self._canvas.blit(
                         label,
                         (
@@ -512,5 +516,15 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             x_pos * self.tile_size + 3 * self.tile_size // 4,
             y_pos * self.tile_size + self.tile_size // 4,
         )
-        pygame.draw.circle(self._canvas, (42, 178, 83), center, max(3, self.tile_size // 7))
-        pygame.draw.circle(self._canvas, (231, 248, 183), center, max(1, self.tile_size // 12))
+        pygame.draw.circle(
+            self._canvas,
+            CARRIED_FOOD_COLOR,
+            center,
+            max(3, self.tile_size // 7),
+        )
+        pygame.draw.circle(
+            self._canvas,
+            CARRIED_FOOD_HIGHLIGHT,
+            center,
+            max(1, self.tile_size // 12),
+        )
