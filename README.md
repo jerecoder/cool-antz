@@ -107,6 +107,10 @@ on later steps.
 
 ## Random Rollout
 
+<video src="docs/media/random-rollout.mp4" controls width="576"></video>
+
+[Watch or download the demo video](docs/media/random-rollout.mp4)
+
 ```bash
 ./launch_random_rollout.py
 ```
