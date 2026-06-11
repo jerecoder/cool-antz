@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,11 @@ def test_launch_random_rollout_defaults_use_larger_random_map(monkeypatch) -> No
 
 def test_launch_random_rollout_exports_video_without_window(tmp_path: Path) -> None:
     video_path = tmp_path / "rollout.mp4"
+    child_env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("COV_CORE_") and key != "COVERAGE_PROCESS_START"
+    }
 
     result = subprocess.run(
         [
@@ -40,8 +46,10 @@ def test_launch_random_rollout_exports_video_without_window(tmp_path: Path) -> N
         ],
         check=True,
         cwd=Path(__file__).resolve().parents[1],
+        env=child_env,
         capture_output=True,
         text=True,
+        timeout=10,
     )
 
     assert video_path.exists()

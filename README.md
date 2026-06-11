@@ -33,6 +33,33 @@ You can also import the class directly:
 from ant_byte_env import AntByteForagingEnv
 ```
 
+## JAX Core
+
+For vectorized training, install the JAX extra and use the pure functional core:
+
+```bash
+python -m pip install -e ".[jax]"
+```
+
+```python
+import jax
+import jax.numpy as jnp
+
+from ant_byte_env.jax_env import JaxAntByteForagingEnv
+
+env = JaxAntByteForagingEnv(width=5, height=5, num_ants=2, food_count=4)
+state, obs, info = env.reset(jax.random.PRNGKey(0))
+
+step = jax.jit(env.step)
+state, obs, reward, terminated, truncated, info = step(
+    state,
+    jnp.array([0, 0, 2, 1], dtype=jnp.int32),
+)
+```
+
+The JAX core mirrors the Gymnasium dynamics but does not render. It is designed
+for `jax.jit`, `jax.vmap`, and rollout loops built with `jax.lax.scan`.
+
 ## Action Space
 
 For `num_ants = N`, the action space is:
