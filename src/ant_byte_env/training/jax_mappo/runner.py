@@ -13,7 +13,6 @@ from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
 from ant_byte_env.training.jax_mappo.checkpointing import (
     checkpoint_args,
-    load_checkpoint,
     save_checkpoint,
 )
 from ant_byte_env.training.jax_mappo.cli import parse_args
@@ -28,6 +27,7 @@ from ant_byte_env.training.jax_mappo.core import (
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.rollout import collect_rollout
+from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
 
 def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
@@ -116,10 +116,12 @@ def main(
     )
     opt_state = init_adam_state(params)
     if args.load_model is not None:
-        checkpoint = load_checkpoint(
+        checkpoint = load_checkpoint_for_training(
             args.load_model,
             central_obs_dim=central_obs_dim,
             actor_obs_dim=actor_obs_dim,
+            target_write_bits=args.write_bits,
+            actor_vision_radius=args.actor_vision_radius,
         )
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]

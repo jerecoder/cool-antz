@@ -47,6 +47,30 @@ def test_cli_dry_run_validates_config_and_overrides(capsys: pytest.CaptureFixtur
     assert payload["resolved_args"]["total_timesteps"] == 8
 
 
+def test_jax_cli_dry_run_validates_without_jax_backend(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = cli_main(
+        [
+            "train",
+            "jax",
+            "--config",
+            "experiments/communication_bits.json",
+            "--dry-run",
+            "--",
+            "--total-timesteps",
+            "8",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["backend"] == "jax"
+    assert payload["experiment"] == "communication_bits"
+    assert payload["resolved_args"]["load_model"].endswith(
+        "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_15x15.pkl"
+    )
+    assert payload["resolved_args"]["total_timesteps"] == 8
+
+
 def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:
     run_dir = prepare_run_dir(tmp_path, "demo", run_id="fixed")
 

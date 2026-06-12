@@ -65,7 +65,7 @@ def _run_train(args: argparse.Namespace, overrides: list[str]) -> int:
         )
 
     training_argv = resolve_training_argv(args.config, overrides)
-    parse_args, runner = _backend_entrypoints(args.backend)
+    parse_args = _backend_parse_args(args.backend)
     if not args.dry_run and "--run-dir" not in training_argv:
         run_dir = prepare_run_dir(args.run_root, spec.name)
         training_argv.extend(["--run-dir", str(run_dir)])
@@ -87,22 +87,33 @@ def _run_train(args: argparse.Namespace, overrides: list[str]) -> int:
         )
         return 0
 
+    runner = _backend_runner(args.backend)
     metrics = runner(training_argv)
     print(json.dumps(_jsonable_metrics(metrics), sort_keys=True))
     return 0
 
 
-def _backend_entrypoints(backend: str) -> tuple[Any, Any]:
+def _backend_parse_args(backend: str) -> Any:
     if backend == "torch":
         from ant_byte_env.training.torch_mappo.cli import parse_args
-        from ant_byte_env.training.torch_mappo.runner import main
 
-        return parse_args, main
+        return parse_args
     if backend == "jax":
         from ant_byte_env.training.jax_mappo.cli import parse_args
+
+        return parse_args
+    raise ValueError("backend must be 'torch' or 'jax'.")
+
+
+def _backend_runner(backend: str) -> Any:
+    if backend == "torch":
+        from ant_byte_env.training.torch_mappo.runner import main
+
+        return main
+    if backend == "jax":
         from ant_byte_env.training.jax_mappo.runner import main
 
-        return parse_args, main
+        return main
     raise ValueError("backend must be 'torch' or 'jax'.")
 
 

@@ -59,12 +59,17 @@ def load_checkpoint(
     central_obs_dim: int,
     actor_obs_dim: int,
 ) -> dict[str, Any]:
-    with path.open("rb") as checkpoint_file:
-        checkpoint = pickle.load(checkpoint_file)
+    checkpoint = read_checkpoint(path)
     if int(checkpoint["central_obs_dim"]) != central_obs_dim:
         raise ValueError("Checkpoint central observation dimension does not match this run.")
     if int(checkpoint["actor_obs_dim"]) != actor_obs_dim:
         raise ValueError("Checkpoint actor observation dimension does not match this run.")
+    return checkpoint
+
+
+def read_checkpoint(path: Path) -> dict[str, Any]:
+    with path.open("rb") as checkpoint_file:
+        checkpoint = pickle.load(checkpoint_file)
     checkpoint["params"] = _jax_tree(checkpoint["params"])
     checkpoint["opt_state"] = _jax_tree(checkpoint["opt_state"])
     return checkpoint

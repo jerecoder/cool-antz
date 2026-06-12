@@ -88,6 +88,11 @@ directories. The `ant-byte` console command validates configs, creates run
 folders, writes `config.json`, appends `metrics.jsonl`, writes `summary.json`,
 and saves checkpoints under each run.
 
+The communication-bit experiment is initialized from
+`runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_15x15.pkl`,
+the latest one-bit `15x15` policy produced by the forage curriculum notebook,
+then transfers through the configured wider write-bit stages.
+
 From an editable install:
 
 ```bash

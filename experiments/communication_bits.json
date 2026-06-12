@@ -23,6 +23,7 @@
     "distance_bonus": 0.02,
     "hidden_size": 128,
     "write_bits": 2,
+    "load_model": "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_15x15.pkl",
     "seed": 1,
     "quiet": true,
     "random_food": true,
@@ -31,6 +32,7 @@
   "metadata": {
     "bit_stages": [2, 3, 5, 8],
     "global_update_cap": 2000,
-    "notes": "Each bit stage trains through the packaged JAX MAPPO runner and writes outputs under runs/."
+    "source_checkpoint": "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_15x15.pkl",
+    "notes": "Communication training starts from the latest 15x15 one-bit policy produced by the forage curriculum notebook, then transfers through the configured bit stages."
   }
 }

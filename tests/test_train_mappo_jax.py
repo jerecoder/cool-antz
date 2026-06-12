@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+
 import numpy as np
 import pytest
 
@@ -13,11 +15,16 @@ from ant_byte_env.training.jax_mappo import (
     compute_gae,
     flatten_agent_actions,
     get_action_and_value,
+    init_adam_state,
     init_agent_params,
+    load_checkpoint_for_training,
     main,
     parse_args,
+    repeated_write_action_indices,
+    save_checkpoint,
     write_value_count,
 )
+from ant_byte_env.training.jax_mappo.transfer import actor_obs_dim_for_bits
 
 
 def _batched_reset_obs() -> dict[str, jax.Array]:
@@ -90,6 +97,65 @@ def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     assert flat_actions.shape == (1, 4)
     assert bool(jnp.all((0 <= actions[..., 0]) & (actions[..., 0] <= 4)))
     assert bool(jnp.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7)))
+
+
+def test_jax_checkpoint_transfer_expands_write_bits(tmp_path) -> None:
+    source_bits = 1
+    target_bits = 3
+    radius = 1
+    hidden_size = 8
+    central_obs_dim = 12
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=source_bits,
+        actor_vision_radius=radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=target_bits,
+        actor_vision_radius=radius,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(source_bits),
+    )
+    source_path = tmp_path / "one_bit.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=source_bits,
+            actor_vision_radius=radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="one_bit",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=target_bits,
+        actor_vision_radius=radius,
+    )
+
+    transferred = checkpoint["params"]
+    assert transferred.actor_body[0].weight.shape == (target_actor_obs_dim, hidden_size)
+    assert transferred.write_head.weight.shape[-1] == write_value_count(target_bits)
+    np.testing.assert_array_equal(
+        np.asarray(repeated_write_action_indices(source_bits, target_bits)),
+        np.array([0, 1, 0, 1, 0, 1, 0, 1]),
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.weight[:, :2]),
+        np.asarray(source_params.write_head.weight),
+    )
+    assert checkpoint["opt_state"].count.shape == ()
 
 
 def test_jax_gae_respects_done_boundaries() -> None:
