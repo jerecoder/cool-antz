@@ -4,7 +4,7 @@
   "description": "15x15 JAX MAPPO communication-bit curriculum using warm-started write heads.",
   "args": {
     "exp_name": "jax_mappo_communication",
-    "total_timesteps": 128000,
+    "total_timesteps": 2560000,
     "num_envs": 16,
     "num_steps": 80,
     "num_minibatches": 4,

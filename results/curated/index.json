@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "description": "Small curated registry of representative AntByte experiment artifacts. Bulk files live under ignored runs/legacy/ and are not committed.",
+  "entries": [
+    {
+      "id": "final-jax-15x15-comparison",
+      "source_entry": "runs/legacy/vault/20260611T233723Z",
+      "title": "Final JAX 15x15 and pre-JAX MAPPO rollouts",
+      "created_at": "2026-06-11T23:37:23.007200Z",
+      "summary": "Final JAX 15x15 checkpoint and rollout, plus older Torch MAPPO rollout videos for curriculum stages 4x4 through 15x15.",
+      "primary_assets": [
+        "jax_mappo_forage_stage1_15x15.pkl",
+        "jax_mappo_forage_stage1_15x15_rollout.gif",
+        "jax_mappo_forage_stage1_15x15_rollout.mp4"
+      ],
+      "metadata": {
+        "jax_final_stage": "15x15",
+        "prejax_rollout_count": 12
+      }
+    },
+    {
+      "id": "jax-communication-bit-curriculum",
+      "source_entry": "runs/legacy/vault/20260611T234926Z",
+      "title": "JAX MAPPO communication-bit curriculum",
+      "created_at": "2026-06-11T23:49:26.377216Z",
+      "summary": "Rollout GIFs for 15x15 JAX MAPPO policies trained with progressively larger writable communication alphabets.",
+      "primary_assets": [
+        "jax_mappo_15x15_2_bits_rollout.gif",
+        "jax_mappo_15x15_3_bits_rollout.gif",
+        "jax_mappo_15x15_5_bits_rollout.gif",
+        "jax_mappo_15x15_8_bits_rollout.gif"
+      ],
+      "metadata": {
+        "bit_stages": [2, 3, 5, 8],
+        "recorded_global_update_cap": 100,
+        "current_config_global_update_cap": 2000
+      }
+    }
+  ]
+}

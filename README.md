@@ -80,27 +80,33 @@ state, obs, reward, terminated, truncated, info = step(
 The JAX core mirrors the Gymnasium dynamics but does not render. It is designed
 for `jax.jit`, `jax.vmap`, and rollout loops built with `jax.lax.scan`.
 
-## JAX MAPPO Training
+## Research Workflow
 
-`train_mappo_jax.py` runs the same MAPPO-style setup with a JAX rollout loop,
-shared per-ant actor heads, a centralized critic, GAE, PPO clipping, and a
-small built-in Adam optimizer. It uses the JAX environment core directly, so
-rollouts and updates are JIT compiled without TorchRL or PyTorch.
+Training code lives under `src/ant_byte_env/training/`, experiment definitions
+live in `experiments/`, and generated artifacts go to ignored `runs/`
+directories. The `ant-byte` console command validates configs, creates run
+folders, writes `config.json`, appends `metrics.jsonl`, writes `summary.json`,
+and saves checkpoints under each run.
+
+From an editable install:
 
 ```bash
-python train_mappo_jax.py \
-  --total-timesteps 100000 \
-  --num-envs 64 \
-  --num-steps 128 \
-  --num-ants 1 \
-  --width 5 \
-  --height 5 \
-  --food-count 4 \
-  --write-bits 1
+ant-byte train torch --config experiments/smoke.json --dry-run
+ant-byte train torch --config experiments/smoke.json
+ant-byte train jax --config experiments/forage_curriculum.json --dry-run
 ```
 
-Use `--save-model checkpoints/jax-mappo.pkl` and `--load-model` to checkpoint
-and resume JAX params, optimizer state, and run metadata.
+From a source checkout without reinstalling, prefix commands with
+`PYTHONPATH=src`.
+
+Render a saved checkpoint with:
+
+```bash
+ant-byte render --checkpoint runs/.../checkpoints/model.pt --output runs/.../media/rollout.mp4
+```
+
+Curated result metadata lives in `results/curated/`. Bulk legacy artifacts were
+preserved under ignored `runs/legacy/`.
 
 ## Action Space
 
@@ -222,26 +228,13 @@ For headless export without opening a Pygame window:
 
 ## MAPPO Curriculum
 
-The training script uses TorchRL's MAPPO loss and multi-agent GAE. The shared
-actor chooses a joint `(move, write_value)` action for each ant. Each actor
-observation is coordinate-free and local: food values, the local write bit-plane
-patches, a colony mask, an out-of-bounds border mask in the ant's vision square,
-and that ant's carrying flag.
-The centralized critic still receives the padded global map state. Use
-`--write-bits` to choose how many bits each ant can write; the notebook starts
-with `1`.
-
-```bash
-python train_mappo.py \
-  --total-timesteps 100000 \
-  --num-envs 8 \
-  --num-steps 128 \
-  --num-ants 1 \
-  --width 5 \
-  --height 5 \
-  --food-count 4 \
-  --write-bits 1
-```
+The Torch and JAX MAPPO trainers use a shared project structure but backend
+specific modules. The shared actor chooses a joint `(move, write_value)` action
+for each ant. Each actor observation is coordinate-free and local: food values,
+local write bit-plane patches, a colony mask, an out-of-bounds border mask in
+the ant's vision square, and that ant's carrying flag. The centralized critic
+still receives the padded global map state. Use `--write-bits` to choose how
+many bits each ant can write.
 
 By default this stage fixes one cookie source near the hub and adds small
 curriculum rewards for picking up a bite and moving closer to the current target
@@ -251,26 +244,26 @@ normal delivery reward.
 Use `--random-food --random-hub --food-sources N` to randomize the colony
 location and split cookies across multiple random source tiles on each reset.
 
-For the current curriculum schedule, install the notebook extras and open
-`notebooks/train_mappo_curriculum.ipynb`:
+For the current curriculum schedule, install the JAX and notebook extras and
+open `notebooks/train_mappo_curriculum.ipynb`:
 
 ```bash
-python -m pip install -e ".[rl,notebooks]"
+python -m pip install -e ".[jax,rl,notebooks]"
 jupyter notebook notebooks/train_mappo_curriculum.ipynb
 ```
 
-The notebook contains the live curriculum settings, checkpoint warm-starting,
-and rollout video generation.
+The notebooks now call package utilities for trainer code and rendering. Their
+generated checkpoints and media write under `runs/notebooks/`.
 
 ## Assets
 
 The repository includes generated placeholder sprites in
-`ant_byte_env/assets/`. They are simple CC0-compatible project assets so the
+`src/ant_byte_env/assets/`. They are simple CC0-compatible project assets so the
 environment works out of the box. See `ASSET_CREDITS.md` for exact asset names,
 authors, source, and license.
 
 To replace them with real art, drop files named `ant.png`, `food.png`,
-`hub.png`, and `tile.png` into `ant_byte_env/assets/`.
+`hub.png`, and `tile.png` into `src/ant_byte_env/assets/`.
 
 ## MAPPO Implementation Notes
 
@@ -283,5 +276,17 @@ multi-agent advantage estimation.
 ## Tests
 
 ```bash
-python -m pytest
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -o addopts=''
+```
+
+Coverage is explicit:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -p pytest_cov --cov
+```
+
+JAX tests require the optional JAX extra:
+
+```bash
+python -m pip install -e ".[jax,dev]"
 ```
