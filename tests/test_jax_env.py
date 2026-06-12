@@ -26,10 +26,14 @@ def test_jax_reset_matches_env_observation_contract() -> None:
     )
 
     assert state.ants_pos.shape == (2, 2)
+    assert state.ants_count.shape == (3, 4)
     assert obs["ants_pos"].shape == (2, 2)
+    assert obs["ants_count"].shape == (3, 4)
     assert obs["food"].shape == (3, 4)
     assert obs["bytes"].shape == (3, 4)
     np.testing.assert_array_equal(np.asarray(obs["hub_pos"]), np.array([0, 0]))
+    assert int(obs["ants_count"][0, 0]) == 2
+    assert int(jnp.sum(obs["ants_count"])) == 2
     assert int(info.remaining_food) == 3
     assert int(info.num_writes) == 0
 
@@ -162,6 +166,8 @@ def test_jax_write_bits_control_action_range_and_overwrites() -> None:
     )
 
     np.testing.assert_array_equal(np.asarray(env.action_nvec), np.array([5, 8, 5, 8, 5, 8]))
+    assert int(obs["ants_count"][1, 1]) == 3
+    assert int(jnp.sum(obs["ants_count"])) == 3
     assert int(obs["bytes"][1, 1]) == 3
     assert int(info.num_writes) == 3
     assert int(info.num_overwrites) == 2
@@ -177,6 +183,8 @@ def test_jax_step_can_be_jitted_and_vmapped() -> None:
     next_states, obs, reward, terminated, truncated, info = step_fn(states, actions)
 
     assert next_states.ants_pos.shape == (2, 1, 2)
+    assert next_states.ants_count.shape == (2, 3, 3)
+    assert obs["ants_count"].shape == (2, 3, 3)
     assert obs["bytes"].shape == (2, 3, 3)
     np.testing.assert_array_equal(np.asarray(reward), np.array([0.0, 0.0], dtype=np.float32))
     np.testing.assert_array_equal(np.asarray(terminated), np.array([True, True]))

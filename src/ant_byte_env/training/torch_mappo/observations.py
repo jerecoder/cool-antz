@@ -57,6 +57,19 @@ def _pad_grid(grid: torch.Tensor, *, height: int, width: int) -> torch.Tensor:
     return padded
 
 
+def _ants_count_grid(obs: TensorObs, *, height: int, width: int) -> torch.Tensor:
+    if "ants_count" in obs:
+        return obs["ants_count"].float()
+
+    ants_pos = obs["ants_pos"].long()
+    batch_size = ants_pos.shape[0]
+    counts = torch.zeros((batch_size, height, width), dtype=torch.float32, device=ants_pos.device)
+    for batch_index in range(batch_size):
+        for ant_x, ant_y in ants_pos[batch_index]:
+            counts[batch_index, int(ant_y), int(ant_x)] += 1.0
+    return counts
+
+
 def build_central_observations(
     obs: TensorObs,
     *,
@@ -73,6 +86,7 @@ def build_central_observations(
     food = obs["food"].float()
     bytes_grid = obs["bytes"].float()
     batch_size, _, _ = food.shape
+    ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
     current_height, current_width, target_height, target_width = (
         _resolve_observation_grid_shape(
             obs,
@@ -85,12 +99,18 @@ def build_central_observations(
         height=target_height,
         width=target_width,
     )
+    ants_count = _ants_count_grid(obs, height=current_height, width=current_width)
     hub_pos = _normalize_positions(
         obs["hub_pos"],
         height=target_height,
         width=target_width,
     )
     ants_carrying = obs["ants_carrying"].float()
+    ants_count_norm = _pad_grid(
+        ants_count / ant_count_scale,
+        height=target_height,
+        width=target_width,
+    )
     food_norm = _pad_grid(
         food / max(float(food_scale), 1.0),
         height=target_height,
@@ -114,6 +134,7 @@ def build_central_observations(
         [
             ants_pos.reshape(batch_size, -1),
             ants_carrying.reshape(batch_size, -1),
+            ants_count_norm.reshape(batch_size, -1),
             food_norm.reshape(batch_size, -1),
             bytes_norm.reshape(batch_size, -1),
             hub_pos.reshape(batch_size, -1),
@@ -141,6 +162,8 @@ def build_actor_observations(
 
     del obs_width, obs_height
     food = obs["food"].float()
+    ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
+    ants_count = _ants_count_grid(obs, height=food.shape[1], width=food.shape[2])
     own_carrying = obs["ants_carrying"].float().unsqueeze(-1)
     local_food = build_local_food_patches(
         food,
@@ -148,6 +171,12 @@ def build_actor_observations(
         radius=actor_vision_radius,
         food_scale=food_scale,
     )
+    local_ants_count = build_local_grid_patches(
+        ants_count,
+        obs["ants_pos"],
+        radius=actor_vision_radius,
+    )
+    local_ants_count = local_ants_count / ant_count_scale
     local_byte_bits = build_local_byte_bit_patches(
         obs["bytes"],
         obs["ants_pos"],
@@ -169,7 +198,7 @@ def build_actor_observations(
     )
 
     return torch.cat(
-        [local_food, local_byte_bits, local_hub, local_border, own_carrying],
+        [local_food, local_ants_count, local_byte_bits, local_hub, local_border, own_carrying],
         dim=-1,
     )
 

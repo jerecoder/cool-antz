@@ -25,6 +25,7 @@ from ant_byte_env.env import (
 class JaxAntState(NamedTuple):
     hub_pos: jax.Array
     ants_pos: jax.Array
+    ants_count: jax.Array
     ants_facing: jax.Array
     ants_carrying: jax.Array
     food: jax.Array
@@ -140,9 +141,11 @@ class JaxAntByteForagingEnv:
         actual_hub_pos = self._initial_hub_pos(hub_pos)
         food = self._initial_food_grid(key, actual_hub_pos, food_positions)
         ants_pos = jnp.repeat(actual_hub_pos.reshape(1, 2), self.num_ants, axis=0)
+        ants_count = self._build_ants_count_grid(ants_pos)
         state = JaxAntState(
             hub_pos=actual_hub_pos,
             ants_pos=ants_pos.astype(jnp.int32),
+            ants_count=ants_count,
             ants_facing=jnp.full((self.num_ants,), DEFAULT_FACING, dtype=jnp.int32),
             ants_carrying=jnp.zeros((self.num_ants,), dtype=jnp.bool_),
             food=food,
@@ -256,9 +259,11 @@ class JaxAntByteForagingEnv:
         ), _ = jax.lax.scan(scan_ant, init_carry, jnp.arange(self.num_ants))
 
         step_count = state.step_count + jnp.asarray(1, dtype=jnp.int32)
+        ants_count = self._build_ants_count_grid(ants_pos)
         next_state = JaxAntState(
             hub_pos=state.hub_pos,
             ants_pos=ants_pos,
+            ants_count=ants_count,
             ants_facing=ants_facing,
             ants_carrying=ants_carrying,
             food=food,
@@ -281,6 +286,7 @@ class JaxAntByteForagingEnv:
     def observe(self, state: JaxAntState) -> JaxObs:
         return {
             "ants_pos": state.ants_pos.astype(jnp.int32),
+            "ants_count": state.ants_count.astype(jnp.int32),
             "ants_carrying": state.ants_carrying.astype(jnp.int8),
             "food": state.food.astype(jnp.int32),
             "bytes": state.bytes.astype(jnp.uint8),
@@ -366,3 +372,10 @@ class JaxAntByteForagingEnv:
             ],
             dtype=jnp.int32,
         )
+
+    def _build_ants_count_grid(self, ants_pos: jax.Array) -> jax.Array:
+        ants_pos = ants_pos.astype(jnp.int32)
+        return jnp.zeros((self.height, self.width), dtype=jnp.int32).at[
+            ants_pos[:, 1],
+            ants_pos[:, 0],
+        ].add(1)

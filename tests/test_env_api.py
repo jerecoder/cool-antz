@@ -21,7 +21,10 @@ def test_reset_returns_obs_and_info() -> None:
         "num_overwrites": 0,
     }
     assert obs["ants_pos"].shape == (2, 2)
+    assert obs["ants_count"].shape == (4, 5)
     assert np.all(obs["ants_pos"] == obs["hub_pos"])
+    assert obs["ants_count"][obs["hub_pos"][1], obs["hub_pos"][0]] == 2
+    assert obs["ants_count"].sum() == 2
     env.close()
 
 
@@ -106,6 +109,8 @@ def test_multiple_ants_on_same_tile_record_overwrites() -> None:
 
     obs, _, _, _, info = env.step(np.array([2, 0, 2, 1, 2, 0], dtype=np.int64))
 
+    assert obs["ants_count"][1, 1] == 3
+    assert obs["ants_count"].sum() == 3
     assert obs["bytes"][1, 1] == 0
     assert info["num_writes"] == 3
     assert info["num_overwrites"] == 2

@@ -100,6 +100,20 @@ def _pad_grid(grid: jax.Array, *, height: int, width: int) -> jax.Array:
     return padded.at[:, : grid.shape[1], : grid.shape[2]].set(grid)
 
 
+def _ants_count_grid(obs: JaxObs, *, height: int, width: int) -> jax.Array:
+    if "ants_count" in obs:
+        return obs["ants_count"].astype(jnp.float32)
+
+    ants_pos = obs["ants_pos"].astype(jnp.int32)
+    batch_size = ants_pos.shape[0]
+    batch_index = jnp.arange(batch_size)[:, None]
+    return jnp.zeros((batch_size, height, width), dtype=jnp.float32).at[
+        batch_index,
+        ants_pos[..., 1],
+        ants_pos[..., 0],
+    ].add(1.0)
+
+
 def build_central_observations(
     obs: JaxObs,
     *,
@@ -114,14 +128,21 @@ def build_central_observations(
     food = obs["food"].astype(jnp.float32)
     bytes_grid = obs["bytes"].astype(jnp.float32)
     batch_size = food.shape[0]
+    ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
     current_height, current_width, target_height, target_width = _resolve_observation_grid_shape(
         obs,
         obs_height=obs_height,
         obs_width=obs_width,
     )
     ants_pos = _normalize_positions(obs["ants_pos"], height=target_height, width=target_width)
+    ants_count = _ants_count_grid(obs, height=current_height, width=current_width)
     hub_pos = _normalize_positions(obs["hub_pos"], height=target_height, width=target_width)
     ants_carrying = obs["ants_carrying"].astype(jnp.float32)
+    ants_count_norm = _pad_grid(
+        ants_count / ant_count_scale,
+        height=target_height,
+        width=target_width,
+    )
     food_norm = _pad_grid(
         food / max(float(food_scale), 1.0),
         height=target_height,
@@ -144,6 +165,7 @@ def build_central_observations(
         [
             ants_pos.reshape(batch_size, -1),
             ants_carrying.reshape(batch_size, -1),
+            ants_count_norm.reshape(batch_size, -1),
             food_norm.reshape(batch_size, -1),
             bytes_norm.reshape(batch_size, -1),
             hub_pos.reshape(batch_size, -1),
@@ -167,6 +189,8 @@ def build_actor_observations(
         raise ValueError("actor_vision_radius must be non-negative.")
 
     food = obs["food"].astype(jnp.float32)
+    ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
+    ants_count = _ants_count_grid(obs, height=food.shape[1], width=food.shape[2])
     own_carrying = obs["ants_carrying"].astype(jnp.float32)[..., None]
     local_food = build_local_grid_patches(
         food,
@@ -174,6 +198,12 @@ def build_actor_observations(
         radius=actor_vision_radius,
     )
     local_food = local_food / max(float(food_scale), 1.0)
+    local_ants_count = build_local_grid_patches(
+        ants_count,
+        obs["ants_pos"],
+        radius=actor_vision_radius,
+    )
+    local_ants_count = local_ants_count / ant_count_scale
     local_byte_bits = build_local_byte_bit_patches(
         obs["bytes"],
         obs["ants_pos"],
@@ -194,7 +224,7 @@ def build_actor_observations(
         radius=actor_vision_radius,
     )
     return jnp.concatenate(
-        [local_food, local_byte_bits, local_hub, local_border, own_carrying],
+        [local_food, local_ants_count, local_byte_bits, local_hub, local_border, own_carrying],
         axis=-1,
     )
 

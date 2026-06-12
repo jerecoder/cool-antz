@@ -141,6 +141,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                     dtype=np.int32,
                 ),
                 "ants_carrying": spaces.MultiBinary(num_ants),
+                "ants_count": spaces.Box(
+                    low=0,
+                    high=num_ants,
+                    shape=(height, width),
+                    dtype=np.int32,
+                ),
                 "food": spaces.Box(
                     low=0,
                     high=max(food_count, 1),
@@ -164,6 +170,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
         self.hub_pos = np.zeros(2, dtype=np.int32)
         self.ants_pos = np.zeros((num_ants, 2), dtype=np.int32)
+        self.ants_count = np.zeros((height, width), dtype=np.int32)
         self.ants_facing = np.full(num_ants, DEFAULT_FACING, dtype=np.int8)
         self.ants_carrying = np.zeros(num_ants, dtype=bool)
         self.food = np.zeros((height, width), dtype=np.int32)
@@ -197,6 +204,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         reset_options = options or {}
         self.hub_pos = self._resolve_hub_pos(reset_options)
         self.ants_pos = np.repeat(self.hub_pos.reshape(1, 2), self.num_ants, axis=0)
+        self.ants_count = self._build_ants_count_grid(self.ants_pos)
         self.ants_facing = np.full(self.num_ants, DEFAULT_FACING, dtype=np.int8)
         self.ants_carrying = np.zeros(self.num_ants, dtype=bool)
         self.bytes = np.zeros((self.height, self.width), dtype=np.uint8)
@@ -251,6 +259,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
         reward -= self.write_penalty * num_writes
         self.step_count += 1
+        self.ants_count = self._build_ants_count_grid(self.ants_pos)
         terminated = self.delivered_food >= self._initial_food_total
         truncated = self.step_count >= self.max_steps
 
@@ -434,10 +443,17 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             dtype=np.int32,
         )
 
+    def _build_ants_count_grid(self, ants_pos: np.ndarray) -> np.ndarray:
+        counts = np.zeros((self.height, self.width), dtype=np.int32)
+        for x_pos, y_pos in ants_pos:
+            counts[int(y_pos), int(x_pos)] += 1
+        return counts
+
     def _get_obs(self) -> ObsType:
         return {
             "ants_pos": self.ants_pos.astype(np.int32, copy=True),
             "ants_carrying": self.ants_carrying.astype(np.int8, copy=True),
+            "ants_count": self.ants_count.astype(np.int32, copy=True),
             "food": self.food.astype(np.int32, copy=True),
             "bytes": self.bytes.astype(np.uint8, copy=True),
             "hub_pos": self.hub_pos.astype(np.int32, copy=True),
