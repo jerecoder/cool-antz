@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 MAPPO_STAGE_SIZES = (4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 25)
+ANT_COUNT_STAGES = (2, 3, 4, 6, 8)
 
 
 def notebook_source(path: Path) -> str:
@@ -55,3 +56,19 @@ def test_communication_notebook_writes_distinct_vision_rollouts() -> None:
     assert "checkpoint_path.stem}_rollout" not in source
     assert "stage_name = checkpoint_path.parent.parent.name" in source
     assert "jax_mappo_15x15_{stage_name}_vision_rollout.gif" in source
+
+
+def test_ant_count_curriculum_starts_from_three_bit_25x25_checkpoint() -> None:
+    source = notebook_source(Path("notebooks/train_jax_ant_count_curriculum.ipynb"))
+
+    assert "COMMUNICATION_BITS = 3" in source
+    assert "width\": 25" in source
+    assert "height\": 25" in source
+    assert "food_count\": 23" in source
+    assert "food_sources\": 12" in source
+    assert "max_steps\": 2500" in source
+    assert "ANT_STAGES = [2, 3, 4, 6, 8]" in source
+    assert f"ANT_STAGES = {list(ANT_COUNT_STAGES)!r}" in source
+    assert "communication_bits_25x25/3_bits/checkpoints/model.pkl" in source
+    assert "prepare_ant_count_checkpoint" in source
+    assert "expand_critic_input_for_ant_count" in source
