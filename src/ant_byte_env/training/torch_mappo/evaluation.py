@@ -1,0 +1,159 @@
+"""Evaluation helpers for Torch MAPPO checkpoints and agents."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from ant_byte_env import DEFAULT_WRITE_BITS, AntByteForagingEnv, write_value_count
+from ant_byte_env.training.torch_mappo.model import MAPPOAgent
+from ant_byte_env.training.torch_mappo.observations import (
+    build_actor_observations,
+    build_central_observations,
+    flatten_agent_actions,
+    obs_to_tensor,
+)
+from ant_byte_env.training.torch_mappo.rollout import reset_env
+
+
+def evaluate_agent(
+    *,
+    agent: MAPPOAgent,
+    args: argparse.Namespace,
+    device: torch.device,
+    num_episodes: int,
+    seed_offset: int = 1_000_000,
+    deterministic: bool = True,
+) -> dict[str, float]:
+    if num_episodes <= 0:
+        raise ValueError("num_episodes must be positive.")
+
+    episode_returns: list[float] = []
+    episode_lengths: list[int] = []
+    delivered_food: list[float] = []
+    delivered_fractions: list[float] = []
+    successes: list[float] = []
+
+    env = AntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        step_penalty=args.step_penalty,
+        write_penalty=args.write_penalty,
+        write_bits=args.write_bits,
+    )
+    try:
+        for episode_index in range(num_episodes):
+            obs, info = reset_env(
+                env,
+                seed=args.seed + seed_offset + episode_index,
+                args=args,
+            )
+            episode_return = 0.0
+            terminated = False
+            truncated = False
+
+            for step_index in range(args.max_steps):
+                obs_batch = {key: value[np.newaxis, ...] for key, value in obs.items()}
+                obs_tensor = obs_to_tensor(obs_batch, device)
+                central_obs = build_central_observations(
+                    obs_tensor,
+                    food_scale=args.food_count,
+                    write_bits=args.write_bits,
+                    obs_width=args.obs_width,
+                    obs_height=args.obs_height,
+                )
+                actor_obs = build_actor_observations(
+                    obs_tensor,
+                    central_obs,
+                    food_scale=args.food_count,
+                    actor_vision_radius=args.actor_vision_radius,
+                    write_bits=args.write_bits,
+                    obs_width=args.obs_width,
+                    obs_height=args.obs_height,
+                )
+                with torch.no_grad():
+                    actions, _, _, _ = agent.get_action_and_value(
+                        actor_obs,
+                        central_obs,
+                        deterministic=deterministic,
+                    )
+
+                env_action = flatten_agent_actions(actions).cpu().numpy()[0]
+                obs, reward, terminated, truncated, info = env.step(env_action)
+                episode_return += float(reward)
+                if terminated or truncated:
+                    episode_lengths.append(step_index + 1)
+                    break
+            else:
+                episode_lengths.append(args.max_steps)
+
+            delivered = float(info["delivered_food"])
+            delivered_food.append(delivered)
+            delivered_fractions.append(delivered / max(float(args.food_count), 1.0))
+            episode_returns.append(episode_return)
+            successes.append(float(terminated))
+    finally:
+        env.close()
+
+    return {
+        "eval_success_rate": float(np.mean(successes)),
+        "eval_mean_delivered_food": float(np.mean(delivered_food)),
+        "eval_mean_delivered_fraction": float(np.mean(delivered_fractions)),
+        "eval_mean_episode_return": float(np.mean(episode_returns)),
+        "eval_mean_episode_length": float(np.mean(episode_lengths)),
+    }
+
+
+def evaluate_checkpoint(
+    checkpoint_path: Path,
+    *,
+    num_episodes: int,
+    device: torch.device | None = None,
+    seed_offset: int = 1_000_000,
+    deterministic: bool = True,
+) -> dict[str, float]:
+    actual_device = device
+    if actual_device is None:
+        actual_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    checkpoint = torch.load(checkpoint_path, map_location=actual_device, weights_only=True)
+    args = argparse.Namespace(**checkpoint["args"])
+    if not hasattr(args, "write_bits"):
+        args.write_bits = DEFAULT_WRITE_BITS
+    agent = MAPPOAgent(
+        central_obs_dim=int(checkpoint["central_obs_dim"]),
+        actor_obs_dim=int(checkpoint["actor_obs_dim"]),
+        hidden_size=args.hidden_size,
+        write_value_count=write_value_count(args.write_bits),
+    ).to(actual_device)
+    agent.load_state_dict(checkpoint["agent_state_dict"])
+    agent.eval()
+
+    return evaluate_agent(
+        agent=agent,
+        args=args,
+        device=actual_device,
+        num_episodes=num_episodes,
+        seed_offset=seed_offset,
+        deterministic=deterministic,
+    )
+
+
+def mastery_reached(
+    metrics: dict[str, float],
+    *,
+    min_success_rate: float,
+    min_delivered_fraction: float,
+) -> bool:
+    return (
+        metrics["eval_success_rate"] >= min_success_rate
+        and metrics["eval_mean_delivered_fraction"] >= min_delivered_fraction
+    )

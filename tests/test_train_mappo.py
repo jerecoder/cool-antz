@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from ant_byte_env import AntByteForagingEnv
-from train_mappo import (
+from ant_byte_env.training.torch_mappo import (
     JointMoveWriteCategorical,
     MAPPOAgent,
     build_actor_observations,

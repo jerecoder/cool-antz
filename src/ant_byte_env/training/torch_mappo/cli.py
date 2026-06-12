@@ -1,0 +1,135 @@
+"""Command-line parsing for Torch MAPPO training."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Train MAPPO on the AntByte forage curriculum."
+    )
+    parser.add_argument("--exp-name", type=str, default="mappo_forage")
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--torch-deterministic", action="store_true", default=True)
+    parser.add_argument("--no-cuda", action="store_true")
+    parser.add_argument("--quiet", action="store_true")
+
+    parser.add_argument("--total-timesteps", type=int, default=100_000)
+    parser.add_argument("--learning-rate", type=float, default=2.5e-4)
+    parser.add_argument("--num-envs", type=int, default=8)
+    parser.add_argument("--num-steps", type=int, default=128)
+    parser.add_argument("--anneal-lr", action="store_true")
+    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--gae-lambda", type=float, default=0.95)
+    parser.add_argument("--num-minibatches", type=int, default=4)
+    parser.add_argument("--update-epochs", type=int, default=4)
+    parser.add_argument("--norm-adv", action="store_true", default=True)
+    parser.add_argument("--clip-coef", type=float, default=0.2)
+    parser.add_argument("--clip-vloss", action="store_true")
+    parser.add_argument("--ent-coef", type=float, default=0.01)
+    parser.add_argument("--vf-coef", type=float, default=0.5)
+    parser.add_argument("--max-grad-norm", type=float, default=0.5)
+    parser.add_argument("--target-kl", type=float, default=None)
+    parser.add_argument("--hidden-size", type=int, default=128)
+
+    parser.add_argument("--width", type=int, default=5)
+    parser.add_argument("--height", type=int, default=5)
+    parser.add_argument(
+        "--obs-width",
+        type=int,
+        default=None,
+        help="Pad observations to this width so one model can span larger-map curriculum stages.",
+    )
+    parser.add_argument(
+        "--obs-height",
+        type=int,
+        default=None,
+        help="Pad observations to this height so one model can span larger-map curriculum stages.",
+    )
+    parser.add_argument(
+        "--actor-vision-radius",
+        type=int,
+        default=2,
+        help="Radius of the local grid visible to each ant policy.",
+    )
+    parser.add_argument("--num-ants", type=int, default=2)
+    parser.add_argument("--food-count", type=int, default=4)
+    parser.add_argument("--food-sources", type=int, default=1)
+    parser.add_argument("--max-steps", type=int, default=64)
+    parser.add_argument("--step-penalty", type=float, default=0.0)
+    parser.add_argument("--write-penalty", type=float, default=0.0)
+    parser.add_argument(
+        "--write-bits",
+        type=int,
+        default=DEFAULT_WRITE_BITS,
+        help="Number of bits each ant can write per tile action.",
+    )
+
+    parser.add_argument(
+        "--curriculum-stage",
+        choices=["forage"],
+        default="forage",
+        help="Current stage trains cookie pickup, hub return, and tile-value writing.",
+    )
+    parser.add_argument(
+        "--cookie-distance",
+        type=int,
+        default=1,
+        help="Manhattan distance from the hub to the fixed cookie source.",
+    )
+    parser.add_argument(
+        "--random-food",
+        action="store_true",
+        help="Use the environment's random food placement instead of the fixed curriculum source.",
+    )
+    parser.add_argument(
+        "--random-hub",
+        action="store_true",
+        help="Randomize the colony hub position on every reset.",
+    )
+    parser.add_argument(
+        "--pickup-bonus",
+        type=float,
+        default=0.25,
+        help="Extra curriculum reward when an ant picks up a cookie bite.",
+    )
+    parser.add_argument(
+        "--distance-bonus",
+        type=float,
+        default=0.02,
+        help="Reward for reducing distance to the current target.",
+    )
+    parser.add_argument("--save-model", type=Path, default=None)
+    parser.add_argument(
+        "--load-model",
+        type=Path,
+        default=None,
+        help="Resume actor/critic weights from a previous curriculum checkpoint.",
+    )
+
+    args = parser.parse_args(argv)
+    if args.num_envs <= 0:
+        raise ValueError("--num-envs must be positive.")
+    if args.num_steps <= 0:
+        raise ValueError("--num-steps must be positive.")
+    if args.num_minibatches <= 0:
+        raise ValueError("--num-minibatches must be positive.")
+    if args.num_envs * args.num_steps < args.num_minibatches:
+        raise ValueError("--num-minibatches cannot exceed rollout batch size.")
+    if args.cookie_distance <= 0:
+        raise ValueError("--cookie-distance must be positive.")
+    if args.food_count > 0 and args.width * args.height <= 1:
+        raise ValueError("food_count requires at least one non-hub tile.")
+    if args.obs_width is not None and args.obs_width < args.width:
+        raise ValueError("--obs-width must be at least --width.")
+    if args.obs_height is not None and args.obs_height < args.height:
+        raise ValueError("--obs-height must be at least --height.")
+    if args.actor_vision_radius < 0:
+        raise ValueError("--actor-vision-radius must be non-negative.")
+    if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
+        raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
+    return args
