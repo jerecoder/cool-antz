@@ -150,7 +150,7 @@ class JaxAntByteForagingEnv:
             bytes=jnp.zeros((self.height, self.width), dtype=jnp.uint8),
             delivered_food=jnp.asarray(0, dtype=jnp.int32),
             step_count=jnp.asarray(0, dtype=jnp.int32),
-            initial_food_total=jnp.asarray(self.food_count, dtype=jnp.int32),
+            initial_food_total=jnp.sum(food).astype(jnp.int32),
         )
         return state, self.observe(state), self.info(state, num_writes=0, num_overwrites=0)
 

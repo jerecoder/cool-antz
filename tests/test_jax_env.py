@@ -65,6 +65,45 @@ def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
     assert int(info.delivered_food) == 1
 
 
+def test_jax_food_state_tracks_remaining_bite_counts() -> None:
+    env = JaxAntByteForagingEnv(
+        width=3,
+        height=1,
+        num_ants=1,
+        food_count=2,
+        random_food=False,
+    )
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(4),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+
+    assert int(state.food[0, 1]) == 2
+    assert int(obs["food"][0, 1]) == 2
+    assert int(state.initial_food_total) == 2
+    assert int(info.remaining_food) == 2
+
+    state, obs, _, terminated, _, info = env.step(
+        state,
+        jnp.array([2, 0], dtype=jnp.int32),
+    )
+
+    assert int(state.food[0, 1]) == 1
+    assert int(obs["food"][0, 1]) == 1
+    assert int(info.remaining_food) == 1
+    assert not bool(terminated)
+
+    state, obs, _, _, _, info = env.step(
+        state,
+        jnp.array([0, 0], dtype=jnp.int32),
+    )
+
+    assert int(state.food[0, 1]) == 1
+    assert int(obs["food"][0, 1]) == 1
+    assert int(info.remaining_food) == 1
+
+
 def test_jax_core_matches_gym_env_for_fixed_rollout() -> None:
     gym_env = AntByteForagingEnv(
         width=3,

@@ -57,6 +57,22 @@ def test_jax_observation_builders_match_mappo_shapes() -> None:
     assert bool(jnp.all(actor_obs <= 1.0))
 
 
+def test_jax_observation_builders_preserve_food_amounts() -> None:
+    obs = _batched_reset_obs()
+
+    central_obs = build_central_observations(obs, food_scale=3)
+    actor_obs = build_actor_observations(obs, food_scale=3, actor_vision_radius=1)
+
+    ants_pos_width = 4
+    ants_carrying_width = 2
+    food_cell_index = 1
+    central_food_value = central_obs[0, ants_pos_width + ants_carrying_width + food_cell_index]
+    local_food_patch_index = 5
+
+    assert float(central_food_value) == 1.0
+    assert float(actor_obs[0, 0, local_food_patch_index]) == 1.0
+
+
 def test_jax_actor_observation_exposes_border_mask() -> None:
     obs = _batched_reset_obs()
 
