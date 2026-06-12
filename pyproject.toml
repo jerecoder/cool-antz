@@ -48,9 +48,23 @@ dev = [
 [project.urls]
 Homepage = "https://example.com/cool-antz"
 
+[project.scripts]
+ant-byte = "ant_byte_env.cli:main"
+
 [tool.hatch.build.targets.wheel]
-packages = ["ant_byte_env"]
+packages = ["src/ant_byte_env"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=ant_byte_env --cov-report=term-missing --cov-fail-under=80"
+pythonpath = ["src", "."]
+
+[tool.coverage.run]
+source = ["src/ant_byte_env"]
+omit = [
+  "src/ant_byte_env/jax_env.py",
+  "src/ant_byte_env/training/jax_mappo/*",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
