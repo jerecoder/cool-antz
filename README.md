@@ -105,8 +105,8 @@ Render a saved checkpoint with:
 ant-byte render --checkpoint runs/.../checkpoints/model.pt --output runs/.../media/rollout.mp4
 ```
 
-Curated result metadata lives in `results/curated/`. Bulk legacy artifacts were
-preserved under ignored `runs/legacy/`.
+Curated result metadata lives in `results/curated/`. Generated run outputs live
+under ignored `runs/<experiment>/<run_id>/`.
 
 ## Action Space
 

@@ -1,7 +1,7 @@
 {
   "name": "communication_bits",
   "backend": "jax",
-  "description": "15x15 JAX MAPPO communication-bit curriculum using warm-started write heads.",
+  "description": "15x15 JAX MAPPO communication-bit curriculum using package-native checkpoints.",
   "args": {
     "exp_name": "jax_mappo_communication",
     "total_timesteps": 2560000,
@@ -31,7 +31,6 @@
   "metadata": {
     "bit_stages": [2, 3, 5, 8],
     "global_update_cap": 2000,
-    "base_checkpoint": "runs/legacy/checkpoints/jax_mappo_forage_stage1_15x15.pkl",
-    "notes": "Use package warm-start helpers to generate each target write-bit checkpoint before training."
+    "notes": "Each bit stage trains through the packaged JAX MAPPO runner and writes outputs under runs/."
   }
 }

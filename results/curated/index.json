@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "description": "Small curated registry of representative AntByte experiment artifacts. Bulk files live under ignored runs/legacy/ and are not committed.",
+  "description": "Small curated registry of representative AntByte experiment artifacts. Bulk files live under ignored runs/ and are not committed.",
   "entries": [
     {
       "id": "final-jax-15x15-comparison",
-      "source_entry": "runs/legacy/vault/20260611T233723Z",
+      "source_entry": "runs/forage_curriculum/curated-final-jax-15x15-comparison",
       "title": "Final JAX 15x15 and pre-JAX MAPPO rollouts",
       "created_at": "2026-06-11T23:37:23.007200Z",
       "summary": "Final JAX 15x15 checkpoint and rollout, plus older Torch MAPPO rollout videos for curriculum stages 4x4 through 15x15.",
@@ -20,7 +20,7 @@
     },
     {
       "id": "jax-communication-bit-curriculum",
-      "source_entry": "runs/legacy/vault/20260611T234926Z",
+      "source_entry": "runs/communication_bits/curated-jax-communication-bit-curriculum",
       "title": "JAX MAPPO communication-bit curriculum",
       "created_at": "2026-06-11T23:49:26.377216Z",
       "summary": "Rollout GIFs for 15x15 JAX MAPPO policies trained with progressively larger writable communication alphabets.",

@@ -13,7 +13,7 @@ from ant_byte_env.experiments import (
     resolve_training_argv,
 )
 from ant_byte_env.rendering import render_checkpoint
-from ant_byte_env.results import index_legacy_results
+from ant_byte_env.results import index_result_metadata
 from ant_byte_env.runs import prepare_run_dir
 
 
@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"render saved to {args.output}")
         return 0
     if args.command == "results" and args.results_command == "index":
-        payload = index_legacy_results(args.source, args.output)
+        payload = index_result_metadata(args.source, args.output)
         print(json.dumps({"output": str(args.output), "entry_count": payload["entry_count"]}))
         return 0
     parser.print_help()
@@ -51,7 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     results = subparsers.add_parser("results", help="Manage curated result metadata.")
     result_subparsers = results.add_subparsers(dest="results_command", required=True)
-    index = result_subparsers.add_parser("index", help="Index legacy vault metadata.")
+    index = result_subparsers.add_parser("index", help="Index run metadata.")
     index.add_argument("source", type=Path)
     index.add_argument("output", type=Path)
     return parser

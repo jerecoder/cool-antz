@@ -8,9 +8,8 @@ import pytest
 from ant_byte_env.cli import main as cli_main
 from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.rendering import infer_checkpoint_backend
-from ant_byte_env.results import index_legacy_results
+from ant_byte_env.results import index_result_metadata
 from ant_byte_env.runs import append_metrics, prepare_run_dir, write_json
-from ant_byte_env.training.jax_mappo.warm_start import repeated_write_action_indices
 
 
 def test_experiment_config_loads_and_converts_args() -> None:
@@ -60,8 +59,8 @@ def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:
     assert json.loads((run_dir / "metrics.jsonl").read_text()) == {"loss": 0.5, "update": 1}
 
 
-def test_legacy_result_indexer_reads_vault_metadata(tmp_path: Path) -> None:
-    entry_dir = tmp_path / "legacy" / "vault" / "20260611T000000Z"
+def test_result_indexer_reads_vault_metadata(tmp_path: Path) -> None:
+    entry_dir = tmp_path / "runs" / "communication_bits" / "vault" / "20260611T000000Z"
     entry_dir.mkdir(parents=True)
     (entry_dir / "rollout.mp4").write_bytes(b"video")
     (entry_dir / "metadata.json").write_text(
@@ -77,19 +76,15 @@ def test_legacy_result_indexer_reads_vault_metadata(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    payload = index_legacy_results(tmp_path / "legacy", tmp_path / "curated" / "index.json")
+    payload = index_result_metadata(tmp_path / "runs", tmp_path / "curated" / "index.json")
 
     assert payload["entry_count"] == 1
     assert payload["entries"][0]["title"] == "Best rollout"
     assert payload["entries"][0]["assets"][0]["size_bytes"] == 5
 
 
-def test_render_and_warm_start_helpers_are_notebook_independent() -> None:
+def test_render_helpers_are_notebook_independent() -> None:
     assert infer_checkpoint_backend(Path("policy.pt")) == "torch"
     assert infer_checkpoint_backend(Path("policy.pkl")) == "jax"
     with pytest.raises(ValueError, match="suffix"):
         infer_checkpoint_backend(Path("policy.bin"))
-
-    assert repeated_write_action_indices(1, 3).tolist() == [0, 1, 0, 1, 0, 1, 0, 1]
-    with pytest.raises(ValueError, match="target_bits"):
-        repeated_write_action_indices(3, 2)

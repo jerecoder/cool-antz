@@ -38,7 +38,6 @@ _EXPORTS = {
     "load_checkpoint": ("checkpointing", "load_checkpoint"),
     "main": ("runner", "main"),
     "parse_args": ("cli", "parse_args"),
-    "repeated_write_action_indices": ("warm_start", "repeated_write_action_indices"),
     "reset_batch": ("curriculum", "reset_batch"),
     "save_checkpoint": ("checkpointing", "save_checkpoint"),
     "update_agent": ("core", "update_agent"),

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-def index_legacy_results(source_root: Path, output_path: Path) -> dict[str, Any]:
+def index_result_metadata(source_root: Path, output_path: Path) -> dict[str, Any]:
     source_root = Path(source_root)
     entries = [_entry_from_metadata(path, source_root) for path in sorted(source_root.rglob("metadata.json"))]
     payload = {

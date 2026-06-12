@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from typing import Any, NamedTuple
 
 import jax
@@ -12,10 +11,6 @@ import numpy as np
 
 from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, max_write_value
 from ant_byte_env.jax_env import JaxObs
-
-# Legacy checkpoints were pickled before the trainer moved into the package.
-# Keep that module name importable for pickle without restoring the root script.
-sys.modules.setdefault("train_mappo_jax_core", sys.modules[__name__])
 
 
 class LinearParams(NamedTuple):
