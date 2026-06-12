@@ -10,6 +10,7 @@ import imageio.v2 as imageio
 import numpy as np
 
 from ant_byte_env import DEFAULT_WRITE_BITS, AntByteForagingEnv
+from ant_byte_env.visualization import draw_vision_squares
 
 
 def infer_checkpoint_backend(checkpoint_path: Path) -> str:
@@ -27,12 +28,23 @@ def render_checkpoint(
     *,
     backend: str | None = None,
     seed_offset: int = 100_000,
+    show_vision: bool = True,
 ) -> Path:
     actual_backend = backend or infer_checkpoint_backend(checkpoint_path)
     if actual_backend == "torch":
-        return render_torch_checkpoint(checkpoint_path, output_path, seed_offset=seed_offset)
+        return render_torch_checkpoint(
+            checkpoint_path,
+            output_path,
+            seed_offset=seed_offset,
+            show_vision=show_vision,
+        )
     if actual_backend == "jax":
-        return render_jax_checkpoint(checkpoint_path, output_path, seed_offset=seed_offset)
+        return render_jax_checkpoint(
+            checkpoint_path,
+            output_path,
+            seed_offset=seed_offset,
+            show_vision=show_vision,
+        )
     raise ValueError("backend must be 'torch' or 'jax'.")
 
 
@@ -41,6 +53,7 @@ def render_torch_checkpoint(
     output_path: Path,
     *,
     seed_offset: int = 100_000,
+    show_vision: bool = True,
 ) -> Path:
     import torch
 
@@ -77,7 +90,7 @@ def render_torch_checkpoint(
             seed=args.seed + seed_offset,
             options=build_curriculum_reset_options(args, seed=args.seed + seed_offset),
         )
-        writer.append_data(env.render())
+        writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
         for _ in range(args.max_steps):
             obs_batch = {key: value[np.newaxis, ...] for key, value in obs.items()}
             obs_tensor = obs_to_tensor(obs_batch, device)
@@ -104,7 +117,7 @@ def render_torch_checkpoint(
                     deterministic=True,
                 )
             obs, _, terminated, truncated, _ = env.step(flatten_agent_actions(actions).cpu().numpy()[0])
-            writer.append_data(env.render())
+            writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
             if terminated or truncated:
                 break
     finally:
@@ -118,6 +131,7 @@ def render_jax_checkpoint(
     output_path: Path,
     *,
     seed_offset: int = 100_000,
+    show_vision: bool = True,
 ) -> Path:
     import jax
     import jax.numpy as jnp
@@ -138,7 +152,7 @@ def render_jax_checkpoint(
     writer = imageio.get_writer(output_path, fps=AntByteForagingEnv.metadata["render_fps"])
     try:
         obs, _ = env.reset(seed=args.seed + seed_offset, options=_jax_render_reset_options(args))
-        writer.append_data(env.render())
+        writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
         key = jax.random.PRNGKey(args.seed + seed_offset)
         for _ in range(args.max_steps):
             key, action_key = jax.random.split(key)
@@ -166,13 +180,33 @@ def render_jax_checkpoint(
                 deterministic=True,
             )
             obs, _, terminated, truncated, _ = env.step(np.asarray(actions).reshape(-1))
-            writer.append_data(env.render())
+            writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
             if terminated or truncated:
                 break
     finally:
         writer.close()
         env.close()
     return output_path
+
+
+def _render_frame(
+    env: AntByteForagingEnv,
+    obs: dict[str, np.ndarray],
+    *,
+    args: argparse.Namespace,
+    show_vision: bool,
+) -> np.ndarray:
+    frame = env.render()
+    if frame is None:
+        raise RuntimeError("rgb_array rendering unexpectedly returned None.")
+    if not show_vision:
+        return frame
+    return draw_vision_squares(
+        frame,
+        obs,
+        tile_size=env.tile_size,
+        vision_radius=int(getattr(args, "actor_vision_radius", 0)),
+    )
 
 
 def _env_from_args(args: argparse.Namespace, *, render_mode: str) -> AntByteForagingEnv:

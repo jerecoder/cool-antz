@@ -110,6 +110,9 @@ Render a saved checkpoint with:
 ant-byte render --checkpoint runs/.../checkpoints/model.pt --output runs/.../media/rollout.mp4
 ```
 
+Checkpoint renders include each ant's local vision square by default; pass
+`--no-vision` for a raw environment render.
+
 Curated result metadata lives in `results/curated/`. Generated run outputs live
 under ignored `runs/<experiment>/<run_id>/`.
 

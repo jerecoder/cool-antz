@@ -23,7 +23,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train":
         return _run_train(args, unknown)
     if args.command == "render":
-        render_checkpoint(args.checkpoint, args.output, backend=args.backend)
+        render_checkpoint(
+            args.checkpoint,
+            args.output,
+            backend=args.backend,
+            show_vision=not args.no_vision,
+        )
         print(f"render saved to {args.output}")
         return 0
     if args.command == "results" and args.results_command == "index":
@@ -48,6 +53,7 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--checkpoint", type=Path, required=True)
     render.add_argument("--output", type=Path, required=True)
     render.add_argument("--backend", choices=["torch", "jax"], default=None)
+    render.add_argument("--no-vision", action="store_true", help="Render without ant vision overlays.")
 
     results = subparsers.add_parser("results", help="Manage curated result metadata.")
     result_subparsers = results.add_subparsers(dest="results_command", required=True)
