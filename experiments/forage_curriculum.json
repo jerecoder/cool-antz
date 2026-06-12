@@ -1,7 +1,7 @@
 {
   "name": "forage_curriculum",
   "backend": "jax",
-  "description": "Progressive JAX MAPPO forage curriculum for maps from 4x4 through 15x15.",
+  "description": "Progressive JAX MAPPO forage curriculum for maps from 4x4 through 25x25.",
   "args": {
     "exp_name": "jax_mappo_forage",
     "total_timesteps": 12800000,
@@ -9,16 +9,16 @@
     "num_steps": 80,
     "num_minibatches": 4,
     "update_epochs": 4,
-    "width": 15,
-    "height": 15,
-    "obs_width": 15,
-    "obs_height": 15,
+    "width": 25,
+    "height": 25,
+    "obs_width": 25,
+    "obs_height": 25,
     "actor_vision_radius": 2,
     "num_ants": 1,
-    "food_count": 13,
-    "food_sources": 7,
-    "cookie_distance": 6,
-    "max_steps": 900,
+    "food_count": 23,
+    "food_sources": 12,
+    "cookie_distance": 11,
+    "max_steps": 2500,
     "pickup_bonus": 0.25,
     "distance_bonus": 0.02,
     "hidden_size": 128,
@@ -30,7 +30,9 @@
   },
   "metadata": {
     "global_update_cap": 2000,
-    "stage_range": "4x4-15x15",
-    "notes": "Notebook orchestration may still iterate stage sizes; this config preserves the current cap and default final-stage settings."
+    "stage_range": "4x4-25x25",
+    "stage_count": 12,
+    "stage_sizes": [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 25],
+    "notes": "Notebook orchestration iterates the configured stage sizes; this config preserves the current cap and default final-stage settings."
   }
 }
