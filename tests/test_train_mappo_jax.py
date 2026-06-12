@@ -7,7 +7,7 @@ jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
-from train_mappo_jax import (
+from ant_byte_env.training.jax_mappo import (
     build_actor_observations,
     build_central_observations,
     compute_gae,
