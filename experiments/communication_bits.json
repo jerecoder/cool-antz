@@ -1,0 +1,37 @@
+{
+  "name": "communication_bits",
+  "backend": "jax",
+  "description": "15x15 JAX MAPPO communication-bit curriculum using warm-started write heads.",
+  "args": {
+    "exp_name": "jax_mappo_communication",
+    "total_timesteps": 128000,
+    "num_envs": 16,
+    "num_steps": 80,
+    "num_minibatches": 4,
+    "update_epochs": 4,
+    "width": 15,
+    "height": 15,
+    "obs_width": 15,
+    "obs_height": 15,
+    "actor_vision_radius": 2,
+    "num_ants": 1,
+    "food_count": 13,
+    "food_sources": 7,
+    "cookie_distance": 6,
+    "max_steps": 900,
+    "pickup_bonus": 0.25,
+    "distance_bonus": 0.02,
+    "hidden_size": 128,
+    "write_bits": 2,
+    "seed": 1,
+    "quiet": true,
+    "random_food": true,
+    "random_hub": true
+  },
+  "metadata": {
+    "bit_stages": [2, 3, 5, 8],
+    "global_update_cap": 2000,
+    "base_checkpoint": "runs/legacy/checkpoints/jax_mappo_forage_stage1_15x15.pkl",
+    "notes": "Use package warm-start helpers to generate each target write-bit checkpoint before training."
+  }
+}

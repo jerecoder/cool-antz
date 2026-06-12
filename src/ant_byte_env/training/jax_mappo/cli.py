@@ -50,6 +50,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--distance-bonus", type=float, default=0.02)
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="Write resolved config, metrics, summary, and default checkpoint under this run directory.",
+    )
 
     args = parser.parse_args(argv)
     rollout_batch_size = args.num_envs * args.num_steps

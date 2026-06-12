@@ -1,0 +1,26 @@
+{
+  "name": "smoke",
+  "backend": "torch",
+  "description": "Tiny CPU-friendly Torch MAPPO smoke run for plumbing checks.",
+  "args": {
+    "exp_name": "smoke",
+    "total_timesteps": 8,
+    "num_envs": 1,
+    "num_steps": 4,
+    "num_minibatches": 1,
+    "update_epochs": 1,
+    "width": 4,
+    "height": 4,
+    "num_ants": 1,
+    "food_count": 1,
+    "food_sources": 1,
+    "max_steps": 8,
+    "hidden_size": 16,
+    "seed": 7,
+    "quiet": true,
+    "no_cuda": true
+  },
+  "metadata": {
+    "purpose": "fast verification"
+  }
+}

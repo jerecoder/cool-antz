@@ -10,7 +10,12 @@ import jax.numpy as jnp
 
 from ant_byte_env import write_value_count
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
-from ant_byte_env.training.jax_mappo.checkpointing import load_checkpoint, save_checkpoint
+from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
+from ant_byte_env.training.jax_mappo.checkpointing import (
+    checkpoint_args,
+    load_checkpoint,
+    save_checkpoint,
+)
 from ant_byte_env.training.jax_mappo.cli import parse_args
 from ant_byte_env.training.jax_mappo.core import (
     Rollout,
@@ -53,6 +58,22 @@ def main(
     args = parse_args(argv)
     key = jax.random.PRNGKey(args.seed)
     run_name = f"{args.exp_name}__seed_{args.seed}__{int(time.time())}"
+    metrics_path = None
+    summary_path = None
+    if args.run_dir is not None:
+        ensure_run_structure(args.run_dir)
+        if args.save_model is None:
+            args.save_model = args.run_dir / "checkpoints" / "model.pkl"
+        metrics_path = args.run_dir / "metrics.jsonl"
+        summary_path = args.run_dir / "summary.json"
+        write_json(
+            args.run_dir / "config.json",
+            {
+                "backend": "jax",
+                "run_name": run_name,
+                "args": checkpoint_args(args),
+            },
+        )
 
     env = JaxAntByteForagingEnv(
         width=args.width,
@@ -163,6 +184,15 @@ def main(
                     **final_metrics,
                 )
             )
+        if metrics_path is not None:
+            append_metrics(
+                metrics_path,
+                {
+                    "update": update,
+                    "num_updates": num_updates,
+                    **final_metrics,
+                },
+            )
 
     if args.save_model is not None:
         save_checkpoint(
@@ -174,6 +204,16 @@ def main(
             actor_obs_dim=actor_obs_dim,
             run_name=run_name,
             metrics=final_metrics,
+        )
+    if summary_path is not None:
+        write_json(
+            summary_path,
+            {
+                "backend": "jax",
+                "run_name": run_name,
+                "metrics": final_metrics,
+                "checkpoint_path": args.save_model,
+            },
         )
     return final_metrics
 

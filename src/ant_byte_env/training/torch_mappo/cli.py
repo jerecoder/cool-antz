@@ -110,6 +110,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Resume actor/critic weights from a previous curriculum checkpoint.",
     )
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="Write resolved config, metrics, summary, and default checkpoint under this run directory.",
+    )
 
     args = parser.parse_args(argv)
     if args.num_envs <= 0:

@@ -11,7 +11,8 @@ import torch
 import torch.optim as optim
 
 from ant_byte_env import write_value_count
-from ant_byte_env.training.torch_mappo.checkpointing import load_agent_checkpoint, checkpoint_args
+from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
+from ant_byte_env.training.torch_mappo.checkpointing import checkpoint_args, load_agent_checkpoint
 from ant_byte_env.training.torch_mappo.cli import parse_args
 from ant_byte_env.training.torch_mappo.model import MAPPOAgent, make_mappo_loss
 from ant_byte_env.training.torch_mappo.observations import (
@@ -38,6 +39,22 @@ def main(argv: list[str] | None = None) -> dict[str, float]:
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
     device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    metrics_path = None
+    summary_path = None
+    if args.run_dir is not None:
+        ensure_run_structure(args.run_dir)
+        if args.save_model is None:
+            args.save_model = args.run_dir / "checkpoints" / "model.pt"
+        metrics_path = args.run_dir / "metrics.jsonl"
+        summary_path = args.run_dir / "summary.json"
+        write_json(
+            args.run_dir / "config.json",
+            {
+                "backend": "torch",
+                "run_name": run_name,
+                "args": checkpoint_args(args),
+            },
+        )
 
     envs = make_envs(args)
     for env_index, env in enumerate(envs):
@@ -146,6 +163,15 @@ def main(argv: list[str] | None = None) -> dict[str, float]:
                         **final_metrics,
                     )
                 )
+            if metrics_path is not None:
+                append_metrics(
+                    metrics_path,
+                    {
+                        "update": update,
+                        "num_updates": num_updates,
+                        **final_metrics,
+                    },
+                )
 
         if args.save_model is not None:
             args.save_model.parent.mkdir(parents=True, exist_ok=True)
@@ -159,6 +185,16 @@ def main(argv: list[str] | None = None) -> dict[str, float]:
                     "run_name": run_name,
                 },
                 args.save_model,
+            )
+        if summary_path is not None:
+            write_json(
+                summary_path,
+                {
+                    "backend": "torch",
+                    "run_name": run_name,
+                    "metrics": final_metrics,
+                    "checkpoint_path": args.save_model,
+                },
             )
         return final_metrics
     finally:
