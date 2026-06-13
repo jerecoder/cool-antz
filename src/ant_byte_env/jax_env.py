@@ -9,13 +9,17 @@ import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env.env import (
+    ACTION_FORWARD,
+    ACTION_STAY,
+    ACTION_TURN_LEFT,
+    ACTION_TURN_RIGHT,
     DEFAULT_FACING,
     DEFAULT_WRITE_BITS,
     MAX_WRITE_BITS,
+    MOVEMENT_ACTION_COUNT,
     MOVE_DOWN,
     MOVE_LEFT,
     MOVE_RIGHT,
-    MOVE_STAY,
     MOVE_UP,
     max_write_value,
     write_value_count,
@@ -89,7 +93,7 @@ class JaxAntByteForagingEnv:
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self.action_nvec = jnp.asarray(
-            [5, self.write_value_count] * self.num_ants,
+            [MOVEMENT_ACTION_COUNT, self.write_value_count] * self.num_ants,
             dtype=jnp.int32,
         )
 
@@ -195,10 +199,9 @@ class JaxAntByteForagingEnv:
 
             move = flat_action[2 * ant_index]
             write_value = flat_action[2 * ant_index + 1].astype(jnp.uint8)
-            next_pos = self._move_position(ants_pos[ant_index], move)
-            ants_facing = ants_facing.at[ant_index].set(
-                jnp.where(move != MOVE_STAY, move, ants_facing[ant_index])
-            )
+            next_facing = self._turn_facing(ants_facing[ant_index], move)
+            next_pos = self._move_position(ants_pos[ant_index], action=move, facing=next_facing)
+            ants_facing = ants_facing.at[ant_index].set(next_facing)
             ants_pos = ants_pos.at[ant_index].set(next_pos)
 
             x_pos = next_pos[0]
@@ -363,13 +366,52 @@ class JaxAntByteForagingEnv:
             positions[:, 0],
         ].add(amounts)
 
-    def _move_position(self, position: jax.Array, move: jax.Array) -> jax.Array:
-        dx = jnp.where(move == MOVE_RIGHT, 1, jnp.where(move == MOVE_LEFT, -1, 0))
-        dy = jnp.where(move == MOVE_DOWN, 1, jnp.where(move == MOVE_UP, -1, 0))
+    def _turn_facing(self, facing: jax.Array, action: jax.Array) -> jax.Array:
+        valid_facing = (
+            (facing == MOVE_UP)
+            | (facing == MOVE_RIGHT)
+            | (facing == MOVE_DOWN)
+            | (facing == MOVE_LEFT)
+        )
+        current_facing = jnp.where(valid_facing, facing, DEFAULT_FACING)
+        turn_left = jnp.where(
+            current_facing == MOVE_UP,
+            MOVE_LEFT,
+            jnp.where(
+                current_facing == MOVE_LEFT,
+                MOVE_DOWN,
+                jnp.where(current_facing == MOVE_DOWN, MOVE_RIGHT, MOVE_UP),
+            ),
+        )
+        turn_right = jnp.where(
+            current_facing == MOVE_UP,
+            MOVE_RIGHT,
+            jnp.where(
+                current_facing == MOVE_RIGHT,
+                MOVE_DOWN,
+                jnp.where(current_facing == MOVE_DOWN, MOVE_LEFT, MOVE_UP),
+            ),
+        )
+        return jnp.where(
+            action == ACTION_TURN_LEFT,
+            turn_left,
+            jnp.where(action == ACTION_TURN_RIGHT, turn_right, current_facing),
+        ).astype(jnp.int32)
+
+    def _move_position(
+        self,
+        position: jax.Array,
+        *,
+        action: jax.Array,
+        facing: jax.Array,
+    ) -> jax.Array:
+        dx = jnp.where(facing == MOVE_RIGHT, 1, jnp.where(facing == MOVE_LEFT, -1, 0))
+        dy = jnp.where(facing == MOVE_DOWN, 1, jnp.where(facing == MOVE_UP, -1, 0))
+        should_advance = (action == ACTION_FORWARD).astype(jnp.int32)
         return jnp.asarray(
             [
-                jnp.clip(position[0] + dx, 0, self.width - 1),
-                jnp.clip(position[1] + dy, 0, self.height - 1),
+                jnp.clip(position[0] + should_advance * dx, 0, self.width - 1),
+                jnp.clip(position[1] + should_advance * dy, 0, self.height - 1),
             ],
             dtype=jnp.int32,
         )

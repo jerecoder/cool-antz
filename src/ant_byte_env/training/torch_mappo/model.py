@@ -17,7 +17,7 @@ from torch.distributions import Distribution
 from torch.distributions.categorical import Categorical
 from torchrl.objectives.multiagent import MAPPOLoss
 
-from ant_byte_env import WRITE_VALUE_COUNT
+from ant_byte_env import MOVEMENT_ACTION_COUNT, WRITE_VALUE_COUNT
 
 
 def layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0.0) -> nn.Linear:
@@ -47,7 +47,7 @@ class MAPPOAgent(nn.Module):
             layer_init(nn.Linear(hidden_size, hidden_size)),
             nn.Tanh(),
         )
-        self.move_head = layer_init(nn.Linear(hidden_size, 5), std=0.01)
+        self.move_head = layer_init(nn.Linear(hidden_size, MOVEMENT_ACTION_COUNT), std=0.01)
         self.write_head = layer_init(nn.Linear(hidden_size, write_value_count), std=0.01)
         self.critic = nn.Sequential(
             layer_init(nn.Linear(central_obs_dim, hidden_size)),
@@ -60,7 +60,11 @@ class MAPPOAgent(nn.Module):
     def get_action_logits(self, actor_obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         *batch_shape, num_agents, actor_dim = actor_obs.shape
         hidden = self.actor_body(actor_obs.reshape(-1, actor_dim))
-        move_logits = self.move_head(hidden).reshape(*batch_shape, num_agents, 5)
+        move_logits = self.move_head(hidden).reshape(
+            *batch_shape,
+            num_agents,
+            MOVEMENT_ACTION_COUNT,
+        )
         write_logits = self.write_head(hidden).reshape(
             *batch_shape,
             num_agents,

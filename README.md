@@ -121,23 +121,24 @@ under ignored `runs/<experiment>/<run_id>/`.
 For `num_ants = N`, the action space is:
 
 ```python
-spaces.MultiDiscrete([5, 2 ** write_bits] * N)
+spaces.MultiDiscrete([4, 2 ** write_bits] * N)
 ```
 
-Each ant receives a pair `(move_i, write_value_i)`. The write range is controlled
-by `write_bits`; the default is `write_bits=1`, so there are `2` write values.
-For `write_bits=3`, the action space becomes `spaces.MultiDiscrete([5, 8] * N)`.
+Each ant receives a pair `(move_i, write_value_i)`. The move action is
+body-relative (`stay`, `turn_left`, `turn_right`, `forward`). The write range is
+controlled by `write_bits`; the default is `write_bits=1`, so there are `2`
+write values. For `write_bits=3`, the action space becomes
+`spaces.MultiDiscrete([4, 8] * N)`.
 
 Movement actions:
 
 - `0`: stay
-- `1`: up
-- `2`: right
-- `3`: down
-- `4`: left
+- `1`: turn left in place
+- `2`: turn right in place
+- `3`: advance one tile forward
 
 The write action is an integer from `0` to `2 ** write_bits - 1`. It is written
-to the ant's tile after movement, pickup, and delivery are processed.
+to the ant's tile after the body-relative action, pickup, and delivery are processed.
 
 ## Observation Space
 

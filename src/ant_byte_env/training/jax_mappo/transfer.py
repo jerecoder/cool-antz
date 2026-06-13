@@ -9,11 +9,17 @@ import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env import (
+    ACTION_FORWARD,
+    ACTION_STAY,
+    ACTION_TURN_LEFT,
+    ACTION_TURN_RIGHT,
     DEFAULT_WRITE_BITS,
     MAX_WRITE_BITS,
+    MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
     write_value_count,
 )
+from ant_byte_env.env import MOVE_DOWN, MOVE_RIGHT, MOVE_STAY, MOVE_UP
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
@@ -33,7 +39,7 @@ def load_checkpoint_for_training(
     checkpoint = read_checkpoint(path)
     source_args = checkpoint.get("args", {})
     params = checkpoint["params"]
-    params_changed = False
+    params, params_changed = adapt_movement_head(params)
     if int(checkpoint["central_obs_dim"]) != central_obs_dim:
         params = expand_critic_input_for_ants_count(
             params,
@@ -49,6 +55,7 @@ def load_checkpoint_for_training(
             "params": params,
             "opt_state": init_adam_state(params),
             "central_obs_dim": central_obs_dim,
+            "actor_obs_dim": actor_obs_dim,
         }
 
     source_write_bits = int(source_args.get("write_bits", DEFAULT_WRITE_BITS))
@@ -161,7 +168,7 @@ def expand_critic_input_for_ants_count(
     )
     return JaxMAPPOParams(
         actor_body=params.actor_body,
-        move_head=params.move_head,
+        move_head=adapt_movement_head_layer(params.move_head),
         write_head=params.write_head,
         critic_body=(new_first_layer, params.critic_body[1]),
         value_head=params.value_head,
@@ -236,7 +243,7 @@ def expand_params_for_write_bits(
             ),
             params.actor_body[1],
         ),
-        move_head=params.move_head,
+        move_head=adapt_movement_head_layer(params.move_head),
         write_head=params.write_head
         if target_bits == old_bits
         else expand_write_head(
@@ -247,6 +254,48 @@ def expand_params_for_write_bits(
         critic_body=params.critic_body,
         value_head=params.value_head,
     )
+
+
+def adapt_movement_head(params: JaxMAPPOParams) -> tuple[JaxMAPPOParams, bool]:
+    move_head = adapt_movement_head_layer(params.move_head)
+    if move_head is params.move_head:
+        return params, False
+    return (
+        JaxMAPPOParams(
+            actor_body=params.actor_body,
+            move_head=move_head,
+            write_head=params.write_head,
+            critic_body=params.critic_body,
+            value_head=params.value_head,
+        ),
+        True,
+    )
+
+
+def adapt_movement_head_layer(layer: LinearParams) -> LinearParams:
+    old_weight = jnp.asarray(layer.weight)
+    old_bias = jnp.asarray(layer.bias)
+    old_count = int(old_bias.shape[0])
+    if old_count == MOVEMENT_ACTION_COUNT:
+        return layer
+    legacy_cardinal_action_count = 5
+    if old_count != legacy_cardinal_action_count:
+        raise ValueError(
+            f"Checkpoint movement action count {old_count} does not match this run."
+        )
+
+    new_weight = jnp.zeros((old_weight.shape[0], MOVEMENT_ACTION_COUNT), dtype=old_weight.dtype)
+    new_bias = jnp.zeros((MOVEMENT_ACTION_COUNT,), dtype=old_bias.dtype)
+    legacy_to_current = (
+        (MOVE_STAY, ACTION_STAY),
+        (MOVE_UP, ACTION_TURN_LEFT),
+        (MOVE_DOWN, ACTION_TURN_RIGHT),
+        (MOVE_RIGHT, ACTION_FORWARD),
+    )
+    for legacy_index, current_index in legacy_to_current:
+        new_weight = new_weight.at[:, current_index].set(old_weight[:, legacy_index])
+        new_bias = new_bias.at[current_index].set(old_bias[legacy_index])
+    return LinearParams(weight=new_weight, bias=new_bias)
 
 
 def expand_actor_input_layer(

@@ -4,7 +4,13 @@ import numpy as np
 import pytest
 import torch
 
-from ant_byte_env import AntByteForagingEnv
+from ant_byte_env import (
+    ACTION_FORWARD,
+    ACTION_TURN_LEFT,
+    ACTION_TURN_RIGHT,
+    AntByteForagingEnv,
+    MOVEMENT_ACTION_COUNT,
+)
 from ant_byte_env.training.torch_mappo import (
     JointMoveWriteCategorical,
     MAPPOAgent,
@@ -263,7 +269,7 @@ def test_agent_samples_and_scores_joint_move_write_actions() -> None:
     )
 
     assert actions.shape == (1, 2, 2)
-    assert torch.all((0 <= actions[..., 0]) & (actions[..., 0] <= 4))
+    assert torch.all((0 <= actions[..., 0]) & (actions[..., 0] < MOVEMENT_ACTION_COUNT))
     assert torch.all((0 <= actions[..., 1]) & (actions[..., 1] <= 1))
     assert logprob.shape == (1, 2)
     assert entropy.shape == (1, 2)
@@ -288,19 +294,19 @@ def test_agent_write_head_size_follows_write_bits() -> None:
     actions, _, _, _ = agent.get_action_and_value(actor_obs, central_obs)
 
     assert actor_obs.shape == (1, 2, 43)
-    assert move_logits.shape == (1, 2, 5)
+    assert move_logits.shape == (1, 2, MOVEMENT_ACTION_COUNT)
     assert write_logits.shape == (1, 2, 8)
     assert torch.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7))
 
 
 def test_joint_move_write_distribution_scores_independent_heads() -> None:
-    move_logits = torch.tensor([[[0.1, 0.2, 0.3, 0.4, 0.5]]])
+    move_logits = torch.tensor([[[0.1, 0.2, 0.3, 0.4]]])
     write_logits = torch.zeros((1, 1, 2))
     distribution = JointMoveWriteCategorical(
         move_logits=move_logits,
         write_logits=write_logits,
     )
-    actions = torch.tensor([[[4, 1]]])
+    actions = torch.tensor([[[ACTION_FORWARD, 1]]])
 
     logprob = distribution.log_prob(actions)
     entropy = distribution.entropy()
@@ -312,15 +318,21 @@ def test_joint_move_write_distribution_scores_independent_heads() -> None:
     ).log_prob(actions[..., 1])
     torch.testing.assert_close(logprob, expected_logprob)
     assert entropy.shape == (1, 1)
-    torch.testing.assert_close(distribution.deterministic_sample, torch.tensor([[[4, 0]]]))
+    torch.testing.assert_close(
+        distribution.deterministic_sample,
+        torch.tensor([[[ACTION_FORWARD, 0]]]),
+    )
 
 
 def test_flatten_agent_actions_interleaves_movement_and_write_bits() -> None:
-    actions = torch.tensor([[[1, 1], [4, 0]]], dtype=torch.long)
+    actions = torch.tensor([[[ACTION_TURN_LEFT, 1], [ACTION_FORWARD, 0]]], dtype=torch.long)
 
     flat_actions = flatten_agent_actions(actions)
 
-    torch.testing.assert_close(flat_actions, torch.tensor([[1, 1, 4, 0]]))
+    torch.testing.assert_close(
+        flat_actions,
+        torch.tensor([[ACTION_TURN_LEFT, 1, ACTION_FORWARD, 0]]),
+    )
 
 
 def test_draw_vision_squares_overlays_clipped_ant_windows() -> None:
@@ -382,7 +394,7 @@ def test_forage_curriculum_rewards_pickup_and_target_progress() -> None:
         seed=5,
         options={"hub_pos": (0, 0), "food_positions": [(1, 0)]},
     )
-    next_obs, env_reward, _, _, _ = env.step(np.array([2, 0], dtype=np.int64))
+    next_obs, env_reward, _, _, _ = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
     env.close()
 
     shaped_rewards = compute_forage_curriculum_rewards(
@@ -479,10 +491,17 @@ class ScriptedForageAgent:
         del central_obs
         patch_size = (actor_obs.shape[-1] - 1) // 5
         carrying = actor_obs[:, :, -1] > 0.5
+        hub_patch = actor_obs[:, :, 3 * patch_size : 4 * patch_size]
+        hub_visible = torch.any(hub_patch > 0.5, dim=-1)
+        return_to_hub = torch.where(
+            hub_visible,
+            torch.full_like(carrying, ACTION_FORWARD, dtype=torch.long),
+            torch.full_like(carrying, ACTION_TURN_RIGHT, dtype=torch.long),
+        )
         movement = torch.where(
             carrying,
-            torch.full_like(carrying, 4, dtype=torch.long),
-            torch.full_like(carrying, 2, dtype=torch.long),
+            return_to_hub,
+            torch.full_like(carrying, ACTION_FORWARD, dtype=torch.long),
         )
         write = torch.zeros_like(movement)
         actions = torch.stack([movement, write], dim=-1)

@@ -8,7 +8,7 @@ import pytest
 jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
-from ant_byte_env import actor_vision_patch_size
+from ant_byte_env import MOVEMENT_ACTION_COUNT, actor_vision_patch_size
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo import (
     build_actor_observations,
@@ -156,7 +156,7 @@ def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     assert entropy.shape == (1, 2)
     assert value.shape == (1,)
     assert flat_actions.shape == (1, 4)
-    assert bool(jnp.all((0 <= actions[..., 0]) & (actions[..., 0] <= 4)))
+    assert bool(jnp.all((0 <= actions[..., 0]) & (actions[..., 0] < MOVEMENT_ACTION_COUNT)))
     assert bool(jnp.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7)))
 
 

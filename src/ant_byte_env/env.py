@@ -27,13 +27,31 @@ MAX_WRITE_VALUE = WRITE_VALUE_COUNT - 1
 DEFAULT_ACTOR_VISION_WIDTH = 3
 DEFAULT_ACTOR_VISION_DEPTH = 2
 
-MOVE_STAY = 0
+ACTION_STAY = 0
+ACTION_TURN_LEFT = 1
+ACTION_TURN_RIGHT = 2
+ACTION_FORWARD = 3
+MOVEMENT_ACTION_COUNT = 4
+
+MOVE_STAY = ACTION_STAY
 MOVE_UP = 1
 MOVE_RIGHT = 2
 MOVE_DOWN = 3
 MOVE_LEFT = 4
 DEFAULT_FACING = MOVE_RIGHT
 
+TURN_LEFT_FACING = {
+    MOVE_UP: MOVE_LEFT,
+    MOVE_LEFT: MOVE_DOWN,
+    MOVE_DOWN: MOVE_RIGHT,
+    MOVE_RIGHT: MOVE_UP,
+}
+TURN_RIGHT_FACING = {
+    MOVE_UP: MOVE_RIGHT,
+    MOVE_RIGHT: MOVE_DOWN,
+    MOVE_DOWN: MOVE_LEFT,
+    MOVE_LEFT: MOVE_UP,
+}
 FACING_ROTATIONS = {
     MOVE_UP: 90,
     MOVE_RIGHT: 0,
@@ -77,6 +95,32 @@ def facing_rotation_degrees(facing: int) -> int:
     if facing not in FACING_ROTATIONS:
         raise ValueError(f"Unsupported ant facing direction: {facing}.")
     return FACING_ROTATIONS[facing]
+
+
+def turn_facing(facing: int, action: int) -> int:
+    """Return the next facing after a turn action."""
+
+    if action == ACTION_TURN_LEFT:
+        return TURN_LEFT_FACING.get(facing, DEFAULT_FACING)
+    if action == ACTION_TURN_RIGHT:
+        return TURN_RIGHT_FACING.get(facing, DEFAULT_FACING)
+    if facing not in FACING_ROTATIONS:
+        return DEFAULT_FACING
+    return facing
+
+
+def facing_delta(facing: int) -> tuple[int, int]:
+    """Return the forward grid delta for a facing direction."""
+
+    if facing == MOVE_RIGHT:
+        return 1, 0
+    if facing == MOVE_LEFT:
+        return -1, 0
+    if facing == MOVE_DOWN:
+        return 0, 1
+    if facing == MOVE_UP:
+        return 0, -1
+    return facing_delta(DEFAULT_FACING)
 
 
 def rotate_ant_sprite(surface: pygame.Surface, facing: int) -> pygame.Surface:
@@ -141,7 +185,9 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self._has_reset = False
 
         max_coord = max(width, height)
-        self.action_space = spaces.MultiDiscrete([5, self.write_value_count] * num_ants)
+        self.action_space = spaces.MultiDiscrete(
+            [MOVEMENT_ACTION_COUNT, self.write_value_count] * num_ants
+        )
         self.observation_space = spaces.Dict(
             {
                 "ants_pos": spaces.Box(
@@ -152,7 +198,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                 ),
                 "ants_carrying": spaces.MultiBinary(num_ants),
                 "ants_facing": spaces.Box(
-                    low=MOVE_STAY,
+                    low=MOVE_UP,
                     high=MOVE_LEFT,
                     shape=(num_ants,),
                     dtype=np.int8,
@@ -244,11 +290,15 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         written_tiles: set[tuple[int, int]] = set()
 
         for ant_index in range(self.num_ants):
-            move = int(flat_action[2 * ant_index])
+            move_action = int(flat_action[2 * ant_index])
             write_bit = int(flat_action[2 * ant_index + 1])
-            next_pos = self._move_position(self.ants_pos[ant_index], move)
-            if move != MOVE_STAY:
-                self.ants_facing[ant_index] = move
+            next_facing = turn_facing(int(self.ants_facing[ant_index]), move_action)
+            next_pos = self._move_position(
+                self.ants_pos[ant_index],
+                action=move_action,
+                facing=next_facing,
+            )
+            self.ants_facing[ant_index] = next_facing
             self.ants_pos[ant_index] = next_pos
 
             x_pos, y_pos = int(next_pos[0]), int(next_pos[1])
@@ -433,24 +483,22 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             )
         moves = flat_action[0::2]
         writes = flat_action[1::2]
-        if np.any(moves < MOVE_STAY) or np.any(moves > MOVE_LEFT):
-            raise ValueError("movement actions must be integers from 0 to 4.")
+        if np.any(moves < ACTION_STAY) or np.any(moves >= MOVEMENT_ACTION_COUNT):
+            raise ValueError(
+                f"movement actions must be integers from 0 to {MOVEMENT_ACTION_COUNT - 1}."
+            )
         if np.any(writes < 0) or np.any(writes > self.max_write_value):
             raise ValueError(
                 f"write actions must be integers from 0 to {self.max_write_value}."
             )
         return flat_action
 
-    def _move_position(self, position: np.ndarray, move: int) -> np.ndarray:
+    def _move_position(self, position: np.ndarray, *, action: int, facing: int) -> np.ndarray:
         x_pos, y_pos = int(position[0]), int(position[1])
-        if move == MOVE_UP:
-            y_pos -= 1
-        elif move == MOVE_RIGHT:
-            x_pos += 1
-        elif move == MOVE_DOWN:
-            y_pos += 1
-        elif move == MOVE_LEFT:
-            x_pos -= 1
+        if action == ACTION_FORWARD:
+            dx, dy = facing_delta(facing)
+            x_pos += dx
+            y_pos += dy
         return np.array(
             [
                 int(np.clip(x_pos, 0, self.width - 1)),

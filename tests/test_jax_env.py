@@ -6,7 +6,13 @@ import pytest
 jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
-from ant_byte_env import AntByteForagingEnv
+from ant_byte_env import (
+    ACTION_FORWARD,
+    ACTION_STAY,
+    ACTION_TURN_LEFT,
+    MOVEMENT_ACTION_COUNT,
+    AntByteForagingEnv,
+)
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 
 
@@ -50,7 +56,7 @@ def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
 
     state, obs, reward, terminated, truncated, info = env.step(
         state,
-        jnp.array([2, 1], dtype=jnp.int32),
+        jnp.array([ACTION_FORWARD, 1], dtype=jnp.int32),
     )
     assert float(reward) == 0.0
     assert not bool(terminated)
@@ -62,7 +68,15 @@ def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
 
     state, obs, reward, terminated, truncated, info = env.step(
         state,
-        jnp.array([4, 0], dtype=jnp.int32),
+        jnp.array([ACTION_TURN_LEFT, 0], dtype=jnp.int32),
+    )
+    state, _, _, _, _, _ = env.step(
+        state,
+        jnp.array([ACTION_TURN_LEFT, 0], dtype=jnp.int32),
+    )
+    state, obs, reward, terminated, truncated, info = env.step(
+        state,
+        jnp.array([ACTION_FORWARD, 0], dtype=jnp.int32),
     )
     assert float(reward) == 1.0
     assert bool(terminated)
@@ -92,7 +106,7 @@ def test_jax_food_state_tracks_remaining_bite_counts() -> None:
 
     state, obs, _, terminated, _, info = env.step(
         state,
-        jnp.array([2, 0], dtype=jnp.int32),
+        jnp.array([ACTION_FORWARD, 0], dtype=jnp.int32),
     )
 
     assert int(state.food[0, 1]) == 1
@@ -102,7 +116,7 @@ def test_jax_food_state_tracks_remaining_bite_counts() -> None:
 
     state, obs, _, _, _, info = env.step(
         state,
-        jnp.array([0, 0], dtype=jnp.int32),
+        jnp.array([ACTION_STAY, 0], dtype=jnp.int32),
     )
 
     assert int(state.food[0, 1]) == 1
@@ -135,7 +149,12 @@ def test_jax_core_matches_gym_env_for_fixed_rollout() -> None:
         food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
     )
 
-    actions = [np.array([2, 1], dtype=np.int64), np.array([4, 0], dtype=np.int64)]
+    actions = [
+        np.array([ACTION_FORWARD, 1], dtype=np.int64),
+        np.array([ACTION_TURN_LEFT, 0], dtype=np.int64),
+        np.array([ACTION_TURN_LEFT, 0], dtype=np.int64),
+        np.array([ACTION_FORWARD, 0], dtype=np.int64),
+    ]
     try:
         for action in actions:
             gym_obs, gym_reward, gym_terminated, gym_truncated, gym_info = gym_env.step(action)
@@ -164,10 +183,13 @@ def test_jax_write_bits_control_action_range_and_overwrites() -> None:
 
     state, obs, _, _, _, info = env.step(
         state,
-        jnp.array([2, 0, 2, 7, 2, 3], dtype=jnp.int32),
+        jnp.array([ACTION_FORWARD, 0, ACTION_FORWARD, 7, ACTION_FORWARD, 3], dtype=jnp.int32),
     )
 
-    np.testing.assert_array_equal(np.asarray(env.action_nvec), np.array([5, 8, 5, 8, 5, 8]))
+    np.testing.assert_array_equal(
+        np.asarray(env.action_nvec),
+        np.array([MOVEMENT_ACTION_COUNT, 8, MOVEMENT_ACTION_COUNT, 8, MOVEMENT_ACTION_COUNT, 8]),
+    )
     assert int(obs["ants_count"][1, 1]) == 3
     assert int(jnp.sum(obs["ants_count"])) == 3
     assert int(obs["bytes"][1, 1]) == 3

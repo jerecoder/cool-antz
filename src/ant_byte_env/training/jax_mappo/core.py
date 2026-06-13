@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, max_write_value
+from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, MOVEMENT_ACTION_COUNT, max_write_value
 from ant_byte_env.env import (
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_ACTOR_VISION_WIDTH,
@@ -423,7 +423,7 @@ def init_agent_params(
             init_layer(keys[0], actor_obs_dim, hidden_size),
             init_layer(keys[1], hidden_size, hidden_size),
         ),
-        move_head=init_layer(keys[2], hidden_size, 5, scale=0.01),
+        move_head=init_layer(keys[2], hidden_size, MOVEMENT_ACTION_COUNT, scale=0.01),
         write_head=init_layer(keys[3], hidden_size, write_value_count, scale=0.01),
         critic_body=(
             init_layer(keys[4], central_obs_dim, hidden_size),
