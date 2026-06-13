@@ -21,6 +21,8 @@ def test_reset_returns_obs_and_info() -> None:
         "num_overwrites": 0,
     }
     assert obs["ants_pos"].shape == (2, 2)
+    assert obs["ants_facing"].shape == (2,)
+    np.testing.assert_array_equal(obs["ants_facing"], np.array([2, 2], dtype=np.int8))
     assert obs["ants_count"].shape == (4, 5)
     assert np.all(obs["ants_pos"] == obs["hub_pos"])
     assert obs["ants_count"][obs["hub_pos"][1], obs["hub_pos"][0]] == 2

@@ -10,6 +10,15 @@ import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, max_write_value
+from ant_byte_env.env import (
+    DEFAULT_ACTOR_VISION_DEPTH,
+    DEFAULT_ACTOR_VISION_WIDTH,
+    DEFAULT_FACING,
+    MOVE_DOWN,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    MOVE_UP,
+)
 from ant_byte_env.jax_env import JaxObs
 
 
@@ -179,7 +188,7 @@ def build_actor_observations(
     obs: JaxObs,
     *,
     food_scale: int = 1,
-    actor_vision_radius: int = 2,
+    actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     write_bits: int = DEFAULT_WRITE_BITS,
     obs_width: int | None = None,
     obs_height: int | None = None,
@@ -192,33 +201,45 @@ def build_actor_observations(
     ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
     ants_count = _ants_count_grid(obs, height=food.shape[1], width=food.shape[2])
     own_carrying = obs["ants_carrying"].astype(jnp.float32)[..., None]
+    ants_facing = obs.get("ants_facing")
+    if ants_facing is None:
+        ants_facing = jnp.full(
+            obs["ants_pos"].shape[:2],
+            DEFAULT_FACING,
+            dtype=jnp.int32,
+        )
     local_food = build_local_grid_patches(
         food,
         obs["ants_pos"],
         radius=actor_vision_radius,
+        ants_facing=ants_facing,
     )
     local_food = local_food / max(float(food_scale), 1.0)
     local_ants_count = build_local_grid_patches(
         ants_count,
         obs["ants_pos"],
         radius=actor_vision_radius,
+        ants_facing=ants_facing,
     )
     local_ants_count = local_ants_count / ant_count_scale
     local_byte_bits = build_local_byte_bit_patches(
         obs["bytes"],
         obs["ants_pos"],
         radius=actor_vision_radius,
+        ants_facing=ants_facing,
         write_bits=write_bits,
     )
     local_hub = build_local_hub_patches(
         obs["hub_pos"],
         obs["ants_pos"],
+        ants_facing=ants_facing,
         grid_height=food.shape[1],
         grid_width=food.shape[2],
         radius=actor_vision_radius,
     )
     local_border = build_local_border_patches(
         obs["ants_pos"],
+        ants_facing=ants_facing,
         grid_height=food.shape[1],
         grid_width=food.shape[2],
         radius=actor_vision_radius,
@@ -234,6 +255,7 @@ def build_local_byte_bit_patches(
     ants_pos: jax.Array,
     *,
     radius: int,
+    ants_facing: jax.Array | None = None,
     write_bits: int = DEFAULT_WRITE_BITS,
 ) -> jax.Array:
     if write_bits <= 0 or write_bits > MAX_WRITE_BITS:
@@ -243,7 +265,14 @@ def build_local_byte_bit_patches(
     bit_patches = []
     for bit_index in range(write_bits):
         bit_grid = ((bytes_int >> bit_index) & 1).astype(jnp.float32)
-        bit_patches.append(build_local_grid_patches(bit_grid, ants_pos, radius=radius))
+        bit_patches.append(
+            build_local_grid_patches(
+                bit_grid,
+                ants_pos,
+                radius=radius,
+                ants_facing=ants_facing,
+            )
+        )
     return jnp.concatenate(bit_patches, axis=-1)
 
 
@@ -252,15 +281,19 @@ def build_local_grid_patches(
     ants_pos: jax.Array,
     *,
     radius: int,
+    ants_facing: jax.Array | None = None,
 ) -> jax.Array:
     if radius < 0:
         raise ValueError("radius must be non-negative.")
 
     batch_size, grid_height, grid_width = grid.shape
-    offsets = jnp.arange(-radius, radius + 1, dtype=jnp.int32)
-    offset_y, offset_x = jnp.meshgrid(offsets, offsets, indexing="ij")
-    offset_pairs = jnp.stack([offset_x.reshape(-1), offset_y.reshape(-1)], axis=-1)
-    positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs[None, None, :, :]
+    if ants_facing is None:
+        ants_facing = jnp.full(ants_pos.shape[:2], DEFAULT_FACING, dtype=jnp.int32)
+    offset_pairs = build_forward_vision_offsets(
+        ants_facing.astype(jnp.int32),
+        depth=radius,
+    )
+    positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs
     x_pos = positions[..., 0]
     y_pos = positions[..., 1]
     valid = (0 <= x_pos) & (x_pos < grid_width) & (0 <= y_pos) & (y_pos < grid_height)
@@ -277,18 +310,60 @@ def build_local_border_patches(
     grid_height: int,
     grid_width: int,
     radius: int,
+    ants_facing: jax.Array | None = None,
 ) -> jax.Array:
     if radius < 0:
         raise ValueError("radius must be non-negative.")
 
-    offsets = jnp.arange(-radius, radius + 1, dtype=jnp.int32)
-    offset_y, offset_x = jnp.meshgrid(offsets, offsets, indexing="ij")
-    offset_pairs = jnp.stack([offset_x.reshape(-1), offset_y.reshape(-1)], axis=-1)
-    positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs[None, None, :, :]
+    if ants_facing is None:
+        ants_facing = jnp.full(ants_pos.shape[:2], DEFAULT_FACING, dtype=jnp.int32)
+    offset_pairs = build_forward_vision_offsets(
+        ants_facing.astype(jnp.int32),
+        depth=radius,
+    )
+    positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs
     x_pos = positions[..., 0]
     y_pos = positions[..., 1]
     valid = (0 <= x_pos) & (x_pos < grid_width) & (0 <= y_pos) & (y_pos < grid_height)
     return jnp.where(valid, 0.0, 1.0).astype(jnp.float32)
+
+
+def build_forward_vision_offsets(ants_facing: jax.Array, *, depth: int) -> jax.Array:
+    if depth < 0:
+        raise ValueError("depth must be non-negative.")
+
+    half_width = DEFAULT_ACTOR_VISION_WIDTH // 2
+    depth_offsets = jnp.repeat(
+        jnp.arange(1, depth + 1, dtype=jnp.int32),
+        DEFAULT_ACTOR_VISION_WIDTH,
+    )
+    lateral_offsets = jnp.tile(
+        jnp.arange(-half_width, half_width + 1, dtype=jnp.int32),
+        depth,
+    )
+    facing = ants_facing.astype(jnp.int32)
+    valid_facing = (
+        (facing == MOVE_UP)
+        | (facing == MOVE_RIGHT)
+        | (facing == MOVE_DOWN)
+        | (facing == MOVE_LEFT)
+    )
+    facing = jnp.where(valid_facing, facing, DEFAULT_FACING)
+    forward_x = jnp.where(
+        facing == MOVE_RIGHT,
+        1,
+        jnp.where(facing == MOVE_LEFT, -1, 0),
+    )
+    forward_y = jnp.where(
+        facing == MOVE_DOWN,
+        1,
+        jnp.where(facing == MOVE_UP, -1, 0),
+    )
+    right_x = -forward_y
+    right_y = forward_x
+    offset_x = forward_x[..., None] * depth_offsets + right_x[..., None] * lateral_offsets
+    offset_y = forward_y[..., None] * depth_offsets + right_y[..., None] * lateral_offsets
+    return jnp.stack([offset_x, offset_y], axis=-1)
 
 
 def build_local_hub_patches(
@@ -298,12 +373,18 @@ def build_local_hub_patches(
     grid_height: int,
     grid_width: int,
     radius: int,
+    ants_facing: jax.Array | None = None,
 ) -> jax.Array:
     batch_size = hub_pos.shape[0]
     hub_grid = jnp.zeros((batch_size, grid_height, grid_width), dtype=jnp.float32)
     batch_index = jnp.arange(batch_size)
     hub_grid = hub_grid.at[batch_index, hub_pos[:, 1], hub_pos[:, 0]].set(1.0)
-    return build_local_grid_patches(hub_grid, ants_pos, radius=radius)
+    return build_local_grid_patches(
+        hub_grid,
+        ants_pos,
+        radius=radius,
+        ants_facing=ants_facing,
+    )
 
 
 def flatten_agent_actions(actions: jax.Array) -> jax.Array:

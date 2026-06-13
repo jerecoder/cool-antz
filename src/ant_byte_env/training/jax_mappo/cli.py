@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS
+from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -35,7 +35,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=5)
     parser.add_argument("--obs-width", type=int, default=None)
     parser.add_argument("--obs-height", type=int, default=None)
-    parser.add_argument("--actor-vision-radius", type=int, default=2)
+    parser.add_argument(
+        "--actor-vision-radius",
+        type=int,
+        default=DEFAULT_ACTOR_VISION_DEPTH,
+        help="Forward vision depth; actor observations are always 3 tiles wide.",
+    )
     parser.add_argument("--num-ants", type=int, default=2)
     parser.add_argument("--food-count", type=int, default=4)
     parser.add_argument("--food-sources", type=int, default=1)

@@ -110,7 +110,7 @@ Render a saved checkpoint with:
 ant-byte render --checkpoint runs/.../checkpoints/model.pt --output runs/.../media/rollout.mp4
 ```
 
-Checkpoint renders include each ant's local vision square by default; pass
+Checkpoint renders include each ant's local 3-wide, 2-deep forward vision patch by default; pass
 `--no-vision` for a raw environment render.
 
 Curated result metadata lives in `results/curated/`. Generated run outputs live
@@ -240,9 +240,9 @@ The Torch and JAX MAPPO trainers use a shared project structure but backend
 specific modules. The shared actor chooses a joint `(move, write_value)` action
 for each ant. Each actor observation is coordinate-free and local: food values,
 local write bit-plane patches, a colony mask, an out-of-bounds border mask in
-the ant's vision square, and that ant's carrying flag. The centralized critic
-still receives the padded global map state. Use `--write-bits` to choose how
-many bits each ant can write.
+the ant's 3-wide forward vision patch, and that ant's carrying flag. The
+centralized critic still receives the padded global map state. Use
+`--write-bits` to choose how many bits each ant can write.
 
 By default this stage fixes one cookie source near the hub and adds small
 curriculum rewards for picking up a bite and moving closer to the current target

@@ -24,6 +24,8 @@ DEFAULT_WRITE_BITS = 1
 MAX_WRITE_BITS = 8
 WRITE_VALUE_COUNT = 2
 MAX_WRITE_VALUE = WRITE_VALUE_COUNT - 1
+DEFAULT_ACTOR_VISION_WIDTH = 3
+DEFAULT_ACTOR_VISION_DEPTH = 2
 
 MOVE_STAY = 0
 MOVE_UP = 1
@@ -50,6 +52,14 @@ def max_write_value(write_bits: int) -> int:
     """Return the largest integer value representable by ``write_bits``."""
 
     return write_value_count(write_bits) - 1
+
+
+def actor_vision_patch_size(depth: int) -> int:
+    """Return the number of tiles in the 3-wide forward actor vision patch."""
+
+    if depth < 0:
+        raise ValueError("actor_vision_radius must be non-negative.")
+    return DEFAULT_ACTOR_VISION_WIDTH * int(depth)
 
 
 def food_alpha(remaining: int, initial: int) -> int:
@@ -141,6 +151,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                     dtype=np.int32,
                 ),
                 "ants_carrying": spaces.MultiBinary(num_ants),
+                "ants_facing": spaces.Box(
+                    low=MOVE_STAY,
+                    high=MOVE_LEFT,
+                    shape=(num_ants,),
+                    dtype=np.int8,
+                ),
                 "ants_count": spaces.Box(
                     low=0,
                     high=num_ants,
@@ -453,6 +469,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         return {
             "ants_pos": self.ants_pos.astype(np.int32, copy=True),
             "ants_carrying": self.ants_carrying.astype(np.int8, copy=True),
+            "ants_facing": self.ants_facing.astype(np.int8, copy=True),
             "ants_count": self.ants_count.astype(np.int32, copy=True),
             "food": self.food.astype(np.int32, copy=True),
             "bytes": self.bytes.astype(np.uint8, copy=True),

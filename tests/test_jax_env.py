@@ -28,6 +28,8 @@ def test_jax_reset_matches_env_observation_contract() -> None:
     assert state.ants_pos.shape == (2, 2)
     assert state.ants_count.shape == (3, 4)
     assert obs["ants_pos"].shape == (2, 2)
+    assert obs["ants_facing"].shape == (2,)
+    np.testing.assert_array_equal(np.asarray(obs["ants_facing"]), np.array([2, 2]))
     assert obs["ants_count"].shape == (3, 4)
     assert obs["food"].shape == (3, 4)
     assert obs["bytes"].shape == (3, 4)

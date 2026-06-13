@@ -11,6 +11,7 @@ from ant_byte_env.training.torch_mappo import (
     build_actor_observations,
     build_central_observations,
     build_curriculum_reset_options,
+    build_local_grid_patches,
     build_local_food_patches,
     compute_forage_curriculum_rewards,
     evaluate_agent,
@@ -46,7 +47,7 @@ def test_observation_builders_create_stable_mappo_tensors() -> None:
     actor_obs = build_actor_observations(obs, central_obs, food_scale=3)
 
     assert central_obs.shape == (1, 46)
-    assert actor_obs.shape == (1, 2, 126)
+    assert actor_obs.shape == (1, 2, 31)
     assert torch.all(central_obs >= 0.0)
     assert torch.all(central_obs <= 1.0)
     assert torch.all(actor_obs >= 0.0)
@@ -71,7 +72,7 @@ def test_observation_builders_can_pad_to_larger_curriculum_map() -> None:
     )
 
     assert central_obs.shape == (1, 118)
-    assert actor_obs.shape == (1, 2, 126)
+    assert actor_obs.shape == (1, 2, 31)
     torch.testing.assert_close(central_obs[:, -2:], torch.tensor([[4 / 6, 3 / 6]]))
 
 
@@ -86,27 +87,56 @@ def test_actor_observation_contains_local_grids_border_mask_and_carrying_flag() 
         actor_vision_radius=1,
     )
 
-    assert actor_obs.shape == (1, 2, 46)
+    assert actor_obs.shape == (1, 2, 16)
     torch.testing.assert_close(
-        actor_obs[0, 0, :9],
-        torch.tensor([0, 0, 0, 0, 0, 1, 0, 0, 0.0]),
+        actor_obs[0, 0, :3],
+        torch.tensor([0, 1, 0.0]),
     )
     torch.testing.assert_close(
-        actor_obs[0, 0, 9:18],
-        torch.tensor([0, 0, 0, 0, 1, 0, 0, 0, 0.0]),
+        actor_obs[0, 0, 3:6],
+        torch.zeros(3),
     )
-    torch.testing.assert_close(actor_obs[0, 0, 18:27], torch.zeros(9))
+    torch.testing.assert_close(actor_obs[0, 0, 6:9], torch.zeros(3))
     torch.testing.assert_close(
-        actor_obs[0, 0, 27:36],
-        torch.tensor([0, 0, 0, 0, 1, 0, 0, 0, 0.0]),
-    )
-    torch.testing.assert_close(
-        actor_obs[0, 0, 36:45],
-        torch.tensor([1, 1, 1, 1, 0, 0, 1, 0, 0.0]),
+        actor_obs[0, 0, 9:12],
+        torch.zeros(3),
     )
     torch.testing.assert_close(
-        actor_obs[0, 0, 45:],
+        actor_obs[0, 0, 12:15],
+        torch.tensor([1, 0, 0.0]),
+    )
+    torch.testing.assert_close(
+        actor_obs[0, 0, 15:],
         torch.tensor([0.0]),
+    )
+
+
+def test_actor_vision_patch_is_three_wide_and_two_deep_in_front() -> None:
+    grid = torch.tensor(
+        [
+            [
+                [0.0, 1.0, 2.0, 3.0, 4.0],
+                [10.0, 11.0, 12.0, 13.0, 14.0],
+                [20.0, 21.0, 22.0, 23.0, 24.0],
+                [30.0, 31.0, 32.0, 33.0, 34.0],
+                [40.0, 41.0, 42.0, 43.0, 44.0],
+            ]
+        ]
+    )
+    ants_pos = torch.tensor([[[2, 2]]])
+    ants_facing = torch.tensor([[2]])
+
+    patch = build_local_grid_patches(
+        grid,
+        ants_pos,
+        radius=2,
+        ants_facing=ants_facing,
+    )
+
+    assert patch.shape == (1, 1, 6)
+    torch.testing.assert_close(
+        patch[0, 0],
+        torch.tensor([13.0, 23.0, 33.0, 14.0, 24.0, 34.0]),
     )
 
 
@@ -128,9 +158,9 @@ def test_actor_observation_exposes_one_local_write_bit_patch() -> None:
         actor_vision_radius=1,
     )
 
-    patch_size = 9
+    patch_size = 3
     byte_bits = actor_obs[0, 0, 2 * patch_size : 3 * patch_size]
-    expected_bit = torch.tensor([0, 0, 0, 0, 0, 1, 0, 0, 0.0])
+    expected_bit = torch.tensor([0, 1, 0.0])
     torch.testing.assert_close(byte_bits, expected_bit)
 
 
@@ -157,10 +187,10 @@ def test_actor_observation_write_bits_controls_local_bit_planes() -> None:
         write_bits=3,
     )
 
-    patch_size = 9
+    patch_size = 3
     bit_patches = actor_obs[0, 0, 2 * patch_size : 5 * patch_size].reshape(3, patch_size)
-    expected_bit = torch.tensor([0, 0, 0, 0, 0, 1, 0, 0, 0.0])
-    assert actor_obs.shape == (1, 1, 64)
+    expected_bit = torch.tensor([0, 1, 0.0])
+    assert actor_obs.shape == (1, 1, 22)
     torch.testing.assert_close(bit_patches[0], expected_bit)
     torch.testing.assert_close(bit_patches[1], torch.zeros(patch_size))
     torch.testing.assert_close(bit_patches[2], expected_bit)
@@ -176,6 +206,8 @@ def test_actor_observation_exposes_colony_in_local_hub_grid() -> None:
     )
     obs, _ = env.reset(seed=127, options={"hub_pos": (2, 1), "food_positions": [(3, 1)]})
     env.close()
+    obs["ants_pos"][0] = np.array([1, 1], dtype=np.int32)
+    obs["ants_facing"][0] = 2
     obs_tensor = obs_to_tensor(
         {key: value[np.newaxis, ...] for key, value in obs.items()},
         torch.device("cpu"),
@@ -189,10 +221,10 @@ def test_actor_observation_exposes_colony_in_local_hub_grid() -> None:
         actor_vision_radius=1,
     )
 
-    patch_size = 9
+    patch_size = 3
     torch.testing.assert_close(
         actor_obs[0, 0, 3 * patch_size : 4 * patch_size],
-        torch.tensor([0, 0, 0, 0, 1, 0, 0, 0, 0.0]),
+        torch.tensor([0, 1, 0.0]),
     )
 
 
@@ -202,14 +234,14 @@ def test_local_food_patches_pad_map_edges() -> None:
 
     patches = build_local_food_patches(food, ants_pos, radius=1, food_scale=3)
 
-    assert patches.shape == (1, 2, 9)
+    assert patches.shape == (1, 2, 3)
     torch.testing.assert_close(
         patches[0, 0],
-        torch.tensor([0, 0, 0, 0, 0, 2 / 3, 0, 1, 0.0]),
+        torch.tensor([0, 2 / 3, 0.0]),
     )
     torch.testing.assert_close(
         patches[0, 1],
-        torch.tensor([0, 2 / 3, 0, 1, 0, 0, 0, 0, 0.0]),
+        torch.zeros(3),
     )
 
 
@@ -255,7 +287,7 @@ def test_agent_write_head_size_follows_write_bits() -> None:
     move_logits, write_logits = agent.get_action_logits(actor_obs)
     actions, _, _, _ = agent.get_action_and_value(actor_obs, central_obs)
 
-    assert actor_obs.shape == (1, 2, 176)
+    assert actor_obs.shape == (1, 2, 43)
     assert move_logits.shape == (1, 2, 5)
     assert write_logits.shape == (1, 2, 8)
     assert torch.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7))
@@ -295,6 +327,7 @@ def test_draw_vision_squares_overlays_clipped_ant_windows() -> None:
     frame = np.zeros((30, 40, 3), dtype=np.uint8)
     obs = {
         "ants_pos": np.array([[0, 0], [3, 2]], dtype=np.int32),
+        "ants_facing": np.array([2, 4], dtype=np.int8),
         "food": np.zeros((3, 4), dtype=np.int32),
     }
 
@@ -309,8 +342,8 @@ def test_draw_vision_squares_overlays_clipped_ant_windows() -> None:
     )
 
     assert np.all(frame == 0)
-    np.testing.assert_array_equal(overlay[0, 0], np.array([10, 20, 30], dtype=np.uint8))
-    np.testing.assert_array_equal(overlay[29, 39], np.array([200, 210, 220], dtype=np.uint8))
+    np.testing.assert_array_equal(overlay[0, 10], np.array([10, 20, 30], dtype=np.uint8))
+    np.testing.assert_array_equal(overlay[29, 20], np.array([200, 210, 220], dtype=np.uint8))
     assert overlay.sum() > 0
 
 
@@ -445,25 +478,17 @@ class ScriptedForageAgent:
         del action, deterministic
         del central_obs
         patch_size = (actor_obs.shape[-1] - 1) // 5
-        patch_width = int(patch_size**0.5)
-        center_index = patch_size // 2
         carrying = actor_obs[:, :, -1] > 0.5
-        hub_patch = actor_obs[:, :, 3 * patch_size : 4 * patch_size]
-        hub_at_center = hub_patch[:, :, center_index] > 0.5
-        hub_left = hub_patch[:, :, center_index - 1] > 0.5
-        hub_right = hub_patch[:, :, center_index + 1] > 0.5
-        return_to_hub = torch.where(
-            hub_at_center,
-            torch.zeros_like(carrying, dtype=torch.long),
-            torch.where(hub_left, torch.full_like(carrying, 4, dtype=torch.long), 2),
+        movement = torch.where(
+            carrying,
+            torch.full_like(carrying, 4, dtype=torch.long),
+            torch.full_like(carrying, 2, dtype=torch.long),
         )
-        return_to_hub = torch.where(hub_right, torch.full_like(return_to_hub, 2), return_to_hub)
-        movement = torch.where(carrying, return_to_hub, 2).long()
         write = torch.zeros_like(movement)
         actions = torch.stack([movement, write], dim=-1)
         zeros = torch.zeros_like(movement, dtype=torch.float32)
         values = torch.zeros(actor_obs.shape[0], dtype=torch.float32)
-        assert patch_width == 2 * 2 + 1
+        assert patch_size == 6
         return actions, zeros, zeros, values
 
 
@@ -653,5 +678,5 @@ def test_checkpoint_can_resume_on_larger_padded_map(tmp_path) -> None:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     assert metrics["global_step"] == 4
     assert checkpoint["central_obs_dim"] == 82
-    assert checkpoint["actor_obs_dim"] == 126
+    assert checkpoint["actor_obs_dim"] == 31
     assert checkpoint["args"]["width"] == 5

@@ -288,6 +288,7 @@ class JaxAntByteForagingEnv:
             "ants_pos": state.ants_pos.astype(jnp.int32),
             "ants_count": state.ants_count.astype(jnp.int32),
             "ants_carrying": state.ants_carrying.astype(jnp.int8),
+            "ants_facing": state.ants_facing.astype(jnp.int32),
             "food": state.food.astype(jnp.int32),
             "bytes": state.bytes.astype(jnp.uint8),
             "hub_pos": state.hub_pos.astype(jnp.int32),

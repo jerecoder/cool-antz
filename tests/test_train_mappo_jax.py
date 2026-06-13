@@ -8,10 +8,12 @@ import pytest
 jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
+from ant_byte_env import actor_vision_patch_size
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo import (
     build_actor_observations,
     build_central_observations,
+    build_local_grid_patches,
     compute_gae,
     flatten_agent_actions,
     get_action_and_value,
@@ -54,7 +56,7 @@ def test_jax_observation_builders_match_mappo_shapes() -> None:
     actor_obs = build_actor_observations(obs, food_scale=3)
 
     assert central_obs.shape == (1, 46)
-    assert actor_obs.shape == (1, 2, 126)
+    assert actor_obs.shape == (1, 2, 31)
     assert bool(jnp.all(central_obs >= 0.0))
     assert bool(jnp.all(central_obs <= 1.0))
     assert bool(jnp.all(actor_obs >= 0.0))
@@ -75,12 +77,15 @@ def test_jax_observation_builders_preserve_food_amounts() -> None:
         0,
         ants_pos_width + ants_carrying_width + ants_count_width + food_cell_index,
     ]
-    local_food_patch_index = 5
+    local_food_patch_index = 1
 
     assert float(central_food_value) == 1.0
     assert float(central_obs[0, ants_pos_width + ants_carrying_width]) == 1.0
     assert float(actor_obs[0, 0, local_food_patch_index]) == 1.0
-    assert float(actor_obs[0, 0, 9 + 4]) == 1.0
+    np.testing.assert_allclose(
+        np.asarray(actor_obs[0, 0, 12:15]),
+        np.array([1, 0, 0.0], dtype=np.float32),
+    )
 
 
 def test_jax_actor_observation_exposes_border_mask() -> None:
@@ -88,10 +93,40 @@ def test_jax_actor_observation_exposes_border_mask() -> None:
 
     actor_obs = build_actor_observations(obs, food_scale=3, actor_vision_radius=1)
 
-    assert actor_obs.shape == (1, 2, 46)
+    assert actor_obs.shape == (1, 2, 16)
     np.testing.assert_allclose(
-        np.asarray(actor_obs[0, 0, 36:45]),
-        np.array([1, 1, 1, 1, 0, 0, 1, 0, 0.0], dtype=np.float32),
+        np.asarray(actor_obs[0, 0, 12:15]),
+        np.array([1, 0, 0.0], dtype=np.float32),
+    )
+
+
+def test_jax_actor_vision_patch_is_three_wide_and_two_deep_in_front() -> None:
+    grid = jnp.asarray(
+        [
+            [
+                [0.0, 1.0, 2.0, 3.0, 4.0],
+                [10.0, 11.0, 12.0, 13.0, 14.0],
+                [20.0, 21.0, 22.0, 23.0, 24.0],
+                [30.0, 31.0, 32.0, 33.0, 34.0],
+                [40.0, 41.0, 42.0, 43.0, 44.0],
+            ]
+        ],
+        dtype=jnp.float32,
+    )
+    ants_pos = jnp.asarray([[[2, 2]]], dtype=jnp.int32)
+    ants_facing = jnp.asarray([[2]], dtype=jnp.int32)
+
+    patch = build_local_grid_patches(
+        grid,
+        ants_pos,
+        radius=2,
+        ants_facing=ants_facing,
+    )
+
+    assert patch.shape == (1, 1, 6)
+    np.testing.assert_allclose(
+        np.asarray(patch[0, 0]),
+        np.array([13.0, 23.0, 33.0, 14.0, 24.0, 34.0], dtype=np.float32),
     )
 
 
@@ -115,7 +150,7 @@ def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     )
     flat_actions = flatten_agent_actions(actions)
 
-    assert actor_obs.shape == (1, 2, 176)
+    assert actor_obs.shape == (1, 2, 43)
     assert actions.shape == (1, 2, 2)
     assert logprob.shape == (1, 2)
     assert entropy.shape == (1, 2)
@@ -247,7 +282,7 @@ def test_jax_checkpoint_transfer_adds_ants_count_planes_from_legacy_checkpoint(t
     )
 
     transferred = checkpoint["params"]
-    patch_size = (2 * radius + 1) ** 2
+    patch_size = actor_vision_patch_size(radius)
     grid_area = obs_height * obs_width
     central_prefix = 3 * num_ants
     assert checkpoint["central_obs_dim"] == target_central_dim

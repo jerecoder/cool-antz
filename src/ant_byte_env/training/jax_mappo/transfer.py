@@ -8,7 +8,12 @@ from typing import Any
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, write_value_count
+from ant_byte_env import (
+    DEFAULT_WRITE_BITS,
+    MAX_WRITE_BITS,
+    actor_vision_patch_size,
+    write_value_count,
+)
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
@@ -106,7 +111,7 @@ def actor_obs_dim_for_bits(
         raise ValueError("actor_vision_radius must be non-negative.")
     if write_bits <= 0 or write_bits > MAX_WRITE_BITS:
         raise ValueError(f"write_bits must be an integer from 1 to {MAX_WRITE_BITS}.")
-    patch_size = (2 * actor_vision_radius + 1) ** 2
+    patch_size = actor_vision_patch_size(actor_vision_radius)
     grid_channels = write_bits + (4 if include_ants_count else 3)
     return patch_size * grid_channels + 1
 
@@ -253,7 +258,7 @@ def expand_actor_input_layer(
     source_includes_ants_count: bool = True,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
-    patch_size = (2 * actor_vision_radius + 1) ** 2
+    patch_size = actor_vision_patch_size(actor_vision_radius)
     expected_old_dim = actor_obs_dim_for_bits(
         write_bits=old_bits,
         actor_vision_radius=actor_vision_radius,
