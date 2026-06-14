@@ -11,10 +11,15 @@ The environment is rendered with Pygame and supports `render_mode="human"` and
 ## Install
 
 ```bash
-python -m pip install -e ".[dev]"
+conda env create -f environment.yml
+conda activate cool-antz
 ```
 
-For NVIDIA GPU training on a CUDA 13-capable driver, install the CUDA JAX extra:
+The Conda environment installs the project in editable mode with the default
+development, JAX, Torch, and notebook dependencies from `pyproject.toml`.
+
+For NVIDIA GPU training on a CUDA 13-capable driver, install the CUDA JAX extra
+after activating the environment:
 
 ```bash
 python -m pip install -e ".[jax-cuda13,notebooks]"
@@ -55,10 +60,11 @@ from ant_byte_env import AntByteForagingEnv
 
 ## JAX Core
 
-For vectorized training, install the JAX extra and use the pure functional core:
+For vectorized training, use the pure functional core from the Conda
+environment:
 
 ```bash
-python -m pip install -e ".[jax]"
+conda activate cool-antz
 ```
 
 ```python
