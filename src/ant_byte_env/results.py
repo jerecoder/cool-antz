@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +13,7 @@ def index_result_metadata(source_root: Path, output_path: Path) -> dict[str, Any
     entries = [_entry_from_metadata(path, source_root) for path in sorted(source_root.rglob("metadata.json"))]
     payload = {
         "schema_version": 1,
-        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "source_root": str(source_root),
         "entry_count": len(entries),
         "entries": entries,
