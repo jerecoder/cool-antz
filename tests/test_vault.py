@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -18,7 +18,7 @@ def test_create_vault_entry_copies_assets_and_writes_metadata(tmp_path) -> None:
         description="A rollout video worth keeping.",
         assets=[asset_path],
         metadata={"stage": "4x4"},
-        created_at=datetime(2026, 6, 11, 12, 30, 5, tzinfo=UTC),
+        created_at=datetime(2026, 6, 11, 12, 30, 5, tzinfo=timezone.utc),
     )
 
     assert entry_dir.name == "20260611T123005Z"
@@ -48,7 +48,7 @@ def test_create_vault_entry_uses_unique_folder_and_asset_names(tmp_path) -> None
     first_asset.write_bytes(b"first")
     second_asset.write_bytes(b"second")
 
-    fixed_time = datetime(2026, 6, 11, 12, 30, 5, tzinfo=UTC)
+    fixed_time = datetime(2026, 6, 11, 12, 30, 5, tzinfo=timezone.utc)
     first_entry = create_vault_entry(
         vault_dir=tmp_path / "vault",
         title="First",

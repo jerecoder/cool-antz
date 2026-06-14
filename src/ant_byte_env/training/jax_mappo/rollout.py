@@ -20,6 +20,14 @@ from ant_byte_env.training.jax_mappo.core import (
     get_action_and_value,
     get_value,
 )
+from ant_byte_env.training.jax_mappo.curriculum import reset_batch
+
+
+def _where_done(dones: jax.Array, reset_value: jax.Array, active_value: jax.Array) -> jax.Array:
+    mask = dones
+    while mask.ndim < active_value.ndim:
+        mask = mask[..., None]
+    return jnp.where(mask, reset_value, active_value)
 
 
 def collect_rollout(
@@ -36,7 +44,7 @@ def collect_rollout(
         _: Any,
     ) -> tuple[tuple[JaxAntState, JaxObs, jax.Array], Transition]:
         current_states, current_obs, current_key = carry
-        action_key, next_key = jax.random.split(current_key)
+        action_key, reset_key, next_key = jax.random.split(current_key, 3)
         central_obs = build_central_observations(
             current_obs,
             food_scale=args.food_count,
@@ -63,6 +71,17 @@ def collect_rollout(
             flatten_agent_actions(actions),
         )
         dones = jnp.logical_or(terminated, truncated)
+        reset_states, reset_obs = reset_batch(args=args, env=env, key=reset_key)
+        carry_states = jax.tree_util.tree_map(
+            lambda reset_value, active_value: _where_done(dones, reset_value, active_value),
+            reset_states,
+            next_states,
+        )
+        carry_obs = jax.tree_util.tree_map(
+            lambda reset_value, active_value: _where_done(dones, reset_value, active_value),
+            reset_obs,
+            next_obs,
+        )
         rewards = compute_forage_curriculum_rewards(
             previous_obs=current_obs,
             next_obs=next_obs,
@@ -80,7 +99,7 @@ def collect_rollout(
             values=values,
             env_rewards=env_rewards,
         )
-        return (next_states, next_obs, next_key), transition
+        return (carry_states, carry_obs, next_key), transition
 
     (final_states, final_obs, _), transitions = jax.lax.scan(
         scan_step,

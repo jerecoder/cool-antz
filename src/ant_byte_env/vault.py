@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -67,10 +67,10 @@ def create_vault_entry(
 
 def _utc_datetime(created_at: datetime | None) -> datetime:
     if created_at is None:
-        return datetime.now(UTC)
+        return datetime.now(timezone.utc)
     if created_at.tzinfo is None:
-        return created_at.replace(tzinfo=UTC)
-    return created_at.astimezone(UTC)
+        return created_at.replace(tzinfo=timezone.utc)
+    return created_at.astimezone(timezone.utc)
 
 
 def _next_entry_dir(vault_dir: Path, created_at: datetime) -> Path:

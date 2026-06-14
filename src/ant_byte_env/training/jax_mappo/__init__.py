@@ -28,6 +28,8 @@ _EXPORTS = {
     "compute_forage_curriculum_rewards": ("core", "compute_forage_curriculum_rewards"),
     "compute_gae": ("core", "compute_gae"),
     "evaluate_actions": ("core", "evaluate_actions"),
+    "evaluate_checkpoint": ("evaluation", "evaluate_checkpoint"),
+    "evaluate_params": ("evaluation", "evaluate_params"),
     "flatten_agent_actions": ("core", "flatten_agent_actions"),
     "get_action_and_value": ("core", "get_action_and_value"),
     "get_action_logits": ("core", "get_action_logits"),

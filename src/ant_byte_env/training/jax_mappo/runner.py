@@ -126,7 +126,6 @@ def main(
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]
 
-    reset_fn = jax.jit(lambda reset_key: reset_batch(args=args, env=env, key=reset_key))
     rollout_fn = jax.jit(
         lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
             args=args,
@@ -159,8 +158,7 @@ def main(
     }
 
     for update in range(1, num_updates + 1):
-        key, reset_key, rollout_key = jax.random.split(key, 3)
-        states, obs = reset_fn(reset_key)
+        key, rollout_key = jax.random.split(key)
         states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
         learning_rate = args.learning_rate
         if args.anneal_lr:

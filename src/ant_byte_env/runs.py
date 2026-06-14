@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 def utc_run_id(now: datetime | None = None) -> str:
-    actual = datetime.now(UTC) if now is None else now.astimezone(UTC)
+    actual = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
     return actual.strftime("%Y%m%dT%H%M%SZ")
 
 

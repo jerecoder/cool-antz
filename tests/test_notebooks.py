@@ -72,3 +72,14 @@ def test_ant_count_curriculum_starts_from_three_bit_25x25_checkpoint() -> None:
     assert "communication_bits_25x25/3_bits/checkpoints/model.pkl" in source
     assert "prepare_ant_count_checkpoint" in source
     assert "expand_critic_input_for_ant_count" in source
+
+
+def test_direct_goal_notebook_uses_direct_goal_config_and_evaluation() -> None:
+    source = notebook_source(Path("notebooks/train_jax_direct_goal_baseline.ipynb"))
+
+    assert "experiments\" / \"direct_goal_baseline.json\"" in source
+    assert "evaluate_checkpoint(CHECKPOINT_PATH, num_episodes=8)" in source
+    assert "50x50" in source
+    assert "3x3" in source
+    assert "5` writable bits" in source
+    assert "10` ants" in source
