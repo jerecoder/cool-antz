@@ -10,10 +10,12 @@ jnp = pytest.importorskip("jax.numpy")
 
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo import (
+    LinearParams,
     build_actor_observations,
     build_central_observations,
     collect_rollout,
     compute_gae,
+    evaluate_params,
     flatten_agent_actions,
     get_action_and_value,
     init_adam_state,
@@ -315,6 +317,98 @@ def test_jax_rollout_auto_resets_completed_envs() -> None:
 
     assert bool(np.asarray(rollout.dones)[0, 0])
     assert int(np.asarray(states.step_count)[0]) == 0
+
+
+def test_jax_evaluate_params_reports_delivery_metrics() -> None:
+    args = parse_args(
+        [
+            "--total-timesteps",
+            "2",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "1",
+            "--num-minibatches",
+            "1",
+            "--width",
+            "3",
+            "--height",
+            "1",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--cookie-distance",
+            "1",
+            "--max-steps",
+            "4",
+            "--actor-vision-radius",
+            "1",
+            "--hidden-size",
+            "1",
+            "--seed",
+            "19",
+            "--quiet",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        write_bits=args.write_bits,
+    )
+    params, _, obs = _params_for_args(args, env)
+    central_obs = build_central_observations(obs, food_scale=args.food_count)
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+    )
+    params = _scripted_delivery_params(
+        central_obs_dim=central_obs.shape[-1],
+        actor_obs_dim=actor_obs.shape[-1],
+    )
+
+    metrics = evaluate_params(params=params, args=args, num_episodes=3)
+
+    assert metrics["eval_success_rate"] == 1.0
+    assert metrics["eval_mean_delivered_food"] == 1.0
+    assert metrics["eval_mean_delivered_fraction"] == 1.0
+    assert metrics["eval_mean_episode_return"] == 1.0
+    assert metrics["eval_mean_episode_length"] == 2.0
+
+
+def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=actor_obs_dim,
+        hidden_size=1,
+        write_value_count=write_value_count(1),
+    )
+    actor_input_weight = jnp.zeros_like(params.actor_body[0].weight).at[-1, 0].set(10.0)
+    actor_hidden_weight = jnp.zeros_like(params.actor_body[1].weight).at[0, 0].set(5.0)
+    move_weight = jnp.zeros_like(params.move_head.weight).at[0, 4].set(5.0)
+    move_bias = jnp.zeros_like(params.move_head.bias).at[2].set(2.0)
+    return params._replace(
+        actor_body=(
+            LinearParams(
+                weight=actor_input_weight,
+                bias=jnp.zeros_like(params.actor_body[0].bias),
+            ),
+            LinearParams(
+                weight=actor_hidden_weight,
+                bias=jnp.zeros_like(params.actor_body[1].bias),
+            ),
+        ),
+        move_head=LinearParams(weight=move_weight, bias=move_bias),
+    )
 
 
 @pytest.mark.parametrize("write_bits", ["0", "9"])
