@@ -105,6 +105,7 @@ From an editable install:
 ant-byte train torch --config experiments/smoke.json --dry-run
 ant-byte train torch --config experiments/smoke.json
 ant-byte train jax --config experiments/forage_curriculum.json --dry-run
+ant-byte train jax --config experiments/direct_goal_baseline.json --dry-run
 ```
 
 From a source checkout without reinstalling, prefix commands with
@@ -121,6 +122,11 @@ Checkpoint renders include each ant's local vision square by default; pass
 
 Curated result metadata lives in `results/curated/`. Generated run outputs live
 under ignored `runs/<experiment>/<run_id>/`.
+
+The direct-goal baseline config trains the final target from scratch:
+`50x50` map, `3x3` actor vision, `5` writable bits, and `10` ants. It disables
+trainer-side pickup and distance shaping so the policy sees only the raw
+environment delivery reward.
 
 ## Action Space
 

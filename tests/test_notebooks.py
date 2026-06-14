@@ -55,3 +55,14 @@ def test_communication_notebook_writes_distinct_vision_rollouts() -> None:
     assert "checkpoint_path.stem}_rollout" not in source
     assert "stage_name = checkpoint_path.parent.parent.name" in source
     assert "jax_mappo_15x15_{stage_name}_vision_rollout.gif" in source
+
+
+def test_direct_goal_notebook_uses_direct_goal_config_and_evaluation() -> None:
+    source = notebook_source(Path("notebooks/train_jax_direct_goal_baseline.ipynb"))
+
+    assert "experiments\" / \"direct_goal_baseline.json\"" in source
+    assert "evaluate_checkpoint(CHECKPOINT_PATH, num_episodes=8)" in source
+    assert "50x50" in source
+    assert "3x3" in source
+    assert "5` writable bits" in source
+    assert "10` ants" in source

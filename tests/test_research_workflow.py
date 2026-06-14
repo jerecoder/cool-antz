@@ -71,6 +71,37 @@ def test_jax_cli_dry_run_validates_without_jax_backend(capsys: pytest.CaptureFix
     assert payload["resolved_args"]["total_timesteps"] == 8
 
 
+def test_direct_goal_baseline_config_resolves_final_target(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(
+        [
+            "train",
+            "jax",
+            "--config",
+            "experiments/direct_goal_baseline.json",
+            "--dry-run",
+            "--",
+            "--total-timesteps",
+            "8",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    resolved = payload["resolved_args"]
+    assert exit_code == 0
+    assert payload["experiment"] == "direct_goal_baseline"
+    assert resolved["width"] == 50
+    assert resolved["height"] == 50
+    assert resolved["obs_width"] == 50
+    assert resolved["obs_height"] == 50
+    assert resolved["actor_vision_radius"] == 1
+    assert resolved["num_ants"] == 10
+    assert resolved["write_bits"] == 5
+    assert resolved["pickup_bonus"] == 0.0
+    assert resolved["distance_bonus"] == 0.0
+
+
 def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:
     run_dir = prepare_run_dir(tmp_path, "demo", run_id="fixed")
 
