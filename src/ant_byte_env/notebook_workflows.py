@@ -812,6 +812,50 @@ def run_communication_consolidation(
     }
 
 
+def run_communication_post_stage_sequence(
+    *,
+    stage_configs: Mapping[str, Mapping[str, Any]],
+    source_checkpoint: Path,
+    target_bits: int,
+    run_dir: Path,
+    common_args: Sequence[str],
+    experiment_name: str,
+    update_timesteps_per_stage: int,
+    train_main: Callable[..., dict[str, float]],
+) -> dict[str, Any]:
+    current_checkpoint = source_checkpoint
+    stage_results: dict[str, dict[str, Any] | None] = {}
+    checkpoint_paths: list[Path] = []
+
+    for label, config in stage_configs.items():
+        if not config.get("enabled", False):
+            stage_results[label] = None
+            continue
+
+        result = run_communication_consolidation(
+            source_checkpoint=current_checkpoint,
+            target_bits=target_bits,
+            run_dir=run_dir,
+            common_args=common_args,
+            experiment_name=experiment_name,
+            update_timesteps_per_stage=update_timesteps_per_stage,
+            global_update_cap=int(config.get("global_update_cap", 0)),
+            train_main=train_main,
+            stage_name=str(config.get("stage_name", f"{target_bits}_bits_{label}")),
+            extra_args=dict(config.get("args", {})),
+        )
+        current_checkpoint = result["final_checkpoint"]
+        checkpoint_paths.append(current_checkpoint)
+        stage_results[label] = result
+
+    return {
+        "source_checkpoint": source_checkpoint,
+        "checkpoint_paths": checkpoint_paths,
+        "final_checkpoint": current_checkpoint,
+        "stage_results": stage_results,
+    }
+
+
 def ant_count_training_args(
     base_args: Mapping[str, Any],
     *,

@@ -51,6 +51,19 @@
         "ent_coef": 0.002
       }
     },
+    "polish": {
+      "enabled": true,
+      "stage_name": "8_bits_polished",
+      "global_update_cap": 2500,
+      "args": {
+        "write_entropy_bonus": 0.0,
+        "write_entropy_bonus_cap": 0.0,
+        "write_bit_entropy_bonus": 0.0,
+        "ent_coef": 0.0,
+        "pickup_bonus": 0.25,
+        "distance_bonus": 0.02
+      }
+    },
     "notes": "Communication training starts from the latest 25x25 one-bit policy produced by the forage curriculum notebook, then transfers through the configured bit stages."
   }
 }

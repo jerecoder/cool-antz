@@ -293,6 +293,66 @@ def test_communication_consolidation_runs_single_stage_with_overrides(
     assert captured_args[bit_bonus_index + 1] == "0.05"
 
 
+def test_communication_post_stage_sequence_runs_enabled_stages_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    captured_loads: list[str] = []
+
+    def fake_train_main(args: list[str], progress_callback):
+        captured_loads.append(args[args.index("--load-model") + 1])
+        progress_callback(1, 1, {"loss": 0.1, "episode_return": 2.0})
+        return {"loss": 0.1, "episode_return": 2.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+
+    result = workflows.run_communication_post_stage_sequence(
+        stage_configs={
+            "consolidation": {
+                "enabled": True,
+                "stage_name": "8_bits_consolidated",
+                "global_update_cap": 5000,
+                "args": {"ent_coef": 0.002},
+            },
+            "disabled": {"enabled": False},
+            "polish": {
+                "enabled": True,
+                "stage_name": "8_bits_polished",
+                "global_update_cap": 2500,
+                "args": {"ent_coef": 0.0},
+            },
+        },
+        source_checkpoint=tmp_path / "source.pkl",
+        target_bits=8,
+        run_dir=tmp_path / "run",
+        common_args=[],
+        experiment_name="jax_mappo_communication",
+        update_timesteps_per_stage=1280,
+        train_main=fake_train_main,
+    )
+
+    consolidated = tmp_path / "run" / "8_bits_consolidated" / "checkpoints" / "model.pkl"
+    polished = tmp_path / "run" / "8_bits_polished" / "checkpoints" / "model.pkl"
+    assert captured_loads == [str(tmp_path / "source.pkl"), str(consolidated)]
+    assert result["checkpoint_paths"] == [consolidated, polished]
+    assert result["final_checkpoint"] == polished
+    assert result["stage_results"]["disabled"] is None
+
+
 def test_stage_validators_reject_non_increasing_curricula() -> None:
     with pytest.raises(ValueError, match="increasing"):
         workflows.validate_communication_stages([2, 2])
