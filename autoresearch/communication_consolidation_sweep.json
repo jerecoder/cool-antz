@@ -172,6 +172,40 @@
           "write_head_transfer": "repeat"
         }
       }
+    ],
+    "duration_replication": [
+      {
+        "id": "V1",
+        "depends_on": "final/F1",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/V1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/V1/probe",
+        "global_update_cap": 5000,
+        "args": {
+          "seed": 601,
+          "load_model": "runs/autoresearch/communication_bits/final/F1/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "V2",
+        "depends_on": "final/F2",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/V2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/V2/probe",
+        "global_update_cap": 5000,
+        "args": {
+          "seed": 602,
+          "load_model": "runs/autoresearch/communication_bits/final/F2/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      }
     ]
   }
 }
