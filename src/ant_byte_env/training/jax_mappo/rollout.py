@@ -17,6 +17,7 @@ from ant_byte_env.training.jax_mappo.core import (
     build_central_observations,
     compute_forage_curriculum_rewards,
     compute_terminal_write_entropy_bonus,
+    compute_write_bit_entropy_bonus,
     compute_write_bit_penalties,
     flatten_agent_actions,
     get_action_and_value,
@@ -147,7 +148,12 @@ def collect_rollout(
         central_obs=transitions.central_obs,
         actions=transitions.actions,
         logprobs=transitions.logprobs,
-        rewards=transitions.rewards,
+        rewards=transitions.rewards
+        + compute_write_bit_entropy_bonus(
+            transitions.actions,
+            write_bits=args.write_bits,
+            entropy_scale=args.write_bit_entropy_bonus,
+        ),
         dones=transitions.dones,
         terminations=transitions.terminations,
         truncations=transitions.truncations,

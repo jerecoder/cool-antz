@@ -23,6 +23,7 @@ from ant_byte_env.training.jax_mappo import (
     collect_rollout,
     compute_gae,
     compute_terminal_write_entropy_bonus,
+    compute_write_bit_entropy_bonus,
     compute_write_bit_penalties,
     evaluate_checkpoint,
     evaluate_params,
@@ -579,6 +580,59 @@ def test_jax_terminal_write_entropy_bonus_rewards_balanced_nonzero_values() -> N
     )
 
 
+def test_jax_write_bit_entropy_bonus_is_zero_for_empty_or_collapsed_writes() -> None:
+    empty_actions = jnp.array(
+        [
+            [[[ACTION_RIGHT, 0]]],
+            [[[ACTION_RIGHT, 0]]],
+        ],
+        dtype=jnp.int32,
+    )
+    collapsed_actions = jnp.array(
+        [
+            [[[ACTION_RIGHT, 1]]],
+            [[[ACTION_RIGHT, 1]]],
+            [[[ACTION_RIGHT, 1]]],
+        ],
+        dtype=jnp.int32,
+    )
+
+    empty_bonus = compute_write_bit_entropy_bonus(
+        empty_actions,
+        write_bits=3,
+        entropy_scale=0.5,
+    )
+    collapsed_bonus = compute_write_bit_entropy_bonus(
+        collapsed_actions,
+        write_bits=3,
+        entropy_scale=0.5,
+    )
+
+    np.testing.assert_allclose(np.asarray(empty_bonus), np.zeros((2, 1)))
+    np.testing.assert_allclose(np.asarray(collapsed_bonus), np.zeros((3, 1)))
+
+
+def test_jax_write_bit_entropy_bonus_rewards_balanced_bits_and_preserves_total_scale() -> None:
+    actions = jnp.array(
+        [
+            [[[ACTION_RIGHT, 1]]],
+            [[[ACTION_RIGHT, 2]]],
+            [[[ACTION_RIGHT, 1]]],
+            [[[ACTION_RIGHT, 2]]],
+        ],
+        dtype=jnp.int32,
+    )
+
+    bonus = compute_write_bit_entropy_bonus(
+        actions,
+        write_bits=2,
+        entropy_scale=0.5,
+    )
+
+    np.testing.assert_allclose(np.asarray(bonus), np.full((4, 1), 0.125), rtol=1e-6)
+    np.testing.assert_allclose(np.asarray(bonus.sum(axis=0)), np.array([0.5]), rtol=1e-6)
+
+
 def test_jax_training_batch_shuffle_depends_on_update_key() -> None:
     batch = TrainingBatch(
         actor_obs=jnp.arange(4 * 1 * 1, dtype=jnp.float32).reshape(4, 1, 1),
@@ -872,6 +926,7 @@ def test_jax_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
         ("--write-bit-penalty-decay", "1.5", "write-bit-penalty-decay"),
         ("--write-entropy-bonus", "-0.1", "write-entropy-bonus"),
         ("--write-entropy-bonus-cap", "-0.1", "write-entropy-bonus-cap"),
+        ("--write-bit-entropy-bonus", "-0.1", "write-bit-entropy-bonus"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(
@@ -914,6 +969,8 @@ def test_tiny_jax_mappo_training_run_completes() -> None:
             "16",
             "--seed",
             "7",
+            "--write-bit-entropy-bonus",
+            "0.25",
             "--quiet",
         ],
         progress_callback=lambda update, total, row: progress_updates.append(

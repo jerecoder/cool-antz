@@ -74,6 +74,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.15,
         help="Maximum terminal write-entropy bonus per environment.",
     )
+    parser.add_argument(
+        "--write-bit-entropy-bonus",
+        type=float,
+        default=0.0,
+        help="Per-update bonus scale for balanced use of writable bits in rollout actions.",
+    )
     parser.add_argument("--write-bits", type=int, default=DEFAULT_WRITE_BITS)
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
@@ -125,4 +131,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-entropy-bonus must be non-negative.")
     if args.write_entropy_bonus_cap < 0.0:
         raise ValueError("--write-entropy-bonus-cap must be non-negative.")
+    if args.write_bit_entropy_bonus < 0.0:
+        raise ValueError("--write-bit-entropy-bonus must be non-negative.")
     return args

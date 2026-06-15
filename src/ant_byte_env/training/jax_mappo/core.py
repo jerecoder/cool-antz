@@ -611,6 +611,38 @@ def compute_terminal_write_entropy_bonus(
     return jnp.where(dones, capped_bonus, 0.0)
 
 
+def compute_write_bit_entropy_bonus(
+    actions: jax.Array,
+    *,
+    write_bits: int,
+    entropy_scale: float,
+) -> jax.Array:
+    """Return per-step rewards for balanced nonzero write-bit use in a rollout chunk."""
+
+    if entropy_scale <= 0.0 or write_bits <= 0:
+        return jnp.zeros(actions.shape[:2], dtype=jnp.float32)
+
+    write_values = actions[..., 1].astype(jnp.uint32)
+    nonzero_writes = write_values > 0
+    nonzero_count = jnp.sum(nonzero_writes.astype(jnp.float32), axis=(0, 2))
+    bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
+    bit_mask = ((write_values[..., None] >> bit_indices) & jnp.asarray(1, dtype=jnp.uint32))
+    bit_counts = jnp.sum(bit_mask.astype(jnp.float32), axis=(0, 2))
+    activation_rates = bit_counts / jnp.maximum(nonzero_count[:, None], 1.0)
+    active_rates = (activation_rates > 0.0) & (activation_rates < 1.0)
+    safe_rates = jnp.where(active_rates, activation_rates, 0.5)
+    bit_entropy = -(
+        safe_rates * jnp.log(safe_rates)
+        + (1.0 - safe_rates) * jnp.log(1.0 - safe_rates)
+    ) / jnp.log(2.0)
+    bit_entropy = jnp.where(active_rates & (nonzero_count[:, None] > 0.0), bit_entropy, 0.0)
+    per_env_bonus = float(entropy_scale) * jnp.mean(bit_entropy, axis=-1)
+    return jnp.broadcast_to(
+        per_env_bonus[None, :] / max(int(actions.shape[0]), 1),
+        actions.shape[:2],
+    ).astype(jnp.float32)
+
+
 def compute_gae(
     *,
     rewards: jax.Array,
