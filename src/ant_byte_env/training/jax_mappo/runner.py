@@ -91,8 +91,10 @@ def main(
         write_bits=args.write_bits,
     )
 
+    reset_fn = jax.jit(lambda reset_key: reset_batch(args=args, env=env, key=reset_key))
+
     key, reset_key, init_key = jax.random.split(key, 3)
-    states, obs = reset_batch(args=args, env=env, key=reset_key)
+    states, obs = reset_fn(reset_key)
     central_obs = build_central_observations(
         obs,
         food_scale=args.food_count,
@@ -163,7 +165,8 @@ def main(
     }
 
     for update in range(1, num_updates + 1):
-        key, rollout_key, update_key = jax.random.split(key, 3)
+        key, reset_key, rollout_key, update_key = jax.random.split(key, 4)
+        states, obs = reset_fn(reset_key)
         states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
         learning_rate = args.learning_rate
         if args.anneal_lr:

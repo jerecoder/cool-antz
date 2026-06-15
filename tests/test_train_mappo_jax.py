@@ -1328,7 +1328,7 @@ def test_tiny_jax_mappo_training_run_completes() -> None:
     assert np.isfinite(metrics["value_loss"])
 
 
-def test_jax_training_carries_episode_state_across_updates() -> None:
+def test_jax_training_resets_episode_state_every_update() -> None:
     metrics = main(
         [
             "--total-timesteps",
@@ -1364,4 +1364,4 @@ def test_jax_training_carries_episode_state_across_updates() -> None:
     )
 
     assert metrics["global_step"] == 4
-    assert metrics["completed_episodes"] == 1
+    assert metrics["completed_episodes"] == 0
