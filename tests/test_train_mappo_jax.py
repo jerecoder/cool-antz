@@ -48,6 +48,7 @@ from ant_byte_env.training.jax_mappo.transfer import (
     legacy_central_obs_dim,
 )
 from ant_byte_env.training.jax_mappo.core import TrainingBatch, _shuffle_batch
+from ant_byte_env.training.jax_mappo.probe import write_action_bit_summary
 
 
 def _batched_reset_obs() -> dict[str, jax.Array]:
@@ -749,6 +750,8 @@ def test_jax_communication_probe_writes_checkpoint_schema(tmp_path) -> None:
             "per_bit_activation_rates",
             "write_bit_entropy",
             "distinct_nonzero_values",
+            "major_nonzero_values",
+            "major_nonzero_value_fractions",
             "delivery_metrics",
             "rollout_artifact_path",
         }
@@ -758,6 +761,22 @@ def test_jax_communication_probe_writes_checkpoint_schema(tmp_path) -> None:
             "mean_delivered_food",
             "mean_delivered_fraction",
         }
+
+
+def test_write_action_bit_summary_reports_major_nonzero_values() -> None:
+    summary = write_action_bit_summary(
+        np.array([10, 50, 40, 4, 6], dtype=np.int64),
+        write_bits=3,
+    )
+
+    assert summary["nonzero_write_count"] == 100
+    assert summary["distinct_nonzero_values"] == [1, 2, 3, 4]
+    assert summary["major_nonzero_values"] == [1, 2, 4]
+    assert summary["major_nonzero_value_fractions"] == {
+        "1": 0.5,
+        "2": 0.4,
+        "4": 0.06,
+    }
 
 
 def test_jax_communication_probe_rejects_empty_render_limit(tmp_path) -> None:

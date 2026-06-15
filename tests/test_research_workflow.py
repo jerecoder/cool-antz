@@ -128,7 +128,11 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
     ]
     assert [entry["id"] for entry in matrix["phases"]["transfer"]] == ["T0", "T1", "T2"]
     assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
-    assert [entry["id"] for entry in matrix["phases"]["promoted_validation"]] == ["PV1"]
+    assert [entry["id"] for entry in matrix["phases"]["promoted_validation"]] == [
+        "PV1",
+        "PV2",
+        "PV3",
+    ]
 
     all_ids: set[str] = set()
     for entries in matrix["phases"].values():

@@ -27,6 +27,7 @@ from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_trainin
 
 COMMUNICATION_PROBE_ROOT = Path("runs/autoresearch/communication_bits")
 COMMUNICATION_PROBE_FILENAME = "communication_probe.json"
+MAJOR_NONZERO_WRITE_FRACTION = 0.05
 
 
 def probe_communication_checkpoint(
@@ -121,12 +122,21 @@ def write_action_bit_summary(
         for value, count in enumerate(counts)
         if value > 0 and int(count) > 0
     ]
+    major_nonzero_value_fractions = {
+        str(value): float(counts[value] / nonzero_count)
+        for value in distinct_nonzero_values
+        if nonzero_count > 0 and counts[value] / nonzero_count >= MAJOR_NONZERO_WRITE_FRACTION
+    }
     return {
         "nonzero_write_count": nonzero_count,
         "per_bit_activation_rates": rates,
         "per_bit_entropy": entropies,
         "write_bit_entropy": float(np.mean(entropies)) if entropies else 0.0,
         "distinct_nonzero_values": distinct_nonzero_values,
+        "major_nonzero_values": [
+            int(value) for value in major_nonzero_value_fractions.keys()
+        ],
+        "major_nonzero_value_fractions": major_nonzero_value_fractions,
     }
 
 
@@ -268,6 +278,8 @@ def _probe_mode(
         "per_bit_entropy": bit_summary["per_bit_entropy"],
         "write_bit_entropy": bit_summary["write_bit_entropy"],
         "distinct_nonzero_values": bit_summary["distinct_nonzero_values"],
+        "major_nonzero_values": bit_summary["major_nonzero_values"],
+        "major_nonzero_value_fractions": bit_summary["major_nonzero_value_fractions"],
         "delivery_metrics": {
             "success_rate": float(np.mean(successes)) if successes else 0.0,
             "mean_delivered_food": float(np.mean(delivered_food)) if delivered_food else 0.0,
