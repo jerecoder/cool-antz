@@ -61,7 +61,7 @@ def build_communication_sweep_plan(
     if update_cap <= 0:
         raise ValueError("global_update_cap must be positive.")
 
-    stages = bit_stages or _default_bit_stages(matrix, phase)
+    stages = bit_stages or _entry_bit_stages(entry) or _default_bit_stages(matrix, phase)
     if not stages:
         raise ValueError("bit_stages must not be empty.")
     if any(int(bits) <= 1 for bits in stages):
@@ -109,8 +109,12 @@ def build_communication_sweep_plan(
         ]
         train_commands.append(
             {
+                "stage_kind": "bit",
                 "stage_index": stage_index,
+                "stage_name": f"{int(target_bits)}_bits",
                 "write_bits": int(target_bits),
+                "global_update_cap": update_cap,
+                "env_steps": total_timesteps,
                 "source_checkpoint": str(previous_checkpoint),
                 "checkpoint": str(checkpoint_path),
                 "run_dir": str(stage_run_dir),
@@ -119,6 +123,56 @@ def build_communication_sweep_plan(
             }
         )
         previous_checkpoint = checkpoint_path
+
+    total_train_env_steps = total_timesteps * len(stages)
+    for post_index, post_stage in enumerate(entry.get("post_stages", []), start=1):
+        stage_name = str(post_stage["stage_name"])
+        stage_update_cap = int(post_stage.get("global_update_cap", update_cap))
+        if stage_update_cap <= 0:
+            raise ValueError("post stage global_update_cap must be positive.")
+        stage_run_dir = run_dir / stage_name
+        checkpoint_path = stage_run_dir / "checkpoints" / "model.pkl"
+        stage_total_timesteps = num_envs_value * num_steps_value * stage_update_cap
+        stage_args = {**entry_args, **dict(post_stage.get("args", {}))}
+        exp_name = f"{base_spec.args.get('exp_name', base_spec.name)}_{run_id}_{stage_name}"
+        overrides = {
+            **stage_args,
+            "num_envs": num_envs_value,
+            "num_steps": num_steps_value,
+            "exp_name": exp_name,
+            "write_bits": int(stages[-1]),
+            "total_timesteps": stage_total_timesteps,
+            "load_model": str(previous_checkpoint),
+            "run_dir": str(stage_run_dir),
+        }
+        override_argv = config_args_to_argv(overrides)
+        training_argv = [*config_args_to_argv(base_spec.args), *override_argv]
+        argv = [
+            "ant-byte",
+            "train",
+            "jax",
+            "--config",
+            str(base_config),
+            "--",
+            *override_argv,
+        ]
+        train_commands.append(
+            {
+                "stage_kind": "post",
+                "stage_index": len(stages) + post_index,
+                "stage_name": stage_name,
+                "write_bits": int(stages[-1]),
+                "global_update_cap": stage_update_cap,
+                "env_steps": stage_total_timesteps,
+                "source_checkpoint": str(previous_checkpoint),
+                "checkpoint": str(checkpoint_path),
+                "run_dir": str(stage_run_dir),
+                "training_argv": training_argv,
+                "argv": argv,
+            }
+        )
+        previous_checkpoint = checkpoint_path
+        total_train_env_steps += stage_total_timesteps
 
     probe_argv = [
         "ant-byte",
@@ -147,6 +201,7 @@ def build_communication_sweep_plan(
         "probe_output_dir": str(probe_output_dir),
         "global_update_cap": update_cap,
         "env_steps_per_stage": total_timesteps,
+        "total_train_env_steps": total_train_env_steps,
         "train_commands": train_commands,
         "probe_command": {
             "checkpoint": str(previous_checkpoint),
@@ -326,3 +381,9 @@ def communication_sweep_entry(
 def _default_bit_stages(matrix: dict[str, Any], phase: str) -> list[int]:
     key = "final_bit_stages" if phase == "final" else "screening_bit_stages"
     return [int(bits) for bits in matrix.get(key, [])]
+
+
+def _entry_bit_stages(entry: dict[str, Any]) -> list[int] | None:
+    if "bit_stages" not in entry:
+        return None
+    return [int(bits) for bits in entry["bit_stages"]]

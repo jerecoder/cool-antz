@@ -128,6 +128,7 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
     ]
     assert [entry["id"] for entry in matrix["phases"]["transfer"]] == ["T0", "T1", "T2"]
     assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
+    assert [entry["id"] for entry in matrix["phases"]["promoted_validation"]] == ["PV1"]
 
     all_ids: set[str] = set()
     for entries in matrix["phases"].values():
@@ -141,6 +142,12 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
             assert parsed.random_food
             assert parsed.random_hub
             assert parsed.write_head_transfer in {"repeat", "reset", "neutral-new"}
+            for post_stage in entry.get("post_stages", []):
+                post_parsed = parse_args(
+                    config_args_to_argv({**merged_args, **post_stage["args"]})
+                )
+                assert post_parsed.random_food
+                assert post_parsed.random_hub
 
     for entry in matrix["phases"]["horizon"]:
         parsed = parse_args(config_args_to_argv({**base_spec.args, **entry["args"]}))
@@ -148,6 +155,45 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
             parsed.num_steps * parsed.num_envs * int(entry["global_update_cap"])
             == matrix["screening_env_steps_per_stage"]
         )
+
+
+def test_communication_sweep_plan_builds_promoted_validation_post_stages() -> None:
+    plan = build_communication_sweep_plan(
+        phase="promoted_validation",
+        run_id="PV1",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+
+    assert plan["bit_stages"] == [2, 3, 5, 8]
+    assert plan["env_steps_per_stage"] == 12_800_000
+    assert plan["total_train_env_steps"] == 60_800_000
+    assert [command["stage_name"] for command in plan["train_commands"]] == [
+        "2_bits",
+        "3_bits",
+        "5_bits",
+        "8_bits",
+        "8_bits_consolidated",
+        "8_bits_polished",
+    ]
+    assert [command["stage_kind"] for command in plan["train_commands"]] == [
+        "bit",
+        "bit",
+        "bit",
+        "bit",
+        "post",
+        "post",
+    ]
+    consolidated = plan["train_commands"][4]
+    polished = plan["train_commands"][5]
+    assert consolidated["global_update_cap"] == 5000
+    assert consolidated["env_steps"] == 6_400_000
+    assert consolidated["source_checkpoint"] == plan["train_commands"][3]["checkpoint"]
+    assert polished["global_update_cap"] == 2500
+    assert polished["env_steps"] == 3_200_000
+    assert polished["source_checkpoint"] == consolidated["checkpoint"]
+    assert plan["probe_command"]["checkpoint"] == polished["checkpoint"]
+    assert plan["probe_command"]["output_dir"].endswith("promoted/PV1/probe_eval4")
 
 
 def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> None:
