@@ -171,7 +171,7 @@ class JaxAntByteForagingEnv:
         state: JaxAntState,
         action: jax.Array,
     ) -> tuple[JaxAntState, JaxObs, jax.Array, jax.Array, jax.Array, JaxAntInfo]:
-        """Advance one step with an interleaved ``(move, write_value)`` action vector."""
+        """Advance one step; write values apply only when movement is ``stay``."""
 
         flat_action = jnp.asarray(action, dtype=jnp.int32).reshape((2 * self.num_ants,))
         written_mask = jnp.zeros((self.height, self.width), dtype=jnp.bool_)
@@ -227,7 +227,11 @@ class JaxAntByteForagingEnv:
             delivered_food = delivered_food + delivered.astype(jnp.int32)
             delivery_count = delivery_count + delivered.astype(jnp.int32)
 
-            can_write = jnp.logical_not(jnp.logical_or(tile_had_food, tile_is_hub))
+            wants_write = move == ACTION_STAY
+            can_write = jnp.logical_and(
+                wants_write,
+                jnp.logical_not(jnp.logical_or(tile_had_food, tile_is_hub)),
+            )
             already_written = written_tiles[y_pos, x_pos]
             num_overwrites = num_overwrites + jnp.logical_and(can_write, already_written).astype(
                 jnp.int32

@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env import (
+    ACTION_STAY,
     DEFAULT_WRITE_BITS,
     MAX_WRITE_BITS,
     MOVEMENT_ACTION_COUNT,
@@ -372,6 +373,8 @@ def build_local_hub_patches(
 
 
 def flatten_agent_actions(actions: jax.Array) -> jax.Array:
+    """Convert movement/write pairs to the env's interleaved action vector."""
+
     if actions.ndim != 3 or actions.shape[-1] != 2:
         raise ValueError(f"joint actions must have shape (batch, ants, 2), got {actions.shape}.")
     return actions.astype(jnp.int32).reshape(actions.shape[0], actions.shape[1] * 2)
@@ -571,7 +574,7 @@ def compute_write_bit_penalties(
 
     if base_penalty <= 0.0:
         return jnp.zeros(actions.shape[0], dtype=jnp.float32)
-    write_values = actions[..., 1].astype(jnp.uint32)
+    write_values = _applied_write_values(actions)
     bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
     bit_mask = (write_values[..., None] >> bit_indices) & jnp.asarray(1, dtype=jnp.uint32)
     weights = float(base_penalty) * (float(decay) ** bit_indices.astype(jnp.float32))
@@ -622,7 +625,7 @@ def compute_write_bit_entropy_bonus(
     if entropy_scale <= 0.0 or write_bits <= 0:
         return jnp.zeros(actions.shape[:2], dtype=jnp.float32)
 
-    write_values = actions[..., 1].astype(jnp.uint32)
+    write_values = _applied_write_values(actions)
     nonzero_writes = write_values > 0
     nonzero_count = jnp.sum(nonzero_writes.astype(jnp.float32), axis=(0, 2))
     bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
@@ -641,6 +644,14 @@ def compute_write_bit_entropy_bonus(
         per_env_bonus[None, :] / max(int(actions.shape[0]), 1),
         actions.shape[:2],
     ).astype(jnp.float32)
+
+
+def _applied_write_values(actions: jax.Array) -> jax.Array:
+    """Return write values that can affect the env; moving actions become zero."""
+
+    move_actions = actions[..., 0]
+    write_values = actions[..., 1].astype(jnp.uint32)
+    return jnp.where(move_actions == ACTION_STAY, write_values, 0).astype(jnp.uint32)
 
 
 def compute_gae(

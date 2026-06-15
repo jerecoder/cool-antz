@@ -12,6 +12,7 @@ jnp = pytest.importorskip("jax.numpy")
 from ant_byte_env import (
     ACTION_LEFT,
     ACTION_RIGHT,
+    ACTION_STAY,
     MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
 )
@@ -831,8 +832,8 @@ def test_jax_gae_bootstraps_time_limit_truncations_without_cross_episode_leak() 
 def test_jax_write_bit_penalty_makes_lower_bits_more_expensive() -> None:
     actions = jnp.array(
         [
-            [[ACTION_RIGHT, 0], [ACTION_LEFT, 1]],
-            [[ACTION_RIGHT, 2], [ACTION_LEFT, 7]],
+            [[ACTION_RIGHT, 7], [ACTION_STAY, 1]],
+            [[ACTION_STAY, 2], [ACTION_STAY, 7]],
         ],
         dtype=jnp.int32,
     )
@@ -879,16 +880,16 @@ def test_jax_terminal_write_entropy_bonus_rewards_balanced_nonzero_values() -> N
 def test_jax_write_bit_entropy_bonus_is_zero_for_empty_or_collapsed_writes() -> None:
     empty_actions = jnp.array(
         [
-            [[[ACTION_RIGHT, 0]]],
-            [[[ACTION_RIGHT, 0]]],
+            [[[ACTION_RIGHT, 1]]],
+            [[[ACTION_RIGHT, 2]]],
         ],
         dtype=jnp.int32,
     )
     collapsed_actions = jnp.array(
         [
-            [[[ACTION_RIGHT, 1]]],
-            [[[ACTION_RIGHT, 1]]],
-            [[[ACTION_RIGHT, 1]]],
+            [[[ACTION_STAY, 1]]],
+            [[[ACTION_STAY, 1]]],
+            [[[ACTION_STAY, 1]]],
         ],
         dtype=jnp.int32,
     )
@@ -911,10 +912,10 @@ def test_jax_write_bit_entropy_bonus_is_zero_for_empty_or_collapsed_writes() -> 
 def test_jax_write_bit_entropy_bonus_rewards_balanced_bits_and_preserves_total_scale() -> None:
     actions = jnp.array(
         [
-            [[[ACTION_RIGHT, 1]]],
-            [[[ACTION_RIGHT, 2]]],
-            [[[ACTION_RIGHT, 1]]],
-            [[[ACTION_RIGHT, 2]]],
+            [[[ACTION_STAY, 1]]],
+            [[[ACTION_STAY, 2]]],
+            [[[ACTION_STAY, 1]]],
+            [[[ACTION_STAY, 2]]],
         ],
         dtype=jnp.int32,
     )

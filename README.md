@@ -149,8 +149,10 @@ Movement actions:
 - `3`: move down
 - `4`: move left
 
-The write action is an integer from `0` to `2 ** write_bits - 1`. It is written
-to the ant's tile after movement, pickup, and delivery are processed.
+The write action is an integer from `0` to `2 ** write_bits - 1`. It is applied
+only when the movement action is `stay`, so an ant cannot move and write in the
+same timestep. Movement timesteps ignore the write value. A stay/write timestep
+writes to the current tile after pickup and delivery are processed.
 
 ## Observation Space
 
@@ -250,13 +252,14 @@ For headless export without opening a Pygame window:
 ## MAPPO Curriculum
 
 The Torch and JAX MAPPO trainers use a shared project structure but backend
-specific modules. The shared actor chooses a joint `(move, write_value)` action
-for each ant. Each actor observation includes local actor-window features for
-food, write bit-planes, colony occupancy, hub visibility, and border
-masking. The default local window is a centered 3x3 grid around the ant, so the
-ant's own tile is part of the patch; the actor also receives that ant's carrying flag. The
-centralized critic still receives the padded global map state. Use
-`--write-bits` to choose how many bits each ant can write.
+specific modules. The shared actor chooses a `(move, write_value)` pair for each
+ant, with write values applied only on `stay` actions. Each actor observation
+includes local actor-window features for food, write bit-planes, colony
+occupancy, hub visibility, and border masking. The default local window is a
+centered 3x3 grid around the ant, so the ant's own tile is part of the patch;
+the actor also receives that ant's carrying flag. The centralized critic still
+receives the padded global map state. Use `--write-bits` to choose how many bits
+each ant can write.
 
 By default this stage fixes one cookie source near the hub and adds small
 curriculum rewards for picking up a bite and moving closer to the current target

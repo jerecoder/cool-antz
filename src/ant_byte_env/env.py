@@ -303,7 +303,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                 self.delivered_food += 1
                 reward += 1.0
 
-            if tile_had_food or tile_is_hub:
+            if move_action != ACTION_STAY or tile_had_food or tile_is_hub:
                 continue
 
             tile_key = (x_pos, y_pos)

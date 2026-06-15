@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env import AntByteForagingEnv, write_value_count
+from ant_byte_env import ACTION_STAY, AntByteForagingEnv, write_value_count
 from ant_byte_env.rendering import _env_from_args, _jax_render_reset_options, _render_frame
 from ant_byte_env.runs import write_json
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
@@ -237,7 +237,12 @@ def _probe_mode(
             for step_index in range(int(args.max_steps)):
                 key, action_key = jax.random.split(key)
                 actions = select_actions(_obs_batch(obs), action_key)
-                write_values = np.asarray(actions)[0, :, 1].astype(np.int64)
+                agent_actions = np.asarray(actions)[0]
+                write_values = np.where(
+                    agent_actions[:, 0] == ACTION_STAY,
+                    agent_actions[:, 1],
+                    0,
+                ).astype(np.int64)
                 action_counts += np.bincount(write_values, minlength=action_counts.shape[0])
                 obs, reward, terminated, truncated, info = env.step(
                     np.asarray(flatten_agent_actions(actions))[0]

@@ -394,7 +394,7 @@ def build_local_hub_patches(
 
 
 def flatten_agent_actions(actions: torch.Tensor) -> torch.Tensor:
-    """Convert joint movement/write actions to the env's interleaved action vector."""
+    """Convert movement/write pairs to the env's interleaved action vector."""
 
     if actions.ndim != 3 or actions.shape[-1] != 2:
         raise ValueError(f"joint actions must have shape (batch, ants, 2), got {actions.shape}.")

@@ -74,7 +74,8 @@ def test_write_bits_controls_action_space_and_tile_value_range() -> None:
 
     np.testing.assert_array_equal(env.action_space.nvec, np.array([5, 8]))
     assert env.observation_space["bytes"].high.max() == 7
-    obs, _, _, _, _ = env.step(np.array([ACTION_RIGHT, 7], dtype=np.int64))
+    env.step(np.array([ACTION_RIGHT, 0], dtype=np.int64))
+    obs, _, _, _, _ = env.step(np.array([ACTION_STAY, 7], dtype=np.int64))
 
     ant_x, ant_y = obs["ants_pos"][0]
     assert obs["bytes"][ant_y, ant_x] == 7
@@ -126,7 +127,8 @@ def test_byte_write_updates_grid() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, seed=3)
     env.reset(seed=3, options={"hub_pos": (0, 0)})
 
-    obs, _, _, _, info = env.step(np.array([ACTION_RIGHT, 1], dtype=np.int64))
+    env.step(np.array([ACTION_RIGHT, 0], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([ACTION_STAY, 1], dtype=np.int64))
 
     ant_x, ant_y = obs["ants_pos"][0]
     assert obs["bytes"][ant_y, ant_x] == 1
@@ -135,7 +137,44 @@ def test_byte_write_updates_grid() -> None:
     env.close()
 
 
+def test_movement_step_does_not_write_tile() -> None:
+    env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, seed=3)
+    env.reset(seed=3, options={"hub_pos": (0, 0)})
+
+    obs, _, _, _, info = env.step(np.array([ACTION_RIGHT, 1], dtype=np.int64))
+
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 0], dtype=np.int32))
+    assert obs["bytes"][0, 1] == 0
+    assert info["num_writes"] == 0
+
+    obs, _, _, _, info = env.step(np.array([ACTION_STAY, 1], dtype=np.int64))
+
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 0], dtype=np.int32))
+    assert obs["bytes"][0, 1] == 1
+    assert info["num_writes"] == 1
+    env.close()
+
+
 def test_multiple_ants_on_same_tile_record_overwrites() -> None:
+    env = AntByteForagingEnv(width=4, height=4, num_ants=3, food_count=0)
+    env.reset(seed=13, options={"hub_pos": (0, 1)})
+
+    env.step(
+        np.array([ACTION_RIGHT, 0, ACTION_RIGHT, 0, ACTION_RIGHT, 0], dtype=np.int64)
+    )
+    obs, _, _, _, info = env.step(
+        np.array([ACTION_STAY, 0, ACTION_STAY, 1, ACTION_STAY, 0], dtype=np.int64)
+    )
+
+    assert obs["ants_count"][1, 1] == 3
+    assert obs["ants_count"].sum() == 3
+    assert obs["bytes"][1, 1] == 0
+    assert info["num_writes"] == 3
+    assert info["num_overwrites"] == 2
+    env.close()
+
+
+def test_moving_ants_on_same_tile_do_not_record_overwrites() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=3, food_count=0)
     env.reset(seed=13, options={"hub_pos": (0, 1)})
 
@@ -146,8 +185,8 @@ def test_multiple_ants_on_same_tile_record_overwrites() -> None:
     assert obs["ants_count"][1, 1] == 3
     assert obs["ants_count"].sum() == 3
     assert obs["bytes"][1, 1] == 0
-    assert info["num_writes"] == 3
-    assert info["num_overwrites"] == 2
+    assert info["num_writes"] == 0
+    assert info["num_overwrites"] == 0
     env.close()
 
 

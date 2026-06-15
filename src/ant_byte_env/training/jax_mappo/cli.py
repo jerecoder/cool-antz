@@ -53,8 +53,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=0.0,
         help=(
-            "Trainer-side penalty for each set write bit. Bit 0 costs this amount; "
-            "higher bits are discounted by --write-bit-penalty-decay."
+            "Trainer-side penalty for each set bit on stay/write actions. Bit 0 costs "
+            "this amount; higher bits are discounted by --write-bit-penalty-decay."
         ),
     )
     parser.add_argument(
@@ -79,7 +79,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--write-bit-entropy-bonus",
         type=float,
         default=0.0,
-        help="Per-update bonus scale for balanced use of writable bits in rollout actions.",
+        help="Per-update bonus scale for balanced use of writable bits in stay/write actions.",
     )
     parser.add_argument("--write-bits", type=int, default=DEFAULT_WRITE_BITS)
     parser.add_argument(

@@ -70,7 +70,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--write-bits",
         type=int,
         default=DEFAULT_WRITE_BITS,
-        help="Number of bits each ant can write per tile action.",
+        help="Number of bits each ant can write on a stay/write action.",
     )
 
     parser.add_argument(
