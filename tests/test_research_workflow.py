@@ -138,6 +138,9 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PL1",
         "PL2",
         "PL3",
+        "PL4",
+        "PL5",
+        "PL6",
     ]
 
     all_ids: set[str] = set()
@@ -256,6 +259,29 @@ def test_communication_sweep_plan_builds_polish_length_probe() -> None:
     )
     assert replicate_plan["probe_command"]["output_dir"].endswith(
         "polish_length/PL2/probe_eval4"
+    )
+
+    seed_plan = build_communication_sweep_plan(
+        phase="polish_length",
+        run_id="PL4",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+    assert seed_plan["global_update_cap"] == 1250
+    assert seed_plan["env_steps_per_stage"] == 1_600_000
+    assert seed_plan["train_commands"][0]["source_checkpoint"].endswith(
+        "promoted/PV3/8_bits_consolidated/checkpoints/model.pkl"
+    )
+    seed_indices = [
+        index
+        for index, value in enumerate(seed_plan["train_commands"][0]["training_argv"])
+        if value == "--seed"
+    ]
+    assert seed_indices
+    seed_index = seed_indices[-1]
+    assert seed_plan["train_commands"][0]["training_argv"][seed_index + 1] == "804"
+    assert seed_plan["probe_command"]["output_dir"].endswith(
+        "polish_length/PL4/probe_eval4"
     )
 
 
