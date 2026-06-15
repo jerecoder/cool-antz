@@ -102,6 +102,48 @@ def test_direct_goal_baseline_config_resolves_final_target(
     assert resolved["distance_bonus"] == 0.0
 
 
+def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    matrix = json.loads(Path("autoresearch/communication_sweep.json").read_text())
+    base_spec = load_experiment_config(Path(matrix["base_config"]))
+    run_root = str(matrix["run_root"])
+
+    assert matrix["screening_bit_stages"] == [2, 3]
+    assert matrix["final_bit_stages"] == [2, 3, 5, 8]
+    assert [entry["id"] for entry in matrix["phases"]["horizon"]] == ["H0", "H1", "H2", "H3"]
+    assert [entry["id"] for entry in matrix["phases"]["reward"]] == [
+        "R0",
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+    ]
+    assert [entry["id"] for entry in matrix["phases"]["transfer"]] == ["T0", "T1", "T2"]
+    assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
+
+    all_ids: set[str] = set()
+    for entries in matrix["phases"].values():
+        for entry in entries:
+            assert entry["id"] not in all_ids
+            all_ids.add(entry["id"])
+            assert str(entry["run_dir"]).startswith(f"{run_root}/")
+            assert str(entry["probe_output_dir"]).startswith(f"{entry['run_dir']}/")
+            merged_args = {**base_spec.args, **entry["args"]}
+            parsed = parse_args(config_args_to_argv(merged_args))
+            assert parsed.random_food
+            assert parsed.random_hub
+            assert parsed.write_head_transfer in {"repeat", "reset", "neutral-new"}
+
+    for entry in matrix["phases"]["horizon"]:
+        parsed = parse_args(config_args_to_argv({**base_spec.args, **entry["args"]}))
+        assert (
+            parsed.num_steps * parsed.num_envs * int(entry["global_update_cap"])
+            == matrix["screening_env_steps_per_stage"]
+        )
+
+
 def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:
     run_dir = prepare_run_dir(tmp_path, "demo", run_id="fixed")
 

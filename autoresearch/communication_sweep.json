@@ -1,0 +1,211 @@
+{
+  "name": "communication_bits_autoresearch",
+  "base_config": "experiments/communication_bits.json",
+  "run_root": "runs/autoresearch/communication_bits",
+  "screening_bit_stages": [2, 3],
+  "screening_env_steps_per_stage": 2560000,
+  "final_bit_stages": [2, 3, 5, 8],
+  "final_env_steps_per_stage": 12800000,
+  "phases": {
+    "horizon": [
+      {
+        "id": "H0",
+        "run_dir": "runs/autoresearch/communication_bits/horizon/H0",
+        "probe_output_dir": "runs/autoresearch/communication_bits/horizon/H0/probe",
+        "global_update_cap": 2000,
+        "args": {
+          "num_steps": 80,
+          "num_envs": 16,
+          "write_entropy_bonus": 0.1,
+          "write_entropy_bonus_cap": 0.15,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "H1",
+        "run_dir": "runs/autoresearch/communication_bits/horizon/H1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/horizon/H1/probe",
+        "global_update_cap": 1250,
+        "args": {
+          "num_steps": 256,
+          "num_envs": 8,
+          "write_entropy_bonus": 0.1,
+          "write_entropy_bonus_cap": 0.15,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "H2",
+        "run_dir": "runs/autoresearch/communication_bits/horizon/H2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/horizon/H2/probe",
+        "global_update_cap": 625,
+        "args": {
+          "num_steps": 512,
+          "num_envs": 8,
+          "write_entropy_bonus": 0.1,
+          "write_entropy_bonus_cap": 0.15,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "H3",
+        "run_dir": "runs/autoresearch/communication_bits/horizon/H3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/horizon/H3/probe",
+        "global_update_cap": 625,
+        "args": {
+          "num_steps": 1024,
+          "num_envs": 4,
+          "write_entropy_bonus": 0.1,
+          "write_entropy_bonus_cap": 0.15,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      }
+    ],
+    "reward": [
+      {
+        "id": "R0",
+        "depends_on": "selected_horizon",
+        "run_dir": "runs/autoresearch/communication_bits/reward/R0",
+        "probe_output_dir": "runs/autoresearch/communication_bits/reward/R0/probe",
+        "args": {
+          "write_entropy_bonus": 0.1,
+          "write_entropy_bonus_cap": 0.15,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "R1",
+        "depends_on": "selected_horizon",
+        "run_dir": "runs/autoresearch/communication_bits/reward/R1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/reward/R1/probe",
+        "args": {
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.25,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "R2",
+        "depends_on": "selected_horizon",
+        "run_dir": "runs/autoresearch/communication_bits/reward/R2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/reward/R2/probe",
+        "args": {
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.5,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "R3",
+        "depends_on": "selected_horizon",
+        "run_dir": "runs/autoresearch/communication_bits/reward/R3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/reward/R3/probe",
+        "args": {
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 1.0,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "R4",
+        "depends_on": "selected_horizon",
+        "run_dir": "runs/autoresearch/communication_bits/reward/R4",
+        "probe_output_dir": "runs/autoresearch/communication_bits/reward/R4/probe",
+        "args": {
+          "write_entropy_bonus": 0.05,
+          "write_entropy_bonus_cap": 0.1,
+          "write_bit_entropy_bonus": 0.5,
+          "ent_coef": 0.01,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "R5",
+        "depends_on": "selected_horizon",
+        "run_dir": "runs/autoresearch/communication_bits/reward/R5",
+        "probe_output_dir": "runs/autoresearch/communication_bits/reward/R5/probe",
+        "args": {
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.5,
+          "ent_coef": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      }
+    ],
+    "transfer": [
+      {
+        "id": "T0",
+        "depends_on": "selected_horizon_and_reward",
+        "run_dir": "runs/autoresearch/communication_bits/transfer/T0",
+        "probe_output_dir": "runs/autoresearch/communication_bits/transfer/T0/probe",
+        "args": {
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "T1",
+        "depends_on": "selected_horizon_and_reward",
+        "run_dir": "runs/autoresearch/communication_bits/transfer/T1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/transfer/T1/probe",
+        "args": {
+          "write_head_transfer": "reset"
+        }
+      },
+      {
+        "id": "T2",
+        "depends_on": "selected_horizon_and_reward",
+        "run_dir": "runs/autoresearch/communication_bits/transfer/T2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/transfer/T2/probe",
+        "args": {
+          "write_head_transfer": "neutral-new"
+        }
+      }
+    ],
+    "final": [
+      {
+        "id": "F1",
+        "depends_on": "selected_full_config",
+        "run_dir": "runs/autoresearch/communication_bits/final/F1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/final/F1/probe",
+        "args": {
+          "seed": 1
+        }
+      },
+      {
+        "id": "F2",
+        "depends_on": "selected_full_config",
+        "run_dir": "runs/autoresearch/communication_bits/final/F2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/final/F2/probe",
+        "args": {
+          "seed": 2
+        }
+      },
+      {
+        "id": "F3",
+        "depends_on": "selected_full_config",
+        "run_dir": "runs/autoresearch/communication_bits/final/F3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/final/F3/probe",
+        "args": {
+          "seed": 3
+        }
+      }
+    ]
+  }
+}
