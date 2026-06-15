@@ -180,6 +180,7 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
             "write_bit_penalty_decay": 0.5,
             "write_entropy_bonus": 0.1,
             "write_entropy_bonus_cap": 0.15,
+            "write_head_transfer": "neutral-new",
             "load_model": "source.pkl",
             "quiet": True,
         },
@@ -193,6 +194,7 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
     assert args[args.index("--write-bit-penalty-decay") + 1] == "0.5"
     assert args[args.index("--write-entropy-bonus") + 1] == "0.1"
     assert args[args.index("--write-entropy-bonus-cap") + 1] == "0.15"
+    assert args[args.index("--write-head-transfer") + 1] == "neutral-new"
     assert "--write-bits" not in args
     assert "--load-model" not in args
 

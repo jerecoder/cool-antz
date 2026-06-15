@@ -23,6 +23,8 @@ from ant_byte_env.training.jax_mappo.core import (
     init_adam_state,
 )
 
+WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
+
 
 def load_checkpoint_for_training(
     path: Path,
@@ -31,7 +33,9 @@ def load_checkpoint_for_training(
     actor_obs_dim: int,
     target_write_bits: int,
     actor_vision_radius: int,
+    write_head_transfer: str = "repeat",
 ) -> dict[str, Any]:
+    write_head_transfer = validate_write_head_transfer(write_head_transfer)
     checkpoint = read_checkpoint(path)
     source_args = checkpoint.get("args", {})
     params = checkpoint["params"]
@@ -79,6 +83,7 @@ def load_checkpoint_for_training(
         actor_vision_radius=actor_vision_radius,
         source_includes_ants_count=source_shape["include_ants_count"],
         source_layout=source_shape["layout"],
+        write_head_transfer=write_head_transfer,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_write_bits,
@@ -97,8 +102,16 @@ def load_checkpoint_for_training(
             **source_args,
             "write_bits": target_write_bits,
             "transfer_source_checkpoint": str(path),
+            "write_head_transfer": write_head_transfer,
         },
     }
+
+
+def validate_write_head_transfer(mode: str) -> str:
+    if mode not in WRITE_HEAD_TRANSFER_MODES:
+        choices = ", ".join(WRITE_HEAD_TRANSFER_MODES)
+        raise ValueError(f"write_head_transfer must be one of: {choices}.")
+    return mode
 
 
 def actor_obs_dim_for_bits(
@@ -277,7 +290,9 @@ def expand_params_for_write_bits(
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
     source_layout: str = "centered",
+    write_head_transfer: str = "repeat",
 ) -> JaxMAPPOParams:
+    write_head_transfer = validate_write_head_transfer(write_head_transfer)
     if target_bits == old_bits and source_includes_ants_count and source_layout == "centered":
         return params
     if target_bits < old_bits:
@@ -301,6 +316,7 @@ def expand_params_for_write_bits(
             params.write_head,
             old_bits=old_bits,
             target_bits=target_bits,
+            transfer_mode=write_head_transfer,
         ),
         critic_body=params.critic_body,
         value_head=params.value_head,
@@ -488,13 +504,43 @@ def copy_actor_patch_channel(
     return new_weight
 
 
-def expand_write_head(layer: LinearParams, *, old_bits: int, target_bits: int) -> LinearParams:
+def expand_write_head(
+    layer: LinearParams,
+    *,
+    old_bits: int,
+    target_bits: int,
+    transfer_mode: str = "repeat",
+) -> LinearParams:
+    transfer_mode = validate_write_head_transfer(transfer_mode)
     old_weight = jnp.asarray(layer.weight)
     old_bias = jnp.asarray(layer.bias)
     old_count = write_value_count(old_bits)
     target_count = write_value_count(target_bits)
     if old_weight.shape[-1] != old_count:
         raise ValueError(f"Expected {old_count} old write logits, got {old_weight.shape[-1]}.")
+    if old_bias.shape[0] != old_count:
+        raise ValueError(f"Expected {old_count} old write biases, got {old_bias.shape[0]}.")
+    if transfer_mode == "reset":
+        return LinearParams(
+            weight=jnp.zeros((old_weight.shape[0], target_count), dtype=old_weight.dtype),
+            bias=jnp.zeros((target_count,), dtype=old_bias.dtype),
+        )
+    if transfer_mode == "neutral-new":
+        old_columns = jnp.arange(old_count)
+        new_weight = jnp.zeros((old_weight.shape[0], target_count), dtype=old_weight.dtype)
+        new_bias = jnp.zeros((target_count,), dtype=old_bias.dtype)
+        new_weight = new_weight.at[:, old_columns].set(old_weight)
+        new_bias = new_bias.at[old_columns].set(old_bias)
+        if target_count > old_count:
+            new_columns = jnp.arange(old_count, target_count)
+            mean_weight = jnp.mean(old_weight, axis=1, keepdims=True)
+            mean_bias = jnp.mean(old_bias)
+            new_weight = new_weight.at[:, new_columns].set(
+                jnp.repeat(mean_weight, target_count - old_count, axis=1)
+            )
+            new_bias = new_bias.at[new_columns].set(mean_bias)
+        return LinearParams(weight=new_weight, bias=new_bias)
+
     source_indices = jnp.asarray(repeated_write_action_indices(old_bits, target_bits))
     if source_indices.shape[0] != target_count:
         raise ValueError("write action transfer index count does not match target bits.")

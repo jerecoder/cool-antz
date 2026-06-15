@@ -25,6 +25,7 @@
     "write_bit_penalty_decay": 0.5,
     "write_entropy_bonus": 0.1,
     "write_entropy_bonus_cap": 0.15,
+    "write_head_transfer": "repeat",
     "hidden_size": 128,
     "write_bits": 2,
     "load_model": "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl",

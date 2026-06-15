@@ -342,6 +342,150 @@ def test_jax_checkpoint_transfer_expands_write_bits(tmp_path) -> None:
     assert checkpoint["opt_state"].count.shape == ()
 
 
+def test_jax_checkpoint_transfer_can_reset_expanded_write_head(tmp_path) -> None:
+    source_bits = 1
+    target_bits = 3
+    radius = 1
+    hidden_size = 8
+    central_obs_dim = 12
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=source_bits,
+        actor_vision_radius=radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=target_bits,
+        actor_vision_radius=radius,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(source_bits),
+    )
+    source_params = source_params._replace(
+        write_head=LinearParams(
+            weight=jnp.ones_like(source_params.write_head.weight),
+            bias=jnp.ones_like(source_params.write_head.bias),
+        )
+    )
+    source_path = tmp_path / "one_bit.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=source_bits,
+            actor_vision_radius=radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="one_bit",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=target_bits,
+        actor_vision_radius=radius,
+        write_head_transfer="reset",
+    )
+
+    transferred = checkpoint["params"]
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.weight),
+        np.zeros((hidden_size, write_value_count(target_bits)), dtype=np.float32),
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.bias),
+        np.zeros((write_value_count(target_bits),), dtype=np.float32),
+    )
+    assert checkpoint["args"]["write_head_transfer"] == "reset"
+
+
+def test_jax_checkpoint_transfer_can_neutral_initialize_new_write_actions(tmp_path) -> None:
+    source_bits = 1
+    target_bits = 3
+    radius = 1
+    hidden_size = 8
+    central_obs_dim = 12
+    source_count = write_value_count(source_bits)
+    target_count = write_value_count(target_bits)
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=source_bits,
+        actor_vision_radius=radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=target_bits,
+        actor_vision_radius=radius,
+    )
+    source_write_weight = jnp.arange(hidden_size * source_count, dtype=jnp.float32).reshape(
+        hidden_size,
+        source_count,
+    )
+    source_write_bias = jnp.array([2.0, 6.0], dtype=jnp.float32)
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=source_count,
+    )._replace(
+        write_head=LinearParams(weight=source_write_weight, bias=source_write_bias)
+    )
+    source_path = tmp_path / "one_bit.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=source_bits,
+            actor_vision_radius=radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="one_bit",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=target_bits,
+        actor_vision_radius=radius,
+        write_head_transfer="neutral-new",
+    )
+
+    transferred = checkpoint["params"]
+    expected_new_weight = np.repeat(
+        np.asarray(jnp.mean(source_write_weight, axis=1, keepdims=True)),
+        target_count - source_count,
+        axis=1,
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.weight[:, :source_count]),
+        np.asarray(source_write_weight),
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.bias[:source_count]),
+        np.asarray(source_write_bias),
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.weight[:, source_count:]),
+        expected_new_weight,
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.write_head.bias[source_count:]),
+        np.full((target_count - source_count,), float(jnp.mean(source_write_bias))),
+    )
+    assert checkpoint["args"]["write_head_transfer"] == "neutral-new"
+
+
 def test_jax_checkpoint_transfer_adds_ants_count_planes_from_legacy_checkpoint(tmp_path) -> None:
     write_bits = 1
     radius = 1
@@ -977,6 +1121,17 @@ def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
 def test_jax_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
     with pytest.raises(ValueError, match="write-bits"):
         parse_args(["--write-bits", write_bits])
+
+
+def test_jax_parse_args_accepts_write_head_transfer_modes() -> None:
+    assert parse_args(["--write-head-transfer", "reset"]).write_head_transfer == "reset"
+    assert (
+        parse_args(["--write-head-transfer", "neutral-new"]).write_head_transfer
+        == "neutral-new"
+    )
+
+    with pytest.raises(SystemExit):
+        parse_args(["--write-head-transfer", "copy-old"])
 
 
 @pytest.mark.parametrize(

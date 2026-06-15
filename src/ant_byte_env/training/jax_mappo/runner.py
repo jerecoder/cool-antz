@@ -125,6 +125,7 @@ def main(
             actor_obs_dim=actor_obs_dim,
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
+            write_head_transfer=args.write_head_transfer,
         )
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]

@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
+from ant_byte_env.training.jax_mappo.transfer import WRITE_HEAD_TRANSFER_MODES
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -81,6 +82,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Per-update bonus scale for balanced use of writable bits in rollout actions.",
     )
     parser.add_argument("--write-bits", type=int, default=DEFAULT_WRITE_BITS)
+    parser.add_argument(
+        "--write-head-transfer",
+        choices=WRITE_HEAD_TRANSFER_MODES,
+        default="repeat",
+        help="How to initialize the write head when increasing write bits from a checkpoint.",
+    )
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
     parser.add_argument("--random-hub", action="store_true")
