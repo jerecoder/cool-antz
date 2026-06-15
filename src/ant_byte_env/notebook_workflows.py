@@ -19,6 +19,7 @@ from ant_byte_env.vault import create_vault_entry
 FORAGE_STAGE_SIZES = (4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 25)
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
+NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
 DEFAULT_JAX_MEMORY_FRACTION = "0.35"
 NOTEBOOK_SAFE_CLEANUP_DIR_NAMES = frozenset(
     {
@@ -970,6 +971,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
         food_source_count=args.food_sources,
         max_steps=args.max_steps,
         random_food=args.random_food,
+        random_hub=args.random_hub,
         step_penalty=args.step_penalty,
         write_penalty=args.write_penalty,
         write_bits=args.write_bits,
@@ -1217,18 +1219,23 @@ def render_rollout_suite(
         missing_text = "\n".join(str(path) for path in missing)
         raise FileNotFoundError(f"Train the missing policies before rendering:\n{missing_text}")
 
-    rollout_paths = [
-        render_checkpoint(
-            checkpoint,
-            rollout_path_for_checkpoint(checkpoint, media_dir),
-            backend="jax",
-            reuse_existing=True,
-            max_frames=max_frames,
-            tile_size=tile_size,
-            policy_temperature=0.0,
+    rollout_paths = []
+    rollout_seed_offsets = []
+    for rollout_index, checkpoint in enumerate(tqdm(checkpoints, desc=progress_desc)):
+        seed_offset = NOTEBOOK_ROLLOUT_SEED_OFFSET + rollout_index
+        rollout_seed_offsets.append(seed_offset)
+        rollout_paths.append(
+            render_checkpoint(
+                checkpoint,
+                rollout_path_for_checkpoint(checkpoint, media_dir),
+                backend="jax",
+                seed_offset=seed_offset,
+                reuse_existing=False,
+                max_frames=max_frames,
+                tile_size=tile_size,
+                policy_temperature=0.0,
+            )
         )
-        for checkpoint in tqdm(checkpoints, desc=progress_desc)
-    ]
     vault_entry_path = create_vault_entry(
         vault_dir=vault_dir,
         title=title,
@@ -1239,6 +1246,7 @@ def render_rollout_suite(
             "render_max_frames": max_frames,
             "render_tile_size": tile_size,
             "rollout_policy_temperature": 0.0,
+            "rollout_seed_offsets": rollout_seed_offsets,
             "checkpoint_paths": [str(path) for path in checkpoints],
             "rollout_paths": [str(path) for path in rollout_paths],
         },

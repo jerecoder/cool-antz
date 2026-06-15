@@ -128,6 +128,11 @@ def _params_for_args(args: argparse.Namespace, env: JaxAntByteForagingEnv):
     return params, states, obs
 
 
+def _food_source_signature(food_grid: np.ndarray) -> tuple[tuple[int, int], ...]:
+    food_positions = np.argwhere(food_grid > 0)[:, ::-1]
+    return tuple(tuple(int(coord) for coord in position) for position in food_positions)
+
+
 def test_jax_observation_builders_match_mappo_shapes() -> None:
     obs = _batched_reset_obs()
 
@@ -733,6 +738,61 @@ def test_jax_rollout_auto_resets_completed_envs() -> None:
 
     assert bool(np.asarray(rollout.dones)[0, 0])
     assert int(np.asarray(states.step_count)[0]) == 0
+
+
+def test_jax_rollout_auto_reset_resamples_random_colony_and_cookie_sources() -> None:
+    args = _rollout_args(
+        [
+            "--num-envs",
+            "8",
+            "--width",
+            "8",
+            "--height",
+            "8",
+            "--food-count",
+            "8",
+            "--food-sources",
+            "2",
+            "--max-steps",
+            "1",
+            "--random-food",
+            "--random-hub",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        write_bits=args.write_bits,
+    )
+    params, states, obs = _params_for_args(args, env)
+    initial_hubs = np.asarray(obs["hub_pos"])
+    initial_food = np.asarray(obs["food"])
+
+    states, obs, rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(99),
+    )
+
+    reset_hubs = np.asarray(obs["hub_pos"])
+    reset_food = np.asarray(obs["food"])
+    assert bool(np.all(np.asarray(rollout.dones)))
+    assert int(np.asarray(states.step_count).max()) == 0
+    assert len({tuple(hub) for hub in reset_hubs}) > 1
+    assert len({_food_source_signature(food_grid) for food_grid in reset_food}) > 1
+    assert not np.array_equal(initial_hubs, reset_hubs)
+    assert not np.array_equal(initial_food, reset_food)
+    for hub, food_grid in zip(reset_hubs, reset_food, strict=True):
+        assert int(food_grid[hub[1], hub[0]]) == 0
 
 
 def test_jax_rollout_auto_resets_done_envs_inside_scan() -> None:

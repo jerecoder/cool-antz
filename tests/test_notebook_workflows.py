@@ -314,9 +314,60 @@ def test_rollout_suite_uses_full_episode_render_defaults(
     assert captured_kwargs == [
         {
             "backend": "jax",
-            "reuse_existing": True,
+            "seed_offset": workflows.NOTEBOOK_ROLLOUT_SEED_OFFSET,
+            "reuse_existing": False,
             "max_frames": None,
             "tile_size": workflows.NOTEBOOK_ROLLOUT_TILE_SIZE,
             "policy_temperature": 0.0,
         }
     ]
+
+
+def test_rollout_suite_uses_distinct_seed_offsets_per_rollout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_paths = [
+        tmp_path / "checkpoints" / "stage_a.pkl",
+        tmp_path / "checkpoints" / "stage_b.pkl",
+    ]
+    for checkpoint_path in checkpoint_paths:
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_path.write_bytes(b"checkpoint")
+    captured_offsets: list[int] = []
+    captured_metadata: dict[str, object] = {}
+
+    def fake_render_checkpoint(
+        checkpoint: Path,
+        output_path: Path,
+        **kwargs: object,
+    ) -> Path:
+        del checkpoint
+        captured_offsets.append(int(kwargs["seed_offset"]))
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"mp4")
+        return output_path
+
+    def fake_create_vault_entry(**kwargs: object) -> Path:
+        captured_metadata.update(dict(kwargs["metadata"]))
+        return tmp_path / "vault" / "entry"
+
+    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(workflows, "create_vault_entry", fake_create_vault_entry)
+
+    workflows.render_rollout_suite(
+        checkpoint_paths=checkpoint_paths,
+        media_dir=tmp_path / "media",
+        rollout_path_for_checkpoint=lambda checkpoint, media: media / f"{checkpoint.stem}.mp4",
+        progress_desc="rendering",
+        vault_dir=tmp_path / "vault",
+        title="Preview",
+        description="Notebook rollout",
+        metadata={},
+    )
+
+    assert captured_offsets == [
+        workflows.NOTEBOOK_ROLLOUT_SEED_OFFSET,
+        workflows.NOTEBOOK_ROLLOUT_SEED_OFFSET + 1,
+    ]
+    assert captured_metadata["rollout_seed_offsets"] == captured_offsets
