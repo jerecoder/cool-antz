@@ -72,6 +72,56 @@
           "write_head_transfer": "repeat"
         }
       }
+    ],
+    "replication": [
+      {
+        "id": "K1",
+        "depends_on": "final/F1",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/K1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/K1/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 401,
+          "load_model": "runs/autoresearch/communication_bits/final/F1/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "K2",
+        "depends_on": "final/F2",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/K2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/K2/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 402,
+          "load_model": "runs/autoresearch/communication_bits/final/F2/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "K3",
+        "depends_on": "final/F3",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/K3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/K3/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 403,
+          "load_model": "runs/autoresearch/communication_bits/final/F3/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      }
     ]
   }
 }
