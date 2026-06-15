@@ -1,0 +1,77 @@
+{
+  "name": "communication_bits_consolidation",
+  "base_config": "experiments/communication_bits.json",
+  "run_root": "runs/autoresearch/communication_bits",
+  "screening_bit_stages": [8],
+  "screening_env_steps_per_stage": 3200000,
+  "final_bit_stages": [8],
+  "final_env_steps_per_stage": 3200000,
+  "phases": {
+    "consolidation": [
+      {
+        "id": "C0",
+        "depends_on": "final/F3",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/C0",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/C0/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 300,
+          "load_model": "runs/autoresearch/communication_bits/final/F3/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "C1",
+        "depends_on": "final/F3",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/C1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/C1/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 301,
+          "load_model": "runs/autoresearch/communication_bits/final/F3/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "C2",
+        "depends_on": "final/F3",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/C2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/C2/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 302,
+          "load_model": "runs/autoresearch/communication_bits/final/F3/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.0,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "C3",
+        "depends_on": "final/F3",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/C3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/C3/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 303,
+          "load_model": "runs/autoresearch/communication_bits/final/F3/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.05,
+          "ent_coef": 0.002,
+          "write_head_transfer": "repeat"
+        }
+      }
+    ]
+  }
+}
