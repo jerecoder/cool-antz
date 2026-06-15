@@ -5,9 +5,8 @@ import pytest
 import torch
 
 from ant_byte_env import (
-    ACTION_FORWARD,
-    ACTION_TURN_LEFT,
-    ACTION_TURN_RIGHT,
+    ACTION_LEFT,
+    ACTION_RIGHT,
     AntByteForagingEnv,
     MOVEMENT_ACTION_COUNT,
 )
@@ -31,6 +30,11 @@ from ant_byte_env.training.torch_mappo import (
     reset_env,
     write_value_count,
 )
+from ant_byte_env.training.torch_mappo.checkpointing import (
+    _adapt_movement_head_state_dict,
+    adapt_agent_state_dict_for_actor_window,
+)
+from ant_byte_env.training.torch_mappo.rollout import rollout_storage_to_tensordict
 
 
 def _batched_reset_obs() -> dict[str, np.ndarray]:
@@ -53,7 +57,7 @@ def test_observation_builders_create_stable_mappo_tensors() -> None:
     actor_obs = build_actor_observations(obs, central_obs, food_scale=3)
 
     assert central_obs.shape == (1, 46)
-    assert actor_obs.shape == (1, 2, 31)
+    assert actor_obs.shape == (1, 2, 46)
     assert torch.all(central_obs >= 0.0)
     assert torch.all(central_obs <= 1.0)
     assert torch.all(actor_obs >= 0.0)
@@ -78,7 +82,7 @@ def test_observation_builders_can_pad_to_larger_curriculum_map() -> None:
     )
 
     assert central_obs.shape == (1, 118)
-    assert actor_obs.shape == (1, 2, 31)
+    assert actor_obs.shape == (1, 2, 46)
     torch.testing.assert_close(central_obs[:, -2:], torch.tensor([[4 / 6, 3 / 6]]))
 
 
@@ -93,31 +97,50 @@ def test_actor_observation_contains_local_grids_border_mask_and_carrying_flag() 
         actor_vision_radius=1,
     )
 
-    assert actor_obs.shape == (1, 2, 16)
+    assert actor_obs.shape == (1, 2, 46)
     torch.testing.assert_close(
-        actor_obs[0, 0, :3],
-        torch.tensor([0, 1, 0.0]),
+        actor_obs[0, 0, :9],
+        torch.tensor([0, 0, 0.0, 0, 0, 1.0, 0, 0, 0.0]),
     )
     torch.testing.assert_close(
-        actor_obs[0, 0, 3:6],
-        torch.zeros(3),
+        actor_obs[0, 0, 9:18],
+        torch.tensor([0, 0, 0.0, 0, 1, 0.0, 0, 0, 0.0]),
     )
-    torch.testing.assert_close(actor_obs[0, 0, 6:9], torch.zeros(3))
+    torch.testing.assert_close(actor_obs[0, 0, 18:27], torch.zeros(9))
     torch.testing.assert_close(
-        actor_obs[0, 0, 9:12],
-        torch.zeros(3),
-    )
-    torch.testing.assert_close(
-        actor_obs[0, 0, 12:15],
-        torch.tensor([1, 0, 0.0]),
+        actor_obs[0, 0, 27:36],
+        torch.tensor([0, 0, 0.0, 0, 1, 0.0, 0, 0, 0.0]),
     )
     torch.testing.assert_close(
-        actor_obs[0, 0, 15:],
+        actor_obs[0, 0, 36:45],
+        torch.tensor([1, 1, 1.0, 1, 0, 0.0, 1, 0, 0.0]),
+    )
+    torch.testing.assert_close(
+        actor_obs[0, 0, 45:],
         torch.tensor([0.0]),
     )
 
 
-def test_actor_vision_patch_is_three_wide_and_two_deep_in_front() -> None:
+def test_actor_observation_window_contains_current_ant_tile() -> None:
+    obs = obs_to_tensor(_batched_reset_obs(), torch.device("cpu"))
+    obs["ants_pos"][0, 0] = torch.tensor([2, 1], dtype=obs["ants_pos"].dtype)
+    obs["ants_count"].zero_()
+    obs["ants_count"][0, 1, 2] = 1
+    obs["ants_count"][0, 0, 0] = 1
+
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=3,
+        actor_vision_radius=1,
+    )
+
+    torch.testing.assert_close(
+        actor_obs[0, 0, 9:18],
+        torch.tensor([0, 0, 0.0, 0, 0.5, 0.0, 0, 0, 0.0], dtype=torch.float32),
+    )
+
+
+def test_actor_vision_patch_is_centered_three_by_three_grid() -> None:
     grid = torch.tensor(
         [
             [
@@ -135,14 +158,14 @@ def test_actor_vision_patch_is_three_wide_and_two_deep_in_front() -> None:
     patch = build_local_grid_patches(
         grid,
         ants_pos,
-        radius=2,
+        radius=1,
         ants_facing=ants_facing,
     )
 
-    assert patch.shape == (1, 1, 6)
+    assert patch.shape == (1, 1, 9)
     torch.testing.assert_close(
         patch[0, 0],
-        torch.tensor([13.0, 23.0, 33.0, 14.0, 24.0, 34.0]),
+        torch.tensor([11.0, 12.0, 13.0, 21.0, 22.0, 23.0, 31.0, 32.0, 33.0]),
     )
 
 
@@ -164,9 +187,9 @@ def test_actor_observation_exposes_one_local_write_bit_patch() -> None:
         actor_vision_radius=1,
     )
 
-    patch_size = 3
+    patch_size = 9
     byte_bits = actor_obs[0, 0, 2 * patch_size : 3 * patch_size]
-    expected_bit = torch.tensor([0, 1, 0.0])
+    expected_bit = torch.tensor([0, 0, 0.0, 0, 0, 1.0, 0, 0, 0.0])
     torch.testing.assert_close(byte_bits, expected_bit)
 
 
@@ -193,10 +216,10 @@ def test_actor_observation_write_bits_controls_local_bit_planes() -> None:
         write_bits=3,
     )
 
-    patch_size = 3
+    patch_size = 9
     bit_patches = actor_obs[0, 0, 2 * patch_size : 5 * patch_size].reshape(3, patch_size)
-    expected_bit = torch.tensor([0, 1, 0.0])
-    assert actor_obs.shape == (1, 1, 22)
+    expected_bit = torch.tensor([0, 0, 0.0, 0, 0, 1.0, 0, 0, 0.0])
+    assert actor_obs.shape == (1, 1, 64)
     torch.testing.assert_close(bit_patches[0], expected_bit)
     torch.testing.assert_close(bit_patches[1], torch.zeros(patch_size))
     torch.testing.assert_close(bit_patches[2], expected_bit)
@@ -227,10 +250,10 @@ def test_actor_observation_exposes_colony_in_local_hub_grid() -> None:
         actor_vision_radius=1,
     )
 
-    patch_size = 3
+    patch_size = 9
     torch.testing.assert_close(
         actor_obs[0, 0, 3 * patch_size : 4 * patch_size],
-        torch.tensor([0, 1, 0.0]),
+        torch.tensor([0, 0, 0.0, 0, 0, 1.0, 0, 0, 0.0]),
     )
 
 
@@ -240,14 +263,14 @@ def test_local_food_patches_pad_map_edges() -> None:
 
     patches = build_local_food_patches(food, ants_pos, radius=1, food_scale=3)
 
-    assert patches.shape == (1, 2, 3)
+    assert patches.shape == (1, 2, 9)
     torch.testing.assert_close(
         patches[0, 0],
-        torch.tensor([0, 2 / 3, 0.0]),
+        torch.tensor([0, 0, 0.0, 0, 0, 2 / 3, 0, 1, 0.0]),
     )
     torch.testing.assert_close(
         patches[0, 1],
-        torch.zeros(3),
+        torch.tensor([0, 2 / 3, 0.0, 1, 0, 0.0, 0, 0, 0.0]),
     )
 
 
@@ -293,20 +316,49 @@ def test_agent_write_head_size_follows_write_bits() -> None:
     move_logits, write_logits = agent.get_action_logits(actor_obs)
     actions, _, _, _ = agent.get_action_and_value(actor_obs, central_obs)
 
-    assert actor_obs.shape == (1, 2, 43)
+    assert actor_obs.shape == (1, 2, 64)
     assert move_logits.shape == (1, 2, MOVEMENT_ACTION_COUNT)
     assert write_logits.shape == (1, 2, 8)
     assert torch.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7))
 
 
+def test_torch_checkpoint_adapter_maps_forward_rows_into_centered_grid() -> None:
+    source_agent = MAPPOAgent(central_obs_dim=12, actor_obs_dim=31, hidden_size=8)
+
+    adapted = adapt_agent_state_dict_for_actor_window(
+        source_agent.state_dict(),
+        saved_actor_dim=31,
+        actor_obs_dim=46,
+        write_bits=1,
+        actor_vision_radius=1,
+    )
+
+    old_weight = source_agent.state_dict()["actor_body.0.weight"]
+    new_weight = adapted["actor_body.0.weight"]
+    assert new_weight.shape == (8, 46)
+    for channel_index in range(5):
+        old_start = channel_index * 6
+        new_start = channel_index * 9
+        torch.testing.assert_close(
+            new_weight[:, new_start + torch.tensor([0, 3, 6])],
+            torch.zeros((8, 3)),
+        )
+        for old_offset, new_offset in enumerate((1, 4, 7, 2, 5, 8)):
+            torch.testing.assert_close(
+                new_weight[:, new_start + new_offset],
+                old_weight[:, old_start + old_offset],
+            )
+    torch.testing.assert_close(new_weight[:, -1], old_weight[:, -1])
+
+
 def test_joint_move_write_distribution_scores_independent_heads() -> None:
-    move_logits = torch.tensor([[[0.1, 0.2, 0.3, 0.4]]])
+    move_logits = torch.tensor([[[0.1, 0.2, 0.3, 0.4, 0.5]]])
     write_logits = torch.zeros((1, 1, 2))
     distribution = JointMoveWriteCategorical(
         move_logits=move_logits,
         write_logits=write_logits,
     )
-    actions = torch.tensor([[[ACTION_FORWARD, 1]]])
+    actions = torch.tensor([[[ACTION_RIGHT, 1]]])
 
     logprob = distribution.log_prob(actions)
     entropy = distribution.entropy()
@@ -320,18 +372,18 @@ def test_joint_move_write_distribution_scores_independent_heads() -> None:
     assert entropy.shape == (1, 1)
     torch.testing.assert_close(
         distribution.deterministic_sample,
-        torch.tensor([[[ACTION_FORWARD, 0]]]),
+        torch.tensor([[[ACTION_LEFT, 0]]]),
     )
 
 
 def test_flatten_agent_actions_interleaves_movement_and_write_bits() -> None:
-    actions = torch.tensor([[[ACTION_TURN_LEFT, 1], [ACTION_FORWARD, 0]]], dtype=torch.long)
+    actions = torch.tensor([[[ACTION_LEFT, 1], [ACTION_RIGHT, 0]]], dtype=torch.long)
 
     flat_actions = flatten_agent_actions(actions)
 
     torch.testing.assert_close(
         flat_actions,
-        torch.tensor([[ACTION_TURN_LEFT, 1, ACTION_FORWARD, 0]]),
+        torch.tensor([[ACTION_LEFT, 1, ACTION_RIGHT, 0]]),
     )
 
 
@@ -355,6 +407,7 @@ def test_draw_vision_squares_overlays_clipped_ant_windows() -> None:
 
     assert np.all(frame == 0)
     np.testing.assert_array_equal(overlay[0, 10], np.array([10, 20, 30], dtype=np.uint8))
+    np.testing.assert_array_equal(overlay[10, 10], np.array([0, 0, 0], dtype=np.uint8))
     np.testing.assert_array_equal(overlay[29, 20], np.array([200, 210, 220], dtype=np.uint8))
     assert overlay.sum() > 0
 
@@ -382,6 +435,18 @@ def test_parse_args_rejects_negative_actor_vision_radius() -> None:
         parse_args(["--actor-vision-radius", "-1"])
 
 
+def test_parse_args_can_disable_default_true_toggles() -> None:
+    args = parse_args(["--no-torch-deterministic", "--no-norm-adv"])
+
+    assert args.torch_deterministic is False
+    assert args.norm_adv is False
+
+
+def test_parse_args_rejects_uneven_torch_minibatches() -> None:
+    with pytest.raises(ValueError, match="evenly divide"):
+        parse_args(["--num-envs", "2", "--num-steps", "3", "--num-minibatches", "4"])
+
+
 @pytest.mark.parametrize("write_bits", ["0", "9"])
 def test_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
     with pytest.raises(ValueError, match="write-bits"):
@@ -394,7 +459,7 @@ def test_forage_curriculum_rewards_pickup_and_target_progress() -> None:
         seed=5,
         options={"hub_pos": (0, 0), "food_positions": [(1, 0)]},
     )
-    next_obs, env_reward, _, _, _ = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
+    next_obs, env_reward, _, _, _ = env.step(np.array([ACTION_RIGHT, 0], dtype=np.int64))
     env.close()
 
     shaped_rewards = compute_forage_curriculum_rewards(
@@ -480,6 +545,9 @@ def test_random_hub_options_include_colony_without_fixed_cookie_positions() -> N
 
 
 class ScriptedForageAgent:
+    def __init__(self) -> None:
+        self.step_index = 0
+
     def get_action_and_value(
         self,
         actor_obs: torch.Tensor,
@@ -489,25 +557,14 @@ class ScriptedForageAgent:
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         del action, deterministic
         del central_obs
-        patch_size = (actor_obs.shape[-1] - 1) // 5
-        carrying = actor_obs[:, :, -1] > 0.5
-        hub_patch = actor_obs[:, :, 3 * patch_size : 4 * patch_size]
-        hub_visible = torch.any(hub_patch > 0.5, dim=-1)
-        return_to_hub = torch.where(
-            hub_visible,
-            torch.full_like(carrying, ACTION_FORWARD, dtype=torch.long),
-            torch.full_like(carrying, ACTION_TURN_RIGHT, dtype=torch.long),
-        )
-        movement = torch.where(
-            carrying,
-            return_to_hub,
-            torch.full_like(carrying, ACTION_FORWARD, dtype=torch.long),
-        )
+        sequence = (ACTION_RIGHT, ACTION_LEFT)
+        movement_value = sequence[self.step_index % len(sequence)]
+        self.step_index += 1
+        movement = torch.full(actor_obs.shape[:2], movement_value, dtype=torch.long)
         write = torch.zeros_like(movement)
         actions = torch.stack([movement, write], dim=-1)
         zeros = torch.zeros_like(movement, dtype=torch.float32)
         values = torch.zeros(actor_obs.shape[0], dtype=torch.float32)
-        assert patch_size == 6
         return actions, zeros, zeros, values
 
 
@@ -583,6 +640,35 @@ def test_tiny_mappo_training_run_completes() -> None:
 
     assert metrics["global_step"] == 4
     assert np.isfinite(metrics["loss"])
+
+
+def test_rollout_tensordict_distinguishes_truncation_from_termination() -> None:
+    storage = {
+        "actor_obs": torch.zeros((1, 1, 1, 2)),
+        "central_obs": torch.zeros((1, 1, 3)),
+        "actions": torch.zeros((1, 1, 1, 2), dtype=torch.long),
+        "logprobs": torch.zeros((1, 1, 1)),
+        "rewards": torch.zeros((1, 1, 1)),
+        "dones": torch.tensor([[[True]]]),
+        "terminations": torch.tensor([[[False]]]),
+        "truncations": torch.tensor([[[True]]]),
+        "next_central_obs": torch.ones((1, 1, 3)),
+    }
+
+    rollout = rollout_storage_to_tensordict(storage)
+
+    assert bool(rollout[("next", "done")][0, 0, 0])
+    assert not bool(rollout[("next", "terminated")][0, 0, 0])
+
+
+def test_torch_legacy_four_action_movement_head_fails_loudly() -> None:
+    state_dict = {
+        "move_head.weight": torch.zeros((4, 8)),
+        "move_head.bias": torch.zeros((4,)),
+    }
+
+    with pytest.raises(ValueError, match="cannot be automatically mapped"):
+        _adapt_movement_head_state_dict(state_dict)
 
 
 def test_saved_checkpoint_uses_torch_safe_metadata(tmp_path) -> None:
@@ -697,5 +783,5 @@ def test_checkpoint_can_resume_on_larger_padded_map(tmp_path) -> None:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     assert metrics["global_step"] == 4
     assert checkpoint["central_obs_dim"] == 82
-    assert checkpoint["actor_obs_dim"] == 31
+    assert checkpoint["actor_obs_dim"] == 46
     assert checkpoint["args"]["width"] == 5

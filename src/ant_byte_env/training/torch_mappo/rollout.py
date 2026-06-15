@@ -43,6 +43,7 @@ def make_envs(args: argparse.Namespace) -> list[AntByteForagingEnv]:
             food_source_count=args.food_sources,
             max_steps=args.max_steps,
             random_food=args.random_food,
+            random_hub=args.random_hub,
             step_penalty=args.step_penalty,
             write_penalty=args.write_penalty,
             write_bits=args.write_bits,
@@ -91,6 +92,16 @@ def make_rollout_storage(
             dtype=torch.bool,
             device=device,
         ),
+        "terminations": torch.zeros(
+            (args.num_steps, args.num_envs, 1),
+            dtype=torch.bool,
+            device=device,
+        ),
+        "truncations": torch.zeros(
+            (args.num_steps, args.num_envs, 1),
+            dtype=torch.bool,
+            device=device,
+        ),
         "next_central_obs": torch.zeros(
             (args.num_steps, args.num_envs, central_obs_dim),
             device=device,
@@ -113,6 +124,9 @@ def collect_rollout(
     episode_lengths = np.zeros(args.num_envs, dtype=np.int32)
     completed_returns: list[float] = []
     completed_lengths: list[int] = []
+    completed_count = 0
+    terminated_count = 0
+    truncated_count = 0
     for step in range(args.num_steps):
         obs_tensor = obs_to_tensor(next_obs, device)
         central_obs = build_central_observations(
@@ -145,18 +159,43 @@ def collect_rollout(
         previous_obs = next_obs
         raw_next_obs_items: list[NumpyObs] = []
         env_rewards = np.zeros(args.num_envs, dtype=np.float32)
-        done_flags = np.zeros(args.num_envs, dtype=np.float32)
+        terminated_flags = np.zeros(args.num_envs, dtype=bool)
+        truncated_flags = np.zeros(args.num_envs, dtype=bool)
+        done_flags = np.zeros(args.num_envs, dtype=bool)
 
         for env_index, env in enumerate(envs):
             obs_item, reward, terminated, truncated, _ = env.step(env_actions[env_index])
             raw_next_obs_items.append(obs_item)
             env_rewards[env_index] = float(reward)
-            done_flags[env_index] = float(terminated or truncated)
+            terminated_flags[env_index] = bool(terminated)
+            truncated_flags[env_index] = bool(truncated)
+            done_flags[env_index] = bool(terminated or truncated)
 
         storage["dones"][step] = torch.as_tensor(done_flags, dtype=torch.bool, device=device).unsqueeze(
             -1
         )
+        storage["terminations"][step] = torch.as_tensor(
+            terminated_flags,
+            dtype=torch.bool,
+            device=device,
+        ).unsqueeze(-1)
+        storage["truncations"][step] = torch.as_tensor(
+            truncated_flags,
+            dtype=torch.bool,
+            device=device,
+        ).unsqueeze(-1)
+        completed_count += int(np.sum(done_flags))
+        terminated_count += int(np.sum(terminated_flags))
+        truncated_count += int(np.sum(truncated_flags))
         raw_next_obs = stack_obs(raw_next_obs_items)
+        raw_next_obs_tensor = obs_to_tensor(raw_next_obs, device)
+        storage["next_central_obs"][step] = build_central_observations(
+            raw_next_obs_tensor,
+            food_scale=args.food_count,
+            write_bits=args.write_bits,
+            obs_width=args.obs_width,
+            obs_height=args.obs_height,
+        )
         shaped_rewards = compute_forage_curriculum_rewards(
             previous_obs=previous_obs,
             next_obs=raw_next_obs,
@@ -185,20 +224,15 @@ def collect_rollout(
                 reset_obs_items.append(raw_next_obs_items[env_index])
 
         next_obs = stack_obs(reset_obs_items)
-        next_obs_tensor = obs_to_tensor(next_obs, device)
-        storage["next_central_obs"][step] = build_central_observations(
-            next_obs_tensor,
-            food_scale=args.food_count,
-            write_bits=args.write_bits,
-            obs_width=args.obs_width,
-            obs_height=args.obs_height,
-        )
         next_done = torch.as_tensor(done_flags, device=device)
         global_step += args.num_envs
 
     rollout_stats = {
         "episode_return": float(np.mean(completed_returns)) if completed_returns else 0.0,
         "episode_length": float(np.mean(completed_lengths)) if completed_lengths else 0.0,
+        "completed_episodes": float(completed_count),
+        "terminated_episodes": float(terminated_count),
+        "truncated_episodes": float(truncated_count),
     }
     return next_obs, next_done, global_step, rollout_stats
 
@@ -214,7 +248,7 @@ def rollout_storage_to_tensordict(storage: dict[str, torch.Tensor]) -> TensorDic
             ("next", "state"): storage["next_central_obs"].detach(),
             ("next", "reward"): storage["rewards"].detach(),
             ("next", "done"): storage["dones"].detach(),
-            ("next", "terminated"): storage["dones"].detach(),
+            ("next", "terminated"): storage["terminations"].detach(),
         },
         batch_size=[num_steps, num_envs],
     )

@@ -117,7 +117,7 @@ Render a saved checkpoint with:
 ant-byte render --checkpoint runs/.../checkpoints/model.pt --output runs/.../media/rollout.mp4
 ```
 
-Checkpoint renders include each ant's local 3-wide, 2-deep forward vision patch by default; pass
+Checkpoint renders include each ant's centered 3x3 actor window by default; pass
 `--no-vision` for a raw environment render.
 
 Curated result metadata lives in `results/curated/`. Generated run outputs live
@@ -133,24 +133,24 @@ environment delivery reward.
 For `num_ants = N`, the action space is:
 
 ```python
-spaces.MultiDiscrete([4, 2 ** write_bits] * N)
+spaces.MultiDiscrete([5, 2 ** write_bits] * N)
 ```
 
-Each ant receives a pair `(move_i, write_value_i)`. The move action is
-body-relative (`stay`, `turn_left`, `turn_right`, `forward`). The write range is
-controlled by `write_bits`; the default is `write_bits=1`, so there are `2`
-write values. For `write_bits=3`, the action space becomes
-`spaces.MultiDiscrete([4, 8] * N)`.
+Each ant receives a pair `(move_i, write_value_i)`. The move action is cardinal
+(`stay`, `up`, `right`, `down`, `left`). The write range is controlled by
+`write_bits`; the default is `write_bits=1`, so there are `2` write values. For
+`write_bits=3`, the action space becomes `spaces.MultiDiscrete([5, 8] * N)`.
 
 Movement actions:
 
 - `0`: stay
-- `1`: turn left in place
-- `2`: turn right in place
-- `3`: advance one tile forward
+- `1`: move up
+- `2`: move right
+- `3`: move down
+- `4`: move left
 
 The write action is an integer from `0` to `2 ** write_bits - 1`. It is written
-to the ant's tile after the body-relative action, pickup, and delivery are processed.
+to the ant's tile after movement, pickup, and delivery are processed.
 
 ## Observation Space
 
@@ -251,9 +251,10 @@ For headless export without opening a Pygame window:
 
 The Torch and JAX MAPPO trainers use a shared project structure but backend
 specific modules. The shared actor chooses a joint `(move, write_value)` action
-for each ant. Each actor observation is coordinate-free and local: food values,
-local write bit-plane patches, a colony mask, an out-of-bounds border mask in
-the ant's 3-wide forward vision patch, and that ant's carrying flag. The
+for each ant. Each actor observation includes local actor-window features for
+food, write bit-planes, colony occupancy, hub visibility, and border
+masking. The default local window is a centered 3x3 grid around the ant, so the
+ant's own tile is part of the patch; the actor also receives that ant's carrying flag. The
 centralized critic still receives the padded global map state. Use
 `--write-bits` to choose how many bits each ant can write.
 
@@ -274,7 +275,10 @@ jupyter notebook notebooks/train_mappo_curriculum.ipynb
 ```
 
 The notebooks now call package utilities for trainer code and rendering. Their
-generated checkpoints and media write under `runs/notebooks/`.
+generated checkpoints and media write under `runs/notebooks/`. Notebook rollout
+cells render full episodes by default using a smaller tile size. Use
+`ant-byte render` with `--max-frames` only when you explicitly want a shorter
+standalone preview.
 
 ## Assets
 

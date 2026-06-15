@@ -7,9 +7,9 @@ jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
 from ant_byte_env import (
-    ACTION_FORWARD,
+    ACTION_LEFT,
+    ACTION_RIGHT,
     ACTION_STAY,
-    ACTION_TURN_LEFT,
     MOVEMENT_ACTION_COUNT,
     AntByteForagingEnv,
 )
@@ -46,6 +46,33 @@ def test_jax_reset_matches_env_observation_contract() -> None:
     assert int(info.num_writes) == 0
 
 
+def test_jax_random_hub_reset_is_seed_reproducible() -> None:
+    env = JaxAntByteForagingEnv(
+        width=6,
+        height=5,
+        num_ants=3,
+        food_count=4,
+        random_hub=True,
+    )
+
+    _, obs_a, _ = env.reset(jax.random.PRNGKey(123))
+    _, obs_b, _ = env.reset(jax.random.PRNGKey(123))
+    _, obs_c, _ = env.reset(jax.random.PRNGKey(124))
+
+    np.testing.assert_array_equal(np.asarray(obs_a["hub_pos"]), np.asarray(obs_b["hub_pos"]))
+    assert (
+        not np.array_equal(np.asarray(obs_a["hub_pos"]), np.array([3, 2], dtype=np.int32))
+        or not np.array_equal(np.asarray(obs_c["hub_pos"]), np.asarray(obs_a["hub_pos"]))
+    )
+    np.testing.assert_array_equal(
+        np.asarray(obs_a["ants_pos"]),
+        np.repeat(np.asarray(obs_a["hub_pos"])[None, :], 3, axis=0),
+    )
+    hub_x, hub_y = np.asarray(obs_a["hub_pos"])
+    assert int(obs_a["ants_count"][hub_y, hub_x]) == 3
+    assert int(obs_a["food"][hub_y, hub_x]) == 0
+
+
 def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
     env = JaxAntByteForagingEnv(width=3, height=1, num_ants=1, food_count=1)
     state, _, _ = env.reset(
@@ -56,7 +83,7 @@ def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
 
     state, obs, reward, terminated, truncated, info = env.step(
         state,
-        jnp.array([ACTION_FORWARD, 1], dtype=jnp.int32),
+        jnp.array([ACTION_RIGHT, 1], dtype=jnp.int32),
     )
     assert float(reward) == 0.0
     assert not bool(terminated)
@@ -68,15 +95,7 @@ def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
 
     state, obs, reward, terminated, truncated, info = env.step(
         state,
-        jnp.array([ACTION_TURN_LEFT, 0], dtype=jnp.int32),
-    )
-    state, _, _, _, _, _ = env.step(
-        state,
-        jnp.array([ACTION_TURN_LEFT, 0], dtype=jnp.int32),
-    )
-    state, obs, reward, terminated, truncated, info = env.step(
-        state,
-        jnp.array([ACTION_FORWARD, 0], dtype=jnp.int32),
+        jnp.array([ACTION_LEFT, 0], dtype=jnp.int32),
     )
     assert float(reward) == 1.0
     assert bool(terminated)
@@ -106,7 +125,7 @@ def test_jax_food_state_tracks_remaining_bite_counts() -> None:
 
     state, obs, _, terminated, _, info = env.step(
         state,
-        jnp.array([ACTION_FORWARD, 0], dtype=jnp.int32),
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
     )
 
     assert int(state.food[0, 1]) == 1
@@ -150,10 +169,8 @@ def test_jax_core_matches_gym_env_for_fixed_rollout() -> None:
     )
 
     actions = [
-        np.array([ACTION_FORWARD, 1], dtype=np.int64),
-        np.array([ACTION_TURN_LEFT, 0], dtype=np.int64),
-        np.array([ACTION_TURN_LEFT, 0], dtype=np.int64),
-        np.array([ACTION_FORWARD, 0], dtype=np.int64),
+        np.array([ACTION_RIGHT, 1], dtype=np.int64),
+        np.array([ACTION_LEFT, 0], dtype=np.int64),
     ]
     try:
         for action in actions:
@@ -183,7 +200,7 @@ def test_jax_write_bits_control_action_range_and_overwrites() -> None:
 
     state, obs, _, _, _, info = env.step(
         state,
-        jnp.array([ACTION_FORWARD, 0, ACTION_FORWARD, 7, ACTION_FORWARD, 3], dtype=jnp.int32),
+        jnp.array([ACTION_RIGHT, 0, ACTION_RIGHT, 7, ACTION_RIGHT, 3], dtype=jnp.int32),
     )
 
     np.testing.assert_array_equal(

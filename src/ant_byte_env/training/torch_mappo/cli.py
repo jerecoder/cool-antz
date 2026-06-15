@@ -14,7 +14,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--exp-name", type=str, default="mappo_forage")
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--torch-deterministic", action="store_true", default=True)
+    parser.add_argument("--torch-deterministic", dest="torch_deterministic", action="store_true")
+    parser.add_argument("--no-torch-deterministic", dest="torch_deterministic", action="store_false")
+    parser.set_defaults(torch_deterministic=True)
     parser.add_argument("--no-cuda", action="store_true")
     parser.add_argument("--quiet", action="store_true")
 
@@ -27,7 +29,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--gae-lambda", type=float, default=0.95)
     parser.add_argument("--num-minibatches", type=int, default=4)
     parser.add_argument("--update-epochs", type=int, default=4)
-    parser.add_argument("--norm-adv", action="store_true", default=True)
+    parser.add_argument("--norm-adv", dest="norm_adv", action="store_true")
+    parser.add_argument("--no-norm-adv", dest="norm_adv", action="store_false")
+    parser.set_defaults(norm_adv=True)
     parser.add_argument("--clip-coef", type=float, default=0.2)
     parser.add_argument("--clip-vloss", action="store_true")
     parser.add_argument("--ent-coef", type=float, default=0.01)
@@ -54,7 +58,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--actor-vision-radius",
         type=int,
         default=DEFAULT_ACTOR_VISION_DEPTH,
-        help="Forward vision depth; actor observations are always 3 tiles wide.",
+        help="Centered local actor-grid radius; the default radius 1 is a 3x3 grid.",
     )
     parser.add_argument("--num-ants", type=int, default=2)
     parser.add_argument("--food-count", type=int, default=4)
@@ -124,8 +128,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--num-steps must be positive.")
     if args.num_minibatches <= 0:
         raise ValueError("--num-minibatches must be positive.")
-    if args.num_envs * args.num_steps < args.num_minibatches:
+    rollout_batch_size = args.num_envs * args.num_steps
+    if rollout_batch_size < args.num_minibatches:
         raise ValueError("--num-minibatches cannot exceed rollout batch size.")
+    if rollout_batch_size % args.num_minibatches != 0:
+        raise ValueError("--num-minibatches must evenly divide rollout batch size.")
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:

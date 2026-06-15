@@ -5,15 +5,15 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, max_write_value
+from ant_byte_env import (
+    DEFAULT_WRITE_BITS,
+    MAX_WRITE_BITS,
+    actor_vision_patch_size,
+    max_write_value,
+)
 from ant_byte_env.env import (
     DEFAULT_ACTOR_VISION_DEPTH,
-    DEFAULT_ACTOR_VISION_WIDTH,
     DEFAULT_FACING,
-    MOVE_DOWN,
-    MOVE_LEFT,
-    MOVE_RIGHT,
-    MOVE_UP,
 )
 
 TensorObs = dict[str, torch.Tensor]
@@ -220,7 +220,14 @@ def build_actor_observations(
     )
 
     return torch.cat(
-        [local_food, local_ants_count, local_byte_bits, local_hub, local_border, own_carrying],
+        [
+            local_food,
+            local_ants_count,
+            local_byte_bits,
+            local_hub,
+            local_border,
+            own_carrying,
+        ],
         dim=-1,
     )
 
@@ -233,7 +240,7 @@ def build_local_food_patches(
     ants_facing: torch.Tensor | None = None,
     food_scale: int,
 ) -> torch.Tensor:
-    """Return flattened local food grids in front of each ant."""
+    """Return flattened local food grids in each ant's actor window."""
 
     if radius < 0:
         raise ValueError("radius must be non-negative.")
@@ -281,42 +288,30 @@ def build_local_grid_patches(
     radius: int,
     ants_facing: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Return flattened 3-wide local grid patches in front of each ant."""
+    """Return flattened centered local grid patches around each ant."""
 
     if radius < 0:
         raise ValueError("radius must be non-negative.")
+    del ants_facing
 
     batch_size, grid_height, grid_width = grid.shape
     num_agents = ants_pos.shape[1]
-    patch_size = DEFAULT_ACTOR_VISION_WIDTH * radius
+    patch_size = actor_vision_patch_size(radius)
     patches = torch.zeros(
         (batch_size, num_agents, patch_size),
         dtype=torch.float32,
         device=grid.device,
     )
-    if ants_facing is None:
-        ants_facing = torch.full(
-            ants_pos.shape[:2],
-            DEFAULT_FACING,
-            dtype=torch.long,
-            device=ants_pos.device,
-        )
 
     for batch_index in range(batch_size):
         for agent_index in range(num_agents):
             ant_x = int(ants_pos[batch_index, agent_index, 0])
             ant_y = int(ants_pos[batch_index, agent_index, 1])
-            facing = int(ants_facing[batch_index, agent_index])
-            forward_x, forward_y = _forward_delta(facing)
-            right_x, right_y = -forward_y, forward_x
             patch_index = 0
-            for depth in range(1, radius + 1):
-                for lateral in range(
-                    -(DEFAULT_ACTOR_VISION_WIDTH // 2),
-                    DEFAULT_ACTOR_VISION_WIDTH // 2 + 1,
-                ):
-                    grid_x = ant_x + depth * forward_x + lateral * right_x
-                    grid_y = ant_y + depth * forward_y + lateral * right_y
+            for delta_y in range(-radius, radius + 1):
+                for delta_x in range(-radius, radius + 1):
+                    grid_x = ant_x + delta_x
+                    grid_y = ant_y + delta_y
                     if 0 <= grid_x < grid_width and 0 <= grid_y < grid_height:
                         patches[batch_index, agent_index, patch_index] = grid[
                             batch_index,
@@ -336,7 +331,7 @@ def build_local_border_patches(
     radius: int,
     ants_facing: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Return flattened out-of-bounds masks for each forward vision patch."""
+    """Return flattened out-of-bounds masks for each local actor window."""
 
     if radius < 0:
         raise ValueError("radius must be non-negative.")
@@ -363,50 +358,11 @@ def build_forward_vision_offsets(ants_facing: torch.Tensor, *, depth: int) -> to
         raise ValueError("depth must be non-negative.")
 
     device = ants_facing.device
-    half_width = DEFAULT_ACTOR_VISION_WIDTH // 2
-    depth_offsets = torch.repeat_interleave(
-        torch.arange(1, depth + 1, dtype=torch.long, device=device),
-        DEFAULT_ACTOR_VISION_WIDTH,
-    )
-    lateral_offsets = torch.tile(
-        torch.arange(-half_width, half_width + 1, dtype=torch.long, device=device),
-        (depth,),
-    )
-    facing = ants_facing.long()
-    valid_facing = (
-        (facing == MOVE_UP)
-        | (facing == MOVE_RIGHT)
-        | (facing == MOVE_DOWN)
-        | (facing == MOVE_LEFT)
-    )
-    facing = torch.where(valid_facing, facing, torch.full_like(facing, DEFAULT_FACING))
-    forward_x = torch.where(
-        facing == MOVE_RIGHT,
-        torch.ones_like(facing),
-        torch.where(facing == MOVE_LEFT, -torch.ones_like(facing), torch.zeros_like(facing)),
-    )
-    forward_y = torch.where(
-        facing == MOVE_DOWN,
-        torch.ones_like(facing),
-        torch.where(facing == MOVE_UP, -torch.ones_like(facing), torch.zeros_like(facing)),
-    )
-    right_x = -forward_y
-    right_y = forward_x
-    offset_x = forward_x.unsqueeze(-1) * depth_offsets + right_x.unsqueeze(-1) * lateral_offsets
-    offset_y = forward_y.unsqueeze(-1) * depth_offsets + right_y.unsqueeze(-1) * lateral_offsets
-    return torch.stack([offset_x, offset_y], dim=-1)
-
-
-def _forward_delta(facing: int) -> tuple[int, int]:
-    if facing == MOVE_RIGHT:
-        return 1, 0
-    if facing == MOVE_LEFT:
-        return -1, 0
-    if facing == MOVE_DOWN:
-        return 0, 1
-    if facing == MOVE_UP:
-        return 0, -1
-    return _forward_delta(DEFAULT_FACING)
+    axis = torch.arange(-depth, depth + 1, dtype=torch.long, device=device)
+    offset_y = torch.repeat_interleave(axis, 2 * depth + 1)
+    offset_x = torch.tile(axis, (2 * depth + 1,))
+    offsets = torch.stack([offset_x, offset_y], dim=-1)
+    return offsets.expand(*ants_facing.shape, -1, -1)
 
 
 def build_local_hub_patches(
@@ -418,7 +374,7 @@ def build_local_hub_patches(
     radius: int,
     ants_facing: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Return flattened local hub masks in front of each ant."""
+    """Return flattened local hub masks in each ant's actor window."""
 
     hub_grid = torch.zeros(
         (hub_pos.shape[0], grid_height, grid_width),

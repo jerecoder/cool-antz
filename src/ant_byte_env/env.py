@@ -25,33 +25,22 @@ MAX_WRITE_BITS = 8
 WRITE_VALUE_COUNT = 2
 MAX_WRITE_VALUE = WRITE_VALUE_COUNT - 1
 DEFAULT_ACTOR_VISION_WIDTH = 3
-DEFAULT_ACTOR_VISION_DEPTH = 2
+DEFAULT_ACTOR_VISION_DEPTH = 1
 
 ACTION_STAY = 0
-ACTION_TURN_LEFT = 1
-ACTION_TURN_RIGHT = 2
-ACTION_FORWARD = 3
-MOVEMENT_ACTION_COUNT = 4
+ACTION_UP = 1
+ACTION_RIGHT = 2
+ACTION_DOWN = 3
+ACTION_LEFT = 4
+MOVEMENT_ACTION_COUNT = 5
 
 MOVE_STAY = ACTION_STAY
-MOVE_UP = 1
-MOVE_RIGHT = 2
-MOVE_DOWN = 3
-MOVE_LEFT = 4
+MOVE_UP = ACTION_UP
+MOVE_RIGHT = ACTION_RIGHT
+MOVE_DOWN = ACTION_DOWN
+MOVE_LEFT = ACTION_LEFT
 DEFAULT_FACING = MOVE_RIGHT
 
-TURN_LEFT_FACING = {
-    MOVE_UP: MOVE_LEFT,
-    MOVE_LEFT: MOVE_DOWN,
-    MOVE_DOWN: MOVE_RIGHT,
-    MOVE_RIGHT: MOVE_UP,
-}
-TURN_RIGHT_FACING = {
-    MOVE_UP: MOVE_RIGHT,
-    MOVE_RIGHT: MOVE_DOWN,
-    MOVE_DOWN: MOVE_LEFT,
-    MOVE_LEFT: MOVE_UP,
-}
 FACING_ROTATIONS = {
     MOVE_UP: 90,
     MOVE_RIGHT: 0,
@@ -73,11 +62,12 @@ def max_write_value(write_bits: int) -> int:
 
 
 def actor_vision_patch_size(depth: int) -> int:
-    """Return the number of tiles in the 3-wide forward actor vision patch."""
+    """Return tiles in the centered square actor window."""
 
     if depth < 0:
         raise ValueError("actor_vision_radius must be non-negative.")
-    return DEFAULT_ACTOR_VISION_WIDTH * int(depth)
+    width = 2 * int(depth) + 1
+    return width * width
 
 
 def food_alpha(remaining: int, initial: int) -> int:
@@ -97,13 +87,11 @@ def facing_rotation_degrees(facing: int) -> int:
     return FACING_ROTATIONS[facing]
 
 
-def turn_facing(facing: int, action: int) -> int:
-    """Return the next facing after a turn action."""
+def movement_facing(facing: int, action: int) -> int:
+    """Return the display facing after a cardinal movement action."""
 
-    if action == ACTION_TURN_LEFT:
-        return TURN_LEFT_FACING.get(facing, DEFAULT_FACING)
-    if action == ACTION_TURN_RIGHT:
-        return TURN_RIGHT_FACING.get(facing, DEFAULT_FACING)
+    if action in FACING_ROTATIONS:
+        return int(action)
     if facing not in FACING_ROTATIONS:
         return DEFAULT_FACING
     return facing
@@ -148,6 +136,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         render_mode: str | None = None,
         tile_size: int = 32,
         random_food: bool = True,
+        random_hub: bool = False,
         step_penalty: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
@@ -176,6 +165,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.render_mode = render_mode
         self.tile_size = tile_size
         self.random_food = random_food
+        self.random_hub = bool(random_hub)
         self.step_penalty = step_penalty
         self.write_penalty = write_penalty
         self.write_bits = int(write_bits)
@@ -290,13 +280,13 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         written_tiles: set[tuple[int, int]] = set()
 
         for ant_index in range(self.num_ants):
-            move_action = int(flat_action[2 * ant_index])
-            write_bit = int(flat_action[2 * ant_index + 1])
-            next_facing = turn_facing(int(self.ants_facing[ant_index]), move_action)
+            action_start = 2 * ant_index
+            move_action = int(flat_action[action_start])
+            write_value = int(flat_action[action_start + 1])
+            next_facing = movement_facing(int(self.ants_facing[ant_index]), move_action)
             next_pos = self._move_position(
                 self.ants_pos[ant_index],
                 action=move_action,
-                facing=next_facing,
             )
             self.ants_facing[ant_index] = next_facing
             self.ants_pos[ant_index] = next_pos
@@ -320,7 +310,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             if tile_key in written_tiles:
                 num_overwrites += 1
             written_tiles.add(tile_key)
-            self.bytes[y_pos, x_pos] = np.uint8(write_bit)
+            self.bytes[y_pos, x_pos] = np.uint8(write_value)
             num_writes += 1
 
         reward -= self.write_penalty * num_writes
@@ -409,6 +399,14 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
     def _resolve_hub_pos(self, options: dict[str, Any]) -> np.ndarray:
         if "hub_pos" in options:
             return self._coerce_position(options["hub_pos"])
+        if self.random_hub:
+            return np.array(
+                [
+                    int(self.np_random.integers(0, self.width)),
+                    int(self.np_random.integers(0, self.height)),
+                ],
+                dtype=np.int32,
+            )
         return np.array([self.width // 2, self.height // 2], dtype=np.int32)
 
     def _build_food_grid(self, options: dict[str, Any]) -> np.ndarray:
@@ -477,9 +475,10 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
     def _validate_action(self, action: np.ndarray) -> np.ndarray:
         flat_action = np.asarray(action, dtype=np.int64).reshape(-1)
-        if flat_action.shape != (2 * self.num_ants,):
+        expected_shape = (2 * self.num_ants,)
+        if flat_action.shape != expected_shape:
             raise ValueError(
-                f"action must have shape ({2 * self.num_ants},), got {flat_action.shape}."
+                f"action must have shape ({expected_shape[0]},), got {flat_action.shape}."
             )
         moves = flat_action[0::2]
         writes = flat_action[1::2]
@@ -493,10 +492,10 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             )
         return flat_action
 
-    def _move_position(self, position: np.ndarray, *, action: int, facing: int) -> np.ndarray:
+    def _move_position(self, position: np.ndarray, *, action: int) -> np.ndarray:
         x_pos, y_pos = int(position[0]), int(position[1])
-        if action == ACTION_FORWARD:
-            dx, dy = facing_delta(facing)
+        if action in FACING_ROTATIONS:
+            dx, dy = facing_delta(action)
             x_pos += dx
             y_pos += dy
         return np.array(

@@ -8,7 +8,16 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from ant_byte_env import DEFAULT_WRITE_BITS, AntByteForagingEnv, write_value_count
+from ant_byte_env import (
+    DEFAULT_ACTOR_VISION_DEPTH,
+    DEFAULT_WRITE_BITS,
+    AntByteForagingEnv,
+    actor_vision_patch_size,
+    write_value_count,
+)
+from ant_byte_env.training.torch_mappo.checkpointing import (
+    adapt_agent_state_dict_for_actor_window,
+)
 from ant_byte_env.training.torch_mappo.model import MAPPOAgent
 from ant_byte_env.training.torch_mappo.observations import (
     build_actor_observations,
@@ -128,13 +137,24 @@ def evaluate_checkpoint(
     args = argparse.Namespace(**checkpoint["args"])
     if not hasattr(args, "write_bits"):
         args.write_bits = DEFAULT_WRITE_BITS
+    if not hasattr(args, "actor_vision_radius"):
+        args.actor_vision_radius = DEFAULT_ACTOR_VISION_DEPTH
+    actor_obs_dim = _actor_obs_dim_from_args(args)
     agent = MAPPOAgent(
         central_obs_dim=int(checkpoint["central_obs_dim"]),
-        actor_obs_dim=int(checkpoint["actor_obs_dim"]),
+        actor_obs_dim=actor_obs_dim,
         hidden_size=args.hidden_size,
         write_value_count=write_value_count(args.write_bits),
     ).to(actual_device)
-    agent.load_state_dict(checkpoint["agent_state_dict"])
+    agent.load_state_dict(
+        adapt_agent_state_dict_for_actor_window(
+            checkpoint["agent_state_dict"],
+            saved_actor_dim=int(checkpoint["actor_obs_dim"]),
+            actor_obs_dim=actor_obs_dim,
+            write_bits=args.write_bits,
+            actor_vision_radius=args.actor_vision_radius,
+        )
+    )
     agent.eval()
 
     return evaluate_agent(
@@ -145,6 +165,11 @@ def evaluate_checkpoint(
         seed_offset=seed_offset,
         deterministic=deterministic,
     )
+
+
+def _actor_obs_dim_from_args(args: argparse.Namespace) -> int:
+    patch_size = actor_vision_patch_size(int(args.actor_vision_radius))
+    return patch_size * (int(args.write_bits) + 4) + 1
 
 
 def mastery_reached(

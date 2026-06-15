@@ -9,17 +9,13 @@ import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env import (
-    ACTION_FORWARD,
-    ACTION_STAY,
-    ACTION_TURN_LEFT,
-    ACTION_TURN_RIGHT,
+    DEFAULT_ACTOR_VISION_WIDTH,
     DEFAULT_WRITE_BITS,
     MAX_WRITE_BITS,
     MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
     write_value_count,
 )
-from ant_byte_env.env import MOVE_DOWN, MOVE_RIGHT, MOVE_STAY, MOVE_UP
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
@@ -40,6 +36,11 @@ def load_checkpoint_for_training(
     source_args = checkpoint.get("args", {})
     params = checkpoint["params"]
     params, params_changed = adapt_movement_head(params)
+    source_write_bits = int(source_args.get("write_bits", DEFAULT_WRITE_BITS))
+    if target_write_bits < source_write_bits:
+        raise ValueError("Checkpoint actor observation dimension does not match this run.")
+    if target_write_bits > MAX_WRITE_BITS:
+        raise ValueError(f"target_write_bits must be at most {MAX_WRITE_BITS}.")
     if int(checkpoint["central_obs_dim"]) != central_obs_dim:
         params = expand_critic_input_for_ants_count(
             params,
@@ -58,26 +59,17 @@ def load_checkpoint_for_training(
             "actor_obs_dim": actor_obs_dim,
         }
 
-    source_write_bits = int(source_args.get("write_bits", DEFAULT_WRITE_BITS))
     source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
     if source_actor_vision_radius != actor_vision_radius:
         raise ValueError("Checkpoint actor vision radius does not match this run.")
-    if target_write_bits < source_write_bits:
-        raise ValueError("Checkpoint actor observation dimension does not match this run.")
-    if target_write_bits > MAX_WRITE_BITS:
-        raise ValueError(f"target_write_bits must be at most {MAX_WRITE_BITS}.")
 
-    expected_source_dim = actor_obs_dim_for_bits(
-        write_bits=source_write_bits,
-        actor_vision_radius=actor_vision_radius,
-    )
-    legacy_source_dim = actor_obs_dim_for_bits(
-        write_bits=source_write_bits,
-        actor_vision_radius=actor_vision_radius,
-        include_ants_count=False,
-    )
     source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
-    if source_actor_obs_dim not in {expected_source_dim, legacy_source_dim}:
+    source_shape = _actor_obs_source_shape(
+        actor_obs_dim=source_actor_obs_dim,
+        write_bits=source_write_bits,
+        actor_vision_radius=actor_vision_radius,
+    )
+    if source_shape is None:
         raise ValueError("Checkpoint actor observation dimension does not match its write-bit config.")
 
     params = expand_params_for_write_bits(
@@ -85,7 +77,8 @@ def load_checkpoint_for_training(
         old_bits=source_write_bits,
         target_bits=target_write_bits,
         actor_vision_radius=actor_vision_radius,
-        source_includes_ants_count=source_actor_obs_dim == expected_source_dim,
+        source_includes_ants_count=source_shape["include_ants_count"],
+        source_layout=source_shape["layout"],
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_write_bits,
@@ -113,14 +106,70 @@ def actor_obs_dim_for_bits(
     write_bits: int,
     actor_vision_radius: int,
     include_ants_count: bool = True,
+    include_current_row: bool = True,
 ) -> int:
     if actor_vision_radius < 0:
         raise ValueError("actor_vision_radius must be non-negative.")
     if write_bits <= 0 or write_bits > MAX_WRITE_BITS:
         raise ValueError(f"write_bits must be an integer from 1 to {MAX_WRITE_BITS}.")
     patch_size = actor_vision_patch_size(actor_vision_radius)
+    if not include_current_row:
+        patch_size = DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius
     grid_channels = write_bits + (4 if include_ants_count else 3)
     return patch_size * grid_channels + 1
+
+
+def source_actor_patch_size(*, actor_vision_radius: int, source_layout: str) -> int:
+    if source_layout == "centered":
+        return actor_vision_patch_size(actor_vision_radius)
+    if source_layout == "forward_current_row":
+        return DEFAULT_ACTOR_VISION_WIDTH * (actor_vision_radius + 1)
+    if source_layout == "forward_only":
+        return DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius
+    raise ValueError(f"Unsupported actor window layout: {source_layout}.")
+
+
+def source_actor_obs_dim(
+    *,
+    write_bits: int,
+    actor_vision_radius: int,
+    include_ants_count: bool,
+    source_layout: str,
+) -> int:
+    patch_size = source_actor_patch_size(
+        actor_vision_radius=actor_vision_radius,
+        source_layout=source_layout,
+    )
+    grid_channels = write_bits + (4 if include_ants_count else 3)
+    return patch_size * grid_channels + 1
+
+
+def _actor_obs_source_shape(
+    *,
+    actor_obs_dim: int,
+    write_bits: int,
+    actor_vision_radius: int,
+) -> dict[str, bool | str] | None:
+    source_layouts = (
+        ("centered", actor_vision_patch_size(actor_vision_radius), True),
+        (
+            "forward_current_row",
+            DEFAULT_ACTOR_VISION_WIDTH * (actor_vision_radius + 1),
+            True,
+        ),
+        ("forward_only", DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius, False),
+    )
+    for include_ants_count in (True, False):
+        for layout, patch_size, include_current_row in source_layouts:
+            grid_channels = write_bits + (4 if include_ants_count else 3)
+            expected_dim = patch_size * grid_channels + 1
+            if actor_obs_dim == expected_dim:
+                return {
+                    "include_ants_count": include_ants_count,
+                    "include_current_row": include_current_row,
+                    "layout": layout,
+                }
+    return None
 
 
 def central_obs_dim_with_ants_count(*, num_ants: int, obs_height: int, obs_width: int) -> int:
@@ -227,8 +276,9 @@ def expand_params_for_write_bits(
     target_bits: int,
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
+    source_layout: str = "centered",
 ) -> JaxMAPPOParams:
-    if target_bits == old_bits and source_includes_ants_count:
+    if target_bits == old_bits and source_includes_ants_count and source_layout == "centered":
         return params
     if target_bits < old_bits:
         raise ValueError("target_bits must be at least old_bits.")
@@ -240,6 +290,7 @@ def expand_params_for_write_bits(
                 target_bits=target_bits,
                 actor_vision_radius=actor_vision_radius,
                 source_includes_ants_count=source_includes_ants_count,
+                source_layout=source_layout,
             ),
             params.actor_body[1],
         ),
@@ -278,24 +329,13 @@ def adapt_movement_head_layer(layer: LinearParams) -> LinearParams:
     old_count = int(old_bias.shape[0])
     if old_count == MOVEMENT_ACTION_COUNT:
         return layer
-    legacy_cardinal_action_count = 5
-    if old_count != legacy_cardinal_action_count:
+    legacy_turn_action_count = 4
+    if old_count == legacy_turn_action_count:
         raise ValueError(
-            f"Checkpoint movement action count {old_count} does not match this run."
+            "Legacy 4-action movement checkpoints cannot be automatically mapped "
+            "onto the current cardinal movement action space."
         )
-
-    new_weight = jnp.zeros((old_weight.shape[0], MOVEMENT_ACTION_COUNT), dtype=old_weight.dtype)
-    new_bias = jnp.zeros((MOVEMENT_ACTION_COUNT,), dtype=old_bias.dtype)
-    legacy_to_current = (
-        (MOVE_STAY, ACTION_STAY),
-        (MOVE_UP, ACTION_TURN_LEFT),
-        (MOVE_DOWN, ACTION_TURN_RIGHT),
-        (MOVE_RIGHT, ACTION_FORWARD),
-    )
-    for legacy_index, current_index in legacy_to_current:
-        new_weight = new_weight.at[:, current_index].set(old_weight[:, legacy_index])
-        new_bias = new_bias.at[current_index].set(old_bias[legacy_index])
-    return LinearParams(weight=new_weight, bias=new_bias)
+    raise ValueError(f"Checkpoint movement action count {old_count} does not match this run.")
 
 
 def expand_actor_input_layer(
@@ -305,13 +345,19 @@ def expand_actor_input_layer(
     target_bits: int,
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
+    source_layout: str = "centered",
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
-    patch_size = actor_vision_patch_size(actor_vision_radius)
-    expected_old_dim = actor_obs_dim_for_bits(
+    target_patch_size = actor_vision_patch_size(actor_vision_radius)
+    source_patch_size = source_actor_patch_size(
+        actor_vision_radius=actor_vision_radius,
+        source_layout=source_layout,
+    )
+    expected_old_dim = source_actor_obs_dim(
         write_bits=old_bits,
         actor_vision_radius=actor_vision_radius,
         include_ants_count=source_includes_ants_count,
+        source_layout=source_layout,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_bits,
@@ -321,30 +367,125 @@ def expand_actor_input_layer(
         raise ValueError(f"Expected actor input dim {expected_old_dim}, got {old_weight.shape[0]}.")
 
     new_weight = jnp.zeros((target_dim, old_weight.shape[1]), dtype=old_weight.dtype)
-    old_food = slice(0, patch_size)
+    old_food = slice(0, source_patch_size)
     if source_includes_ants_count:
-        old_ants_count = slice(patch_size, 2 * patch_size)
-        old_bits_slice = slice(2 * patch_size, patch_size * (2 + old_bits))
-        old_hub = slice(patch_size * (2 + old_bits), patch_size * (3 + old_bits))
-        old_border = slice(patch_size * (3 + old_bits), patch_size * (4 + old_bits))
+        old_ants_count = slice(source_patch_size, 2 * source_patch_size)
+        old_bits_start = 2 * source_patch_size
+        old_hub = slice(
+            source_patch_size * (2 + old_bits),
+            source_patch_size * (3 + old_bits),
+        )
+        old_border = slice(
+            source_patch_size * (3 + old_bits),
+            source_patch_size * (4 + old_bits),
+        )
     else:
         old_ants_count = None
-        old_bits_slice = slice(patch_size, patch_size * (1 + old_bits))
-        old_hub = slice(patch_size * (1 + old_bits), patch_size * (2 + old_bits))
-        old_border = slice(patch_size * (2 + old_bits), patch_size * (3 + old_bits))
-    new_ants_count = slice(patch_size, 2 * patch_size)
-    new_bits_slice = slice(2 * patch_size, patch_size * (2 + old_bits))
-    new_hub = slice(patch_size * (2 + target_bits), patch_size * (3 + target_bits))
-    new_border = slice(patch_size * (3 + target_bits), patch_size * (4 + target_bits))
+        old_bits_start = source_patch_size
+        old_hub = slice(
+            source_patch_size * (1 + old_bits),
+            source_patch_size * (2 + old_bits),
+        )
+        old_border = slice(
+            source_patch_size * (2 + old_bits),
+            source_patch_size * (3 + old_bits),
+        )
+    old_bits_slices = [
+        slice(
+            old_bits_start + bit_index * source_patch_size,
+            old_bits_start + (bit_index + 1) * source_patch_size,
+        )
+        for bit_index in range(old_bits)
+    ]
+    new_ants_count = slice(target_patch_size, 2 * target_patch_size)
+    new_bits_slices = [
+        slice(
+            target_patch_size * (2 + bit_index),
+            target_patch_size * (3 + bit_index),
+        )
+        for bit_index in range(old_bits)
+    ]
+    new_hub = slice(
+        target_patch_size * (2 + target_bits),
+        target_patch_size * (3 + target_bits),
+    )
+    new_border = slice(
+        target_patch_size * (3 + target_bits),
+        target_patch_size * (4 + target_bits),
+    )
 
-    new_weight = new_weight.at[old_food, :].set(old_weight[old_food, :])
+    new_weight = copy_actor_patch_channel(
+        new_weight,
+        old_weight,
+        source=old_food,
+        target=slice(0, target_patch_size),
+        actor_vision_radius=actor_vision_radius,
+        source_layout=source_layout,
+    )
     if old_ants_count is not None:
-        new_weight = new_weight.at[new_ants_count, :].set(old_weight[old_ants_count, :])
-    new_weight = new_weight.at[new_bits_slice, :].set(old_weight[old_bits_slice, :])
-    new_weight = new_weight.at[new_hub, :].set(old_weight[old_hub, :])
-    new_weight = new_weight.at[new_border, :].set(old_weight[old_border, :])
+        new_weight = copy_actor_patch_channel(
+            new_weight,
+            old_weight,
+            source=old_ants_count,
+            target=new_ants_count,
+            actor_vision_radius=actor_vision_radius,
+            source_layout=source_layout,
+        )
+    for old_bits_slice, new_bits_slice in zip(old_bits_slices, new_bits_slices):
+        new_weight = copy_actor_patch_channel(
+            new_weight,
+            old_weight,
+            source=old_bits_slice,
+            target=new_bits_slice,
+            actor_vision_radius=actor_vision_radius,
+            source_layout=source_layout,
+        )
+    new_weight = copy_actor_patch_channel(
+        new_weight,
+        old_weight,
+        source=old_hub,
+        target=new_hub,
+        actor_vision_radius=actor_vision_radius,
+        source_layout=source_layout,
+    )
+    new_weight = copy_actor_patch_channel(
+        new_weight,
+        old_weight,
+        source=old_border,
+        target=new_border,
+        actor_vision_radius=actor_vision_radius,
+        source_layout=source_layout,
+    )
     new_weight = new_weight.at[-1, :].set(old_weight[-1, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
+def copy_actor_patch_channel(
+    new_weight: jnp.ndarray,
+    old_weight: jnp.ndarray,
+    *,
+    source: slice,
+    target: slice,
+    actor_vision_radius: int,
+    source_layout: str,
+) -> jnp.ndarray:
+    if source_layout == "centered":
+        return new_weight.at[target, :].set(old_weight[source, :])
+    target_width = 2 * actor_vision_radius + 1
+    source_index = 0
+    first_depth = 0 if source_layout == "forward_current_row" else 1
+    for depth in range(first_depth, actor_vision_radius + 1):
+        for lateral in range(
+            -(DEFAULT_ACTOR_VISION_WIDTH // 2),
+            DEFAULT_ACTOR_VISION_WIDTH // 2 + 1,
+        ):
+            target_index = (lateral + actor_vision_radius) * target_width
+            target_index += depth + actor_vision_radius
+            new_weight = new_weight.at[target.start + target_index, :].set(
+                old_weight[source.start + source_index, :]
+            )
+            source_index += 1
+    return new_weight
 
 
 def expand_write_head(layer: LinearParams, *, old_bits: int, target_bits: int) -> LinearParams:

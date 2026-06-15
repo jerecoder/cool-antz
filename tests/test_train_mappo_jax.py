@@ -9,8 +9,8 @@ jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
 from ant_byte_env import (
-    ACTION_FORWARD,
-    ACTION_TURN_LEFT,
+    ACTION_LEFT,
+    ACTION_RIGHT,
     MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
 )
@@ -22,6 +22,9 @@ from ant_byte_env.training.jax_mappo import (
     build_local_grid_patches,
     collect_rollout,
     compute_gae,
+    compute_terminal_write_entropy_bonus,
+    compute_write_bit_penalties,
+    evaluate_checkpoint,
     evaluate_params,
     flatten_agent_actions,
     get_action_and_value,
@@ -36,10 +39,12 @@ from ant_byte_env.training.jax_mappo import (
     write_value_count,
 )
 from ant_byte_env.training.jax_mappo.transfer import (
+    adapt_movement_head_layer,
     actor_obs_dim_for_bits,
     central_obs_dim_with_ants_count,
     legacy_central_obs_dim,
 )
+from ant_byte_env.training.jax_mappo.core import TrainingBatch, _shuffle_batch
 
 
 def _batched_reset_obs() -> dict[str, jax.Array]:
@@ -129,7 +134,7 @@ def test_jax_observation_builders_match_mappo_shapes() -> None:
     actor_obs = build_actor_observations(obs, food_scale=3)
 
     assert central_obs.shape == (1, 46)
-    assert actor_obs.shape == (1, 2, 31)
+    assert actor_obs.shape == (1, 2, 46)
     assert bool(jnp.all(central_obs >= 0.0))
     assert bool(jnp.all(central_obs <= 1.0))
     assert bool(jnp.all(actor_obs >= 0.0))
@@ -150,14 +155,14 @@ def test_jax_observation_builders_preserve_food_amounts() -> None:
         0,
         ants_pos_width + ants_carrying_width + ants_count_width + food_cell_index,
     ]
-    local_food_patch_index = 1
+    local_food_patch_index = 5
 
     assert float(central_food_value) == 1.0
     assert float(central_obs[0, ants_pos_width + ants_carrying_width]) == 1.0
     assert float(actor_obs[0, 0, local_food_patch_index]) == 1.0
     np.testing.assert_allclose(
-        np.asarray(actor_obs[0, 0, 12:15]),
-        np.array([1, 0, 0.0], dtype=np.float32),
+        np.asarray(actor_obs[0, 0, 36:45]),
+        np.array([1, 1, 1.0, 1, 0, 0.0, 1, 0, 0.0], dtype=np.float32),
     )
 
 
@@ -166,14 +171,37 @@ def test_jax_actor_observation_exposes_border_mask() -> None:
 
     actor_obs = build_actor_observations(obs, food_scale=3, actor_vision_radius=1)
 
-    assert actor_obs.shape == (1, 2, 16)
+    assert actor_obs.shape == (1, 2, 46)
     np.testing.assert_allclose(
-        np.asarray(actor_obs[0, 0, 12:15]),
-        np.array([1, 0, 0.0], dtype=np.float32),
+        np.asarray(actor_obs[0, 0, 36:45]),
+        np.array([1, 1, 1.0, 1, 0, 0.0, 1, 0, 0.0], dtype=np.float32),
     )
 
 
-def test_jax_actor_vision_patch_is_three_wide_and_two_deep_in_front() -> None:
+def test_jax_actor_observation_window_contains_current_ant_tile() -> None:
+    obs = _batched_reset_obs()
+    obs = {
+        **obs,
+        "ants_pos": obs["ants_pos"].at[0, 0].set(jnp.array([2, 1], dtype=jnp.int32)),
+    }
+    ants_count = jnp.zeros_like(obs["ants_count"])
+    ants_count = ants_count.at[0, 1, 2].set(1)
+    ants_count = ants_count.at[0, 0, 0].set(1)
+    obs = {**obs, "ants_count": ants_count}
+
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=3,
+        actor_vision_radius=1,
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(actor_obs[0, 0, 9:18]),
+        np.array([0, 0, 0.0, 0, 0.5, 0.0, 0, 0, 0.0], dtype=np.float32),
+    )
+
+
+def test_jax_actor_vision_patch_is_centered_three_by_three_grid() -> None:
     grid = jnp.asarray(
         [
             [
@@ -192,14 +220,17 @@ def test_jax_actor_vision_patch_is_three_wide_and_two_deep_in_front() -> None:
     patch = build_local_grid_patches(
         grid,
         ants_pos,
-        radius=2,
+        radius=1,
         ants_facing=ants_facing,
     )
 
-    assert patch.shape == (1, 1, 6)
+    assert patch.shape == (1, 1, 9)
     np.testing.assert_allclose(
         np.asarray(patch[0, 0]),
-        np.array([13.0, 23.0, 33.0, 14.0, 24.0, 34.0], dtype=np.float32),
+        np.array(
+            [11.0, 12.0, 13.0, 21.0, 22.0, 23.0, 31.0, 32.0, 33.0],
+            dtype=np.float32,
+        ),
     )
 
 
@@ -223,7 +254,7 @@ def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     )
     flat_actions = flatten_agent_actions(actions)
 
-    assert actor_obs.shape == (1, 2, 43)
+    assert actor_obs.shape == (1, 2, 64)
     assert actions.shape == (1, 2, 2)
     assert logprob.shape == (1, 2)
     assert entropy.shape == (1, 2)
@@ -279,15 +310,28 @@ def test_jax_checkpoint_transfer_expands_write_bits(tmp_path) -> None:
     )
 
     transferred = checkpoint["params"]
+    patch_size = actor_vision_patch_size(radius)
     assert transferred.actor_body[0].weight.shape == (target_actor_obs_dim, hidden_size)
     assert transferred.write_head.weight.shape[-1] == write_value_count(target_bits)
+    source_hub = slice(patch_size * (2 + source_bits), patch_size * (3 + source_bits))
+    target_hub = slice(patch_size * (2 + target_bits), patch_size * (3 + target_bits))
+    np.testing.assert_allclose(
+        np.asarray(transferred.actor_body[0].weight[target_hub]),
+        np.asarray(source_params.actor_body[0].weight[source_hub]),
+    )
     np.testing.assert_array_equal(
         np.asarray(repeated_write_action_indices(source_bits, target_bits)),
-        np.array([0, 1, 0, 1, 0, 1, 0, 1]),
+        np.arange(write_value_count(target_bits), dtype=np.int64)
+        % write_value_count(source_bits),
     )
     np.testing.assert_allclose(
-        np.asarray(transferred.write_head.weight[:, :2]),
-        np.asarray(source_params.write_head.weight),
+        np.asarray(transferred.write_head.weight),
+        np.asarray(
+            source_params.write_head.weight[
+                :,
+                repeated_write_action_indices(source_bits, target_bits),
+            ]
+        ),
     )
     assert checkpoint["opt_state"].count.shape == ()
 
@@ -303,6 +347,7 @@ def test_jax_checkpoint_transfer_adds_ants_count_planes_from_legacy_checkpoint(t
         write_bits=write_bits,
         actor_vision_radius=radius,
         include_ants_count=False,
+        include_current_row=False,
     )
     target_actor_obs_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
@@ -370,10 +415,80 @@ def test_jax_checkpoint_transfer_adds_ants_count_planes_from_legacy_checkpoint(t
         np.asarray(transferred.actor_body[0].weight[patch_size : 2 * patch_size]),
         np.zeros((patch_size, hidden_size), dtype=np.float32),
     )
+    source_indices = np.array([0, 1, 3, 4, 6, 7])
+    target_indices = np.array([2, 5, 8])
     np.testing.assert_allclose(
-        np.asarray(transferred.actor_body[0].weight[:patch_size]),
-        np.asarray(source_params.actor_body[0].weight[:patch_size]),
+        np.asarray(transferred.actor_body[0].weight[source_indices]),
+        np.zeros((source_indices.shape[0], hidden_size), dtype=np.float32),
     )
+    np.testing.assert_allclose(
+        np.asarray(transferred.actor_body[0].weight[target_indices]),
+        np.asarray(source_params.actor_body[0].weight[: target_indices.shape[0]]),
+    )
+
+
+def test_jax_evaluate_checkpoint_uses_transfer_adapter_for_legacy_shapes(tmp_path) -> None:
+    write_bits = 1
+    radius = 1
+    hidden_size = 8
+    num_ants = 2
+    obs_height = 3
+    obs_width = 4
+    legacy_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+        include_ants_count=False,
+        include_current_row=False,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+    )
+    assert legacy_actor_obs_dim != target_actor_obs_dim
+    legacy_central_dim = legacy_central_obs_dim(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=legacy_central_dim,
+        actor_obs_dim=legacy_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+    )
+    source_path = tmp_path / "legacy_eval.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=radius,
+            width=obs_width,
+            height=obs_height,
+            obs_width=obs_width,
+            obs_height=obs_height,
+            num_ants=num_ants,
+            food_count=1,
+            food_sources=1,
+            max_steps=2,
+            random_food=False,
+            step_penalty=0.0,
+            write_penalty=0.0,
+            seed=3,
+            cookie_distance=1,
+            save_model=source_path,
+        ),
+        central_obs_dim=legacy_central_dim,
+        actor_obs_dim=legacy_actor_obs_dim,
+        run_name="legacy_eval",
+        metrics={},
+    )
+
+    metrics = evaluate_checkpoint(source_path, num_episodes=1)
+
+    assert set(metrics) >= {"eval_success_rate", "eval_mean_delivered_fraction"}
 
 
 def test_jax_gae_respects_done_boundaries() -> None:
@@ -393,6 +508,103 @@ def test_jax_gae_respects_done_boundaries() -> None:
 
     np.testing.assert_allclose(np.asarray(advantages), np.array([[3.0], [2.0]]))
     np.testing.assert_allclose(np.asarray(returns), np.array([[3.0], [2.0]]))
+
+
+def test_jax_gae_bootstraps_time_limit_truncations_without_cross_episode_leak() -> None:
+    rewards = jnp.array([[1.0], [10.0]], dtype=jnp.float32)
+    values = jnp.array([[0.5], [7.0]], dtype=jnp.float32)
+    next_values = jnp.array([[4.0], [0.0]], dtype=jnp.float32)
+    dones = jnp.array([[True], [False]])
+    terminations = jnp.array([[False], [False]])
+
+    advantages, returns = compute_gae(
+        rewards=rewards,
+        values=values,
+        dones=dones,
+        terminations=terminations,
+        next_values=next_values,
+        gamma=1.0,
+        gae_lambda=1.0,
+    )
+
+    np.testing.assert_allclose(np.asarray(advantages), np.array([[4.5], [3.0]]))
+    np.testing.assert_allclose(np.asarray(returns), np.array([[5.0], [10.0]]))
+
+
+def test_jax_write_bit_penalty_makes_lower_bits_more_expensive() -> None:
+    actions = jnp.array(
+        [
+            [[ACTION_RIGHT, 0], [ACTION_LEFT, 1]],
+            [[ACTION_RIGHT, 2], [ACTION_LEFT, 7]],
+        ],
+        dtype=jnp.int32,
+    )
+
+    penalties = compute_write_bit_penalties(
+        actions,
+        write_bits=3,
+        base_penalty=0.01,
+        decay=0.5,
+    )
+
+    np.testing.assert_allclose(np.asarray(penalties), np.array([0.01, 0.0225]))
+
+
+def test_jax_terminal_write_entropy_bonus_rewards_balanced_nonzero_values() -> None:
+    next_obs = {
+        "bytes": jnp.array(
+            [
+                [[1, 1], [2, 2]],
+                [[1, 2], [3, 7]],
+                [[1, 2], [3, 7]],
+                [[0, 0], [0, 0]],
+            ],
+            dtype=jnp.uint8,
+        )
+    }
+
+    bonuses = compute_terminal_write_entropy_bonus(
+        next_obs,
+        jnp.array([True, False, True, True]),
+        write_bits=3,
+        entropy_scale=0.1,
+        max_bonus=0.05,
+    )
+
+    expected_two_value_entropy = 0.1 * np.log(2.0) / np.log(7.0)
+    np.testing.assert_allclose(
+        np.asarray(bonuses),
+        np.array([expected_two_value_entropy, 0.0, 0.05, 0.0]),
+        rtol=1e-6,
+    )
+
+
+def test_jax_training_batch_shuffle_depends_on_update_key() -> None:
+    batch = TrainingBatch(
+        actor_obs=jnp.arange(4 * 1 * 1, dtype=jnp.float32).reshape(4, 1, 1),
+        central_obs=jnp.arange(4 * 2, dtype=jnp.float32).reshape(4, 2),
+        actions=jnp.arange(4 * 1 * 2, dtype=jnp.int32).reshape(4, 1, 2),
+        old_logprobs=jnp.arange(4, dtype=jnp.float32).reshape(4, 1),
+        advantages=jnp.arange(4, dtype=jnp.float32),
+        returns=jnp.arange(4, dtype=jnp.float32),
+    )
+
+    first = _shuffle_batch(batch, key=jax.random.PRNGKey(1))
+    second = _shuffle_batch(batch, key=jax.random.PRNGKey(2))
+
+    assert sorted(np.asarray(first.advantages).tolist()) == [0.0, 1.0, 2.0, 3.0]
+    assert sorted(np.asarray(second.advantages).tolist()) == [0.0, 1.0, 2.0, 3.0]
+    assert not np.array_equal(np.asarray(first.advantages), np.asarray(second.advantages))
+
+
+def test_jax_legacy_four_action_movement_head_fails_loudly() -> None:
+    layer = LinearParams(
+        weight=jnp.zeros((8, 4), dtype=jnp.float32),
+        bias=jnp.zeros((4,), dtype=jnp.float32),
+    )
+
+    with pytest.raises(ValueError, match="cannot be automatically mapped"):
+        adapt_movement_head_layer(layer)
 
 
 def test_jax_rollout_carries_unfinished_state_between_calls() -> None:
@@ -469,6 +681,92 @@ def test_jax_rollout_auto_resets_completed_envs() -> None:
     assert int(np.asarray(states.step_count)[0]) == 0
 
 
+def test_jax_rollout_auto_resets_done_envs_inside_scan() -> None:
+    args = parse_args(
+        [
+            "--total-timesteps",
+            "3",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "3",
+            "--num-minibatches",
+            "1",
+            "--width",
+            "5",
+            "--height",
+            "5",
+            "--obs-width",
+            "5",
+            "--obs-height",
+            "5",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "2",
+            "--cookie-distance",
+            "2",
+            "--hidden-size",
+            "8",
+            "--quiet",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        step_penalty=args.step_penalty,
+        write_penalty=args.write_penalty,
+        write_bits=args.write_bits,
+    )
+    states, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
+    central_obs = build_central_observations(
+        obs,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs.shape[-1],
+        actor_obs_dim=actor_obs.shape[-1],
+        hidden_size=args.hidden_size,
+        write_value_count=write_value_count(args.write_bits),
+    )
+
+    final_states, _, rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(1),
+    )
+
+    np.testing.assert_array_equal(
+        np.asarray(rollout.dones[:, 0]),
+        np.array([False, True, False]),
+    )
+    assert int(final_states.step_count[0]) == 1
+
+
 def test_jax_evaluate_params_reports_delivery_metrics() -> None:
     args = parse_args(
         [
@@ -531,7 +829,7 @@ def test_jax_evaluate_params_reports_delivery_metrics() -> None:
     assert metrics["eval_mean_delivered_food"] == 1.0
     assert metrics["eval_mean_delivered_fraction"] == 1.0
     assert metrics["eval_mean_episode_return"] == 1.0
-    assert metrics["eval_mean_episode_length"] == 4.0
+    assert metrics["eval_mean_episode_length"] == 2.0
 
 
 def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
@@ -542,15 +840,10 @@ def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
         hidden_size=1,
         write_value_count=write_value_count(1),
     )
-    patch_size = actor_vision_patch_size(1)
-    local_food_center_index = patch_size // 2
-    local_hub_center_index = patch_size * 3 + patch_size // 2
-    actor_input_weight = jnp.zeros_like(params.actor_body[0].weight)
-    actor_input_weight = actor_input_weight.at[local_food_center_index, 0].set(10.0)
-    actor_input_weight = actor_input_weight.at[local_hub_center_index, 0].set(10.0)
+    actor_input_weight = jnp.zeros_like(params.actor_body[0].weight).at[-1, 0].set(10.0)
     actor_hidden_weight = jnp.zeros_like(params.actor_body[1].weight).at[0, 0].set(5.0)
-    move_weight = jnp.zeros_like(params.move_head.weight).at[0, ACTION_FORWARD].set(5.0)
-    move_bias = jnp.zeros_like(params.move_head.bias).at[ACTION_TURN_LEFT].set(2.0)
+    move_weight = jnp.zeros_like(params.move_head.weight).at[0, ACTION_LEFT].set(5.0)
+    move_bias = jnp.zeros_like(params.move_head.bias).at[ACTION_RIGHT].set(2.0)
     return params._replace(
         actor_body=(
             LinearParams(
@@ -570,6 +863,24 @@ def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
 def test_jax_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
     with pytest.raises(ValueError, match="write-bits"):
         parse_args(["--write-bits", write_bits])
+
+
+@pytest.mark.parametrize(
+    ("flag", "value", "message"),
+    [
+        ("--write-bit-penalty", "-0.1", "write-bit-penalty"),
+        ("--write-bit-penalty-decay", "1.5", "write-bit-penalty-decay"),
+        ("--write-entropy-bonus", "-0.1", "write-entropy-bonus"),
+        ("--write-entropy-bonus-cap", "-0.1", "write-entropy-bonus-cap"),
+    ],
+)
+def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(
+    flag: str,
+    value: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        parse_args([flag, value])
 
 
 def test_tiny_jax_mappo_training_run_completes() -> None:
@@ -615,3 +926,42 @@ def test_tiny_jax_mappo_training_run_completes() -> None:
     assert np.isfinite(metrics["loss"])
     assert np.isfinite(metrics["policy_loss"])
     assert np.isfinite(metrics["value_loss"])
+
+
+def test_jax_training_carries_episode_state_across_updates() -> None:
+    metrics = main(
+        [
+            "--total-timesteps",
+            "4",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "2",
+            "--num-minibatches",
+            "1",
+            "--update-epochs",
+            "1",
+            "--width",
+            "5",
+            "--height",
+            "5",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "3",
+            "--cookie-distance",
+            "2",
+            "--hidden-size",
+            "16",
+            "--seed",
+            "7",
+            "--quiet",
+        ]
+    )
+
+    assert metrics["global_step"] == 4
+    assert metrics["completed_episodes"] == 1

@@ -9,15 +9,15 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env import DEFAULT_WRITE_BITS, MAX_WRITE_BITS, MOVEMENT_ACTION_COUNT, max_write_value
+from ant_byte_env import (
+    DEFAULT_WRITE_BITS,
+    MAX_WRITE_BITS,
+    MOVEMENT_ACTION_COUNT,
+    max_write_value,
+)
 from ant_byte_env.env import (
     DEFAULT_ACTOR_VISION_DEPTH,
-    DEFAULT_ACTOR_VISION_WIDTH,
     DEFAULT_FACING,
-    MOVE_DOWN,
-    MOVE_LEFT,
-    MOVE_RIGHT,
-    MOVE_UP,
 )
 from ant_byte_env.jax_env import JaxObs
 
@@ -48,7 +48,10 @@ class Transition(NamedTuple):
     logprobs: jax.Array
     rewards: jax.Array
     dones: jax.Array
+    terminations: jax.Array
+    truncations: jax.Array
     values: jax.Array
+    next_values: jax.Array
     env_rewards: jax.Array
 
 
@@ -59,9 +62,11 @@ class Rollout(NamedTuple):
     logprobs: jax.Array
     rewards: jax.Array
     dones: jax.Array
+    terminations: jax.Array
+    truncations: jax.Array
     values: jax.Array
+    next_values: jax.Array
     env_rewards: jax.Array
-    next_value: jax.Array
 
 
 class TrainingBatch(NamedTuple):
@@ -245,7 +250,14 @@ def build_actor_observations(
         radius=actor_vision_radius,
     )
     return jnp.concatenate(
-        [local_food, local_ants_count, local_byte_bits, local_hub, local_border, own_carrying],
+        [
+            local_food,
+            local_ants_count,
+            local_byte_bits,
+            local_hub,
+            local_border,
+            own_carrying,
+        ],
         axis=-1,
     )
 
@@ -285,12 +297,11 @@ def build_local_grid_patches(
 ) -> jax.Array:
     if radius < 0:
         raise ValueError("radius must be non-negative.")
+    del ants_facing
 
     batch_size, grid_height, grid_width = grid.shape
-    if ants_facing is None:
-        ants_facing = jnp.full(ants_pos.shape[:2], DEFAULT_FACING, dtype=jnp.int32)
     offset_pairs = build_forward_vision_offsets(
-        ants_facing.astype(jnp.int32),
+        jnp.zeros(ants_pos.shape[:2], dtype=jnp.int32),
         depth=radius,
     )
     positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs
@@ -332,38 +343,11 @@ def build_forward_vision_offsets(ants_facing: jax.Array, *, depth: int) -> jax.A
     if depth < 0:
         raise ValueError("depth must be non-negative.")
 
-    half_width = DEFAULT_ACTOR_VISION_WIDTH // 2
-    depth_offsets = jnp.repeat(
-        jnp.arange(1, depth + 1, dtype=jnp.int32),
-        DEFAULT_ACTOR_VISION_WIDTH,
-    )
-    lateral_offsets = jnp.tile(
-        jnp.arange(-half_width, half_width + 1, dtype=jnp.int32),
-        depth,
-    )
-    facing = ants_facing.astype(jnp.int32)
-    valid_facing = (
-        (facing == MOVE_UP)
-        | (facing == MOVE_RIGHT)
-        | (facing == MOVE_DOWN)
-        | (facing == MOVE_LEFT)
-    )
-    facing = jnp.where(valid_facing, facing, DEFAULT_FACING)
-    forward_x = jnp.where(
-        facing == MOVE_RIGHT,
-        1,
-        jnp.where(facing == MOVE_LEFT, -1, 0),
-    )
-    forward_y = jnp.where(
-        facing == MOVE_DOWN,
-        1,
-        jnp.where(facing == MOVE_UP, -1, 0),
-    )
-    right_x = -forward_y
-    right_y = forward_x
-    offset_x = forward_x[..., None] * depth_offsets + right_x[..., None] * lateral_offsets
-    offset_y = forward_y[..., None] * depth_offsets + right_y[..., None] * lateral_offsets
-    return jnp.stack([offset_x, offset_y], axis=-1)
+    axis = jnp.arange(-depth, depth + 1, dtype=jnp.int32)
+    offset_y = jnp.repeat(axis, 2 * depth + 1)
+    offset_x = jnp.tile(axis, 2 * depth + 1)
+    offsets = jnp.stack([offset_x, offset_y], axis=-1)
+    return jnp.broadcast_to(offsets, (*ants_facing.shape, offsets.shape[0], 2))
 
 
 def build_local_hub_patches(
@@ -576,34 +560,104 @@ def compute_forage_curriculum_rewards(
     )
 
 
+def compute_write_bit_penalties(
+    actions: jax.Array,
+    *,
+    write_bits: int,
+    base_penalty: float,
+    decay: float,
+) -> jax.Array:
+    """Return per-env penalties for set write bits, with bit 0 most expensive."""
+
+    if base_penalty <= 0.0:
+        return jnp.zeros(actions.shape[0], dtype=jnp.float32)
+    write_values = actions[..., 1].astype(jnp.uint32)
+    bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
+    bit_mask = (write_values[..., None] >> bit_indices) & jnp.asarray(1, dtype=jnp.uint32)
+    weights = float(base_penalty) * (float(decay) ** bit_indices.astype(jnp.float32))
+    return jnp.sum(bit_mask.astype(jnp.float32) * weights, axis=(-1, -2))
+
+
+def compute_terminal_write_entropy_bonus(
+    next_obs: JaxObs,
+    dones: jax.Array,
+    *,
+    write_bits: int,
+    entropy_scale: float,
+    max_bonus: float,
+) -> jax.Array:
+    """Return a capped terminal bonus for entropy over nonzero byte values."""
+
+    nonzero_value_count = max_write_value(write_bits)
+    if entropy_scale <= 0.0 or max_bonus <= 0.0 or nonzero_value_count <= 1:
+        return jnp.zeros(next_obs["bytes"].shape[0], dtype=jnp.float32)
+    next_bytes = next_obs["bytes"].astype(jnp.uint32)
+    values = jnp.arange(1, nonzero_value_count + 1, dtype=jnp.uint32)
+    counts = jnp.sum((next_bytes[..., None] == values).astype(jnp.float32), axis=(-2, -3))
+    total = jnp.sum(counts, axis=-1, keepdims=True)
+    probabilities = counts / jnp.maximum(total, 1.0)
+    safe_probabilities = jnp.where(probabilities > 0.0, probabilities, 1.0)
+    entropy = -jnp.sum(
+        jnp.where(
+            probabilities > 0.0,
+            probabilities * jnp.log(safe_probabilities),
+            0.0,
+        ),
+        axis=-1,
+    )
+    normalized_entropy = entropy / jnp.log(float(nonzero_value_count))
+    raw_bonus = normalized_entropy * float(entropy_scale)
+    capped_bonus = jnp.minimum(raw_bonus, float(max_bonus))
+    return jnp.where(dones, capped_bonus, 0.0)
+
+
 def compute_gae(
     *,
     rewards: jax.Array,
     values: jax.Array,
     dones: jax.Array,
-    next_value: jax.Array,
+    next_value: jax.Array | None = None,
+    terminations: jax.Array | None = None,
+    next_values: jax.Array | None = None,
     gamma: float,
     gae_lambda: float,
 ) -> tuple[jax.Array, jax.Array]:
     rewards = rewards.astype(jnp.float32)
     values = values.astype(jnp.float32)
     dones = dones.astype(jnp.float32)
+    if terminations is None:
+        terminations = dones
+    terminations = terminations.astype(jnp.float32)
+    if next_values is None:
+        if next_value is None:
+            raise ValueError("next_value or next_values must be provided.")
+        next_values = jnp.concatenate(
+            [values[1:], next_value.astype(jnp.float32)[None, ...]],
+            axis=0,
+        )
+    next_values = next_values.astype(jnp.float32)
 
     def scan_step(
-        carry: tuple[jax.Array, jax.Array],
-        transition: tuple[jax.Array, jax.Array, jax.Array],
-    ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
-        last_gae, next_values = carry
-        reward, value, done = transition
-        nonterminal = 1.0 - done
-        delta = reward + float(gamma) * next_values * nonterminal - value
-        advantage = delta + float(gamma) * float(gae_lambda) * nonterminal * last_gae
-        return (advantage, value), advantage
+        last_gae: jax.Array,
+        transition: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
+    ) -> tuple[jax.Array, jax.Array]:
+        reward, value, next_value_at_step, done, terminated = transition
+        bootstrap_mask = 1.0 - terminated
+        continuation_mask = 1.0 - done
+        delta = reward + float(gamma) * next_value_at_step * bootstrap_mask - value
+        advantage = delta + float(gamma) * float(gae_lambda) * continuation_mask * last_gae
+        return advantage, advantage
 
-    (_, _), reversed_advantages = jax.lax.scan(
+    _, reversed_advantages = jax.lax.scan(
         scan_step,
-        (jnp.zeros_like(next_value), next_value.astype(jnp.float32)),
-        (rewards[::-1], values[::-1], dones[::-1]),
+        jnp.zeros_like(values[-1]),
+        (
+            rewards[::-1],
+            values[::-1],
+            next_values[::-1],
+            dones[::-1],
+            terminations[::-1],
+        ),
     )
     advantages = reversed_advantages[::-1]
     return advantages, advantages + values
@@ -614,7 +668,8 @@ def _flatten_rollout(rollout: Rollout, *, args: argparse.Namespace) -> TrainingB
         rewards=rollout.rewards,
         values=rollout.values,
         dones=rollout.dones,
-        next_value=rollout.next_value,
+        terminations=rollout.terminations,
+        next_values=rollout.next_values,
         gamma=args.gamma,
         gae_lambda=args.gae_lambda,
     )
@@ -635,6 +690,12 @@ def _split_minibatches(batch: TrainingBatch, *, args: argparse.Namespace) -> Tra
         lambda value: value.reshape((args.num_minibatches, minibatch_size) + value.shape[1:]),
         batch,
     )
+
+
+def _shuffle_batch(batch: TrainingBatch, *, key: jax.Array) -> TrainingBatch:
+    batch_size = batch.advantages.shape[0]
+    permutation = jax.random.permutation(key, batch_size)
+    return jax.tree_util.tree_map(lambda value: value[permutation], batch)
 
 
 def _global_norm(tree: Any) -> jax.Array:
@@ -730,9 +791,9 @@ def update_agent(
     opt_state: AdamState,
     rollout: Rollout,
     learning_rate: float | jax.Array,
+    key: jax.Array,
 ) -> tuple[JaxMAPPOParams, AdamState, UpdateMetrics]:
     batch = _flatten_rollout(rollout, args=args)
-    minibatches = _split_minibatches(batch, args=args)
 
     def minibatch_step(
         carry: tuple[JaxMAPPOParams, AdamState],
@@ -756,17 +817,18 @@ def update_agent(
 
     def epoch_step(
         carry: tuple[JaxMAPPOParams, AdamState],
-        _: Any,
+        epoch_key: jax.Array,
     ) -> tuple[tuple[JaxMAPPOParams, AdamState], UpdateMetrics]:
+        minibatches = _split_minibatches(_shuffle_batch(batch, key=epoch_key), args=args)
         next_carry, minibatch_metrics = jax.lax.scan(minibatch_step, carry, minibatches)
         mean_metrics = jax.tree_util.tree_map(lambda value: jnp.mean(value, axis=0), minibatch_metrics)
         return next_carry, mean_metrics
 
+    epoch_keys = jax.random.split(key, args.update_epochs)
     (params, opt_state), epoch_metrics = jax.lax.scan(
         epoch_step,
         (params, opt_state),
-        None,
-        length=args.update_epochs,
+        epoch_keys,
     )
     final_metrics = jax.tree_util.tree_map(lambda value: value[-1], epoch_metrics)
     return params, opt_state, final_metrics

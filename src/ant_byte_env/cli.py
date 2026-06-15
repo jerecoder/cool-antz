@@ -28,6 +28,9 @@ def main(argv: list[str] | None = None) -> int:
             args.output,
             backend=args.backend,
             show_vision=not args.no_vision,
+            reuse_existing=args.reuse_existing,
+            max_frames=args.max_frames,
+            tile_size=args.tile_size,
         )
         print(f"render saved to {args.output}")
         return 0
@@ -53,7 +56,28 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--checkpoint", type=Path, required=True)
     render.add_argument("--output", type=Path, required=True)
     render.add_argument("--backend", choices=["torch", "jax"], default=None)
-    render.add_argument("--no-vision", action="store_true", help="Render without ant vision overlays.")
+    render.add_argument(
+        "--no-vision",
+        action="store_true",
+        help="Render without ant vision overlays.",
+    )
+    render.add_argument(
+        "--reuse-existing",
+        action="store_true",
+        help="Skip rendering when the output exists and is newer than the checkpoint.",
+    )
+    render.add_argument(
+        "--max-frames",
+        type=int,
+        default=None,
+        help="Limit the total rendered frame count, including the initial reset frame.",
+    )
+    render.add_argument(
+        "--tile-size",
+        type=int,
+        default=None,
+        help="Override the render tile size in pixels.",
+    )
 
     results = subparsers.add_parser("results", help="Manage curated result metadata.")
     result_subparsers = results.add_subparsers(dest="results_command", required=True)

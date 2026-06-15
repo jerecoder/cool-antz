@@ -3,10 +3,11 @@
 from gymnasium.envs.registration import register, registry
 
 from ant_byte_env.env import (
-    ACTION_FORWARD,
+    ACTION_DOWN,
+    ACTION_LEFT,
+    ACTION_RIGHT,
     ACTION_STAY,
-    ACTION_TURN_LEFT,
-    ACTION_TURN_RIGHT,
+    ACTION_UP,
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_ACTOR_VISION_WIDTH,
     DEFAULT_WRITE_BITS,
@@ -18,7 +19,7 @@ from ant_byte_env.env import (
     actor_vision_patch_size,
     facing_delta,
     max_write_value,
-    turn_facing,
+    movement_facing,
     write_value_count,
 )
 
@@ -30,10 +31,11 @@ if "AntByteForaging-v0" not in registry:
 
 __all__ = [
     "AntByteForagingEnv",
-    "ACTION_FORWARD",
+    "ACTION_DOWN",
+    "ACTION_LEFT",
+    "ACTION_RIGHT",
     "ACTION_STAY",
-    "ACTION_TURN_LEFT",
-    "ACTION_TURN_RIGHT",
+    "ACTION_UP",
     "DEFAULT_ACTOR_VISION_DEPTH",
     "DEFAULT_ACTOR_VISION_WIDTH",
     "DEFAULT_WRITE_BITS",
@@ -44,6 +46,6 @@ __all__ = [
     "actor_vision_patch_size",
     "facing_delta",
     "max_write_value",
-    "turn_facing",
+    "movement_facing",
     "write_value_count",
 ]

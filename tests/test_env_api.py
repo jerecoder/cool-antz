@@ -5,10 +5,10 @@ import numpy as np
 import pytest
 
 from ant_byte_env import (
-    ACTION_FORWARD,
+    ACTION_LEFT,
+    ACTION_RIGHT,
     ACTION_STAY,
-    ACTION_TURN_LEFT,
-    ACTION_TURN_RIGHT,
+    ACTION_UP,
     AntByteForagingEnv,
 )
 
@@ -36,10 +36,34 @@ def test_reset_returns_obs_and_info() -> None:
     env.close()
 
 
+def test_random_hub_reset_is_seed_reproducible() -> None:
+    env = AntByteForagingEnv(
+        width=6,
+        height=5,
+        num_ants=3,
+        food_count=4,
+        random_hub=True,
+    )
+
+    obs_a, _ = env.reset(seed=123)
+    obs_b, _ = env.reset(seed=123)
+    obs_c, _ = env.reset(seed=124)
+
+    np.testing.assert_array_equal(obs_a["hub_pos"], obs_b["hub_pos"])
+    assert (
+        not np.array_equal(obs_a["hub_pos"], np.array([3, 2], dtype=np.int32))
+        or not np.array_equal(obs_c["hub_pos"], obs_a["hub_pos"])
+    )
+    assert np.all(obs_a["ants_pos"] == obs_a["hub_pos"])
+    assert obs_a["ants_count"][obs_a["hub_pos"][1], obs_a["hub_pos"][0]] == 3
+    assert obs_a["food"][obs_a["hub_pos"][1], obs_a["hub_pos"][0]] == 0
+    env.close()
+
+
 def test_action_space_defaults_to_one_write_bit_per_ant() -> None:
     env = AntByteForagingEnv(width=5, height=4, num_ants=2, food_count=3, seed=123)
 
-    np.testing.assert_array_equal(env.action_space.nvec, np.array([4, 2, 4, 2]))
+    np.testing.assert_array_equal(env.action_space.nvec, np.array([5, 2, 5, 2]))
     assert env.observation_space["bytes"].high.max() == 1
     env.close()
 
@@ -48,14 +72,14 @@ def test_write_bits_controls_action_space_and_tile_value_range() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, write_bits=3)
     env.reset(seed=3, options={"hub_pos": (0, 0)})
 
-    np.testing.assert_array_equal(env.action_space.nvec, np.array([4, 8]))
+    np.testing.assert_array_equal(env.action_space.nvec, np.array([5, 8]))
     assert env.observation_space["bytes"].high.max() == 7
-    obs, _, _, _, _ = env.step(np.array([ACTION_FORWARD, 7], dtype=np.int64))
+    obs, _, _, _, _ = env.step(np.array([ACTION_RIGHT, 7], dtype=np.int64))
 
     ant_x, ant_y = obs["ants_pos"][0]
     assert obs["bytes"][ant_y, ant_x] == 7
     with pytest.raises(ValueError, match="0 to 7"):
-        env.step(np.array([ACTION_FORWARD, 8], dtype=np.int64))
+        env.step(np.array([ACTION_RIGHT, 8], dtype=np.int64))
     env.close()
 
 
@@ -102,7 +126,7 @@ def test_byte_write_updates_grid() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0, seed=3)
     env.reset(seed=3, options={"hub_pos": (0, 0)})
 
-    obs, _, _, _, info = env.step(np.array([ACTION_FORWARD, 1], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([ACTION_RIGHT, 1], dtype=np.int64))
 
     ant_x, ant_y = obs["ants_pos"][0]
     assert obs["bytes"][ant_y, ant_x] == 1
@@ -116,7 +140,7 @@ def test_multiple_ants_on_same_tile_record_overwrites() -> None:
     env.reset(seed=13, options={"hub_pos": (0, 1)})
 
     obs, _, _, _, info = env.step(
-        np.array([ACTION_FORWARD, 0, ACTION_FORWARD, 1, ACTION_FORWARD, 0], dtype=np.int64)
+        np.array([ACTION_RIGHT, 0, ACTION_RIGHT, 1, ACTION_RIGHT, 0], dtype=np.int64)
     )
 
     assert obs["ants_count"][1, 1] == 3
@@ -143,7 +167,7 @@ def test_food_tile_is_unwritable_while_bitten() -> None:
     env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=1)
     env.reset(seed=41, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
 
-    obs, _, _, _, info = env.step(np.array([ACTION_FORWARD, 1], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([ACTION_RIGHT, 1], dtype=np.int64))
 
     assert obs["ants_carrying"][0] == 1
     assert obs["food"][0, 1] == 0
@@ -156,7 +180,7 @@ def test_depleted_food_tile_becomes_writable_afterward() -> None:
     env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=1)
     env.reset(seed=43, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
 
-    env.step(np.array([ACTION_FORWARD, 1], dtype=np.int64))
+    env.step(np.array([ACTION_RIGHT, 1], dtype=np.int64))
     obs, _, _, _, info = env.step(np.array([ACTION_STAY, 1], dtype=np.int64))
 
     assert obs["food"][0, 1] == 0
@@ -169,37 +193,33 @@ def test_movement_stays_inside_grid_bounds() -> None:
     env = AntByteForagingEnv(width=2, height=2, num_ants=1, food_count=0)
     env.reset(seed=19, options={"hub_pos": (0, 0)})
 
-    env.step(np.array([ACTION_TURN_LEFT, 0], dtype=np.int64))
-    obs, _, _, _, _ = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
+    env.step(np.array([ACTION_UP, 0], dtype=np.int64))
+    obs, _, _, _, _ = env.step(np.array([ACTION_LEFT, 0], dtype=np.int64))
     np.testing.assert_array_equal(obs["ants_pos"][0], np.array([0, 0], dtype=np.int32))
 
-    env.step(np.array([ACTION_TURN_LEFT, 0], dtype=np.int64))
-    obs, _, _, _, _ = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
+    env.step(np.array([ACTION_UP, 0], dtype=np.int64))
+    obs, _, _, _, _ = env.step(np.array([ACTION_LEFT, 0], dtype=np.int64))
     np.testing.assert_array_equal(obs["ants_pos"][0], np.array([0, 0], dtype=np.int32))
     env.close()
 
 
-def test_ant_can_turn_in_place_and_advance_forward() -> None:
+def test_ant_moves_cardinally_and_updates_display_facing() -> None:
     env = AntByteForagingEnv(width=3, height=3, num_ants=1, food_count=0)
     env.reset(seed=29, options={"hub_pos": (1, 1)})
 
     assert env.ants_facing.tolist() == [2]
 
-    obs, _, _, _, _ = env.step(np.array([ACTION_TURN_LEFT, 0], dtype=np.int64))
+    obs, _, _, _, _ = env.step(np.array([ACTION_UP, 0], dtype=np.int64))
     assert env.ants_facing.tolist() == [1]
-    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 1], dtype=np.int32))
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 0], dtype=np.int32))
 
     obs, _, _, _, _ = env.step(np.array([ACTION_STAY, 0], dtype=np.int64))
     assert env.ants_facing.tolist() == [1]
-    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 1], dtype=np.int32))
-
-    obs, _, _, _, _ = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
-    assert env.ants_facing.tolist() == [1]
     np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 0], dtype=np.int32))
 
-    obs, _, _, _, _ = env.step(np.array([ACTION_TURN_RIGHT, 0], dtype=np.int64))
+    obs, _, _, _, _ = env.step(np.array([ACTION_RIGHT, 0], dtype=np.int64))
     assert env.ants_facing.tolist() == [2]
-    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 0], dtype=np.int32))
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([2, 0], dtype=np.int32))
     env.close()
 
 
@@ -223,7 +243,7 @@ def test_invalid_constructor_and_action_inputs_raise() -> None:
     env.reset(seed=23)
     for action in (
         np.array([0], dtype=np.int64),
-        np.array([4, 0], dtype=np.int64),
+        np.array([5, 0], dtype=np.int64),
         np.array([0, 2], dtype=np.int64),
     ):
         with pytest.raises(ValueError):
@@ -243,7 +263,7 @@ def test_pickup_and_delivery_flow() -> None:
     env.reset(seed=5, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
 
     obs, pickup_reward, terminated, truncated, info = env.step(
-        np.array([ACTION_FORWARD, 0], dtype=np.int64)
+        np.array([ACTION_RIGHT, 0], dtype=np.int64)
     )
     assert obs["ants_carrying"][0] == 1
     assert pickup_reward == 0.0
@@ -253,11 +273,7 @@ def test_pickup_and_delivery_flow() -> None:
     assert obs["food"][0, 1] == 1
 
     obs, delivery_reward, terminated, truncated, info = env.step(
-        np.array([ACTION_TURN_LEFT, 0], dtype=np.int64)
-    )
-    env.step(np.array([ACTION_TURN_LEFT, 0], dtype=np.int64))
-    obs, delivery_reward, terminated, truncated, info = env.step(
-        np.array([ACTION_FORWARD, 0], dtype=np.int64)
+        np.array([ACTION_LEFT, 0], dtype=np.int64)
     )
     assert obs["ants_carrying"][0] == 0
     assert delivery_reward == 1.0
@@ -265,19 +281,13 @@ def test_pickup_and_delivery_flow() -> None:
     assert not truncated
     assert info["delivered_food"] == 1
 
-    env.step(np.array([ACTION_TURN_RIGHT, 0], dtype=np.int64))
-    env.step(np.array([ACTION_TURN_RIGHT, 0], dtype=np.int64))
-    obs, pickup_reward, _, _, info = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
+    obs, pickup_reward, _, _, info = env.step(np.array([ACTION_RIGHT, 0], dtype=np.int64))
     assert obs["ants_carrying"][0] == 1
     assert pickup_reward == 0.0
     assert info["remaining_food"] == 0
 
     obs, delivery_reward, terminated, truncated, info = env.step(
-        np.array([ACTION_TURN_LEFT, 0], dtype=np.int64)
-    )
-    env.step(np.array([ACTION_TURN_LEFT, 0], dtype=np.int64))
-    obs, delivery_reward, terminated, truncated, info = env.step(
-        np.array([ACTION_FORWARD, 0], dtype=np.int64)
+        np.array([ACTION_LEFT, 0], dtype=np.int64)
     )
     assert obs["ants_carrying"][0] == 0
     assert delivery_reward == 1.0
@@ -298,7 +308,7 @@ def test_carrying_ant_does_not_consume_another_food_bite() -> None:
     )
     env.reset(seed=47, options={"hub_pos": (0, 0), "food_positions": [(1, 0)]})
 
-    obs, _, _, _, info = env.step(np.array([ACTION_FORWARD, 0], dtype=np.int64))
+    obs, _, _, _, info = env.step(np.array([ACTION_RIGHT, 0], dtype=np.int64))
     assert obs["ants_carrying"][0] == 1
     assert obs["food"][0, 1] == 1
     assert info["remaining_food"] == 1

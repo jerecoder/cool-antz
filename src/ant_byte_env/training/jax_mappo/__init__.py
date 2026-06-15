@@ -27,6 +27,8 @@ _EXPORTS = {
     "collect_rollout": ("rollout", "collect_rollout"),
     "compute_forage_curriculum_rewards": ("core", "compute_forage_curriculum_rewards"),
     "compute_gae": ("core", "compute_gae"),
+    "compute_terminal_write_entropy_bonus": ("core", "compute_terminal_write_entropy_bonus"),
+    "compute_write_bit_penalties": ("core", "compute_write_bit_penalties"),
     "evaluate_actions": ("core", "evaluate_actions"),
     "evaluate_checkpoint": ("evaluation", "evaluate_checkpoint"),
     "evaluate_params": ("evaluation", "evaluate_params"),

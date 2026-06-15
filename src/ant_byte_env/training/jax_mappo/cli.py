@@ -39,7 +39,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--actor-vision-radius",
         type=int,
         default=DEFAULT_ACTOR_VISION_DEPTH,
-        help="Forward vision depth; actor observations are always 3 tiles wide.",
+        help="Centered local actor-grid radius; the default radius 1 is a 3x3 grid.",
     )
     parser.add_argument("--num-ants", type=int, default=2)
     parser.add_argument("--food-count", type=int, default=4)
@@ -47,6 +47,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-steps", type=int, default=64)
     parser.add_argument("--step-penalty", type=float, default=0.0)
     parser.add_argument("--write-penalty", type=float, default=0.0)
+    parser.add_argument(
+        "--write-bit-penalty",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side penalty for each set write bit. Bit 0 costs this amount; "
+            "higher bits are discounted by --write-bit-penalty-decay."
+        ),
+    )
+    parser.add_argument(
+        "--write-bit-penalty-decay",
+        type=float,
+        default=0.5,
+        help="Geometric decay for higher write-bit penalties.",
+    )
+    parser.add_argument(
+        "--write-entropy-bonus",
+        type=float,
+        default=0.0,
+        help="Terminal bonus scale for normalized entropy over nonzero byte values.",
+    )
+    parser.add_argument(
+        "--write-entropy-bonus-cap",
+        type=float,
+        default=0.15,
+        help="Maximum terminal write-entropy bonus per environment.",
+    )
     parser.add_argument("--write-bits", type=int, default=DEFAULT_WRITE_BITS)
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
@@ -90,4 +117,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--actor-vision-radius must be non-negative.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
+    if args.write_bit_penalty < 0.0:
+        raise ValueError("--write-bit-penalty must be non-negative.")
+    if not 0.0 <= args.write_bit_penalty_decay <= 1.0:
+        raise ValueError("--write-bit-penalty-decay must be between 0 and 1.")
+    if args.write_entropy_bonus < 0.0:
+        raise ValueError("--write-entropy-bonus must be non-negative.")
+    if args.write_entropy_bonus_cap < 0.0:
+        raise ValueError("--write-entropy-bonus-cap must be non-negative.")
     return args

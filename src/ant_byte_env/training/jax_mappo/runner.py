@@ -47,6 +47,8 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
         "episode_return": float(jnp.mean(jnp.sum(rollout.rewards, axis=0))),
         "env_return": float(jnp.mean(jnp.sum(rollout.env_rewards, axis=0))),
         "completed_episodes": float(jnp.sum(rollout.dones)),
+        "terminated_episodes": float(jnp.sum(rollout.terminations)),
+        "truncated_episodes": float(jnp.sum(rollout.truncations)),
     }
 
 
@@ -83,6 +85,7 @@ def main(
         food_source_count=args.food_sources,
         max_steps=args.max_steps,
         random_food=args.random_food,
+        random_hub=args.random_hub,
         step_penalty=args.step_penalty,
         write_penalty=args.write_penalty,
         write_bits=args.write_bits,
@@ -137,12 +140,13 @@ def main(
         )
     )
     update_fn = jax.jit(
-        lambda current_params, current_opt_state, rollout, learning_rate: update_agent(
+        lambda current_params, current_opt_state, rollout, learning_rate, update_key: update_agent(
             args=args,
             params=current_params,
             opt_state=current_opt_state,
             rollout=rollout,
             learning_rate=learning_rate,
+            key=update_key,
         )
     )
 
@@ -158,13 +162,19 @@ def main(
     }
 
     for update in range(1, num_updates + 1):
-        key, rollout_key = jax.random.split(key)
+        key, rollout_key, update_key = jax.random.split(key, 3)
         states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
         learning_rate = args.learning_rate
         if args.anneal_lr:
             learning_rate *= 1.0 - (update - 1.0) / num_updates
 
-        params, opt_state, update_metrics = update_fn(params, opt_state, rollout, learning_rate)
+        params, opt_state, update_metrics = update_fn(
+            params,
+            opt_state,
+            rollout,
+            learning_rate,
+            update_key,
+        )
         global_step += steps_per_update
         final_metrics = {
             **_metrics_to_float(update_metrics),

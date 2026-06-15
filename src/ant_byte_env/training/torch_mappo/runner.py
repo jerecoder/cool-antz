@@ -99,6 +99,8 @@ def main(argv: list[str] | None = None) -> dict[str, float]:
                 checkpoint_path=args.load_model,
                 central_obs_dim=central_obs_dim,
                 actor_obs_dim=actor_obs_dim,
+                write_bits=args.write_bits,
+                actor_vision_radius=args.actor_vision_radius,
                 device=device,
             )
         loss_module = make_mappo_loss(args, agent).to(device)

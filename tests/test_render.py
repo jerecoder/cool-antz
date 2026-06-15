@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import os
+from pathlib import Path
 
 import numpy as np
+import pytest
 
+from ant_byte_env import cli as ant_cli
 from ant_byte_env.env import AntByteForagingEnv, facing_rotation_degrees, food_alpha
-from ant_byte_env.rendering import _render_frame
+from ant_byte_env.rendering import (
+    _can_reuse_render,
+    _deterministic_from_temperature,
+    _env_from_args,
+    _jax_render_reset_options,
+    _render_frame,
+    _render_step_count,
+)
 
 
 def test_rgb_array_render_returns_numpy_image() -> None:
@@ -53,7 +64,129 @@ def test_checkpoint_render_frame_overlays_ant_vision_square() -> None:
 
     assert plain_frame.shape == vision_frame.shape
     assert not np.array_equal(plain_frame, vision_frame)
+    assert not np.array_equal(plain_frame[0, 15], vision_frame[0, 15])
+    assert np.array_equal(plain_frame[15, 15], vision_frame[15, 15])
     env.close()
+
+
+def test_render_reuse_requires_nonempty_output_newer_than_checkpoint(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "model.pkl"
+    output_path = tmp_path / "rollout.mp4"
+    checkpoint_path.write_bytes(b"checkpoint")
+    output_path.write_bytes(b"mp4")
+    os.utime(checkpoint_path, (100, 100))
+    os.utime(output_path, (101, 101))
+
+    assert _can_reuse_render(
+        checkpoint_path=checkpoint_path,
+        output_path=output_path,
+        reuse_existing=True,
+    )
+    assert not _can_reuse_render(
+        checkpoint_path=checkpoint_path,
+        output_path=output_path,
+        reuse_existing=False,
+    )
+
+    os.utime(checkpoint_path, (102, 102))
+    assert not _can_reuse_render(
+        checkpoint_path=checkpoint_path,
+        output_path=output_path,
+        reuse_existing=True,
+    )
+
+    output_path.write_bytes(b"")
+    os.utime(output_path, (103, 103))
+    assert not _can_reuse_render(
+        checkpoint_path=checkpoint_path,
+        output_path=output_path,
+        reuse_existing=True,
+    )
+
+
+def test_render_step_count_caps_total_frames() -> None:
+    args = argparse.Namespace(max_steps=10)
+
+    assert _render_step_count(args, max_frames=None) == 10
+    assert _render_step_count(args, max_frames=1) == 0
+    assert _render_step_count(args, max_frames=4) == 3
+    assert _render_step_count(args, max_frames=99) == 10
+
+    with pytest.raises(ValueError, match="max_frames"):
+        _render_step_count(args, max_frames=0)
+
+
+def test_render_temperature_zero_means_deterministic_policy() -> None:
+    assert _deterministic_from_temperature(0.0)
+    with pytest.raises(ValueError, match="temperature=0.0"):
+        _deterministic_from_temperature(0.5)
+
+
+def test_jax_render_reset_options_respect_random_hub() -> None:
+    args = argparse.Namespace(
+        width=7,
+        height=6,
+        cookie_distance=2,
+        random_food=False,
+        random_hub=True,
+    )
+
+    first = _jax_render_reset_options(args, seed=123)
+    second = _jax_render_reset_options(args, seed=123)
+
+    assert first == second
+    assert first is not None
+    assert set(first) == {"hub_pos", "food_positions"}
+    assert 0 <= first["hub_pos"][0] < args.width
+    assert 0 <= first["hub_pos"][1] < args.height
+    assert first["food_positions"][0] != first["hub_pos"]
+
+
+def test_env_from_args_accepts_render_tile_size() -> None:
+    args = argparse.Namespace(
+        width=5,
+        height=4,
+        num_ants=1,
+        food_count=2,
+        food_sources=1,
+        max_steps=12,
+        random_food=True,
+        step_penalty=0.0,
+        write_penalty=0.0,
+        write_bits=1,
+    )
+
+    env = _env_from_args(args, render_mode="rgb_array", tile_size=12)
+
+    assert env.tile_size == 12
+    env.close()
+
+
+def test_render_cli_passes_reuse_existing_flag(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, bool] = {}
+
+    def fake_render_checkpoint(*args, reuse_existing: bool, **kwargs) -> Path:
+        del args, kwargs
+        captured["reuse_existing"] = reuse_existing
+        return tmp_path / "rollout.mp4"
+
+    monkeypatch.setattr(ant_cli, "render_checkpoint", fake_render_checkpoint)
+
+    exit_code = ant_cli.main(
+        [
+            "render",
+            "--checkpoint",
+            str(tmp_path / "model.pkl"),
+            "--output",
+            str(tmp_path / "rollout.mp4"),
+            "--backend",
+            "jax",
+            "--reuse-existing",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {"reuse_existing": True}
 
 
 def test_food_alpha_drops_as_food_source_is_depleted() -> None:

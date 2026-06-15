@@ -19,6 +19,7 @@ from ant_byte_env.training.jax_mappo.core import (
     get_action_and_value,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
+from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
 
 def evaluate_params(
@@ -117,8 +118,16 @@ def evaluate_checkpoint(
     seed_offset: int = 1_000_000,
     deterministic: bool = True,
 ) -> dict[str, float]:
-    checkpoint = read_checkpoint(checkpoint_path)
-    args = _checkpoint_args_with_defaults(checkpoint.get("args", {}))
+    raw_checkpoint = read_checkpoint(checkpoint_path)
+    args = _checkpoint_args_with_defaults(raw_checkpoint.get("args", {}))
+    central_obs_dim, actor_obs_dim = _checkpoint_observation_dims(args)
+    checkpoint = load_checkpoint_for_training(
+        checkpoint_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=actor_obs_dim,
+        target_write_bits=args.write_bits,
+        actor_vision_radius=args.actor_vision_radius,
+    )
     return evaluate_params(
         params=checkpoint["params"],
         args=args,
@@ -126,6 +135,39 @@ def evaluate_checkpoint(
         seed_offset=seed_offset,
         deterministic=deterministic,
     )
+
+
+def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        step_penalty=args.step_penalty,
+        write_penalty=args.write_penalty,
+        write_bits=args.write_bits,
+    )
+    shape_args = argparse.Namespace(**{**vars(args), "num_envs": 1})
+    _, obs = reset_batch(args=shape_args, env=env, key=jax.random.PRNGKey(args.seed))
+    central_obs = build_central_observations(
+        obs,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    return central_obs.shape[-1], actor_obs.shape[-1]
 
 
 def _checkpoint_args_with_defaults(saved_args: dict[str, object]) -> argparse.Namespace:

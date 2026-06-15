@@ -66,7 +66,7 @@ def test_jax_cli_dry_run_validates_without_jax_backend(capsys: pytest.CaptureFix
     assert payload["backend"] == "jax"
     assert payload["experiment"] == "communication_bits"
     assert payload["resolved_args"]["load_model"].endswith(
-        "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_15x15.pkl"
+        "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
     )
     assert payload["resolved_args"]["total_timesteps"] == 8
 
