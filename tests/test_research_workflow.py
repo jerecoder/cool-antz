@@ -147,6 +147,11 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PL10",
         "PL11",
     ]
+    assert [entry["id"] for entry in matrix["phases"]["polish_gate"]] == [
+        "PG1",
+        "PG2",
+        "PG3",
+    ]
 
     all_ids: set[str] = set()
     for entries in matrix["phases"].values():
@@ -378,6 +383,27 @@ def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> No
         assert direct_parsed.write_bits == command["write_bits"]
 
 
+def test_communication_sweep_plan_builds_probe_only_polish_gate() -> None:
+    plan = build_communication_sweep_plan(
+        phase="polish_gate",
+        run_id="PG2",
+        probe_episodes=16,
+        render_rollouts=False,
+    )
+
+    assert plan["bit_stages"] == []
+    assert plan["global_update_cap"] is None
+    assert plan["env_steps_per_stage"] == 0
+    assert plan["total_train_env_steps"] == 0
+    assert plan["train_commands"] == []
+    assert plan["probe_command"]["checkpoint"].endswith(
+        "polish_length/PL10/8_bits/checkpoints/model.pkl"
+    )
+    assert plan["probe_command"]["output_dir"].endswith("polish_gate/PG2/probe_eval16")
+    assert plan["probe_command"]["options"]["num_episodes"] == 16
+    assert plan["probe_command"]["argv"][-1] == "--no-render"
+
+
 def test_communication_sweep_plan_can_override_run_root(tmp_path: Path) -> None:
     run_root = tmp_path / "smoke" / "communication_bits"
     plan = build_communication_sweep_plan(
@@ -452,6 +478,56 @@ def test_execute_communication_sweep_plan_runs_stages_and_probe(tmp_path: Path) 
     assert summary["stage_results"][0]["resumed"] is False
     assert json.loads((tmp_path / "H0" / "sweep_plan.json").read_text())["id"] == "H0"
     assert json.loads((tmp_path / "H0" / "sweep_summary.json").read_text())[
+        "summary_path"
+    ].endswith("sweep_summary.json")
+
+
+def test_execute_communication_sweep_plan_runs_probe_only_entry(tmp_path: Path) -> None:
+    matrix = json.loads(Path("autoresearch/communication_sweep.json").read_text())
+    entry = matrix["phases"]["polish_gate"][1]
+    entry["run_dir"] = str(tmp_path / "PG2")
+    entry["probe_output_dir"] = str(tmp_path / "PG2" / "probe_eval16")
+    entry["probe_checkpoint"] = str(tmp_path / "selected" / "model.pkl")
+    matrix_path = tmp_path / "matrix.json"
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    plan = build_communication_sweep_plan(
+        matrix_path=matrix_path,
+        phase="polish_gate",
+        run_id="PG2",
+        probe_episodes=16,
+        render_rollouts=False,
+    )
+    probe_calls: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_train_main(argv: list[str]) -> dict[str, float]:
+        raise AssertionError(f"probe-only entry should not train: {argv}")
+
+    def fake_probe_checkpoint(checkpoint: Path, **kwargs: object) -> dict[str, object]:
+        probe_calls.append((checkpoint, kwargs))
+        return {"probe_path": str(Path(kwargs["output_dir"]) / "communication_probe.json")}
+
+    summary = execute_communication_sweep_plan(
+        plan,
+        train_main=fake_train_main,
+        probe_checkpoint=fake_probe_checkpoint,
+        check_resources=False,
+    )
+
+    assert summary["stage_results"] == []
+    assert probe_calls == [
+        (
+            tmp_path / "selected" / "model.pkl",
+            {
+                "output_dir": tmp_path / "PG2" / "probe_eval16",
+                "num_episodes": 16,
+                "render_rollouts": False,
+                "max_render_frames": 300,
+                "tile_size": 16,
+            },
+        )
+    ]
+    assert json.loads((tmp_path / "PG2" / "sweep_plan.json").read_text())["id"] == "PG2"
+    assert json.loads((tmp_path / "PG2" / "sweep_summary.json").read_text())[
         "summary_path"
     ].endswith("sweep_summary.json")
 

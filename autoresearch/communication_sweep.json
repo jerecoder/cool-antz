@@ -543,6 +543,32 @@
           "write_head_transfer": "repeat"
         }
       }
+    ],
+    "polish_gate": [
+      {
+        "id": "PG1",
+        "depends_on": "polish_length/PL7",
+        "run_dir": "runs/autoresearch/communication_bits/polish_gate/PG1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_gate/PG1/probe_eval16",
+        "probe_checkpoint": "runs/autoresearch/communication_bits/polish_length/PL7/8_bits/checkpoints/model.pkl",
+        "args": {}
+      },
+      {
+        "id": "PG2",
+        "depends_on": "polish_length/PL10",
+        "run_dir": "runs/autoresearch/communication_bits/polish_gate/PG2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_gate/PG2/probe_eval16",
+        "probe_checkpoint": "runs/autoresearch/communication_bits/polish_length/PL10/8_bits/checkpoints/model.pkl",
+        "args": {}
+      },
+      {
+        "id": "PG3",
+        "depends_on": "polish_length/PL5",
+        "run_dir": "runs/autoresearch/communication_bits/polish_gate/PG3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_gate/PG3/probe_eval16",
+        "probe_checkpoint": "runs/autoresearch/communication_bits/polish_length/PL5/8_bits/checkpoints/model.pkl",
+        "args": {}
+      }
     ]
   }
 }

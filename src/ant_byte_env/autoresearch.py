@@ -52,6 +52,67 @@ def build_communication_sweep_plan(
     if num_steps is not None:
         merged_args["num_steps"] = int(num_steps)
 
+    run_dir = _resolve_matrix_path(
+        Path(str(entry["run_dir"])),
+        matrix_root=Path(str(matrix["run_root"])),
+        override_root=run_root,
+    )
+    probe_output_dir = _resolve_matrix_path(
+        Path(str(entry["probe_output_dir"])),
+        matrix_root=Path(str(matrix["run_root"])),
+        override_root=run_root,
+    )
+
+    if "probe_checkpoint" in entry:
+        probe_checkpoint = _resolve_matrix_path(
+            Path(str(entry["probe_checkpoint"])),
+            matrix_root=Path(str(matrix["run_root"])),
+            override_root=run_root,
+        )
+        probe_argv = [
+            "ant-byte",
+            "probe",
+            "communication",
+            "--checkpoint",
+            str(probe_checkpoint),
+            "--output-dir",
+            str(probe_output_dir),
+            "--num-episodes",
+            str(int(probe_episodes)),
+        ]
+        if not render_rollouts:
+            probe_argv.append("--no-render")
+        elif max_render_frames is not None:
+            probe_argv.extend(["--max-render-frames", str(int(max_render_frames))])
+
+        return {
+            "matrix_path": str(matrix_path),
+            "phase": phase,
+            "id": run_id,
+            "depends_on": entry.get("depends_on"),
+            "base_config": str(base_config),
+            "bit_stages": [],
+            "run_dir": str(run_dir),
+            "probe_output_dir": str(probe_output_dir),
+            "global_update_cap": None,
+            "env_steps_per_stage": 0,
+            "total_train_env_steps": 0,
+            "train_commands": [],
+            "probe_command": {
+                "checkpoint": str(probe_checkpoint),
+                "output_dir": str(probe_output_dir),
+                "options": {
+                    "num_episodes": int(probe_episodes),
+                    "render_rollouts": bool(render_rollouts),
+                    "max_render_frames": (
+                        int(max_render_frames) if max_render_frames is not None else None
+                    ),
+                    "tile_size": probe_tile_size,
+                },
+                "argv": probe_argv,
+            },
+        }
+
     update_cap = (
         global_update_cap if global_update_cap is not None else entry.get("global_update_cap")
     )
@@ -70,16 +131,6 @@ def build_communication_sweep_plan(
     num_envs_value = int(merged_args["num_envs"])
     num_steps_value = int(merged_args["num_steps"])
     total_timesteps = num_envs_value * num_steps_value * update_cap
-    run_dir = _resolve_matrix_path(
-        Path(str(entry["run_dir"])),
-        matrix_root=Path(str(matrix["run_root"])),
-        override_root=run_root,
-    )
-    probe_output_dir = _resolve_matrix_path(
-        Path(str(entry["probe_output_dir"])),
-        matrix_root=Path(str(matrix["run_root"])),
-        override_root=run_root,
-    )
     previous_checkpoint = Path(str(merged_args["load_model"]))
     train_commands = []
     for stage_index, target_bits in enumerate(stages, start=1):
