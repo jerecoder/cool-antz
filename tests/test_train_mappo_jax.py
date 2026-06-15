@@ -1229,13 +1229,94 @@ def test_jax_evaluate_params_reports_delivery_metrics() -> None:
         actor_obs_dim=actor_obs.shape[-1],
     )
 
-    metrics = evaluate_params(params=params, args=args, num_episodes=3)
+    metrics = evaluate_params(
+        params=params,
+        args=args,
+        num_episodes=3,
+        shuffle_positions=False,
+    )
 
     assert metrics["eval_success_rate"] == 1.0
     assert metrics["eval_mean_delivered_food"] == 1.0
     assert metrics["eval_mean_delivered_fraction"] == 1.0
     assert metrics["eval_mean_episode_return"] == 1.0
     assert metrics["eval_mean_episode_length"] == 2.0
+
+
+def test_jax_evaluate_params_shuffles_colony_and_cookie_sources_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = parse_args(
+        [
+            "--total-timesteps",
+            "2",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "1",
+            "--num-minibatches",
+            "1",
+            "--width",
+            "7",
+            "--height",
+            "7",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "6",
+            "--food-sources",
+            "2",
+            "--max-steps",
+            "1",
+            "--actor-vision-radius",
+            "1",
+            "--hidden-size",
+            "4",
+            "--seed",
+            "23",
+            "--quiet",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        write_bits=args.write_bits,
+    )
+    params, _, _ = _params_for_args(args, env)
+    observed_hubs: list[tuple[int, int]] = []
+    observed_food: list[tuple[tuple[int, int], ...]] = []
+
+    import ant_byte_env.training.jax_mappo.evaluation as jax_evaluation
+
+    original_reset_batch = jax_evaluation.reset_batch
+
+    def recording_reset_batch(
+        *,
+        args: argparse.Namespace,
+        env: JaxAntByteForagingEnv,
+        key: jax.Array,
+    ):
+        assert args.random_hub is True
+        assert args.random_food is True
+        states, obs = original_reset_batch(args=args, env=env, key=key)
+        observed_hubs.append(tuple(int(value) for value in np.asarray(obs["hub_pos"])[0]))
+        observed_food.append(_food_source_signature(np.asarray(obs["food"])[0]))
+        return states, obs
+
+    monkeypatch.setattr(jax_evaluation, "reset_batch", recording_reset_batch)
+
+    evaluate_params(params=params, args=args, num_episodes=8)
+
+    assert len(set(observed_hubs)) > 1
+    assert len(set(observed_food)) > 1
+    for hub, food_sources in zip(observed_hubs, observed_food, strict=True):
+        assert hub not in food_sources
 
 
 def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):

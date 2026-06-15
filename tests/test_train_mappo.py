@@ -50,6 +50,11 @@ def _batched_reset_obs() -> dict[str, np.ndarray]:
     return {key: value[np.newaxis, ...] for key, value in obs.items()}
 
 
+def _food_source_signature(food_grid: np.ndarray) -> tuple[tuple[int, int], ...]:
+    food_positions = np.argwhere(food_grid > 0)[:, ::-1]
+    return tuple(tuple(int(coord) for coord in position) for position in food_positions)
+
+
 def test_observation_builders_create_stable_mappo_tensors() -> None:
     obs = obs_to_tensor(_batched_reset_obs(), torch.device("cpu"))
 
@@ -593,6 +598,7 @@ def test_evaluate_agent_measures_true_delivery_mastery() -> None:
         args=args,
         device=torch.device("cpu"),
         num_episodes=3,
+        shuffle_positions=False,
     )
 
     assert metrics["eval_success_rate"] == 1.0
@@ -602,6 +608,68 @@ def test_evaluate_agent_measures_true_delivery_mastery() -> None:
         min_success_rate=1.0,
         min_delivered_fraction=1.0,
     )
+
+
+def test_evaluate_agent_shuffles_colony_and_cookie_sources_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = parse_args(
+        [
+            "--width",
+            "7",
+            "--height",
+            "7",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "6",
+            "--food-sources",
+            "2",
+            "--max-steps",
+            "1",
+            "--hidden-size",
+            "4",
+            "--seed",
+            "23",
+            "--no-cuda",
+            "--quiet",
+        ]
+    )
+    observed_hubs: list[tuple[int, int]] = []
+    observed_food: list[tuple[tuple[int, int], ...]] = []
+
+    import ant_byte_env.training.torch_mappo.evaluation as torch_evaluation
+
+    original_reset_env = torch_evaluation.reset_env
+
+    def recording_reset_env(
+        env: AntByteForagingEnv,
+        *,
+        seed: int | None,
+        args: argparse.Namespace,
+    ):
+        assert args.random_hub is True
+        assert args.random_food is True
+        assert env.random_hub is True
+        assert env.random_food is True
+        obs, info = original_reset_env(env, seed=seed, args=args)
+        observed_hubs.append(tuple(int(value) for value in obs["hub_pos"]))
+        observed_food.append(_food_source_signature(obs["food"]))
+        return obs, info
+
+    monkeypatch.setattr(torch_evaluation, "reset_env", recording_reset_env)
+
+    evaluate_agent(
+        agent=ScriptedForageAgent(),
+        args=args,
+        device=torch.device("cpu"),
+        num_episodes=8,
+    )
+
+    assert len(set(observed_hubs)) > 1
+    assert len(set(observed_food)) > 1
+    for hub, food_sources in zip(observed_hubs, observed_food, strict=True):
+        assert hub not in food_sources
 
 
 def test_tiny_mappo_training_run_completes() -> None:

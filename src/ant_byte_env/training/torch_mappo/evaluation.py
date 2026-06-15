@@ -36,10 +36,15 @@ def evaluate_agent(
     num_episodes: int,
     seed_offset: int = 1_000_000,
     deterministic: bool = True,
+    shuffle_positions: bool = True,
 ) -> dict[str, float]:
     if num_episodes <= 0:
         raise ValueError("num_episodes must be positive.")
 
+    eval_args = _evaluation_args_with_position_shuffle(
+        args,
+        shuffle_positions=shuffle_positions,
+    )
     episode_returns: list[float] = []
     episode_lengths: list[int] = []
     delivered_food: list[float] = []
@@ -47,46 +52,47 @@ def evaluate_agent(
     successes: list[float] = []
 
     env = AntByteForagingEnv(
-        width=args.width,
-        height=args.height,
-        num_ants=args.num_ants,
-        food_count=args.food_count,
-        food_source_count=args.food_sources,
-        max_steps=args.max_steps,
-        random_food=args.random_food,
-        step_penalty=args.step_penalty,
-        write_penalty=args.write_penalty,
-        write_bits=args.write_bits,
+        width=eval_args.width,
+        height=eval_args.height,
+        num_ants=eval_args.num_ants,
+        food_count=eval_args.food_count,
+        food_source_count=eval_args.food_sources,
+        max_steps=eval_args.max_steps,
+        random_food=eval_args.random_food,
+        random_hub=eval_args.random_hub,
+        step_penalty=eval_args.step_penalty,
+        write_penalty=eval_args.write_penalty,
+        write_bits=eval_args.write_bits,
     )
     try:
         for episode_index in range(num_episodes):
             obs, info = reset_env(
                 env,
-                seed=args.seed + seed_offset + episode_index,
-                args=args,
+                seed=eval_args.seed + seed_offset + episode_index,
+                args=eval_args,
             )
             episode_return = 0.0
             terminated = False
             truncated = False
 
-            for step_index in range(args.max_steps):
+            for step_index in range(eval_args.max_steps):
                 obs_batch = {key: value[np.newaxis, ...] for key, value in obs.items()}
                 obs_tensor = obs_to_tensor(obs_batch, device)
                 central_obs = build_central_observations(
                     obs_tensor,
-                    food_scale=args.food_count,
-                    write_bits=args.write_bits,
-                    obs_width=args.obs_width,
-                    obs_height=args.obs_height,
+                    food_scale=eval_args.food_count,
+                    write_bits=eval_args.write_bits,
+                    obs_width=eval_args.obs_width,
+                    obs_height=eval_args.obs_height,
                 )
                 actor_obs = build_actor_observations(
                     obs_tensor,
                     central_obs,
-                    food_scale=args.food_count,
-                    actor_vision_radius=args.actor_vision_radius,
-                    write_bits=args.write_bits,
-                    obs_width=args.obs_width,
-                    obs_height=args.obs_height,
+                    food_scale=eval_args.food_count,
+                    actor_vision_radius=eval_args.actor_vision_radius,
+                    write_bits=eval_args.write_bits,
+                    obs_width=eval_args.obs_width,
+                    obs_height=eval_args.obs_height,
                 )
                 with torch.no_grad():
                     actions, _, _, _ = agent.get_action_and_value(
@@ -102,11 +108,11 @@ def evaluate_agent(
                     episode_lengths.append(step_index + 1)
                     break
             else:
-                episode_lengths.append(args.max_steps)
+                episode_lengths.append(eval_args.max_steps)
 
             delivered = float(info["delivered_food"])
             delivered_food.append(delivered)
-            delivered_fractions.append(delivered / max(float(args.food_count), 1.0))
+            delivered_fractions.append(delivered / max(float(eval_args.food_count), 1.0))
             episode_returns.append(episode_return)
             successes.append(float(terminated))
     finally:
@@ -128,6 +134,7 @@ def evaluate_checkpoint(
     device: torch.device | None = None,
     seed_offset: int = 1_000_000,
     deterministic: bool = True,
+    shuffle_positions: bool = True,
 ) -> dict[str, float]:
     actual_device = device
     if actual_device is None:
@@ -164,6 +171,7 @@ def evaluate_checkpoint(
         num_episodes=num_episodes,
         seed_offset=seed_offset,
         deterministic=deterministic,
+        shuffle_positions=shuffle_positions,
     )
 
 
@@ -182,3 +190,17 @@ def mastery_reached(
         metrics["eval_success_rate"] >= min_success_rate
         and metrics["eval_mean_delivered_fraction"] >= min_delivered_fraction
     )
+
+
+def _evaluation_args_with_position_shuffle(
+    args: argparse.Namespace,
+    *,
+    shuffle_positions: bool,
+) -> argparse.Namespace:
+    values = {**vars(args)}
+    values.setdefault("random_food", False)
+    values.setdefault("random_hub", False)
+    if shuffle_positions:
+        values["random_food"] = True
+        values["random_hub"] = True
+    return argparse.Namespace(**values)
