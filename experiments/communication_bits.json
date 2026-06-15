@@ -9,6 +9,7 @@
     "num_steps": 80,
     "num_minibatches": 4,
     "update_epochs": 4,
+    "ent_coef": 0.02,
     "width": 25,
     "height": 25,
     "obs_width": 25,
@@ -23,8 +24,9 @@
     "distance_bonus": 0.02,
     "write_bit_penalty": 0.0,
     "write_bit_penalty_decay": 0.5,
-    "write_entropy_bonus": 0.1,
-    "write_entropy_bonus_cap": 0.15,
+    "write_entropy_bonus": 0.0,
+    "write_entropy_bonus_cap": 0.0,
+    "write_bit_entropy_bonus": 0.5,
     "write_head_transfer": "repeat",
     "hidden_size": 128,
     "write_bits": 2,
@@ -36,8 +38,19 @@
   },
   "metadata": {
     "bit_stages": [2, 3, 5, 8],
-    "global_update_cap": 2000,
+    "global_update_cap": 10000,
     "source_checkpoint": "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+    "consolidation": {
+      "enabled": true,
+      "stage_name": "8_bits_consolidated",
+      "global_update_cap": 2500,
+      "args": {
+        "write_entropy_bonus": 0.0,
+        "write_entropy_bonus_cap": 0.0,
+        "write_bit_entropy_bonus": 0.05,
+        "ent_coef": 0.002
+      }
+    },
     "notes": "Communication training starts from the latest 25x25 one-bit policy produced by the forage curriculum notebook, then transfers through the configured bit stages."
   }
 }

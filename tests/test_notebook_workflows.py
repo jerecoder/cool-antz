@@ -180,6 +180,8 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
             "write_bit_penalty_decay": 0.5,
             "write_entropy_bonus": 0.1,
             "write_entropy_bonus_cap": 0.15,
+            "write_bit_entropy_bonus": 0.5,
+            "ent_coef": 0.02,
             "write_head_transfer": "neutral-new",
             "load_model": "source.pkl",
             "quiet": True,
@@ -194,6 +196,8 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
     assert args[args.index("--write-bit-penalty-decay") + 1] == "0.5"
     assert args[args.index("--write-entropy-bonus") + 1] == "0.1"
     assert args[args.index("--write-entropy-bonus-cap") + 1] == "0.15"
+    assert args[args.index("--write-bit-entropy-bonus") + 1] == "0.5"
+    assert args[args.index("--ent-coef") + 1] == "0.02"
     assert args[args.index("--write-head-transfer") + 1] == "neutral-new"
     assert "--write-bits" not in args
     assert "--load-model" not in args
@@ -230,6 +234,63 @@ def test_checkpoint_path_helpers_match_notebook_artifact_layout(tmp_path: Path) 
         tmp_path / "2_ants" / "checkpoints" / "model.pkl",
         tmp_path / "4_ants" / "checkpoints" / "model.pkl",
     ]
+
+
+def test_communication_consolidation_runs_single_stage_with_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    captured_args: list[str] = []
+
+    def fake_train_main(args: list[str], progress_callback):
+        captured_args.extend(args)
+        progress_callback(1, 1, {"loss": 0.1, "episode_return": 2.0})
+        return {"loss": 0.1, "episode_return": 2.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+
+    result = workflows.run_communication_consolidation(
+        source_checkpoint=tmp_path / "source.pkl",
+        target_bits=8,
+        run_dir=tmp_path / "run",
+        common_args=["--ent-coef", "0.02", "--write-bit-entropy-bonus", "0.5"],
+        experiment_name="jax_mappo_communication",
+        update_timesteps_per_stage=1280,
+        global_update_cap=2500,
+        train_main=fake_train_main,
+        stage_name="8_bits_consolidated",
+        extra_args={"ent_coef": 0.002, "write_bit_entropy_bonus": 0.05},
+    )
+
+    assert result["final_checkpoint"] == (
+        tmp_path / "run" / "8_bits_consolidated" / "checkpoints" / "model.pkl"
+    )
+    assert captured_args[captured_args.index("--exp-name") + 1] == (
+        "jax_mappo_communication_8_bits_consolidated"
+    )
+    assert captured_args[captured_args.index("--write-bits") + 1] == "8"
+    assert captured_args[captured_args.index("--total-timesteps") + 1] == "3200000"
+    assert captured_args[captured_args.index("--load-model") + 1] == str(tmp_path / "source.pkl")
+    ent_coef_index = len(captured_args) - 1 - captured_args[::-1].index("--ent-coef")
+    bit_bonus_index = (
+        len(captured_args) - 1 - captured_args[::-1].index("--write-bit-entropy-bonus")
+    )
+    assert captured_args[ent_coef_index + 1] == "0.002"
+    assert captured_args[bit_bonus_index + 1] == "0.05"
 
 
 def test_stage_validators_reject_non_increasing_curricula() -> None:

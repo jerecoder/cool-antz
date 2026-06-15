@@ -87,9 +87,17 @@ def test_communication_notebook_writes_distinct_vision_rollouts() -> None:
 
     assert "checkpoint_path.stem}_rollout" not in source
     assert "workflows.run_communication_bit_curriculum" in source
+    assert "workflows.run_communication_consolidation" in source
     assert "workflows.render_communication_rollouts" in source
+    assert "extra_checkpoint_paths=CONSOLIDATED_CHECKPOINTS" in source
     assert "jax_mappo_25x25_{checkpoint.parent.parent.name}_vision_rollout.mp4" in helper_source
     assert "policy_temperature=0.0" in helper_source
+
+    spec = json.loads(Path("experiments/communication_bits.json").read_text(encoding="utf-8"))
+    assert spec["args"]["write_bit_entropy_bonus"] == 0.5
+    assert spec["args"]["ent_coef"] == 0.02
+    assert spec["metadata"]["consolidation"]["enabled"] is True
+    assert spec["metadata"]["consolidation"]["args"]["write_bit_entropy_bonus"] == 0.05
 
 
 def test_ant_count_curriculum_starts_from_three_bit_25x25_checkpoint() -> None:

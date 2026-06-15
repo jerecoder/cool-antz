@@ -734,6 +734,84 @@ def run_communication_bit_curriculum(
     }
 
 
+def run_communication_consolidation(
+    *,
+    source_checkpoint: Path,
+    target_bits: int,
+    run_dir: Path,
+    common_args: Sequence[str],
+    experiment_name: str,
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    train_main: Callable[..., dict[str, float]],
+    stage_name: str = "8_bits_consolidated",
+    extra_args: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if int(target_bits) <= 1 or int(target_bits) > MAX_WRITE_BITS:
+        raise ValueError(f"target_bits must be an integer from 2 to {MAX_WRITE_BITS}.")
+    if int(global_update_cap) <= 0:
+        raise ValueError("global_update_cap must be positive.")
+
+    stage_run_dir = run_dir / stage_name
+    checkpoint_path = stage_run_dir / "checkpoints" / "model.pkl"
+    stage_metrics: list[dict[str, Any]] = []
+    progress = stage_update_progress(stage_name, global_update_cap)
+    print(f"Training communication consolidation: {stage_name}")
+    print(f"Starting from: {source_checkpoint}")
+
+    def record_progress(
+        update_index: int,
+        total_updates: int,
+        metrics: dict[str, float],
+    ) -> None:
+        del total_updates
+        progress.update(1)
+        progress.set_postfix(
+            loss=f"{metrics['loss']:.3f}",
+            ret=f"{metrics['episode_return']:.3f}",
+        )
+        stage_metrics.append(
+            {
+                "write_bits": int(target_bits),
+                **metrics,
+                "stage_update": update_index,
+                "global_update_cap": int(global_update_cap),
+                "checkpoint": str(checkpoint_path),
+                "source_checkpoint": str(source_checkpoint),
+                "run_dir": str(stage_run_dir),
+            }
+        )
+
+    train_args = [
+        *common_args,
+        *config_args_to_argv(dict(extra_args or {})),
+        "--exp-name",
+        f"{experiment_name}_{stage_name}",
+        "--write-bits",
+        str(int(target_bits)),
+        "--total-timesteps",
+        str(update_timesteps_per_stage * int(global_update_cap)),
+        "--load-model",
+        str(source_checkpoint),
+        "--run-dir",
+        str(stage_run_dir),
+    ]
+    try:
+        final_train_metrics = train_main(train_args, progress_callback=record_progress)
+    finally:
+        progress.close()
+
+    print(f"Saved consolidated checkpoint to {checkpoint_path}")
+    return {
+        "source_checkpoint": source_checkpoint,
+        "stage_checkpoint_paths": [checkpoint_path],
+        "final_checkpoint": checkpoint_path,
+        "final_train_metrics": final_train_metrics,
+        "stage_metrics": stage_metrics,
+        "stage_name": stage_name,
+    }
+
+
 def ant_count_training_args(
     base_args: Mapping[str, Any],
     *,
@@ -1131,11 +1209,16 @@ def render_communication_rollouts(
     media_dir: Path,
     bit_stages: Sequence[int],
     global_update_cap: int,
+    extra_checkpoint_paths: Sequence[Path] = (),
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
 ) -> dict[str, Any]:
+    checkpoint_paths = [
+        *communication_checkpoint_paths(run_dir, bit_stages),
+        *[Path(path) for path in extra_checkpoint_paths],
+    ]
     return render_rollout_suite(
-        checkpoint_paths=communication_checkpoint_paths(run_dir, bit_stages),
+        checkpoint_paths=checkpoint_paths,
         media_dir=media_dir,
         rollout_path_for_checkpoint=lambda checkpoint, media: (
             media / f"jax_mappo_25x25_{checkpoint.parent.parent.name}_vision_rollout.mp4"
@@ -1152,6 +1235,7 @@ def render_communication_rollouts(
             "source_checkpoint": str(source_checkpoint),
             "bit_stages": list(bit_stages),
             "global_update_cap": global_update_cap,
+            "extra_checkpoint_paths": [str(path) for path in extra_checkpoint_paths],
         },
         max_frames=max_frames,
         tile_size=tile_size,
