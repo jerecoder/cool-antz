@@ -206,6 +206,62 @@
           "write_head_transfer": "repeat"
         }
       }
+    ],
+    "forage_polish": [
+      {
+        "id": "P0",
+        "depends_on": "duration/U2",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/P0",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/P0/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 700,
+          "load_model": "runs/autoresearch/communication_bits/consolidation/U2/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "P1",
+        "depends_on": "duration/U2",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/P1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/P1/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 701,
+          "load_model": "runs/autoresearch/communication_bits/consolidation/U2/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.0,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "P2",
+        "depends_on": "duration/U2",
+        "run_dir": "runs/autoresearch/communication_bits/consolidation/P2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/consolidation/P2/probe",
+        "global_update_cap": 2500,
+        "args": {
+          "seed": 702,
+          "load_model": "runs/autoresearch/communication_bits/consolidation/U2/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.0,
+          "distance_bonus": 0.0,
+          "write_head_transfer": "repeat"
+        }
+      }
     ]
   }
 }
