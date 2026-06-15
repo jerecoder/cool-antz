@@ -43,7 +43,7 @@
     "consolidation": {
       "enabled": true,
       "stage_name": "8_bits_consolidated",
-      "global_update_cap": 2500,
+      "global_update_cap": 5000,
       "args": {
         "write_entropy_bonus": 0.0,
         "write_entropy_bonus_cap": 0.0,

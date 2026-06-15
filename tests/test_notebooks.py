@@ -97,6 +97,7 @@ def test_communication_notebook_writes_distinct_vision_rollouts() -> None:
     assert spec["args"]["write_bit_entropy_bonus"] == 0.5
     assert spec["args"]["ent_coef"] == 0.02
     assert spec["metadata"]["consolidation"]["enabled"] is True
+    assert spec["metadata"]["consolidation"]["global_update_cap"] == 5000
     assert spec["metadata"]["consolidation"]["args"]["write_bit_entropy_bonus"] == 0.05
 
 
