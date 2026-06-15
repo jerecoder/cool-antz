@@ -38,6 +38,31 @@ def main(argv: list[str] | None = None) -> int:
         payload = index_result_metadata(args.source, args.output)
         print(json.dumps({"output": str(args.output), "entry_count": payload["entry_count"]}))
         return 0
+    if args.command == "probe" and args.probe_command == "communication":
+        from ant_byte_env.training.jax_mappo.probe import probe_communication_checkpoint
+
+        payload = probe_communication_checkpoint(
+            args.checkpoint,
+            output_dir=args.output_dir,
+            num_episodes=args.num_episodes,
+            seed_offset=args.seed_offset,
+            render_rollouts=not args.no_render,
+            max_render_frames=args.max_render_frames,
+            tile_size=args.tile_size,
+        )
+        print(
+            json.dumps(
+                {
+                    "output": payload["probe_path"],
+                    "sampled_write_bit_entropy": payload["sampled"]["write_bit_entropy"],
+                    "deterministic_write_bit_entropy": payload["deterministic"][
+                        "write_bit_entropy"
+                    ],
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
     parser.print_help()
     return 1
 
@@ -84,6 +109,24 @@ def _build_parser() -> argparse.ArgumentParser:
     index = result_subparsers.add_parser("index", help="Index run metadata.")
     index.add_argument("source", type=Path)
     index.add_argument("output", type=Path)
+
+    probe = subparsers.add_parser("probe", help="Run offline checkpoint probes.")
+    probe_subparsers = probe.add_subparsers(dest="probe_command", required=True)
+    communication = probe_subparsers.add_parser(
+        "communication",
+        help="Probe JAX communication-bit checkpoint behavior.",
+    )
+    communication.add_argument("--checkpoint", type=Path, required=True)
+    communication.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("runs/autoresearch/communication_bits"),
+    )
+    communication.add_argument("--num-episodes", type=int, default=4)
+    communication.add_argument("--seed-offset", type=int, default=2_000_000)
+    communication.add_argument("--no-render", action="store_true")
+    communication.add_argument("--max-render-frames", type=int, default=None)
+    communication.add_argument("--tile-size", type=int, default=16)
     return parser
 
 

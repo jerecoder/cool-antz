@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 import numpy as np
 import pytest
@@ -34,6 +35,7 @@ from ant_byte_env.training.jax_mappo import (
     load_checkpoint_for_training,
     main,
     parse_args,
+    probe_communication_checkpoint,
     repeated_write_action_indices,
     reset_batch,
     save_checkpoint,
@@ -639,6 +641,132 @@ def test_jax_evaluate_checkpoint_uses_transfer_adapter_for_legacy_shapes(tmp_pat
     metrics = evaluate_checkpoint(source_path, num_episodes=1)
 
     assert set(metrics) >= {"eval_success_rate", "eval_mean_delivered_fraction"}
+
+
+def test_jax_communication_probe_writes_checkpoint_schema(tmp_path) -> None:
+    args = parse_args(
+        [
+            "--total-timesteps",
+            "2",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "1",
+            "--num-minibatches",
+            "1",
+            "--update-epochs",
+            "1",
+            "--width",
+            "3",
+            "--height",
+            "3",
+            "--obs-width",
+            "3",
+            "--obs-height",
+            "3",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "2",
+            "--write-bits",
+            "2",
+            "--hidden-size",
+            "8",
+            "--seed",
+            "5",
+            "--quiet",
+            "--random-food",
+            "--random-hub",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        write_bits=args.write_bits,
+    )
+    _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
+    central_obs = build_central_observations(
+        obs,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs.shape[-1],
+        actor_obs_dim=actor_obs.shape[-1],
+        hidden_size=args.hidden_size,
+        write_value_count=write_value_count(args.write_bits),
+    )
+    checkpoint_path = tmp_path / "model.pkl"
+    save_checkpoint(
+        checkpoint_path,
+        params=params,
+        opt_state=init_adam_state(params),
+        args=args,
+        central_obs_dim=central_obs.shape[-1],
+        actor_obs_dim=actor_obs.shape[-1],
+        run_name="probe",
+        metrics={},
+    )
+
+    payload = probe_communication_checkpoint(
+        checkpoint_path,
+        output_dir=tmp_path / "probe",
+        num_episodes=1,
+        render_rollouts=False,
+    )
+
+    report_path = tmp_path / "probe" / "communication_probe.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["probe_path"] == str(report_path)
+    assert report["write_bits"] == 2
+    assert report["rollout_artifact_paths"] == {"deterministic": None, "sampled": None}
+    for mode in ("sampled", "deterministic"):
+        section = report[mode]
+        assert set(section) >= {
+            "write_action_histogram",
+            "final_grid_byte_histogram",
+            "per_bit_activation_rates",
+            "write_bit_entropy",
+            "distinct_nonzero_values",
+            "delivery_metrics",
+            "rollout_artifact_path",
+        }
+        assert len(section["per_bit_activation_rates"]) == args.write_bits
+        assert set(section["delivery_metrics"]) >= {
+            "success_rate",
+            "mean_delivered_food",
+            "mean_delivered_fraction",
+        }
+
+
+def test_jax_communication_probe_rejects_empty_render_limit(tmp_path) -> None:
+    with pytest.raises(ValueError, match="max_render_frames"):
+        probe_communication_checkpoint(
+            tmp_path / "missing.pkl",
+            output_dir=tmp_path / "probe",
+            max_render_frames=0,
+        )
 
 
 def test_jax_gae_respects_done_boundaries() -> None:

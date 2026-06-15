@@ -143,3 +143,53 @@ def test_render_helpers_are_notebook_independent() -> None:
     assert infer_checkpoint_backend(Path("policy.pkl")) == "jax"
     with pytest.raises(ValueError, match="suffix"):
         infer_checkpoint_backend(Path("policy.bin"))
+
+
+def test_cli_communication_probe_prints_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    checkpoint_path = tmp_path / "model.pkl"
+    output_dir = tmp_path / "probe"
+
+    def fake_probe_communication_checkpoint(actual_checkpoint_path: Path, **kwargs):
+        assert actual_checkpoint_path == checkpoint_path
+        assert kwargs["output_dir"] == output_dir
+        assert kwargs["num_episodes"] == 2
+        assert not kwargs["render_rollouts"]
+        return {
+            "probe_path": str(output_dir / "communication_probe.json"),
+            "sampled": {"write_bit_entropy": 0.25},
+            "deterministic": {"write_bit_entropy": 0.0},
+        }
+
+    import ant_byte_env.training.jax_mappo.probe as probe_module
+
+    monkeypatch.setattr(
+        probe_module,
+        "probe_communication_checkpoint",
+        fake_probe_communication_checkpoint,
+    )
+
+    exit_code = cli_main(
+        [
+            "probe",
+            "communication",
+            "--checkpoint",
+            str(checkpoint_path),
+            "--output-dir",
+            str(output_dir),
+            "--num-episodes",
+            "2",
+            "--no-render",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload == {
+        "deterministic_write_bit_entropy": 0.0,
+        "output": str(output_dir / "communication_probe.json"),
+        "sampled_write_bit_entropy": 0.25,
+    }
