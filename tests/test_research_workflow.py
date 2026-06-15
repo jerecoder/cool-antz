@@ -15,6 +15,7 @@ from ant_byte_env.autoresearch import (
     assert_autoresearch_resources_available,
     build_communication_sweep_plan,
     execute_communication_sweep_plan,
+    rank_communication_gate_probes,
 )
 
 
@@ -626,6 +627,150 @@ def test_cli_communication_plan_prints_staged_commands(
     assert payload["probe_command"]["argv"][-1] == "--no-render"
 
 
+def test_communication_rank_balances_sampled_and_deterministic_delivery(
+    tmp_path: Path,
+) -> None:
+    matrix_path = tmp_path / "matrix.json"
+    run_root = tmp_path / "runs"
+    entries = []
+    for run_id, seed, sampled_delivered, deterministic_delivered in [
+        ("A", 804, 19.0, 11.0),
+        ("B", 805, 17.0, 15.0),
+        ("C", 803, 9.75, 16.5),
+    ]:
+        probe_output_dir = run_root / run_id / "probe"
+        _write_fake_communication_probe(
+            probe_output_dir / "communication_probe.json",
+            sampled_delivered=sampled_delivered,
+            deterministic_delivered=deterministic_delivered,
+        )
+        entries.append(
+            {
+                "id": run_id,
+                "depends_on": "source",
+                "run_dir": str(run_root / run_id),
+                "probe_output_dir": str(probe_output_dir),
+                "global_update_cap": 1,
+                "args": {
+                    "seed": seed,
+                    "load_model": "source.pkl",
+                },
+            }
+        )
+    write_json(
+        matrix_path,
+        {
+            "base_config": "experiments/communication_bits.json",
+            "run_root": str(run_root),
+            "phases": {"polish_length": entries},
+        },
+    )
+
+    payload = rank_communication_gate_probes(
+        matrix_path=matrix_path,
+        phase="polish_length",
+    )
+
+    assert [candidate["id"] for candidate in payload["ranked"]] == ["B", "A", "C"]
+    assert payload["ranked"][0]["gate_score"] == 16.0
+    assert payload["ranked"][0]["min_delivered"] == 15.0
+    assert payload["ranked"][0]["seed"] == 805
+    assert payload["ranked"][1]["sampled"]["delivered"] == 19.0
+    assert payload["missing"] == []
+
+
+def test_communication_rank_reports_missing_artifacts(tmp_path: Path) -> None:
+    matrix_path = tmp_path / "matrix.json"
+    run_root = tmp_path / "runs"
+    write_json(
+        matrix_path,
+        {
+            "base_config": "experiments/communication_bits.json",
+            "run_root": str(run_root),
+            "phases": {
+                "polish_length": [
+                    {
+                        "id": "A",
+                        "run_dir": str(run_root / "A"),
+                        "probe_output_dir": str(run_root / "A" / "probe"),
+                        "global_update_cap": 1,
+                        "args": {},
+                    }
+                ]
+            },
+        },
+    )
+
+    payload = rank_communication_gate_probes(
+        matrix_path=matrix_path,
+        phase="polish_length",
+        run_ids=["A", "unknown"],
+    )
+
+    assert payload["ranked"] == []
+    assert payload["missing"] == [
+        {
+            "id": "A",
+            "probe_path": str(run_root / "A" / "probe" / "communication_probe.json"),
+            "reason": "missing_probe",
+        },
+        {
+            "id": "unknown",
+            "probe_path": None,
+            "reason": "unknown_id",
+        },
+    ]
+
+
+def test_cli_communication_rank_prints_gate_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    matrix_path = tmp_path / "matrix.json"
+    run_root = tmp_path / "runs"
+    probe_output_dir = run_root / "B" / "probe"
+    _write_fake_communication_probe(
+        probe_output_dir / "communication_probe.json",
+        sampled_delivered=17.0,
+        deterministic_delivered=15.0,
+    )
+    write_json(
+        matrix_path,
+        {
+            "base_config": "experiments/communication_bits.json",
+            "run_root": str(run_root),
+            "phases": {
+                "polish_length": [
+                    {
+                        "id": "B",
+                        "run_dir": str(run_root / "B"),
+                        "probe_output_dir": str(probe_output_dir),
+                        "global_update_cap": 1,
+                        "args": {"seed": 805},
+                    }
+                ]
+            },
+        },
+    )
+
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "communication-rank",
+            "--matrix",
+            str(matrix_path),
+            "--phase",
+            "polish_length",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["ranked"][0]["id"] == "B"
+    assert payload["ranked"][0]["gate_score"] == 16.0
+    assert payload["ranked"][0]["rank"] == 1
+
+
 def test_cli_communication_run_uses_executable_plan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -856,4 +1001,38 @@ def test_cli_communication_probe_prints_summary(
         "deterministic_write_bit_entropy": 0.0,
         "output": str(output_dir / "communication_probe.json"),
         "sampled_write_bit_entropy": 0.25,
+    }
+
+
+def _write_fake_communication_probe(
+    path: Path,
+    *,
+    sampled_delivered: float,
+    deterministic_delivered: float,
+) -> None:
+    path.parent.mkdir(parents=True)
+    write_json(
+        path,
+        {
+            "sampled": _fake_communication_probe_mode(sampled_delivered, entropy=0.2),
+            "deterministic": _fake_communication_probe_mode(
+                deterministic_delivered,
+                entropy=0.3,
+            ),
+        },
+    )
+
+
+def _fake_communication_probe_mode(delivered: float, *, entropy: float) -> dict[str, object]:
+    return {
+        "delivery_metrics": {
+            "mean_delivered_food": delivered,
+            "mean_delivered_fraction": delivered / 23.0,
+            "success_rate": 0.25,
+            "mean_episode_length": 100.0,
+        },
+        "write_bit_entropy": entropy,
+        "distinct_nonzero_values": [1, 2],
+        "major_nonzero_values": [1, 2],
+        "per_bit_entropy": [0.2, 0.0, 0.3],
     }

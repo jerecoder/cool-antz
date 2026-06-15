@@ -10,6 +10,7 @@ from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.runs import write_json
 
 DEFAULT_COMMUNICATION_SWEEP_MATRIX = Path("autoresearch/communication_sweep.json")
+COMMUNICATION_PROBE_FILENAME = "communication_probe.json"
 AUTORESEARCH_MIN_DISK_FREE_GB = 5.0
 AUTORESEARCH_MIN_MEM_AVAILABLE_GB = 4.0
 AUTORESEARCH_MIN_SWAP_FREE_GB = 0.25
@@ -347,6 +348,124 @@ def execute_communication_sweep_plan(
     }
     write_json(summary_path, summary)
     return summary
+
+
+def rank_communication_gate_probes(
+    *,
+    matrix_path: Path = DEFAULT_COMMUNICATION_SWEEP_MATRIX,
+    phase: str,
+    run_ids: list[str] | None = None,
+    probe_filename: str = COMMUNICATION_PROBE_FILENAME,
+) -> dict[str, Any]:
+    """Rank communication probe artifacts by balanced sampled/deterministic delivery."""
+
+    matrix = load_communication_sweep_matrix(matrix_path)
+    phases = matrix.get("phases", {})
+    if phase not in phases:
+        choices = ", ".join(sorted(phases))
+        raise ValueError(f"unknown communication sweep phase {phase!r}; choices: {choices}")
+
+    requested_ids = {str(run_id) for run_id in run_ids} if run_ids else None
+    ranked: list[dict[str, Any]] = []
+    missing: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for entry in phases[phase]:
+        run_id = str(entry.get("id"))
+        if requested_ids is not None and run_id not in requested_ids:
+            continue
+        seen_ids.add(run_id)
+        probe_path = Path(str(entry["probe_output_dir"])) / probe_filename
+        if not probe_path.exists():
+            missing.append(
+                {
+                    "id": run_id,
+                    "probe_path": str(probe_path),
+                    "reason": "missing_probe",
+                }
+            )
+            continue
+        candidate = _communication_probe_gate_summary(probe_path)
+        args = entry.get("args", {})
+        candidate.update(
+            {
+                "id": run_id,
+                "phase": phase,
+                "depends_on": entry.get("depends_on"),
+                "probe_path": str(probe_path),
+                "seed": args.get("seed") if isinstance(args, dict) else None,
+                "source_checkpoint": (
+                    args.get("load_model")
+                    if isinstance(args, dict) and "load_model" in args
+                    else None
+                ),
+            }
+        )
+        ranked.append(candidate)
+
+    if requested_ids is not None:
+        for run_id in sorted(requested_ids - seen_ids):
+            missing.append(
+                {
+                    "id": run_id,
+                    "probe_path": None,
+                    "reason": "unknown_id",
+                }
+            )
+
+    ranked.sort(
+        key=lambda candidate: (
+            float(candidate["gate_score"]),
+            float(candidate["min_delivered"]),
+            float(candidate["mean_write_bit_entropy"]),
+        ),
+        reverse=True,
+    )
+    for rank_index, candidate in enumerate(ranked, start=1):
+        candidate["rank"] = rank_index
+
+    return {
+        "matrix_path": str(matrix_path),
+        "phase": phase,
+        "score": "mean(sampled_delivered, deterministic_delivered)",
+        "safety_metric": "min(sampled_delivered, deterministic_delivered)",
+        "probe_filename": probe_filename,
+        "ranked": ranked,
+        "missing": missing,
+    }
+
+
+def _communication_probe_gate_summary(probe_path: Path) -> dict[str, Any]:
+    payload = json.loads(Path(probe_path).read_text(encoding="utf-8"))
+    sampled = _communication_probe_mode_summary(payload, "sampled")
+    deterministic = _communication_probe_mode_summary(payload, "deterministic")
+    sampled_delivered = float(sampled["delivered"])
+    deterministic_delivered = float(deterministic["delivered"])
+    sampled_entropy = float(sampled["write_bit_entropy"])
+    deterministic_entropy = float(deterministic["write_bit_entropy"])
+    return {
+        "gate_score": (sampled_delivered + deterministic_delivered) / 2.0,
+        "min_delivered": min(sampled_delivered, deterministic_delivered),
+        "max_delivered": max(sampled_delivered, deterministic_delivered),
+        "mean_write_bit_entropy": (sampled_entropy + deterministic_entropy) / 2.0,
+        "sampled": sampled,
+        "deterministic": deterministic,
+    }
+
+
+def _communication_probe_mode_summary(payload: dict[str, Any], mode: str) -> dict[str, Any]:
+    mode_payload = payload[mode]
+    delivery_metrics = mode_payload["delivery_metrics"]
+    per_bit_entropy = mode_payload.get("per_bit_entropy", [])
+    return {
+        "delivered": float(delivery_metrics["mean_delivered_food"]),
+        "fraction": float(delivery_metrics["mean_delivered_fraction"]),
+        "success_rate": float(delivery_metrics["success_rate"]),
+        "episode_length": float(delivery_metrics.get("mean_episode_length", 0.0)),
+        "write_bit_entropy": float(mode_payload["write_bit_entropy"]),
+        "distinct_nonzero_count": len(mode_payload.get("distinct_nonzero_values", [])),
+        "major_nonzero_values": list(mode_payload.get("major_nonzero_values", [])),
+        "mid_entropy_bits": sum(1 for value in per_bit_entropy if float(value) > 0.1),
+    }
 
 
 def _stage_metrics_from_run_dir(run_dir: Path) -> dict[str, float]:

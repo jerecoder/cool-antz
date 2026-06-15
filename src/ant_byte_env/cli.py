@@ -113,6 +113,17 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "communication-rank":
+        from ant_byte_env.autoresearch import rank_communication_gate_probes
+
+        payload = rank_communication_gate_probes(
+            matrix_path=args.matrix,
+            phase=args.phase,
+            run_ids=args.ids,
+            probe_filename=args.probe_filename,
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     parser.print_help()
     return 1
 
@@ -238,6 +249,22 @@ def _build_parser() -> argparse.ArgumentParser:
     communication_run.add_argument("--max-render-frames", type=int, default=300)
     communication_run.add_argument("--rerun-completed", action="store_true")
     communication_run.add_argument("--skip-resource-check", action="store_true")
+    communication_rank = autoresearch_subparsers.add_parser(
+        "communication-rank",
+        help="Rank completed communication probe artifacts by balanced delivery.",
+    )
+    communication_rank.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/communication_sweep.json"),
+    )
+    communication_rank.add_argument("--phase", required=True)
+    communication_rank.add_argument("--ids", nargs="+", default=None)
+    communication_rank.add_argument(
+        "--probe-filename",
+        default="communication_probe.json",
+        help="Probe JSON filename inside each matrix probe_output_dir.",
+    )
     return parser
 
 
