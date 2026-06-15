@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
+from ant_byte_env.runs import write_json
 
 DEFAULT_COMMUNICATION_SWEEP_MATRIX = Path("autoresearch/communication_sweep.json")
 
@@ -22,6 +23,7 @@ def build_communication_sweep_plan(
     num_steps: int | None = None,
     probe_episodes: int = 4,
     render_rollouts: bool = True,
+    probe_tile_size: int | None = 16,
 ) -> dict[str, Any]:
     """Return staged train commands and a probe command for one sweep entry."""
 
@@ -74,6 +76,8 @@ def build_communication_sweep_plan(
             "load_model": str(previous_checkpoint),
             "run_dir": str(stage_run_dir),
         }
+        override_argv = config_args_to_argv(overrides)
+        training_argv = [*config_args_to_argv(base_spec.args), *override_argv]
         argv = [
             "ant-byte",
             "train",
@@ -81,7 +85,7 @@ def build_communication_sweep_plan(
             "--config",
             str(base_config),
             "--",
-            *config_args_to_argv(overrides),
+            *override_argv,
         ]
         train_commands.append(
             {
@@ -90,6 +94,7 @@ def build_communication_sweep_plan(
                 "source_checkpoint": str(previous_checkpoint),
                 "checkpoint": str(checkpoint_path),
                 "run_dir": str(stage_run_dir),
+                "training_argv": training_argv,
                 "argv": argv,
             }
         )
@@ -124,9 +129,67 @@ def build_communication_sweep_plan(
         "probe_command": {
             "checkpoint": str(previous_checkpoint),
             "output_dir": str(probe_output_dir),
+            "options": {
+                "num_episodes": int(probe_episodes),
+                "render_rollouts": bool(render_rollouts),
+                "tile_size": probe_tile_size,
+            },
             "argv": probe_argv,
         },
     }
+
+
+def execute_communication_sweep_plan(
+    plan: dict[str, Any],
+    *,
+    train_main: Callable[[list[str]], dict[str, float]] | None = None,
+    probe_checkpoint: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Execute a communication sweep plan and persist a compact summary."""
+
+    if train_main is None:
+        from ant_byte_env.training.jax_mappo.runner import main as train_main
+    if probe_checkpoint is None:
+        from ant_byte_env.training.jax_mappo.probe import (
+            probe_communication_checkpoint as probe_checkpoint,
+        )
+
+    run_dir = Path(str(plan["run_dir"]))
+    plan_path = run_dir / "sweep_plan.json"
+    summary_path = run_dir / "sweep_summary.json"
+    write_json(plan_path, plan)
+
+    stage_results = []
+    for command in plan["train_commands"]:
+        metrics = train_main(list(command["training_argv"]))
+        stage_results.append(
+            {
+                "write_bits": int(command["write_bits"]),
+                "run_dir": command["run_dir"],
+                "checkpoint": command["checkpoint"],
+                "metrics": metrics,
+            }
+        )
+
+    probe_command = plan["probe_command"]
+    probe_options = dict(probe_command.get("options", {}))
+    probe_payload = probe_checkpoint(
+        Path(str(probe_command["checkpoint"])),
+        output_dir=Path(str(probe_command["output_dir"])),
+        num_episodes=int(probe_options.get("num_episodes", 4)),
+        render_rollouts=bool(probe_options.get("render_rollouts", True)),
+        tile_size=probe_options.get("tile_size", 16),
+    )
+    summary = {
+        "plan_path": str(plan_path),
+        "summary_path": str(summary_path),
+        "phase": plan["phase"],
+        "id": plan["id"],
+        "stage_results": stage_results,
+        "probe": probe_payload,
+    }
+    write_json(summary_path, summary)
+    return summary
 
 
 def load_communication_sweep_matrix(path: Path) -> dict[str, Any]:

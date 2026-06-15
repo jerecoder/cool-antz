@@ -10,7 +10,10 @@ from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.rendering import infer_checkpoint_backend
 from ant_byte_env.results import index_result_metadata
 from ant_byte_env.runs import append_metrics, prepare_run_dir, write_json
-from ant_byte_env.autoresearch import build_communication_sweep_plan
+from ant_byte_env.autoresearch import (
+    build_communication_sweep_plan,
+    execute_communication_sweep_plan,
+)
 
 
 def test_experiment_config_loads_and_converts_args() -> None:
@@ -184,6 +187,62 @@ def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> No
         assert parsed.run_dir.as_posix() == command["run_dir"]
         assert parsed.load_model.as_posix() == command["source_checkpoint"]
         assert parsed.write_bits == command["write_bits"]
+        direct_parsed = parse_args(command["training_argv"])
+        assert direct_parsed.write_bits == command["write_bits"]
+
+
+def test_execute_communication_sweep_plan_runs_stages_and_probe(tmp_path: Path) -> None:
+    matrix = json.loads(Path("autoresearch/communication_sweep.json").read_text())
+    matrix["phases"]["horizon"][0]["run_dir"] = str(tmp_path / "H0")
+    matrix["phases"]["horizon"][0]["probe_output_dir"] = str(tmp_path / "H0" / "probe")
+    matrix_path = tmp_path / "matrix.json"
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    plan = build_communication_sweep_plan(
+        matrix_path=matrix_path,
+        phase="horizon",
+        run_id="H0",
+        bit_stages=[2],
+        global_update_cap=1,
+        num_envs=1,
+        num_steps=1,
+        probe_episodes=1,
+        render_rollouts=False,
+    )
+    train_argvs: list[list[str]] = []
+    probe_calls: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_train_main(argv: list[str]) -> dict[str, float]:
+        train_argvs.append(argv)
+        return {"global_step": float(len(train_argvs))}
+
+    def fake_probe_checkpoint(checkpoint: Path, **kwargs: object) -> dict[str, object]:
+        probe_calls.append((checkpoint, kwargs))
+        return {"probe_path": str(Path(kwargs["output_dir"]) / "communication_probe.json")}
+
+    summary = execute_communication_sweep_plan(
+        plan,
+        train_main=fake_train_main,
+        probe_checkpoint=fake_probe_checkpoint,
+    )
+
+    assert len(train_argvs) == 1
+    assert train_argvs[0] == plan["train_commands"][0]["training_argv"]
+    assert probe_calls == [
+        (
+            Path(plan["probe_command"]["checkpoint"]),
+            {
+                "output_dir": Path(plan["probe_command"]["output_dir"]),
+                "num_episodes": 1,
+                "render_rollouts": False,
+                "tile_size": 16,
+            },
+        )
+    ]
+    assert summary["stage_results"][0]["metrics"] == {"global_step": 1.0}
+    assert json.loads((tmp_path / "H0" / "sweep_plan.json").read_text())["id"] == "H0"
+    assert json.loads((tmp_path / "H0" / "sweep_summary.json").read_text())[
+        "summary_path"
+    ].endswith("sweep_summary.json")
 
 
 def test_cli_communication_plan_prints_staged_commands(
@@ -210,6 +269,57 @@ def test_cli_communication_plan_prints_staged_commands(
     assert payload["env_steps_per_stage"] == 2_560_000
     assert len(payload["train_commands"]) == 2
     assert payload["probe_command"]["argv"][-1] == "--no-render"
+
+
+def test_cli_communication_run_uses_executable_plan(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import ant_byte_env.autoresearch as autoresearch_module
+
+    captured_plan: dict[str, object] = {}
+
+    def fake_execute_communication_sweep_plan(plan: dict[str, object]) -> dict[str, object]:
+        captured_plan.update(plan)
+        return {
+            "phase": plan["phase"],
+            "id": plan["id"],
+            "summary_path": "runs/autoresearch/communication_bits/horizon/H0/sweep_summary.json",
+            "stage_results": [],
+            "probe": {},
+        }
+
+    monkeypatch.setattr(
+        autoresearch_module,
+        "execute_communication_sweep_plan",
+        fake_execute_communication_sweep_plan,
+    )
+
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "communication-run",
+            "--phase",
+            "horizon",
+            "--id",
+            "H0",
+            "--bit-stages",
+            "2",
+            "--global-update-cap",
+            "1",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "1",
+            "--no-render",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["id"] == "H0"
+    assert captured_plan["bit_stages"] == [2]
+    assert captured_plan["env_steps_per_stage"] == 1
 
 
 def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:

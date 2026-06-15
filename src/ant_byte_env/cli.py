@@ -79,6 +79,26 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "communication-run":
+        from ant_byte_env.autoresearch import (
+            build_communication_sweep_plan,
+            execute_communication_sweep_plan,
+        )
+
+        plan = build_communication_sweep_plan(
+            matrix_path=args.matrix,
+            phase=args.phase,
+            run_id=args.run_id,
+            bit_stages=args.bit_stages,
+            global_update_cap=args.global_update_cap,
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            probe_episodes=args.probe_episodes,
+            render_rollouts=not args.no_render,
+        )
+        payload = execute_communication_sweep_plan(plan)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     parser.print_help()
     return 1
 
@@ -169,6 +189,23 @@ def _build_parser() -> argparse.ArgumentParser:
     communication_plan.add_argument("--num-steps", type=int, default=None)
     communication_plan.add_argument("--probe-episodes", type=int, default=4)
     communication_plan.add_argument("--no-render", action="store_true")
+    communication_run = autoresearch_subparsers.add_parser(
+        "communication-run",
+        help="Execute staged training and probing for a communication sweep entry.",
+    )
+    communication_run.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/communication_sweep.json"),
+    )
+    communication_run.add_argument("--phase", required=True)
+    communication_run.add_argument("--id", dest="run_id", required=True)
+    communication_run.add_argument("--bit-stages", type=int, nargs="+", default=None)
+    communication_run.add_argument("--global-update-cap", type=int, default=None)
+    communication_run.add_argument("--num-envs", type=int, default=None)
+    communication_run.add_argument("--num-steps", type=int, default=None)
+    communication_run.add_argument("--probe-episodes", type=int, default=4)
+    communication_run.add_argument("--no-render", action="store_true")
     return parser
 
 
