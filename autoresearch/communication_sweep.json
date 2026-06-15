@@ -620,6 +620,65 @@
         }
       }
     ],
+    "polish_refine": [
+      {
+        "id": "PR1",
+        "depends_on": "polish_length/PL5",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR1",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR1/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 250,
+        "args": {
+          "seed": 805,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL5/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PR2",
+        "depends_on": "polish_length/PL5",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR2",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR2/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 500,
+        "args": {
+          "seed": 805,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL5/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PR3",
+        "depends_on": "polish_length/PL5",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR3",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR3/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 250,
+        "args": {
+          "seed": 805,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL5/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.02,
+          "ent_coef": 0.001,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      }
+    ],
     "polish_gate": [
       {
         "id": "PG1",

@@ -152,6 +152,11 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PL14",
         "PL15",
     ]
+    assert [entry["id"] for entry in matrix["phases"]["polish_refine"]] == [
+        "PR1",
+        "PR2",
+        "PR3",
+    ]
     assert [entry["id"] for entry in matrix["phases"]["polish_gate"]] == [
         "PG1",
         "PG2",
@@ -429,6 +434,43 @@ def test_communication_sweep_plan_builds_probe_only_polish_gate() -> None:
     assert plan["probe_command"]["output_dir"].endswith("polish_gate/PG2/probe_eval16")
     assert plan["probe_command"]["options"]["num_episodes"] == 16
     assert plan["probe_command"]["argv"][-1] == "--no-render"
+
+
+def test_communication_sweep_plan_builds_polish_refine_probe() -> None:
+    plan = build_communication_sweep_plan(
+        phase="polish_refine",
+        run_id="PR1",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+
+    assert plan["bit_stages"] == [8]
+    assert plan["global_update_cap"] == 250
+    assert plan["env_steps_per_stage"] == 320_000
+    assert plan["total_train_env_steps"] == 320_000
+    assert len(plan["train_commands"]) == 1
+    command = plan["train_commands"][0]
+    assert command["source_checkpoint"].endswith(
+        "polish_length/PL5/8_bits/checkpoints/model.pkl"
+    )
+    assert command["checkpoint"].endswith("polish_refine/PR1/8_bits/checkpoints/model.pkl")
+    assert plan["probe_command"]["output_dir"].endswith("polish_refine/PR1/probe_eval4")
+
+    guarded_plan = build_communication_sweep_plan(
+        phase="polish_refine",
+        run_id="PR3",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+    guarded_argv = guarded_plan["train_commands"][0]["training_argv"]
+    bit_entropy_index = [
+        index for index, value in enumerate(guarded_argv) if value == "--write-bit-entropy-bonus"
+    ][-1]
+    ent_coef_index = [index for index, value in enumerate(guarded_argv) if value == "--ent-coef"][
+        -1
+    ]
+    assert guarded_argv[bit_entropy_index + 1] == "0.02"
+    assert guarded_argv[ent_coef_index + 1] == "0.001"
 
 
 def test_communication_sweep_plan_can_override_run_root(tmp_path: Path) -> None:
