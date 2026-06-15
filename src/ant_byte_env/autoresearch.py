@@ -10,6 +10,10 @@ from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.runs import write_json
 
 DEFAULT_COMMUNICATION_SWEEP_MATRIX = Path("autoresearch/communication_sweep.json")
+AUTORESEARCH_MIN_DISK_FREE_GB = 5.0
+AUTORESEARCH_MIN_MEM_AVAILABLE_GB = 4.0
+AUTORESEARCH_MIN_SWAP_FREE_GB = 0.25
+AUTORESEARCH_MAX_GPU_COMPUTE_MEMORY_MB = 1024
 
 
 def build_communication_sweep_plan(
@@ -144,9 +148,12 @@ def execute_communication_sweep_plan(
     *,
     train_main: Callable[[list[str]], dict[str, float]] | None = None,
     probe_checkpoint: Callable[..., dict[str, Any]] | None = None,
+    check_resources: bool = True,
 ) -> dict[str, Any]:
     """Execute a communication sweep plan and persist a compact summary."""
 
+    if check_resources:
+        assert_autoresearch_resources_available()
     if train_main is None:
         from ant_byte_env.training.jax_mappo.runner import main as train_main
     if probe_checkpoint is None:
@@ -190,6 +197,37 @@ def execute_communication_sweep_plan(
     }
     write_json(summary_path, summary)
     return summary
+
+
+def assert_autoresearch_resources_available(
+    snapshot: dict[str, Any] | None = None,
+    *,
+    min_disk_free_gb: float = AUTORESEARCH_MIN_DISK_FREE_GB,
+    min_mem_available_gb: float = AUTORESEARCH_MIN_MEM_AVAILABLE_GB,
+    min_swap_free_gb: float = AUTORESEARCH_MIN_SWAP_FREE_GB,
+    max_gpu_compute_memory_mb: int = AUTORESEARCH_MAX_GPU_COMPUTE_MEMORY_MB,
+) -> None:
+    """Fail before a long autoresearch run when local resources look unsafe."""
+
+    from ant_byte_env.notebook_workflows import (
+        assert_notebook_resources_available,
+        notebook_resource_snapshot,
+    )
+
+    actual_snapshot = notebook_resource_snapshot() if snapshot is None else snapshot
+    try:
+        assert_notebook_resources_available(
+            actual_snapshot,
+            min_disk_free_gb=min_disk_free_gb,
+            min_mem_available_gb=min_mem_available_gb,
+            min_swap_free_gb=min_swap_free_gb,
+            max_gpu_compute_memory_mb=max_gpu_compute_memory_mb,
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(
+            "Autoresearch resources look unsafe for a communication sweep.\n"
+            f"{exc}"
+        ) from exc
 
 
 def load_communication_sweep_matrix(path: Path) -> dict[str, Any]:

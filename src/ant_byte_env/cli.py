@@ -96,7 +96,10 @@ def main(argv: list[str] | None = None) -> int:
             probe_episodes=args.probe_episodes,
             render_rollouts=not args.no_render,
         )
-        payload = execute_communication_sweep_plan(plan)
+        payload = execute_communication_sweep_plan(
+            plan,
+            check_resources=not args.skip_resource_check,
+        )
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     parser.print_help()
@@ -206,6 +209,7 @@ def _build_parser() -> argparse.ArgumentParser:
     communication_run.add_argument("--num-steps", type=int, default=None)
     communication_run.add_argument("--probe-episodes", type=int, default=4)
     communication_run.add_argument("--no-render", action="store_true")
+    communication_run.add_argument("--skip-resource-check", action="store_true")
     return parser
 
 

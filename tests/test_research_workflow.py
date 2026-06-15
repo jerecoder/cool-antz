@@ -11,6 +11,7 @@ from ant_byte_env.rendering import infer_checkpoint_backend
 from ant_byte_env.results import index_result_metadata
 from ant_byte_env.runs import append_metrics, prepare_run_dir, write_json
 from ant_byte_env.autoresearch import (
+    assert_autoresearch_resources_available,
     build_communication_sweep_plan,
     execute_communication_sweep_plan,
 )
@@ -223,6 +224,7 @@ def test_execute_communication_sweep_plan_runs_stages_and_probe(tmp_path: Path) 
         plan,
         train_main=fake_train_main,
         probe_checkpoint=fake_probe_checkpoint,
+        check_resources=False,
     )
 
     assert len(train_argvs) == 1
@@ -278,9 +280,15 @@ def test_cli_communication_run_uses_executable_plan(
     import ant_byte_env.autoresearch as autoresearch_module
 
     captured_plan: dict[str, object] = {}
+    captured_check_resources: list[bool] = []
 
-    def fake_execute_communication_sweep_plan(plan: dict[str, object]) -> dict[str, object]:
+    def fake_execute_communication_sweep_plan(
+        plan: dict[str, object],
+        *,
+        check_resources: bool,
+    ) -> dict[str, object]:
         captured_plan.update(plan)
+        captured_check_resources.append(check_resources)
         return {
             "phase": plan["phase"],
             "id": plan["id"],
@@ -312,6 +320,7 @@ def test_cli_communication_run_uses_executable_plan(
             "--num-steps",
             "1",
             "--no-render",
+            "--skip-resource-check",
         ]
     )
 
@@ -320,6 +329,32 @@ def test_cli_communication_run_uses_executable_plan(
     assert payload["id"] == "H0"
     assert captured_plan["bit_stages"] == [2]
     assert captured_plan["env_steps_per_stage"] == 1
+    assert captured_check_resources == [False]
+
+
+def test_autoresearch_resource_guard_rejects_low_swap_when_memory_is_tight() -> None:
+    with pytest.raises(RuntimeError, match="Autoresearch resources look unsafe"):
+        assert_autoresearch_resources_available(
+            {
+                "disk_free_gb": 10.0,
+                "mem_available_gb": 4.1,
+                "swap_free_gb": 0.01,
+                "gpu_compute_memory_mb": 0,
+                "top_memory_processes": [],
+            }
+        )
+
+
+def test_autoresearch_resource_guard_accepts_safe_snapshot() -> None:
+    assert_autoresearch_resources_available(
+        {
+            "disk_free_gb": 10.0,
+            "mem_available_gb": 8.0,
+            "swap_free_gb": 1.0,
+            "gpu_compute_memory_mb": 0,
+            "top_memory_processes": [],
+        }
+    )
 
 
 def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:
