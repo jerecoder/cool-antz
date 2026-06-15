@@ -46,11 +46,27 @@ Aggregate over the three promoted checkpoints:
 | 2,500-update polish | 12.42 | 13.58 | 0.383 | 0.497 |
 | 1,250-update polish | 12.58 | 10.50 | 0.445 | 0.276 |
 
+After the first replication read, PL1, PL2, and PL3 were probed for 16 episodes
+each without rendering:
+
+| Run | Mode | Delivered | Fraction | Success | Bit entropy | Distinct values | Major values | Mid bits |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| PL1 1,250 polish | sampled | 16.31 | 0.709 | 0.062 | 0.489 | 50 | 1, 2, 5, 58 | 7 |
+| PL1 1,250 polish | deterministic | 13.81 | 0.601 | 0.188 | 0.452 | 9 | 1, 2, 5, 7 | 6 |
+| PL2 1,250 polish | sampled | 9.44 | 0.410 | 0.000 | 0.275 | 25 | 1, 2 | 6 |
+| PL2 1,250 polish | deterministic | 8.94 | 0.389 | 0.000 | 0.301 | 9 | 1, 2, 7 | 3 |
+| PL3 1,250 polish | sampled | 14.12 | 0.614 | 0.062 | 0.439 | 31 | 2, 4, 5, 214 | 7 |
+| PL3 1,250 polish | deterministic | 10.88 | 0.473 | 0.000 | 0.148 | 10 | 4, 5 | 3 |
+
+The 16-episode short-polish aggregate is `13.29` sampled delivered and `11.21`
+deterministic delivered. This is better sampled than the four-episode read but
+still worse on deterministic delivery than the promoted `2_500`-update polish.
+
 ## Interpretation
 
-The shorter polish is not a robust promotion candidate. It slightly improves
-mean sampled delivery because PL1 is excellent, but it damages deterministic
-delivery on average and collapses communication diversity in PL2/PL3.
+The shorter polish is not a robust promotion candidate. It improves sampled
+delivery in PL1 and PL3, but it damages deterministic delivery on average and
+still leaves PL2 weak after the larger probe.
 
 Current best robust recipe remains the promoted `2_500`-update polish. The next
 useful direction is not simply shortening polish globally. Better candidates
@@ -61,9 +77,6 @@ polish, or adding a small validation gate that chooses between `1_250` and
 ## Next Step
 
 Treat PL1 as a clue rather than a winner. The next experiment should test
-whether the PV3 gain comes from checkpoint state, polish seed, or probe noise.
-Run either:
-
-- a 16-episode probe for PL2 and PL3 if cheap confirmation is needed, or
-- a same-source polish-seed sweep from the PV3 consolidated checkpoint to test
-  whether short-polish performance is reproducible.
+whether the PV3 gain comes from checkpoint state or polish seed. Run a
+same-source polish-seed sweep from the PV3 consolidated checkpoint to test
+whether short-polish performance is reproducible.
