@@ -77,7 +77,8 @@ def main(argv: list[str] | None = None) -> int:
             num_envs=args.num_envs,
             num_steps=args.num_steps,
             probe_episodes=args.probe_episodes,
-            render_rollouts=not args.no_render,
+            render_rollouts=args.render_rollouts,
+            max_render_frames=args.max_render_frames,
         )
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
@@ -98,12 +99,14 @@ def main(argv: list[str] | None = None) -> int:
             num_envs=args.num_envs,
             num_steps=args.num_steps,
             probe_episodes=args.probe_episodes,
-            render_rollouts=not args.no_render,
+            render_rollouts=args.render_rollouts,
+            max_render_frames=args.max_render_frames,
         )
         try:
             payload = execute_communication_sweep_plan(
                 plan,
                 check_resources=not args.skip_resource_check,
+                resume_completed=not args.rerun_completed,
             )
         except AutoresearchResourceError as exc:
             print(str(exc), file=sys.stderr)
@@ -199,8 +202,15 @@ def _build_parser() -> argparse.ArgumentParser:
     communication_plan.add_argument("--global-update-cap", type=int, default=None)
     communication_plan.add_argument("--num-envs", type=int, default=None)
     communication_plan.add_argument("--num-steps", type=int, default=None)
-    communication_plan.add_argument("--probe-episodes", type=int, default=4)
-    communication_plan.add_argument("--no-render", action="store_true")
+    communication_plan.add_argument("--probe-episodes", type=int, default=1)
+    communication_plan.add_argument(
+        "--render-rollouts",
+        dest="render_rollouts",
+        action="store_true",
+        default=False,
+    )
+    communication_plan.add_argument("--no-render", dest="render_rollouts", action="store_false")
+    communication_plan.add_argument("--max-render-frames", type=int, default=300)
     communication_run = autoresearch_subparsers.add_parser(
         "communication-run",
         help="Execute staged training and probing for a communication sweep entry.",
@@ -217,8 +227,16 @@ def _build_parser() -> argparse.ArgumentParser:
     communication_run.add_argument("--global-update-cap", type=int, default=None)
     communication_run.add_argument("--num-envs", type=int, default=None)
     communication_run.add_argument("--num-steps", type=int, default=None)
-    communication_run.add_argument("--probe-episodes", type=int, default=4)
-    communication_run.add_argument("--no-render", action="store_true")
+    communication_run.add_argument("--probe-episodes", type=int, default=1)
+    communication_run.add_argument(
+        "--render-rollouts",
+        dest="render_rollouts",
+        action="store_true",
+        default=False,
+    )
+    communication_run.add_argument("--no-render", dest="render_rollouts", action="store_false")
+    communication_run.add_argument("--max-render-frames", type=int, default=300)
+    communication_run.add_argument("--rerun-completed", action="store_true")
     communication_run.add_argument("--skip-resource-check", action="store_true")
     return parser
 

@@ -30,14 +30,17 @@ def build_communication_sweep_plan(
     global_update_cap: int | None = None,
     num_envs: int | None = None,
     num_steps: int | None = None,
-    probe_episodes: int = 4,
-    render_rollouts: bool = True,
+    probe_episodes: int = 1,
+    render_rollouts: bool = False,
+    max_render_frames: int | None = 300,
     probe_tile_size: int | None = 16,
 ) -> dict[str, Any]:
     """Return staged train commands and a probe command for one sweep entry."""
 
     if probe_episodes <= 0:
         raise ValueError("probe_episodes must be positive.")
+    if max_render_frames is not None and max_render_frames < 1:
+        raise ValueError("max_render_frames must be at least 1.")
     matrix = load_communication_sweep_matrix(matrix_path)
     entry = communication_sweep_entry(matrix, phase=phase, run_id=run_id)
     base_config = Path(matrix["base_config"])
@@ -130,6 +133,8 @@ def build_communication_sweep_plan(
     ]
     if not render_rollouts:
         probe_argv.append("--no-render")
+    elif max_render_frames is not None:
+        probe_argv.extend(["--max-render-frames", str(int(max_render_frames))])
 
     return {
         "matrix_path": str(matrix_path),
@@ -149,6 +154,9 @@ def build_communication_sweep_plan(
             "options": {
                 "num_episodes": int(probe_episodes),
                 "render_rollouts": bool(render_rollouts),
+                "max_render_frames": (
+                    int(max_render_frames) if max_render_frames is not None else None
+                ),
                 "tile_size": probe_tile_size,
             },
             "argv": probe_argv,
@@ -177,6 +185,7 @@ def execute_communication_sweep_plan(
     train_main: Callable[[list[str]], dict[str, float]] | None = None,
     probe_checkpoint: Callable[..., dict[str, Any]] | None = None,
     check_resources: bool = True,
+    resume_completed: bool = True,
 ) -> dict[str, Any]:
     """Execute a communication sweep plan and persist a compact summary."""
 
@@ -196,13 +205,19 @@ def execute_communication_sweep_plan(
 
     stage_results = []
     for command in plan["train_commands"]:
-        metrics = train_main(list(command["training_argv"]))
+        checkpoint_path = Path(str(command["checkpoint"]))
+        resumed = bool(resume_completed and checkpoint_path.exists())
+        if resumed:
+            metrics = _stage_metrics_from_run_dir(Path(str(command["run_dir"])))
+        else:
+            metrics = train_main(list(command["training_argv"]))
         stage_results.append(
             {
                 "write_bits": int(command["write_bits"]),
                 "run_dir": command["run_dir"],
                 "checkpoint": command["checkpoint"],
                 "metrics": metrics,
+                "resumed": resumed,
             }
         )
 
@@ -213,6 +228,7 @@ def execute_communication_sweep_plan(
         output_dir=Path(str(probe_command["output_dir"])),
         num_episodes=int(probe_options.get("num_episodes", 4)),
         render_rollouts=bool(probe_options.get("render_rollouts", True)),
+        max_render_frames=probe_options.get("max_render_frames"),
         tile_size=probe_options.get("tile_size", 16),
     )
     summary = {
@@ -225,6 +241,29 @@ def execute_communication_sweep_plan(
     }
     write_json(summary_path, summary)
     return summary
+
+
+def _stage_metrics_from_run_dir(run_dir: Path) -> dict[str, float]:
+    summary_path = run_dir / "summary.json"
+    if summary_path.exists():
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        metrics = payload.get("metrics", {})
+        if isinstance(metrics, dict):
+            return {str(key): float(value) for key, value in metrics.items()}
+
+    metrics_path = run_dir / "metrics.jsonl"
+    if metrics_path.exists():
+        lines = [line for line in metrics_path.read_text(encoding="utf-8").splitlines() if line]
+        if lines:
+            payload = json.loads(lines[-1])
+            if isinstance(payload, dict):
+                return {
+                    str(key): float(value)
+                    for key, value in payload.items()
+                    if isinstance(value, (int, float))
+                }
+
+    return {}
 
 
 def assert_autoresearch_resources_available(

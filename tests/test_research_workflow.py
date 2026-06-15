@@ -173,6 +173,7 @@ def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> No
     assert plan["probe_command"]["checkpoint"] == second["checkpoint"]
     assert plan["probe_command"]["output_dir"].endswith("horizon/H0/probe")
     assert plan["probe_command"]["argv"][-1] == "--no-render"
+    assert plan["probe_command"]["options"]["max_render_frames"] == 300
 
     for command in plan["train_commands"]:
         argv = command["argv"]
@@ -204,13 +205,14 @@ def test_communication_sweep_plan_can_override_run_root(tmp_path: Path) -> None:
         num_envs=1,
         num_steps=1,
         probe_episodes=1,
-        render_rollouts=False,
     )
 
     assert Path(plan["run_dir"]) == run_root / "horizon" / "H0"
     assert Path(plan["probe_output_dir"]) == run_root / "horizon" / "H0" / "probe"
     assert Path(plan["train_commands"][0]["run_dir"]) == run_root / "horizon" / "H0" / "2_bits"
     assert Path(plan["probe_command"]["output_dir"]) == run_root / "horizon" / "H0" / "probe"
+    assert plan["probe_command"]["options"]["render_rollouts"] is False
+    assert plan["probe_command"]["argv"][-1] == "--no-render"
 
 
 def test_execute_communication_sweep_plan_runs_stages_and_probe(tmp_path: Path) -> None:
@@ -257,15 +259,59 @@ def test_execute_communication_sweep_plan_runs_stages_and_probe(tmp_path: Path) 
                 "output_dir": Path(plan["probe_command"]["output_dir"]),
                 "num_episodes": 1,
                 "render_rollouts": False,
+                "max_render_frames": 300,
                 "tile_size": 16,
             },
         )
     ]
     assert summary["stage_results"][0]["metrics"] == {"global_step": 1.0}
+    assert summary["stage_results"][0]["resumed"] is False
     assert json.loads((tmp_path / "H0" / "sweep_plan.json").read_text())["id"] == "H0"
     assert json.loads((tmp_path / "H0" / "sweep_summary.json").read_text())[
         "summary_path"
     ].endswith("sweep_summary.json")
+
+
+def test_execute_communication_sweep_plan_resumes_existing_stages(tmp_path: Path) -> None:
+    matrix = json.loads(Path("autoresearch/communication_sweep.json").read_text())
+    matrix["phases"]["horizon"][0]["run_dir"] = str(tmp_path / "H0")
+    matrix["phases"]["horizon"][0]["probe_output_dir"] = str(tmp_path / "H0" / "probe")
+    matrix_path = tmp_path / "matrix.json"
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    plan = build_communication_sweep_plan(
+        matrix_path=matrix_path,
+        phase="horizon",
+        run_id="H0",
+        bit_stages=[2],
+        global_update_cap=1,
+        num_envs=1,
+        num_steps=1,
+        render_rollouts=False,
+    )
+    run_dir = Path(plan["train_commands"][0]["run_dir"])
+    checkpoint = Path(plan["train_commands"][0]["checkpoint"])
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    write_json(run_dir / "summary.json", {"metrics": {"global_step": 99.0, "loss": 0.5}})
+    train_calls: list[list[str]] = []
+
+    def fake_train_main(argv: list[str]) -> dict[str, float]:
+        train_calls.append(argv)
+        return {"global_step": 1.0}
+
+    def fake_probe_checkpoint(checkpoint: Path, **kwargs: object) -> dict[str, object]:
+        return {"probe_path": str(Path(kwargs["output_dir"]) / "communication_probe.json")}
+
+    summary = execute_communication_sweep_plan(
+        plan,
+        train_main=fake_train_main,
+        probe_checkpoint=fake_probe_checkpoint,
+        check_resources=False,
+    )
+
+    assert train_calls == []
+    assert summary["stage_results"][0]["resumed"] is True
+    assert summary["stage_results"][0]["metrics"] == {"global_step": 99.0, "loss": 0.5}
 
 
 def test_cli_communication_plan_prints_staged_commands(
@@ -303,14 +349,17 @@ def test_cli_communication_run_uses_executable_plan(
 
     captured_plan: dict[str, object] = {}
     captured_check_resources: list[bool] = []
+    captured_resume_completed: list[bool] = []
 
     def fake_execute_communication_sweep_plan(
         plan: dict[str, object],
         *,
         check_resources: bool,
+        resume_completed: bool,
     ) -> dict[str, object]:
         captured_plan.update(plan)
         captured_check_resources.append(check_resources)
+        captured_resume_completed.append(resume_completed)
         return {
             "phase": plan["phase"],
             "id": plan["id"],
@@ -353,8 +402,10 @@ def test_cli_communication_run_uses_executable_plan(
     assert payload["id"] == "H0"
     assert captured_plan["bit_stages"] == [2]
     assert str(captured_plan["run_dir"]).startswith(str(tmp_path / "cli-smoke"))
+    assert captured_plan["probe_command"]["options"]["max_render_frames"] == 300
     assert captured_plan["env_steps_per_stage"] == 1
     assert captured_check_resources == [False]
+    assert captured_resume_completed == [True]
 
 
 def test_cli_communication_run_reports_resource_failures(
@@ -367,6 +418,7 @@ def test_cli_communication_run_reports_resource_failures(
         plan: dict[str, object],
         *,
         check_resources: bool,
+        resume_completed: bool,
     ) -> dict[str, object]:
         raise AutoresearchResourceError("Autoresearch resources look unsafe.\n- low swap")
 

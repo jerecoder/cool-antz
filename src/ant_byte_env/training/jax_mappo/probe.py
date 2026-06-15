@@ -182,6 +182,15 @@ def _probe_mode(
     episode_lengths: list[int] = []
     delivered_food: list[float] = []
     successes: list[float] = []
+    select_actions = jax.jit(
+        lambda obs_batch, action_key: _select_actions_from_batch(
+            params=params,
+            args=args,
+            obs_batch=obs_batch,
+            key=action_key,
+            deterministic=deterministic,
+        )
+    )
 
     for episode_index in range(num_episodes):
         should_render = rollout_path is not None and episode_index == 0
@@ -217,13 +226,7 @@ def _probe_mode(
             episode_terminated = False
             for step_index in range(int(args.max_steps)):
                 key, action_key = jax.random.split(key)
-                actions = _select_actions(
-                    params=params,
-                    args=args,
-                    obs=obs,
-                    key=action_key,
-                    deterministic=deterministic,
-                )
+                actions = select_actions(_obs_batch(obs), action_key)
                 write_values = np.asarray(actions)[0, :, 1].astype(np.int64)
                 action_counts += np.bincount(write_values, minlength=action_counts.shape[0])
                 obs, reward, terminated, truncated, info = env.step(
@@ -288,7 +291,23 @@ def _select_actions(
     key: jax.Array,
     deterministic: bool,
 ) -> jax.Array:
-    obs_batch = _obs_batch(obs)
+    return _select_actions_from_batch(
+        params=params,
+        args=args,
+        obs_batch=_obs_batch(obs),
+        key=key,
+        deterministic=deterministic,
+    )
+
+
+def _select_actions_from_batch(
+    *,
+    params: JaxMAPPOParams,
+    args: argparse.Namespace,
+    obs_batch: dict[str, jax.Array],
+    key: jax.Array,
+    deterministic: bool,
+) -> jax.Array:
     central_obs = build_central_observations(
         obs_batch,
         food_scale=args.food_count,
