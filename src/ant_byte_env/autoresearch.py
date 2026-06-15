@@ -16,6 +16,10 @@ AUTORESEARCH_MIN_SWAP_FREE_GB = 0.25
 AUTORESEARCH_MAX_GPU_COMPUTE_MEMORY_MB = 1024
 
 
+class AutoresearchResourceError(RuntimeError):
+    """Raised when a long autoresearch run should not start on this machine."""
+
+
 def build_communication_sweep_plan(
     *,
     matrix_path: Path = DEFAULT_COMMUNICATION_SWEEP_MATRIX,
@@ -224,7 +228,7 @@ def assert_autoresearch_resources_available(
             max_gpu_compute_memory_mb=max_gpu_compute_memory_mb,
         )
     except RuntimeError as exc:
-        raise RuntimeError(
+        raise AutoresearchResourceError(
             "Autoresearch resources look unsafe for a communication sweep.\n"
             f"{exc}"
         ) from exc

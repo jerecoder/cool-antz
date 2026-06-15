@@ -11,6 +11,7 @@ from ant_byte_env.rendering import infer_checkpoint_backend
 from ant_byte_env.results import index_result_metadata
 from ant_byte_env.runs import append_metrics, prepare_run_dir, write_json
 from ant_byte_env.autoresearch import (
+    AutoresearchResourceError,
     assert_autoresearch_resources_available,
     build_communication_sweep_plan,
     execute_communication_sweep_plan,
@@ -330,6 +331,52 @@ def test_cli_communication_run_uses_executable_plan(
     assert captured_plan["bit_stages"] == [2]
     assert captured_plan["env_steps_per_stage"] == 1
     assert captured_check_resources == [False]
+
+
+def test_cli_communication_run_reports_resource_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import ant_byte_env.autoresearch as autoresearch_module
+
+    def fake_execute_communication_sweep_plan(
+        plan: dict[str, object],
+        *,
+        check_resources: bool,
+    ) -> dict[str, object]:
+        raise AutoresearchResourceError("Autoresearch resources look unsafe.\n- low swap")
+
+    monkeypatch.setattr(
+        autoresearch_module,
+        "execute_communication_sweep_plan",
+        fake_execute_communication_sweep_plan,
+    )
+
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "communication-run",
+            "--phase",
+            "horizon",
+            "--id",
+            "H0",
+            "--bit-stages",
+            "2",
+            "--global-update-cap",
+            "1",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "1",
+            "--no-render",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "low swap" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_autoresearch_resource_guard_rejects_low_swap_when_memory_is_tight() -> None:

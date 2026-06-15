@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "autoresearch" and args.autoresearch_command == "communication-run":
         from ant_byte_env.autoresearch import (
+            AutoresearchResourceError,
             build_communication_sweep_plan,
             execute_communication_sweep_plan,
         )
@@ -96,10 +98,14 @@ def main(argv: list[str] | None = None) -> int:
             probe_episodes=args.probe_episodes,
             render_rollouts=not args.no_render,
         )
-        payload = execute_communication_sweep_plan(
-            plan,
-            check_resources=not args.skip_resource_check,
-        )
+        try:
+            payload = execute_communication_sweep_plan(
+                plan,
+                check_resources=not args.skip_resource_check,
+            )
+        except AutoresearchResourceError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     parser.print_help()
