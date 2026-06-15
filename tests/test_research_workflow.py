@@ -143,6 +143,9 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PL6",
         "PL7",
         "PL8",
+        "PL9",
+        "PL10",
+        "PL11",
     ]
 
     all_ids: set[str] = set()
@@ -306,6 +309,28 @@ def test_communication_sweep_plan_builds_polish_length_probe() -> None:
     assert cross_source_plan["train_commands"][0]["training_argv"][cross_seed_index + 1] == "805"
     assert cross_source_plan["probe_command"]["output_dir"].endswith(
         "polish_length/PL7/probe_eval4"
+    )
+
+    pv2_seed_plan = build_communication_sweep_plan(
+        phase="polish_length",
+        run_id="PL9",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+    assert pv2_seed_plan["global_update_cap"] == 1250
+    assert pv2_seed_plan["train_commands"][0]["source_checkpoint"].endswith(
+        "promoted/PV2/8_bits_consolidated/checkpoints/model.pkl"
+    )
+    pv2_seed_indices = [
+        index
+        for index, value in enumerate(pv2_seed_plan["train_commands"][0]["training_argv"])
+        if value == "--seed"
+    ]
+    assert pv2_seed_indices
+    pv2_seed_index = pv2_seed_indices[-1]
+    assert pv2_seed_plan["train_commands"][0]["training_argv"][pv2_seed_index + 1] == "803"
+    assert pv2_seed_plan["probe_command"]["output_dir"].endswith(
+        "polish_length/PL9/probe_eval4"
     )
 
 

@@ -485,6 +485,63 @@
           "distance_bonus": 0.02,
           "write_head_transfer": "repeat"
         }
+      },
+      {
+        "id": "PL9",
+        "depends_on": "promoted/PV2/8_bits_consolidated",
+        "run_dir": "runs/autoresearch/communication_bits/polish_length/PL9",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_length/PL9/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 1250,
+        "args": {
+          "seed": 803,
+          "load_model": "runs/autoresearch/communication_bits/promoted/PV2/8_bits_consolidated/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PL10",
+        "depends_on": "promoted/PV2/8_bits_consolidated",
+        "run_dir": "runs/autoresearch/communication_bits/polish_length/PL10",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_length/PL10/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 1250,
+        "args": {
+          "seed": 804,
+          "load_model": "runs/autoresearch/communication_bits/promoted/PV2/8_bits_consolidated/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PL11",
+        "depends_on": "promoted/PV2/8_bits_consolidated",
+        "run_dir": "runs/autoresearch/communication_bits/polish_length/PL11",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_length/PL11/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 1250,
+        "args": {
+          "seed": 806,
+          "load_model": "runs/autoresearch/communication_bits/promoted/PV2/8_bits_consolidated/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
       }
     ]
   }
