@@ -71,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
             matrix_path=args.matrix,
             phase=args.phase,
             run_id=args.run_id,
+            run_root=args.run_root,
             bit_stages=args.bit_stages,
             global_update_cap=args.global_update_cap,
             num_envs=args.num_envs,
@@ -91,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             matrix_path=args.matrix,
             phase=args.phase,
             run_id=args.run_id,
+            run_root=args.run_root,
             bit_stages=args.bit_stages,
             global_update_cap=args.global_update_cap,
             num_envs=args.num_envs,
@@ -192,6 +194,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     communication_plan.add_argument("--phase", required=True)
     communication_plan.add_argument("--id", dest="run_id", required=True)
+    communication_plan.add_argument("--run-root", type=Path, default=None)
     communication_plan.add_argument("--bit-stages", type=int, nargs="+", default=None)
     communication_plan.add_argument("--global-update-cap", type=int, default=None)
     communication_plan.add_argument("--num-envs", type=int, default=None)
@@ -209,6 +212,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     communication_run.add_argument("--phase", required=True)
     communication_run.add_argument("--id", dest="run_id", required=True)
+    communication_run.add_argument("--run-root", type=Path, default=None)
     communication_run.add_argument("--bit-stages", type=int, nargs="+", default=None)
     communication_run.add_argument("--global-update-cap", type=int, default=None)
     communication_run.add_argument("--num-envs", type=int, default=None)

@@ -193,6 +193,26 @@ def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> No
         assert direct_parsed.write_bits == command["write_bits"]
 
 
+def test_communication_sweep_plan_can_override_run_root(tmp_path: Path) -> None:
+    run_root = tmp_path / "smoke" / "communication_bits"
+    plan = build_communication_sweep_plan(
+        phase="horizon",
+        run_id="H0",
+        run_root=run_root,
+        bit_stages=[2],
+        global_update_cap=1,
+        num_envs=1,
+        num_steps=1,
+        probe_episodes=1,
+        render_rollouts=False,
+    )
+
+    assert Path(plan["run_dir"]) == run_root / "horizon" / "H0"
+    assert Path(plan["probe_output_dir"]) == run_root / "horizon" / "H0" / "probe"
+    assert Path(plan["train_commands"][0]["run_dir"]) == run_root / "horizon" / "H0" / "2_bits"
+    assert Path(plan["probe_command"]["output_dir"]) == run_root / "horizon" / "H0" / "probe"
+
+
 def test_execute_communication_sweep_plan_runs_stages_and_probe(tmp_path: Path) -> None:
     matrix = json.loads(Path("autoresearch/communication_sweep.json").read_text())
     matrix["phases"]["horizon"][0]["run_dir"] = str(tmp_path / "H0")
@@ -277,6 +297,7 @@ def test_cli_communication_plan_prints_staged_commands(
 def test_cli_communication_run_uses_executable_plan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
     import ant_byte_env.autoresearch as autoresearch_module
 
@@ -312,6 +333,8 @@ def test_cli_communication_run_uses_executable_plan(
             "horizon",
             "--id",
             "H0",
+            "--run-root",
+            str(tmp_path / "cli-smoke"),
             "--bit-stages",
             "2",
             "--global-update-cap",
@@ -329,6 +352,7 @@ def test_cli_communication_run_uses_executable_plan(
     assert exit_code == 0
     assert payload["id"] == "H0"
     assert captured_plan["bit_stages"] == [2]
+    assert str(captured_plan["run_dir"]).startswith(str(tmp_path / "cli-smoke"))
     assert captured_plan["env_steps_per_stage"] == 1
     assert captured_check_resources == [False]
 

@@ -25,6 +25,7 @@ def build_communication_sweep_plan(
     matrix_path: Path = DEFAULT_COMMUNICATION_SWEEP_MATRIX,
     phase: str,
     run_id: str,
+    run_root: Path | None = None,
     bit_stages: list[int] | None = None,
     global_update_cap: int | None = None,
     num_envs: int | None = None,
@@ -66,8 +67,16 @@ def build_communication_sweep_plan(
     num_envs_value = int(merged_args["num_envs"])
     num_steps_value = int(merged_args["num_steps"])
     total_timesteps = num_envs_value * num_steps_value * update_cap
-    run_dir = Path(str(entry["run_dir"]))
-    probe_output_dir = Path(str(entry["probe_output_dir"]))
+    run_dir = _resolve_matrix_path(
+        Path(str(entry["run_dir"])),
+        matrix_root=Path(str(matrix["run_root"])),
+        override_root=run_root,
+    )
+    probe_output_dir = _resolve_matrix_path(
+        Path(str(entry["probe_output_dir"])),
+        matrix_root=Path(str(matrix["run_root"])),
+        override_root=run_root,
+    )
     previous_checkpoint = Path(str(merged_args["load_model"]))
     train_commands = []
     for stage_index, target_bits in enumerate(stages, start=1):
@@ -145,6 +154,21 @@ def build_communication_sweep_plan(
             "argv": probe_argv,
         },
     }
+
+
+def _resolve_matrix_path(
+    path: Path,
+    *,
+    matrix_root: Path,
+    override_root: Path | None,
+) -> Path:
+    if override_root is None:
+        return path
+    try:
+        suffix = path.relative_to(matrix_root)
+    except ValueError:
+        return Path(override_root) / path.name
+    return Path(override_root) / suffix
 
 
 def execute_communication_sweep_plan(
