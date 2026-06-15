@@ -677,6 +677,82 @@
           "distance_bonus": 0.02,
           "write_head_transfer": "repeat"
         }
+      },
+      {
+        "id": "PR4",
+        "depends_on": "polish_length/PL7",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR4",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR4/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 250,
+        "args": {
+          "seed": 805,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL7/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PR5",
+        "depends_on": "polish_length/PL7",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR5",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR5/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 250,
+        "args": {
+          "seed": 805,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL7/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.02,
+          "ent_coef": 0.001,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PR6",
+        "depends_on": "polish_length/PL10",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR6",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR6/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 250,
+        "args": {
+          "seed": 804,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL10/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      },
+      {
+        "id": "PR7",
+        "depends_on": "polish_length/PL10",
+        "run_dir": "runs/autoresearch/communication_bits/polish_refine/PR7",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_refine/PR7/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 250,
+        "args": {
+          "seed": 804,
+          "load_model": "runs/autoresearch/communication_bits/polish_length/PL10/8_bits/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.02,
+          "ent_coef": 0.001,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
       }
     ],
     "polish_gate": [

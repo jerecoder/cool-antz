@@ -156,6 +156,10 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PR1",
         "PR2",
         "PR3",
+        "PR4",
+        "PR5",
+        "PR6",
+        "PR7",
     ]
     assert [entry["id"] for entry in matrix["phases"]["polish_gate"]] == [
         "PG1",
@@ -471,6 +475,33 @@ def test_communication_sweep_plan_builds_polish_refine_probe() -> None:
     ]
     assert guarded_argv[bit_entropy_index + 1] == "0.02"
     assert guarded_argv[ent_coef_index + 1] == "0.001"
+
+    pv1_plan = build_communication_sweep_plan(
+        phase="polish_refine",
+        run_id="PR4",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+    assert pv1_plan["train_commands"][0]["source_checkpoint"].endswith(
+        "polish_length/PL7/8_bits/checkpoints/model.pkl"
+    )
+
+    pv2_plan = build_communication_sweep_plan(
+        phase="polish_refine",
+        run_id="PR7",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+    assert pv2_plan["train_commands"][0]["source_checkpoint"].endswith(
+        "polish_length/PL10/8_bits/checkpoints/model.pkl"
+    )
+    pv2_argv = pv2_plan["train_commands"][0]["training_argv"]
+    pv2_seed_index = [index for index, value in enumerate(pv2_argv) if value == "--seed"][-1]
+    pv2_bit_entropy_index = [
+        index for index, value in enumerate(pv2_argv) if value == "--write-bit-entropy-bonus"
+    ][-1]
+    assert pv2_argv[pv2_seed_index + 1] == "804"
+    assert pv2_argv[pv2_bit_entropy_index + 1] == "0.02"
 
 
 def test_communication_sweep_plan_can_override_run_root(tmp_path: Path) -> None:
