@@ -133,7 +133,12 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PV2",
         "PV3",
     ]
-    assert [entry["id"] for entry in matrix["phases"]["polish_length"]] == ["PL0", "PL1"]
+    assert [entry["id"] for entry in matrix["phases"]["polish_length"]] == [
+        "PL0",
+        "PL1",
+        "PL2",
+        "PL3",
+    ]
 
     all_ids: set[str] = set()
     for entries in matrix["phases"].values():
@@ -236,6 +241,21 @@ def test_communication_sweep_plan_builds_polish_length_probe() -> None:
     assert short_plan["total_train_env_steps"] == 1_600_000
     assert short_plan["train_commands"][0]["source_checkpoint"].endswith(
         "promoted/PV3/8_bits_consolidated/checkpoints/model.pkl"
+    )
+
+    replicate_plan = build_communication_sweep_plan(
+        phase="polish_length",
+        run_id="PL2",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+    assert replicate_plan["global_update_cap"] == 1250
+    assert replicate_plan["env_steps_per_stage"] == 1_600_000
+    assert replicate_plan["train_commands"][0]["source_checkpoint"].endswith(
+        "promoted/PV1/8_bits_consolidated/checkpoints/model.pkl"
+    )
+    assert replicate_plan["probe_command"]["output_dir"].endswith(
+        "polish_length/PL2/probe_eval4"
     )
 
 
