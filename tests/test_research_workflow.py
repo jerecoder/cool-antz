@@ -133,6 +133,7 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
         "PV2",
         "PV3",
     ]
+    assert [entry["id"] for entry in matrix["phases"]["polish_length"]] == ["PL0"]
 
     all_ids: set[str] = set()
     for entries in matrix["phases"].values():
@@ -198,6 +199,31 @@ def test_communication_sweep_plan_builds_promoted_validation_post_stages() -> No
     assert polished["source_checkpoint"] == consolidated["checkpoint"]
     assert plan["probe_command"]["checkpoint"] == polished["checkpoint"]
     assert plan["probe_command"]["output_dir"].endswith("promoted/PV1/probe_eval4")
+
+
+def test_communication_sweep_plan_builds_polish_length_probe() -> None:
+    plan = build_communication_sweep_plan(
+        phase="polish_length",
+        run_id="PL0",
+        probe_episodes=4,
+        render_rollouts=False,
+    )
+
+    assert plan["bit_stages"] == [8]
+    assert plan["global_update_cap"] == 5000
+    assert plan["env_steps_per_stage"] == 6_400_000
+    assert plan["total_train_env_steps"] == 6_400_000
+    assert len(plan["train_commands"]) == 1
+    command = plan["train_commands"][0]
+    assert command["stage_name"] == "8_bits"
+    assert command["write_bits"] == 8
+    assert command["global_update_cap"] == 5000
+    assert command["source_checkpoint"].endswith(
+        "promoted/PV3/8_bits_consolidated/checkpoints/model.pkl"
+    )
+    assert command["checkpoint"].endswith("polish_length/PL0/8_bits/checkpoints/model.pkl")
+    assert plan["probe_command"]["checkpoint"] == command["checkpoint"]
+    assert plan["probe_command"]["output_dir"].endswith("polish_length/PL0/probe_eval4")
 
 
 def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> None:

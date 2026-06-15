@@ -313,6 +313,27 @@
           }
         ]
       }
+    ],
+    "polish_length": [
+      {
+        "id": "PL0",
+        "depends_on": "promoted/PV3/8_bits_consolidated",
+        "run_dir": "runs/autoresearch/communication_bits/polish_length/PL0",
+        "probe_output_dir": "runs/autoresearch/communication_bits/polish_length/PL0/probe_eval4",
+        "bit_stages": [8],
+        "global_update_cap": 5000,
+        "args": {
+          "seed": 803,
+          "load_model": "runs/autoresearch/communication_bits/promoted/PV3/8_bits_consolidated/checkpoints/model.pkl",
+          "write_entropy_bonus": 0.0,
+          "write_entropy_bonus_cap": 0.0,
+          "write_bit_entropy_bonus": 0.0,
+          "ent_coef": 0.0,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "write_head_transfer": "repeat"
+        }
+      }
     ]
   }
 }
