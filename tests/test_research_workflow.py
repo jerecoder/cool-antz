@@ -10,6 +10,7 @@ from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.rendering import infer_checkpoint_backend
 from ant_byte_env.results import index_result_metadata
 from ant_byte_env.runs import append_metrics, prepare_run_dir, write_json
+from ant_byte_env.autoresearch import build_communication_sweep_plan
 
 
 def test_experiment_config_loads_and_converts_args() -> None:
@@ -142,6 +143,73 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
             parsed.num_steps * parsed.num_envs * int(entry["global_update_cap"])
             == matrix["screening_env_steps_per_stage"]
         )
+
+
+def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    plan = build_communication_sweep_plan(
+        phase="horizon",
+        run_id="H0",
+        probe_episodes=2,
+        render_rollouts=False,
+    )
+    base_spec = load_experiment_config(Path(plan["base_config"]))
+
+    assert plan["bit_stages"] == [2, 3]
+    assert plan["env_steps_per_stage"] == 2_560_000
+    assert len(plan["train_commands"]) == 2
+    first, second = plan["train_commands"]
+    assert first["write_bits"] == 2
+    assert second["write_bits"] == 3
+    assert first["source_checkpoint"].endswith("jax_mappo_forage_stage1_25x25.pkl")
+    assert second["source_checkpoint"] == first["checkpoint"]
+    assert second["checkpoint"].endswith("horizon/H0/3_bits/checkpoints/model.pkl")
+    assert plan["probe_command"]["checkpoint"] == second["checkpoint"]
+    assert plan["probe_command"]["output_dir"].endswith("horizon/H0/probe")
+    assert plan["probe_command"]["argv"][-1] == "--no-render"
+
+    for command in plan["train_commands"]:
+        argv = command["argv"]
+        assert argv[:5] == [
+            "ant-byte",
+            "train",
+            "jax",
+            "--config",
+            "experiments/communication_bits.json",
+        ]
+        override_argv = argv[argv.index("--") + 1 :]
+        parsed = parse_args([*config_args_to_argv(base_spec.args), *override_argv])
+        assert parsed.total_timesteps == plan["env_steps_per_stage"]
+        assert parsed.run_dir.as_posix() == command["run_dir"]
+        assert parsed.load_model.as_posix() == command["source_checkpoint"]
+        assert parsed.write_bits == command["write_bits"]
+
+
+def test_cli_communication_plan_prints_staged_commands(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "communication-plan",
+            "--phase",
+            "horizon",
+            "--id",
+            "H1",
+            "--probe-episodes",
+            "2",
+            "--no-render",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["id"] == "H1"
+    assert payload["global_update_cap"] == 1250
+    assert payload["env_steps_per_stage"] == 2_560_000
+    assert len(payload["train_commands"]) == 2
+    assert payload["probe_command"]["argv"][-1] == "--no-render"
 
 
 def test_run_helpers_create_manifest_and_metrics(tmp_path: Path) -> None:
