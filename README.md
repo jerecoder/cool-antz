@@ -264,8 +264,7 @@ each ant can write.
 By default this stage fixes one cookie source near the hub and adds small
 curriculum rewards for picking up a bite and moving closer to the current target
 (cookie when empty, hub when carrying). The environment reward is still the
-normal delivery reward. Use `--cookie-reward` to tune the pickup reward without
-changing the delivery reward.
+normal delivery reward.
 
 Use `--random-food --random-hub --food-sources N` to randomize the colony
 location and split cookies across multiple random source tiles on each reset.
