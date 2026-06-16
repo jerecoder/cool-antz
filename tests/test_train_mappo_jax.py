@@ -1352,6 +1352,12 @@ def test_jax_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
         parse_args(["--write-bits", write_bits])
 
 
+def test_jax_parse_args_accepts_cookie_reward_alias() -> None:
+    args = parse_args(["--cookie-reward", "0.5"])
+
+    assert args.pickup_bonus == 0.5
+
+
 def test_jax_parse_args_accepts_write_head_transfer_modes() -> None:
     assert parse_args(["--write-head-transfer", "reset"]).write_head_transfer == "reset"
     assert (
@@ -1371,6 +1377,7 @@ def test_jax_parse_args_accepts_write_head_transfer_modes() -> None:
         ("--write-entropy-bonus", "-0.1", "write-entropy-bonus"),
         ("--write-entropy-bonus-cap", "-0.1", "write-entropy-bonus-cap"),
         ("--write-bit-entropy-bonus", "-0.1", "write-bit-entropy-bonus"),
+        ("--cookie-reward", "-0.1", "cookie-reward"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(

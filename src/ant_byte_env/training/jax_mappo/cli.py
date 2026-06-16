@@ -91,7 +91,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
     parser.add_argument("--random-hub", action="store_true")
-    parser.add_argument("--pickup-bonus", type=float, default=0.25)
+    parser.add_argument(
+        "--pickup-bonus",
+        "--cookie-reward",
+        dest="pickup_bonus",
+        type=float,
+        default=0.25,
+        help="Extra curriculum reward when an ant picks up a cookie bite.",
+    )
     parser.add_argument("--distance-bonus", type=float, default=0.02)
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
@@ -132,6 +139,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
     if args.write_bit_penalty < 0.0:
         raise ValueError("--write-bit-penalty must be non-negative.")
+    if args.pickup_bonus < 0.0:
+        raise ValueError("--cookie-reward must be non-negative.")
     if not 0.0 <= args.write_bit_penalty_decay <= 1.0:
         raise ValueError("--write-bit-penalty-decay must be between 0 and 1.")
     if args.write_entropy_bonus < 0.0:

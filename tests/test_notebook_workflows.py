@@ -160,12 +160,14 @@ def test_forage_common_args_use_largest_stage_padding() -> None:
         num_steps=80,
         actor_vision_radius=1,
         write_bits=1,
+        cookie_reward=0.5,
     )
 
     assert args[args.index("--obs-width") + 1] == "25"
     assert args[args.index("--obs-height") + 1] == "25"
     assert args[args.index("--num-envs") + 1] == "16"
     assert args[args.index("--num-steps") + 1] == "80"
+    assert args[args.index("--cookie-reward") + 1] == "0.5"
     assert "--random-food" in args
     assert "--random-hub" in args
 

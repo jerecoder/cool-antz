@@ -498,6 +498,8 @@ def build_forage_common_args(
     num_steps: int,
     actor_vision_radius: int,
     write_bits: int,
+    cookie_reward: float = 0.25,
+    distance_bonus: float = 0.02,
     seed: int = 1,
 ) -> list[str]:
     max_width = max(int(stage["width"]) for stage in stages)
@@ -523,10 +525,10 @@ def build_forage_common_args(
         "1",
         "--random-food",
         "--random-hub",
-        "--pickup-bonus",
-        "0.25",
+        "--cookie-reward",
+        str(float(cookie_reward)),
         "--distance-bonus",
-        "0.02",
+        str(float(distance_bonus)),
         "--hidden-size",
         "128",
         "--seed",

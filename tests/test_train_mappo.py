@@ -458,6 +458,17 @@ def test_parse_args_rejects_invalid_write_bits(write_bits: str) -> None:
         parse_args(["--write-bits", write_bits])
 
 
+def test_parse_args_accepts_cookie_reward_alias() -> None:
+    args = parse_args(["--cookie-reward", "0.5"])
+
+    assert args.pickup_bonus == 0.5
+
+
+def test_parse_args_rejects_negative_cookie_reward() -> None:
+    with pytest.raises(ValueError, match="cookie-reward"):
+        parse_args(["--cookie-reward", "-0.1"])
+
+
 def test_forage_curriculum_rewards_pickup_and_target_progress() -> None:
     env = AntByteForagingEnv(width=4, height=3, num_ants=1, food_count=1)
     previous_obs, _ = env.reset(

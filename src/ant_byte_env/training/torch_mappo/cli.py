@@ -97,6 +97,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--pickup-bonus",
+        "--cookie-reward",
+        dest="pickup_bonus",
         type=float,
         default=0.25,
         help="Extra curriculum reward when an ant picks up a cookie bite.",
@@ -145,4 +147,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--actor-vision-radius must be non-negative.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
+    if args.pickup_bonus < 0.0:
+        raise ValueError("--cookie-reward must be non-negative.")
     return args
