@@ -51,6 +51,12 @@ def test_mappo_curriculum_keeps_stage_count_and_reaches_50x50() -> None:
     assert "workflows.run_forage_curriculum" in source
     assert "workflows.render_forage_rollouts" in source
     assert "from `4x4` through `50x50`" in source
+    assert "WANDB_PROJECT = None" in source
+    assert 'WANDB_GROUP = "forage_curriculum_50x50"' in source
+    assert 'WANDB_MODE = "online"' in source
+    assert "WANDB_VIDEO_MAX_FRAMES = 600" in source
+    assert "wandb_project=WANDB_PROJECT" in source
+    assert "wandb_video_max_frames=WANDB_VIDEO_MAX_FRAMES" in source
 
     spec = json.loads(Path("experiments/forage_curriculum.json").read_text(encoding="utf-8"))
     assert spec["args"]["width"] == 50
@@ -69,7 +75,7 @@ def test_notebook_render_cells_do_not_cap_rollout_frames() -> None:
 
         assert "ROLLOUT_TILE_SIZE = workflows.NOTEBOOK_ROLLOUT_TILE_SIZE" in source
         assert "ROLLOUT_MAX_FRAMES" not in source
-        assert "max_frames=" not in source
+        assert "    max_frames=" not in source
         assert "tile_size=ROLLOUT_TILE_SIZE" in source
 
 

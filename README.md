@@ -281,6 +281,12 @@ python -m pip install -e ".[jax,rl,notebooks]"
 jupyter notebook notebooks/train_mappo_curriculum.ipynb
 ```
 
+To monitor a long JAX curriculum from your phone, install with
+`python -m pip install -e ".[jax,rl,notebooks,wandb]"`, run `wandb login`, and set
+`WANDB_PROJECT = "cool-antz"` in the notebook settings cell. The notebook keeps
+local media under `runs/notebooks/forage_curriculum/` and uploads short
+stage-end MP4 previews to the W&B run.
+
 The notebooks now call package utilities for trainer code and rendering. Their
 generated checkpoints and media write under `runs/notebooks/`. Notebook rollout
 cells render full sampled episodes by default using a smaller tile size. Use
