@@ -122,6 +122,11 @@ def collect_rollout(
         )
         carrying_ants = jnp.sum(next_carrying.astype(jnp.float32), axis=-1)
         remaining_food = jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1))
+        nonzero_byte_tiles = jnp.sum(
+            (next_obs["bytes"] > 0).astype(jnp.float32),
+            axis=(-2, -1),
+        )
+        nonzero_byte_fraction = nonzero_byte_tiles / float(env.height * env.width)
 
         def reset_done_envs(_: None) -> tuple[JaxAntState, JaxObs]:
             reset_states, reset_obs = reset_batch(args=args, env=env, key=reset_key)
@@ -155,6 +160,8 @@ def collect_rollout(
             delivery_events=delivery_events,
             carrying_ants=carrying_ants,
             remaining_food=remaining_food,
+            nonzero_byte_tiles=nonzero_byte_tiles,
+            nonzero_byte_fraction=nonzero_byte_fraction,
         )
         return (carry_states, carry_obs, next_key), transition
 
@@ -186,5 +193,7 @@ def collect_rollout(
         delivery_events=transitions.delivery_events,
         carrying_ants=transitions.carrying_ants,
         remaining_food=transitions.remaining_food,
+        nonzero_byte_tiles=transitions.nonzero_byte_tiles,
+        nonzero_byte_fraction=transitions.nonzero_byte_fraction,
     )
     return final_states, final_obs, rollout

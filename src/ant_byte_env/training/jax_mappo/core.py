@@ -62,6 +62,8 @@ class Transition(NamedTuple):
     delivery_events: jax.Array
     carrying_ants: jax.Array
     remaining_food: jax.Array
+    nonzero_byte_tiles: jax.Array
+    nonzero_byte_fraction: jax.Array
 
 
 class Rollout(NamedTuple):
@@ -80,6 +82,8 @@ class Rollout(NamedTuple):
     delivery_events: jax.Array
     carrying_ants: jax.Array
     remaining_food: jax.Array
+    nonzero_byte_tiles: jax.Array
+    nonzero_byte_fraction: jax.Array
 
 
 class TrainingBatch(NamedTuple):

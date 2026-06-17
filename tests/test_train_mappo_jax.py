@@ -419,7 +419,13 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     rollout = Rollout(
         actor_obs=dummy,
         central_obs=dummy,
-        actions=dummy.astype(jnp.int32),
+        actions=jnp.array(
+            [
+                [[[0, 0]], [[1, 2]]],
+                [[[2, 1]], [[3, 0]]],
+            ],
+            dtype=jnp.int32,
+        ),
         logprobs=dummy,
         rewards=jnp.array([[1.0, 2.0], [3.0, 4.0]], dtype=jnp.float32),
         dones=jnp.array([[False, True], [False, True]]),
@@ -432,6 +438,8 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
         delivery_events=jnp.array([[0.0, 1.0], [1.0, 0.0]], dtype=jnp.float32),
         carrying_ants=jnp.array([[0.0, 1.0], [1.0, 1.0]], dtype=jnp.float32),
         remaining_food=jnp.array([[7.0, 5.0], [6.0, 4.0]], dtype=jnp.float32),
+        nonzero_byte_tiles=jnp.array([[0.0, 2.0], [4.0, 6.0]], dtype=jnp.float32),
+        nonzero_byte_fraction=jnp.array([[0.0, 0.125], [0.25, 0.375]], dtype=jnp.float32),
     )
 
     stats = _rollout_stats(rollout)
@@ -445,6 +453,12 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     assert stats["delivery_events"] == 2.0
     assert stats["mean_carrying_ants"] == 0.75
     assert stats["final_mean_remaining_food"] == 5.0
+    assert stats["write_action_nonzero_rate"] == 0.5
+    assert stats["mean_write_action_value"] == 0.75
+    assert stats["mean_nonzero_byte_tiles"] == 3.0
+    assert stats["final_mean_nonzero_byte_tiles"] == 5.0
+    assert stats["mean_nonzero_byte_fraction"] == 0.1875
+    assert stats["final_mean_nonzero_byte_fraction"] == 0.3125
 
 
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
