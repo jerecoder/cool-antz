@@ -1,0 +1,281 @@
+{
+  "name": "forage_50x50_single_ant_autoresearch",
+  "base_config": "experiments/forage_curriculum.json",
+  "run_root": "runs/autoresearch/forage_50x50",
+  "global_update_cap": 1000,
+  "screening_stage_sizes": [4, 6, 8, 10, 12, 15, 18, 21, 25, 30, 35, 40, 45, 50],
+  "final_stage_sizes": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+  "wandb": {
+    "project": "cool-antz",
+    "group": "forage_curriculum_50x50",
+    "mode": "online",
+    "tags": ["jax", "mappo", "single-ant", "50x50", "no-cheat"]
+  },
+  "wandb_video_stage_names": ["25x25", "40x40", "50x50"],
+  "wandb_video_max_frames": 600,
+  "constraints": {
+    "num_ants": 1,
+    "actor_vision_radius": 1,
+    "actor_observation": "local grid patches, facing, carrying, and byte bits only",
+    "forbidden": [
+      "food coordinates in actor observations",
+      "hub coordinates in actor observations",
+      "food or hub direction vectors",
+      "expanded actor vision radius"
+    ]
+  },
+  "phases": {
+    "reward": [
+      {
+        "id": "R0",
+        "description": "Baseline pickup-only shaping.",
+        "run_dir": "runs/autoresearch/forage_50x50/reward/R0",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.0,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      },
+      {
+        "id": "R1",
+        "description": "Conservative trainer-side food/hub progress shaping.",
+        "run_dir": "runs/autoresearch/forage_50x50/reward/R1",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      },
+      {
+        "id": "R2",
+        "description": "Lower pickup bonus to make shaped navigation less pickup-dominated.",
+        "run_dir": "runs/autoresearch/forage_50x50/reward/R2",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.1,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      },
+      {
+        "id": "R3",
+        "description": "Stronger but still local trainer-side progress shaping.",
+        "run_dir": "runs/autoresearch/forage_50x50/reward/R3",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.05,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      }
+    ],
+    "algorithm": [
+      {
+        "id": "H0",
+        "description": "Current rollout horizon baseline.",
+        "run_dir": "runs/autoresearch/forage_50x50/algorithm/H0",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      },
+      {
+        "id": "H1",
+        "description": "Longer rollout horizon and slightly longer credit assignment.",
+        "run_dir": "runs/autoresearch/forage_50x50/algorithm/H1",
+        "global_update_cap": 625,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 8,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "gae_lambda": 0.97
+        }
+      },
+      {
+        "id": "H2",
+        "description": "Very long rollout horizon for sparse long-range return propagation.",
+        "run_dir": "runs/autoresearch/forage_50x50/algorithm/H2",
+        "global_update_cap": 625,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 4,
+          "num_steps": 512,
+          "gamma": 0.997,
+          "gae_lambda": 0.98
+        }
+      },
+      {
+        "id": "H3",
+        "description": "Long horizon with lower entropy once movement shaping is present.",
+        "run_dir": "runs/autoresearch/forage_50x50/algorithm/H3",
+        "global_update_cap": 625,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.003,
+          "hidden_size": 128,
+          "num_envs": 8,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "gae_lambda": 0.97
+        }
+      },
+      {
+        "id": "H4",
+        "description": "Long horizon with learning-rate annealing.",
+        "run_dir": "runs/autoresearch/forage_50x50/algorithm/H4",
+        "global_update_cap": 625,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 8,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "gae_lambda": 0.97,
+          "anneal_lr": true
+        }
+      }
+    ],
+    "architecture": [
+      {
+        "id": "A0",
+        "description": "Current 128-wide MLP baseline.",
+        "run_dir": "runs/autoresearch/forage_50x50/architecture/A0",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      },
+      {
+        "id": "A1",
+        "description": "Wider 256 MLP for larger padded 50x50 critic observations.",
+        "run_dir": "runs/autoresearch/forage_50x50/architecture/A1",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 256,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      },
+      {
+        "id": "A2",
+        "description": "Wider 384 MLP with reduced parallel environments for memory headroom.",
+        "run_dir": "runs/autoresearch/forage_50x50/architecture/A2",
+        "global_update_cap": 1000,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 384,
+          "num_envs": 8,
+          "num_steps": 160,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
+      }
+    ],
+    "final": [
+      {
+        "id": "F1",
+        "description": "Full 4x4-50x50 curriculum with the conservative promoted setup.",
+        "run_dir": "runs/autoresearch/forage_50x50/final/F1",
+        "global_update_cap": 1500,
+        "args": {
+          "seed": 901,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.003,
+          "hidden_size": 256,
+          "num_envs": 8,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "gae_lambda": 0.97
+        }
+      },
+      {
+        "id": "F2",
+        "description": "Full curriculum replicate with wider actor/critic capacity.",
+        "run_dir": "runs/autoresearch/forage_50x50/final/F2",
+        "global_update_cap": 1250,
+        "args": {
+          "seed": 902,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.003,
+          "hidden_size": 384,
+          "num_envs": 8,
+          "num_steps": 160,
+          "gamma": 0.995,
+          "gae_lambda": 0.97
+        }
+      },
+      {
+        "id": "F3",
+        "description": "Full curriculum replicate with weaker progress shaping.",
+        "run_dir": "runs/autoresearch/forage_50x50/final/F3",
+        "global_update_cap": 1500,
+        "args": {
+          "seed": 903,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.01,
+          "ent_coef": 0.003,
+          "hidden_size": 256,
+          "num_envs": 8,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "gae_lambda": 0.97
+        }
+      }
+    ]
+  }
+}

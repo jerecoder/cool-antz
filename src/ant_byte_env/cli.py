@@ -125,6 +125,57 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "forage-plan":
+        from ant_byte_env.forage_autoresearch import build_forage_50x50_sweep_plan
+
+        payload = build_forage_50x50_sweep_plan(
+            matrix_path=args.matrix,
+            phase=args.phase,
+            run_id=args.run_id,
+            run_root=args.run_root,
+            stage_sizes=args.stage_sizes,
+            global_update_cap=args.global_update_cap,
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            wandb_project=args.wandb_project,
+            wandb_mode=args.wandb_mode,
+            wandb_video_stage_names=args.wandb_video_stages,
+            wandb_video_max_frames=args.wandb_video_max_frames,
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "forage-run":
+        from ant_byte_env.autoresearch import AutoresearchResourceError
+        from ant_byte_env.forage_autoresearch import (
+            build_forage_50x50_sweep_plan,
+            execute_forage_50x50_sweep_plan,
+        )
+
+        plan = build_forage_50x50_sweep_plan(
+            matrix_path=args.matrix,
+            phase=args.phase,
+            run_id=args.run_id,
+            run_root=args.run_root,
+            stage_sizes=args.stage_sizes,
+            global_update_cap=args.global_update_cap,
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            wandb_project=args.wandb_project,
+            wandb_mode=args.wandb_mode,
+            wandb_video_stage_names=args.wandb_video_stages,
+            wandb_video_max_frames=args.wandb_video_max_frames,
+        )
+        try:
+            payload = execute_forage_50x50_sweep_plan(
+                plan,
+                check_resources=not args.skip_resource_check,
+                resume_completed=not args.rerun_completed,
+            )
+        except AutoresearchResourceError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     parser.print_help()
     return 1
 
@@ -256,6 +307,56 @@ def _build_parser() -> argparse.ArgumentParser:
     communication_run.add_argument("--max-render-frames", type=int, default=300)
     communication_run.add_argument("--rerun-completed", action="store_true")
     communication_run.add_argument("--skip-resource-check", action="store_true")
+    forage_plan = autoresearch_subparsers.add_parser(
+        "forage-plan",
+        help="Print a no-cheat single-ant 50x50 forage curriculum plan.",
+    )
+    forage_plan.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/forage_50x50_sweep.json"),
+    )
+    forage_plan.add_argument("--phase", required=True)
+    forage_plan.add_argument("--id", dest="run_id", required=True)
+    forage_plan.add_argument("--run-root", type=Path, default=None)
+    forage_plan.add_argument("--stage-sizes", type=int, nargs="+", default=None)
+    forage_plan.add_argument("--global-update-cap", type=int, default=None)
+    forage_plan.add_argument("--num-envs", type=int, default=None)
+    forage_plan.add_argument("--num-steps", type=int, default=None)
+    forage_plan.add_argument("--wandb-project", type=str, default=None)
+    forage_plan.add_argument(
+        "--wandb-mode",
+        choices=["online", "offline", "disabled"],
+        default=None,
+    )
+    forage_plan.add_argument("--wandb-video-stages", nargs="+", default=None)
+    forage_plan.add_argument("--wandb-video-max-frames", type=int, default=None)
+    forage_run = autoresearch_subparsers.add_parser(
+        "forage-run",
+        help="Execute a no-cheat single-ant 50x50 forage curriculum plan.",
+    )
+    forage_run.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/forage_50x50_sweep.json"),
+    )
+    forage_run.add_argument("--phase", required=True)
+    forage_run.add_argument("--id", dest="run_id", required=True)
+    forage_run.add_argument("--run-root", type=Path, default=None)
+    forage_run.add_argument("--stage-sizes", type=int, nargs="+", default=None)
+    forage_run.add_argument("--global-update-cap", type=int, default=None)
+    forage_run.add_argument("--num-envs", type=int, default=None)
+    forage_run.add_argument("--num-steps", type=int, default=None)
+    forage_run.add_argument("--wandb-project", type=str, default=None)
+    forage_run.add_argument(
+        "--wandb-mode",
+        choices=["online", "offline", "disabled"],
+        default=None,
+    )
+    forage_run.add_argument("--wandb-video-stages", nargs="+", default=None)
+    forage_run.add_argument("--wandb-video-max-frames", type=int, default=None)
+    forage_run.add_argument("--rerun-completed", action="store_true")
+    forage_run.add_argument("--skip-resource-check", action="store_true")
     communication_rank = autoresearch_subparsers.add_parser(
         "communication-rank",
         help="Rank completed communication probe artifacts by balanced delivery.",

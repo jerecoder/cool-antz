@@ -17,6 +17,10 @@ from ant_byte_env.autoresearch import (
     execute_communication_sweep_plan,
     rank_communication_gate_probes,
 )
+from ant_byte_env.forage_autoresearch import (
+    build_forage_50x50_sweep_plan,
+    execute_forage_50x50_sweep_plan,
+)
 
 
 def test_experiment_config_loads_and_converts_args() -> None:
@@ -202,6 +206,153 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
             parsed.num_steps * parsed.num_envs * int(entry["global_update_cap"])
             == matrix["screening_env_steps_per_stage"]
         )
+
+
+def test_forage_50x50_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    matrix = json.loads(Path("autoresearch/forage_50x50_sweep.json").read_text())
+    base_spec = load_experiment_config(Path(matrix["base_config"]))
+    run_root = str(matrix["run_root"])
+
+    assert matrix["constraints"]["num_ants"] == 1
+    assert matrix["constraints"]["actor_vision_radius"] == 1
+    assert matrix["screening_stage_sizes"][-1] == 50
+    assert matrix["final_stage_sizes"] == list(range(4, 51))
+    assert [entry["id"] for entry in matrix["phases"]["reward"]] == ["R0", "R1", "R2", "R3"]
+    assert [entry["id"] for entry in matrix["phases"]["algorithm"]] == [
+        "H0",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+    ]
+    assert [entry["id"] for entry in matrix["phases"]["architecture"]] == ["A0", "A1", "A2"]
+    assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
+
+    all_ids: set[str] = set()
+    for entries in matrix["phases"].values():
+        for entry in entries:
+            assert entry["id"] not in all_ids
+            all_ids.add(entry["id"])
+            assert str(entry["run_dir"]).startswith(f"{run_root}/")
+            merged_args = {**base_spec.args, **entry["args"]}
+            parsed = parse_args(config_args_to_argv(merged_args))
+            assert parsed.num_ants == 1
+            assert parsed.actor_vision_radius == 1
+            assert parsed.obs_width == 50
+            assert parsed.obs_height == 50
+            assert parsed.write_bits == 1
+            assert parsed.random_food
+            assert parsed.random_hub
+            assert parsed.write_while_moving
+
+
+def test_forage_50x50_sweep_plan_builds_curriculum_with_wandb_milestones() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    plan = build_forage_50x50_sweep_plan(
+        phase="reward",
+        run_id="R1",
+        stage_sizes=[4, 6, 50],
+        global_update_cap=2,
+        num_envs=1,
+        num_steps=4,
+        wandb_mode="offline",
+    )
+
+    assert plan["id"] == "R1"
+    assert plan["stage_sizes"] == [4, 6, 50]
+    assert [stage["name"] for stage in plan["stages"]] == ["4x4", "6x6", "50x50"]
+    assert plan["global_update_cap"] == 2
+    assert plan["update_timesteps_per_stage"] == 4
+    assert plan["total_train_env_steps"] == 24
+    assert plan["final_checkpoint"].endswith(
+        "reward/R1/checkpoints/jax_mappo_forage_stage1_50x50.pkl"
+    )
+    assert plan["wandb"]["project"] == "cool-antz"
+    assert plan["wandb"]["mode"] == "offline"
+    assert plan["wandb"]["video_stage_names"] == ["25x25", "40x40", "50x50"]
+    assert plan["no_cheat_invariants"]["actor_vision_radius"] == 1
+
+    parsed = parse_args(plan["common_args"])
+    assert parsed.num_ants == 1
+    assert parsed.actor_vision_radius == 1
+    assert parsed.obs_width == 50
+    assert parsed.obs_height == 50
+    assert parsed.pickup_bonus == 0.25
+    assert parsed.distance_bonus == 0.02
+    assert parsed.total_timesteps == 100_000
+
+
+def test_forage_50x50_sweep_plan_rejects_cheating_actor_radius(tmp_path: Path) -> None:
+    matrix = json.loads(Path("autoresearch/forage_50x50_sweep.json").read_text())
+    matrix["phases"]["reward"][0]["args"]["actor_vision_radius"] = 2
+    matrix_path = tmp_path / "matrix.json"
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="actor_vision_radius"):
+        build_forage_50x50_sweep_plan(
+            matrix_path=matrix_path,
+            phase="reward",
+            run_id="R0",
+        )
+
+
+def test_execute_forage_50x50_sweep_plan_runs_curriculum(tmp_path: Path) -> None:
+    plan = build_forage_50x50_sweep_plan(
+        phase="reward",
+        run_id="R1",
+        run_root=tmp_path / "forage",
+        stage_sizes=[4, 5],
+        global_update_cap=1,
+        num_envs=1,
+        num_steps=4,
+        wandb_mode="disabled",
+        wandb_video_stage_names=["5x5"],
+    )
+    curriculum_calls: list[dict[str, object]] = []
+
+    def fake_train_main(args: list[str], progress_callback=None) -> dict[str, float]:
+        del args, progress_callback
+        return {"global_step": 1.0}
+
+    def fake_run_curriculum(**kwargs: object) -> dict[str, object]:
+        curriculum_calls.append(kwargs)
+        checkpoint_dir = Path(str(kwargs["checkpoint_dir"]))
+        final_checkpoint = checkpoint_dir / "jax_mappo_forage_stage1_5x5.pkl"
+        final_checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        final_checkpoint.write_bytes(b"checkpoint")
+        return {
+            "stage_metrics": [{"stage_name": "5x5", "episode_return": 1.0}],
+            "stage_checkpoint_paths": [checkpoint_dir / "jax_mappo_forage_stage1_5x5.pkl"],
+            "final_checkpoint_path": final_checkpoint,
+            "final_train_metrics": {"global_step": 1.0},
+        }
+
+    summary = execute_forage_50x50_sweep_plan(
+        plan,
+        train_main=fake_train_main,
+        run_curriculum=fake_run_curriculum,
+        check_resources=False,
+    )
+
+    assert len(curriculum_calls) == 1
+    call = curriculum_calls[0]
+    assert call["train_main"] is fake_train_main
+    assert call["wandb_mode"] == "disabled"
+    assert call["wandb_video_stage_names"] == ["5x5"]
+    assert [stage["name"] for stage in call["stages"]] == ["4x4", "5x5"]
+    assert summary["resumed"] is False
+    assert summary["curriculum"]["final_checkpoint_path"].endswith(
+        "jax_mappo_forage_stage1_5x5.pkl"
+    )
+    assert json.loads((tmp_path / "forage" / "reward" / "R1" / "sweep_plan.json").read_text())[
+        "id"
+    ] == "R1"
+    assert json.loads(
+        (tmp_path / "forage" / "reward" / "R1" / "sweep_summary.json").read_text()
+    )["summary_path"].endswith("sweep_summary.json")
 
 
 def test_communication_sweep_plan_builds_promoted_validation_post_stages() -> None:
@@ -716,6 +867,41 @@ def test_cli_communication_plan_prints_staged_commands(
     assert payload["probe_command"]["argv"][-1] == "--no-render"
 
 
+def test_cli_forage_plan_prints_curriculum_plan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "forage-plan",
+            "--phase",
+            "algorithm",
+            "--id",
+            "H1",
+            "--stage-sizes",
+            "4",
+            "50",
+            "--global-update-cap",
+            "2",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--wandb-mode",
+            "offline",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["id"] == "H1"
+    assert payload["phase"] == "algorithm"
+    assert payload["stage_sizes"] == [4, 50]
+    assert payload["total_train_env_steps"] == 16
+    assert payload["wandb"]["project"] == "cool-antz"
+    assert payload["wandb"]["mode"] == "offline"
+
+
 def test_communication_rank_balances_sampled_and_deterministic_delivery(
     tmp_path: Path,
 ) -> None:
@@ -924,6 +1110,79 @@ def test_cli_communication_run_uses_executable_plan(
     assert str(captured_plan["run_dir"]).startswith(str(tmp_path / "cli-smoke"))
     assert captured_plan["probe_command"]["options"]["max_render_frames"] == 300
     assert captured_plan["env_steps_per_stage"] == 1
+    assert captured_check_resources == [False]
+    assert captured_resume_completed == [True]
+
+
+def test_cli_forage_run_uses_executable_plan(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    import ant_byte_env.forage_autoresearch as forage_autoresearch_module
+
+    captured_plan: dict[str, object] = {}
+    captured_check_resources: list[bool] = []
+    captured_resume_completed: list[bool] = []
+
+    def fake_execute_forage_50x50_sweep_plan(
+        plan: dict[str, object],
+        *,
+        check_resources: bool,
+        resume_completed: bool,
+    ) -> dict[str, object]:
+        captured_plan.update(plan)
+        captured_check_resources.append(check_resources)
+        captured_resume_completed.append(resume_completed)
+        return {
+            "phase": plan["phase"],
+            "id": plan["id"],
+            "summary_path": "runs/autoresearch/forage_50x50/reward/R1/sweep_summary.json",
+            "resumed": False,
+            "curriculum": {},
+        }
+
+    monkeypatch.setattr(
+        forage_autoresearch_module,
+        "execute_forage_50x50_sweep_plan",
+        fake_execute_forage_50x50_sweep_plan,
+    )
+
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "forage-run",
+            "--phase",
+            "reward",
+            "--id",
+            "R1",
+            "--run-root",
+            str(tmp_path / "cli-smoke"),
+            "--stage-sizes",
+            "4",
+            "5",
+            "--global-update-cap",
+            "1",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--wandb-mode",
+            "disabled",
+            "--wandb-video-stages",
+            "5x5",
+            "--skip-resource-check",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["id"] == "R1"
+    assert captured_plan["stage_sizes"] == [4, 5]
+    assert str(captured_plan["run_dir"]).startswith(str(tmp_path / "cli-smoke"))
+    assert captured_plan["wandb"]["mode"] == "disabled"
+    assert captured_plan["wandb"]["video_stage_names"] == ["5x5"]
+    assert captured_plan["total_train_env_steps"] == 8
     assert captured_check_resources == [False]
     assert captured_resume_completed == [True]
 
