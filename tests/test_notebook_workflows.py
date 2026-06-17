@@ -123,8 +123,8 @@ def test_cleanup_notebook_artifacts_dry_run_and_delete(tmp_path: Path) -> None:
     assert keep_dir.exists()
 
 
-def test_forage_stage_generation_reaches_25x25() -> None:
-    stages = workflows.build_forage_curriculum_stages((4, 25))
+def test_forage_stage_generation_reaches_50x50() -> None:
+    stages = workflows.build_forage_curriculum_stages((4, 50))
 
     assert stages[0] == {
         "name": "4x4",
@@ -135,11 +135,11 @@ def test_forage_stage_generation_reaches_25x25() -> None:
         "cookie_distance": 1,
         "max_steps": 64,
     }
-    assert stages[-1]["name"] == "25x25"
-    assert stages[-1]["food_count"] == 23
-    assert stages[-1]["food_sources"] == 6
-    assert stages[-1]["cookie_distance"] == 11
-    assert stages[-1]["max_steps"] == 2500
+    assert stages[-1]["name"] == "50x50"
+    assert stages[-1]["food_count"] == 48
+    assert stages[-1]["food_sources"] == 12
+    assert stages[-1]["cookie_distance"] == 24
+    assert stages[-1]["max_steps"] == 10000
 
 
 def test_forage_food_sources_concentrate_total_food_budget() -> None:
@@ -151,8 +151,8 @@ def test_forage_food_sources_concentrate_total_food_budget() -> None:
         assert 1 <= int(stage["food_sources"]) <= int(stage["food_count"])
 
 
-def test_forage_common_args_use_largest_stage_padding() -> None:
-    stages = workflows.build_forage_curriculum_stages((4, 25))
+def test_forage_common_args_use_largest_stage_padding_and_moving_writes() -> None:
+    stages = workflows.build_forage_curriculum_stages((4, 50))
 
     args = workflows.build_forage_common_args(
         stages,
@@ -163,13 +163,26 @@ def test_forage_common_args_use_largest_stage_padding() -> None:
         gamma=0.97,
     )
 
-    assert args[args.index("--obs-width") + 1] == "25"
-    assert args[args.index("--obs-height") + 1] == "25"
+    assert args[args.index("--obs-width") + 1] == "50"
+    assert args[args.index("--obs-height") + 1] == "50"
     assert args[args.index("--num-envs") + 1] == "16"
     assert args[args.index("--num-steps") + 1] == "80"
     assert args[args.index("--gamma") + 1] == "0.97"
     assert "--random-food" in args
     assert "--random-hub" in args
+    assert "--distance-bonus" not in args
+    assert "--write-while-moving" in args
+
+    stay_only_args = workflows.build_forage_common_args(
+        stages,
+        num_envs=16,
+        num_steps=80,
+        actor_vision_radius=1,
+        write_bits=1,
+        gamma=0.97,
+        write_while_moving=False,
+    )
+    assert "--write-while-moving" not in stay_only_args
 
 
 def test_config_common_args_excludes_stage_specific_keys() -> None:
@@ -185,6 +198,7 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
             "write_bit_entropy_bonus": 0.5,
             "ent_coef": 0.02,
             "write_head_transfer": "neutral-new",
+            "write_while_moving": True,
             "load_model": "source.pkl",
             "quiet": True,
         },
@@ -201,11 +215,12 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
     assert args[args.index("--write-bit-entropy-bonus") + 1] == "0.5"
     assert args[args.index("--ent-coef") + 1] == "0.02"
     assert args[args.index("--write-head-transfer") + 1] == "neutral-new"
+    assert "--write-while-moving" in args
     assert "--write-bits" not in args
     assert "--load-model" not in args
 
 
-def test_ant_count_training_args_lock_25x25_three_bit_source_shape() -> None:
+def test_ant_count_training_args_keep_25x25_task_with_50_padded_observations() -> None:
     args = workflows.ant_count_training_args(
         {"num_envs": 16, "num_steps": 80, "write_bits": 1},
         communication_bits=3,
@@ -213,13 +228,14 @@ def test_ant_count_training_args_lock_25x25_three_bit_source_shape() -> None:
 
     assert args["width"] == 25
     assert args["height"] == 25
-    assert args["obs_width"] == 25
-    assert args["obs_height"] == 25
+    assert args["obs_width"] == 50
+    assert args["obs_height"] == 50
     assert args["food_count"] == 23
     assert args["food_sources"] == 6
     assert args["cookie_distance"] == 11
     assert args["max_steps"] == 2500
     assert args["write_bits"] == 3
+    assert args["write_while_moving"] is True
 
 
 def test_checkpoint_path_helpers_match_notebook_artifact_layout(tmp_path: Path) -> None:
@@ -443,7 +459,7 @@ def test_rollout_suite_uses_full_episode_render_defaults(
             "reuse_existing": False,
             "max_frames": None,
             "tile_size": workflows.NOTEBOOK_ROLLOUT_TILE_SIZE,
-            "policy_temperature": 0.0,
+            "policy_temperature": workflows.NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
         }
     ]
 
@@ -496,3 +512,7 @@ def test_rollout_suite_uses_distinct_seed_offsets_per_rollout(
         workflows.NOTEBOOK_ROLLOUT_SEED_OFFSET + 1,
     ]
     assert captured_metadata["rollout_seed_offsets"] == captured_offsets
+    assert (
+        captured_metadata["rollout_policy_temperature"]
+        == workflows.NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE
+    )

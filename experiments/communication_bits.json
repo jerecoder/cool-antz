@@ -1,7 +1,7 @@
 {
   "name": "communication_bits",
   "backend": "jax",
-  "description": "25x25 JAX MAPPO communication-bit curriculum using package-native checkpoints.",
+  "description": "25x25 JAX MAPPO communication-bit curriculum using the 50-padded forage checkpoint produced by the notebook.",
   "args": {
     "exp_name": "jax_mappo_communication",
     "total_timesteps": 2560000,
@@ -12,8 +12,8 @@
     "ent_coef": 0.02,
     "width": 25,
     "height": 25,
-    "obs_width": 25,
-    "obs_height": 25,
+    "obs_width": 50,
+    "obs_height": 50,
     "actor_vision_radius": 1,
     "num_ants": 1,
     "food_count": 23,
@@ -21,7 +21,7 @@
     "cookie_distance": 11,
     "max_steps": 2500,
     "pickup_bonus": 0.25,
-    "distance_bonus": 0.02,
+    "distance_bonus": 0.0,
     "write_bit_penalty": 0.0,
     "write_bit_penalty_decay": 0.5,
     "write_entropy_bonus": 0.0,
@@ -30,6 +30,7 @@
     "write_head_transfer": "repeat",
     "hidden_size": 128,
     "write_bits": 2,
+    "write_while_moving": true,
     "load_model": "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
     "seed": 1,
     "quiet": true,
@@ -61,9 +62,9 @@
         "write_bit_entropy_bonus": 0.0,
         "ent_coef": 0.0,
         "pickup_bonus": 0.25,
-        "distance_bonus": 0.02
+        "distance_bonus": 0.0
       }
     },
-    "notes": "Communication training starts from the latest 25x25 one-bit policy produced by the forage curriculum notebook, then transfers through the configured bit stages."
+    "notes": "Communication training starts from the 25x25 one-bit policy produced by the 4x4-50x50 forage notebook. The task remains 25x25, but observation tensors stay padded to 50x50 for checkpoint compatibility."
   }
 }

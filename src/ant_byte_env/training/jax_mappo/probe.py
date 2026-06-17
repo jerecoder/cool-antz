@@ -238,11 +238,10 @@ def _probe_mode(
                 key, action_key = jax.random.split(key)
                 actions = select_actions(_obs_batch(obs), action_key)
                 agent_actions = np.asarray(actions)[0]
-                write_values = np.where(
-                    agent_actions[:, 0] == ACTION_STAY,
-                    agent_actions[:, 1],
-                    0,
-                ).astype(np.int64)
+                write_values = _applied_probe_write_values(
+                    agent_actions,
+                    write_while_moving=bool(getattr(args, "write_while_moving", False)),
+                )
                 action_counts += np.bincount(write_values, minlength=action_counts.shape[0])
                 obs, reward, terminated, truncated, info = env.step(
                     np.asarray(flatten_agent_actions(actions))[0]
@@ -298,6 +297,17 @@ def _probe_mode(
         },
         "rollout_artifact_path": str(rollout_path) if rollout_path is not None else None,
     }
+
+
+def _applied_probe_write_values(
+    agent_actions: np.ndarray,
+    *,
+    write_while_moving: bool,
+) -> np.ndarray:
+    actions = np.asarray(agent_actions)
+    if write_while_moving:
+        return actions[:, 1].astype(np.int64)
+    return np.where(actions[:, 0] == ACTION_STAY, actions[:, 1], 0).astype(np.int64)
 
 
 def _select_actions(

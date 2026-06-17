@@ -49,29 +49,14 @@ def build_curriculum_reset_options(
     return {"hub_pos": hub}
 
 
-def _nearest_food_distance(position: np.ndarray, food_grid: np.ndarray) -> float | None:
-    food_positions = np.argwhere(food_grid > 0)
-    if food_positions.size == 0:
-        return None
-
-    x_pos, y_pos = int(position[0]), int(position[1])
-    distances = np.abs(food_positions[:, 1] - x_pos) + np.abs(food_positions[:, 0] - y_pos)
-    return float(distances.min())
-
-
-def _distance_to_hub(position: np.ndarray, hub_pos: np.ndarray) -> float:
-    return float(abs(int(position[0]) - int(hub_pos[0])) + abs(int(position[1]) - int(hub_pos[1])))
-
-
 def compute_forage_curriculum_rewards(
     *,
     previous_obs: NumpyObs,
     next_obs: NumpyObs,
     env_rewards: np.ndarray,
     pickup_bonus: float,
-    distance_bonus: float,
 ) -> np.ndarray:
-    """Add simple pickup and target-progress rewards for the first curriculum."""
+    """Add pickup shaping while leaving movement progress unshaped."""
 
     shaped_rewards = env_rewards.astype(np.float32, copy=True)
     batch_size, num_agents = previous_obs["ants_carrying"].shape
@@ -82,31 +67,5 @@ def compute_forage_curriculum_rewards(
             is_carrying = bool(next_obs["ants_carrying"][env_index, agent_index])
             if not was_carrying and is_carrying:
                 shaped_rewards[env_index] += float(pickup_bonus)
-
-            previous_position = previous_obs["ants_pos"][env_index, agent_index]
-            next_position = next_obs["ants_pos"][env_index, agent_index]
-            if was_carrying:
-                target_previous_distance = _distance_to_hub(
-                    previous_position,
-                    previous_obs["hub_pos"][env_index],
-                )
-                target_next_distance = _distance_to_hub(
-                    next_position,
-                    previous_obs["hub_pos"][env_index],
-                )
-            else:
-                target_previous_distance = _nearest_food_distance(
-                    previous_position,
-                    previous_obs["food"][env_index],
-                )
-                target_next_distance = _nearest_food_distance(
-                    next_position,
-                    previous_obs["food"][env_index],
-                )
-                if target_previous_distance is None or target_next_distance is None:
-                    continue
-
-            progress = target_previous_distance - target_next_distance
-            shaped_rewards[env_index] += float(distance_bonus) * progress
 
     return shaped_rewards

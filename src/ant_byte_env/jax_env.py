@@ -69,6 +69,7 @@ class JaxAntByteForagingEnv:
         step_penalty: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
+        write_while_moving: bool = False,
     ) -> None:
         self._validate_args(
             width=width,
@@ -93,6 +94,7 @@ class JaxAntByteForagingEnv:
         self.step_penalty = float(step_penalty)
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
+        self.write_while_moving = bool(write_while_moving)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self.action_nvec = jnp.asarray(
@@ -171,7 +173,7 @@ class JaxAntByteForagingEnv:
         state: JaxAntState,
         action: jax.Array,
     ) -> tuple[JaxAntState, JaxObs, jax.Array, jax.Array, jax.Array, JaxAntInfo]:
-        """Advance one step; write values apply only when movement is ``stay``."""
+        """Advance one step; write values can optionally apply after movement."""
 
         flat_action = jnp.asarray(action, dtype=jnp.int32).reshape((2 * self.num_ants,))
         written_mask = jnp.zeros((self.height, self.width), dtype=jnp.bool_)
@@ -227,7 +229,10 @@ class JaxAntByteForagingEnv:
             delivered_food = delivered_food + delivered.astype(jnp.int32)
             delivery_count = delivery_count + delivered.astype(jnp.int32)
 
-            wants_write = move == ACTION_STAY
+            wants_write = jnp.logical_or(
+                move == ACTION_STAY,
+                jnp.asarray(self.write_while_moving, dtype=jnp.bool_),
+            )
             can_write = jnp.logical_and(
                 wants_write,
                 jnp.logical_not(jnp.logical_or(tile_had_food, tile_is_hub)),

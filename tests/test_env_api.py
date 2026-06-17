@@ -155,6 +155,25 @@ def test_movement_step_does_not_write_tile() -> None:
     env.close()
 
 
+def test_write_while_moving_writes_landing_tile() -> None:
+    env = AntByteForagingEnv(
+        width=4,
+        height=4,
+        num_ants=1,
+        food_count=0,
+        seed=3,
+        write_while_moving=True,
+    )
+    env.reset(seed=3, options={"hub_pos": (0, 0)})
+
+    obs, _, _, _, info = env.step(np.array([ACTION_RIGHT, 1], dtype=np.int64))
+
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.array([1, 0], dtype=np.int32))
+    assert obs["bytes"][0, 1] == 1
+    assert info["num_writes"] == 1
+    env.close()
+
+
 def test_multiple_ants_on_same_tile_record_overwrites() -> None:
     env = AntByteForagingEnv(width=4, height=4, num_ants=3, food_count=0)
     env.reset(seed=13, options={"hub_pos": (0, 1)})

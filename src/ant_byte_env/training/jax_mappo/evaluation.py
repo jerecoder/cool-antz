@@ -50,6 +50,7 @@ def evaluate_params(
         step_penalty=eval_source_args.step_penalty,
         write_penalty=eval_source_args.write_penalty,
         write_bits=eval_source_args.write_bits,
+        write_while_moving=bool(getattr(eval_source_args, "write_while_moving", False)),
     )
     eval_args = argparse.Namespace(**{**vars(eval_source_args), "num_envs": 1})
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
@@ -158,6 +159,7 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
         step_penalty=args.step_penalty,
         write_penalty=args.write_penalty,
         write_bits=args.write_bits,
+        write_while_moving=bool(getattr(args, "write_while_moving", False)),
     )
     shape_args = argparse.Namespace(**{**vars(args), "num_envs": 1})
     _, obs = reset_batch(args=shape_args, env=env, key=jax.random.PRNGKey(args.seed))

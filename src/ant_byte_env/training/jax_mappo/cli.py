@@ -53,9 +53,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=0.0,
         help=(
-            "Trainer-side penalty for each set bit on stay/write actions. Bit 0 costs "
+            "Trainer-side penalty for each set bit on applied write actions. Bit 0 costs "
             "this amount; higher bits are discounted by --write-bit-penalty-decay."
         ),
+    )
+    parser.add_argument(
+        "--write-while-moving",
+        action="store_true",
+        help="Apply each write value after movement instead of only on stay/write actions.",
     )
     parser.add_argument(
         "--write-bit-penalty-decay",
@@ -79,7 +84,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--write-bit-entropy-bonus",
         type=float,
         default=0.0,
-        help="Per-update bonus scale for balanced use of writable bits in stay/write actions.",
+        help="Per-update bonus scale for balanced use of bits in applied write actions.",
     )
     parser.add_argument("--write-bits", type=int, default=DEFAULT_WRITE_BITS)
     parser.add_argument(
@@ -92,7 +97,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--random-food", action="store_true")
     parser.add_argument("--random-hub", action="store_true")
     parser.add_argument("--pickup-bonus", type=float, default=0.25)
-    parser.add_argument("--distance-bonus", type=float, default=0.02)
+    parser.add_argument(
+        "--distance-bonus",
+        type=float,
+        default=0.0,
+        help="Deprecated no-op kept for compatibility; Manhattan progress shaping is removed.",
+    )
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(

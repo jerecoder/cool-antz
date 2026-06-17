@@ -75,6 +75,9 @@ def test_jax_cli_dry_run_validates_without_jax_backend(capsys: pytest.CaptureFix
     assert payload["resolved_args"]["load_model"].endswith(
         "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
     )
+    assert payload["resolved_args"]["obs_width"] == 50
+    assert payload["resolved_args"]["obs_height"] == 50
+    assert payload["resolved_args"]["write_while_moving"] is True
     assert payload["resolved_args"]["total_timesteps"] == 8
 
 
@@ -105,6 +108,7 @@ def test_direct_goal_baseline_config_resolves_final_target(
     assert resolved["actor_vision_radius"] == 1
     assert resolved["num_ants"] == 10
     assert resolved["write_bits"] == 5
+    assert resolved["write_while_moving"] is True
     assert resolved["pickup_bonus"] == 0.0
     assert resolved["distance_bonus"] == 0.0
 
@@ -178,6 +182,9 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
             parsed = parse_args(config_args_to_argv(merged_args))
             assert parsed.random_food
             assert parsed.random_hub
+            assert parsed.obs_width == 50
+            assert parsed.obs_height == 50
+            assert parsed.write_while_moving
             assert parsed.write_head_transfer in {"repeat", "reset", "neutral-new"}
             for post_stage in entry.get("post_stages", []):
                 post_parsed = parse_args(
@@ -185,6 +192,9 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
                 )
                 assert post_parsed.random_food
                 assert post_parsed.random_hub
+                assert post_parsed.obs_width == 50
+                assert post_parsed.obs_height == 50
+                assert post_parsed.write_while_moving
 
     for entry in matrix["phases"]["horizon"]:
         parsed = parse_args(config_args_to_argv({**base_spec.args, **entry["args"]}))
@@ -415,8 +425,14 @@ def test_communication_sweep_plan_builds_staged_train_and_probe_commands() -> No
         assert parsed.run_dir.as_posix() == command["run_dir"]
         assert parsed.load_model.as_posix() == command["source_checkpoint"]
         assert parsed.write_bits == command["write_bits"]
+        assert parsed.obs_width == 50
+        assert parsed.obs_height == 50
+        assert parsed.write_while_moving
         direct_parsed = parse_args(command["training_argv"])
         assert direct_parsed.write_bits == command["write_bits"]
+        assert direct_parsed.obs_width == 50
+        assert direct_parsed.obs_height == 50
+        assert direct_parsed.write_while_moving
 
 
 def test_communication_sweep_plan_builds_probe_only_polish_gate() -> None:

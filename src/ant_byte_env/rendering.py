@@ -14,6 +14,7 @@ from ant_byte_env import (
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_WRITE_BITS,
     AntByteForagingEnv,
+    MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
 )
 from ant_byte_env.visualization import draw_vision_squares
@@ -304,14 +305,15 @@ def _render_step_count(args: argparse.Namespace, *, max_frames: int | None) -> i
 
 
 def _deterministic_from_temperature(policy_temperature: float) -> bool:
-    if float(policy_temperature) != 0.0:
-        raise ValueError("Only policy_temperature=0.0 deterministic rendering is supported.")
-    return True
+    temperature = float(policy_temperature)
+    if temperature < 0.0:
+        raise ValueError("policy_temperature must be non-negative.")
+    return temperature == 0.0
 
 
 def _actor_obs_dim_from_args(args: argparse.Namespace) -> int:
     patch_size = actor_vision_patch_size(int(args.actor_vision_radius))
-    return patch_size * (int(args.write_bits) + 4) + 1
+    return patch_size * (int(args.write_bits) + 4) + MOVEMENT_ACTION_COUNT
 
 
 def _compile_jax_action_selector(
@@ -391,6 +393,7 @@ def _env_from_args(
         "step_penalty": args.step_penalty,
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
+        "write_while_moving": bool(getattr(args, "write_while_moving", False)),
         "render_mode": render_mode,
     }
     if tile_size is not None:

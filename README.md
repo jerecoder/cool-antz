@@ -95,9 +95,10 @@ folders, writes `config.json`, appends `metrics.jsonl`, writes `summary.json`,
 and saves checkpoints under each run.
 
 The communication-bit experiment is initialized from
-`runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_15x15.pkl`,
-the latest one-bit `15x15` policy produced by the forage curriculum notebook,
-then transfers through the configured wider write-bit stages.
+`runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl`,
+the one-bit `25x25` policy produced by the `4x4` through `50x50` forage
+curriculum notebook. The task remains `25x25`, but observations stay padded to
+`50x50` so checkpoint shapes match the notebook-generated source policy.
 
 From an editable install:
 
@@ -125,8 +126,8 @@ under ignored `runs/<experiment>/<run_id>/`.
 
 The direct-goal baseline config trains the final target from scratch:
 `50x50` map, `3x3` actor vision, `5` writable bits, and `10` ants. It disables
-trainer-side pickup and distance shaping so the policy sees only the raw
-environment delivery reward.
+trainer-side pickup shaping so the policy sees only the raw environment
+delivery reward.
 
 ## Action Space
 
@@ -149,10 +150,12 @@ Movement actions:
 - `3`: move down
 - `4`: move left
 
-The write action is an integer from `0` to `2 ** write_bits - 1`. It is applied
-only when the movement action is `stay`, so an ant cannot move and write in the
-same timestep. Movement timesteps ignore the write value. A stay/write timestep
-writes to the current tile after pickup and delivery are processed.
+The write action is an integer from `0` to `2 ** write_bits - 1`. The low-level
+environment default applies writes only when the movement action is `stay`, so
+movement timesteps ignore the write value. The JAX MAPPO curriculum configs pass
+`--write-while-moving`, which uses the simultaneous mode where the write value
+is applied to writable landing tiles after movement, pickup, and delivery are
+processed.
 
 ## Observation Space
 
@@ -162,6 +165,7 @@ The environment is fully observable for now:
 spaces.Dict({
     "ants_pos": Box(low=0, high=max(width, height), shape=(N, 2), dtype=np.int32),
     "ants_carrying": MultiBinary(N),
+    "ants_facing": Box(low=1, high=4, shape=(N,), dtype=np.int8),
     "food": Box(low=0, high=food_count, shape=(height, width), dtype=np.int32),
     "bytes": Box(low=0, high=2 ** write_bits - 1, shape=(height, width), dtype=np.uint8),
     "hub_pos": Box(low=0, high=max(width, height), shape=(2,), dtype=np.int32),
@@ -257,13 +261,13 @@ ant, with write values applied only on `stay` actions. Each actor observation
 includes local actor-window features for food, write bit-planes, colony
 occupancy, hub visibility, and border masking. The default local window is a
 centered 3x3 grid around the ant, so the ant's own tile is part of the patch;
-the actor also receives that ant's carrying flag. The centralized critic still
-receives the padded global map state. Use `--write-bits` to choose how many bits
-each ant can write.
+the actor also receives that ant's carrying flag and one-hot absolute facing.
+The centralized critic receives the padded global map state plus each ant's
+position, carrying flag, and one-hot facing. Use `--write-bits` to choose how
+many bits each ant can write.
 
-By default this stage fixes one cookie source near the hub and adds small
-curriculum rewards for picking up a bite and moving closer to the current target
-(cookie when empty, hub when carrying). The environment reward is still the
+By default this stage fixes one cookie source near the hub and adds a small
+curriculum reward for picking up a bite. The environment reward is still the
 normal delivery reward.
 
 Use `--random-food --random-hub --food-sources N` to randomize the colony
@@ -279,9 +283,9 @@ jupyter notebook notebooks/train_mappo_curriculum.ipynb
 
 The notebooks now call package utilities for trainer code and rendering. Their
 generated checkpoints and media write under `runs/notebooks/`. Notebook rollout
-cells render full episodes by default using a smaller tile size. Use
-`ant-byte render` with `--max-frames` only when you explicitly want a shorter
-standalone preview.
+cells render full sampled episodes by default using a smaller tile size. Use
+`ant-byte render --policy-temperature 0.0` for greedy previews, and
+`--max-frames` only when you explicitly want a shorter standalone preview.
 
 ## Assets
 

@@ -140,6 +140,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         step_penalty: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
+        write_while_moving: bool = False,
         seed: int | None = None,
     ) -> None:
         self._validate_constructor_args(
@@ -169,6 +170,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.step_penalty = step_penalty
         self.write_penalty = write_penalty
         self.write_bits = int(write_bits)
+        self.write_while_moving = bool(write_while_moving)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self._constructor_seed = seed
@@ -303,7 +305,8 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
                 self.delivered_food += 1
                 reward += 1.0
 
-            if move_action != ACTION_STAY or tile_had_food or tile_is_hub:
+            wants_write = self.write_while_moving or move_action == ACTION_STAY
+            if not wants_write or tile_had_food or tile_is_hub:
                 continue
 
             tile_key = (x_pos, y_pos)

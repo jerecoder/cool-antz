@@ -201,7 +201,6 @@ def collect_rollout(
             next_obs=raw_next_obs,
             env_rewards=env_rewards,
             pickup_bonus=args.pickup_bonus,
-            distance_bonus=args.distance_bonus,
         )
         storage["rewards"][step] = torch.as_tensor(shaped_rewards, device=device).unsqueeze(-1)
 

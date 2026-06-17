@@ -19,6 +19,10 @@ from ant_byte_env import (
 from ant_byte_env.env import (
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_FACING,
+    MOVE_DOWN,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    MOVE_UP,
 )
 from ant_byte_env.jax_env import JaxObs
 
@@ -94,6 +98,30 @@ def _normalize_positions(positions: jax.Array, *, height: int, width: int) -> ja
     return positions.astype(jnp.float32) / scale
 
 
+def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
+    facing_index = jnp.clip(
+        ants_facing.astype(jnp.int32) - 1,
+        0,
+        MOVEMENT_ACTION_COUNT - 2,
+    )
+    return jax.nn.one_hot(
+        facing_index,
+        MOVEMENT_ACTION_COUNT - 1,
+        dtype=jnp.float32,
+    )
+
+
+def _ants_facing_or_default(obs: JaxObs) -> jax.Array:
+    ants_facing = obs.get("ants_facing")
+    if ants_facing is None:
+        return jnp.full(
+            obs["ants_pos"].shape[:2],
+            DEFAULT_FACING,
+            dtype=jnp.int32,
+        )
+    return ants_facing.astype(jnp.int32)
+
+
 def _resolve_observation_grid_shape(
     obs: JaxObs,
     *,
@@ -153,6 +181,7 @@ def build_central_observations(
     ants_count = _ants_count_grid(obs, height=current_height, width=current_width)
     hub_pos = _normalize_positions(obs["hub_pos"], height=target_height, width=target_width)
     ants_carrying = obs["ants_carrying"].astype(jnp.float32)
+    ants_facing = _facing_one_hot(_ants_facing_or_default(obs))
     ants_count_norm = _pad_grid(
         ants_count / ant_count_scale,
         height=target_height,
@@ -180,6 +209,7 @@ def build_central_observations(
         [
             ants_pos.reshape(batch_size, -1),
             ants_carrying.reshape(batch_size, -1),
+            ants_facing.reshape(batch_size, -1),
             ants_count_norm.reshape(batch_size, -1),
             food_norm.reshape(batch_size, -1),
             bytes_norm.reshape(batch_size, -1),
@@ -207,13 +237,8 @@ def build_actor_observations(
     ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
     ants_count = _ants_count_grid(obs, height=food.shape[1], width=food.shape[2])
     own_carrying = obs["ants_carrying"].astype(jnp.float32)[..., None]
-    ants_facing = obs.get("ants_facing")
-    if ants_facing is None:
-        ants_facing = jnp.full(
-            obs["ants_pos"].shape[:2],
-            DEFAULT_FACING,
-            dtype=jnp.int32,
-        )
+    ants_facing = _ants_facing_or_default(obs)
+    own_facing = _facing_one_hot(ants_facing)
     local_food = build_local_grid_patches(
         food,
         obs["ants_pos"],
@@ -258,6 +283,7 @@ def build_actor_observations(
             local_hub,
             local_border,
             own_carrying,
+            own_facing,
         ],
         axis=-1,
     )
@@ -296,13 +322,17 @@ def build_local_grid_patches(
     radius: int,
     ants_facing: jax.Array | None = None,
 ) -> jax.Array:
+    """Return flattened facing-aware local grid patches around each ant."""
+
     if radius < 0:
         raise ValueError("radius must be non-negative.")
-    del ants_facing
+
+    if ants_facing is None:
+        ants_facing = jnp.full(ants_pos.shape[:2], DEFAULT_FACING, dtype=jnp.int32)
 
     batch_size, grid_height, grid_width = grid.shape
     offset_pairs = build_forward_vision_offsets(
-        jnp.zeros(ants_pos.shape[:2], dtype=jnp.int32),
+        ants_facing.astype(jnp.int32),
         depth=radius,
     )
     positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs
@@ -348,7 +378,25 @@ def build_forward_vision_offsets(ants_facing: jax.Array, *, depth: int) -> jax.A
     offset_y = jnp.repeat(axis, 2 * depth + 1)
     offset_x = jnp.tile(axis, 2 * depth + 1)
     offsets = jnp.stack([offset_x, offset_y], axis=-1)
-    return jnp.broadcast_to(offsets, (*ants_facing.shape, offsets.shape[0], 2))
+    offset_x = offsets[:, 0]
+    offset_y = offsets[:, 1]
+    right_offsets = offsets
+    down_offsets = jnp.stack([-offset_y, offset_x], axis=-1)
+    left_offsets = jnp.stack([-offset_x, -offset_y], axis=-1)
+    up_offsets = jnp.stack([offset_y, -offset_x], axis=-1)
+    facing = jnp.where(
+        (ants_facing == MOVE_UP)
+        | (ants_facing == MOVE_RIGHT)
+        | (ants_facing == MOVE_DOWN)
+        | (ants_facing == MOVE_LEFT),
+        ants_facing,
+        DEFAULT_FACING,
+    )
+    facing = facing[..., None, None]
+    expanded = jnp.broadcast_to(right_offsets, (*ants_facing.shape, offsets.shape[0], 2))
+    expanded = jnp.where(facing == MOVE_DOWN, down_offsets, expanded)
+    expanded = jnp.where(facing == MOVE_LEFT, left_offsets, expanded)
+    return jnp.where(facing == MOVE_UP, up_offsets, expanded)
 
 
 def build_local_hub_patches(
@@ -491,74 +539,30 @@ def get_action_and_value(
     return actions, logprob, entropy, value
 
 
-def _nearest_food_distance(position: jax.Array, food_grid: jax.Array) -> tuple[jax.Array, jax.Array]:
-    grid_height, grid_width = food_grid.shape
-    y_index, x_index = jnp.indices((grid_height, grid_width), dtype=jnp.int32)
-    distances = jnp.abs(x_index - position[0]) + jnp.abs(y_index - position[1])
-    has_food = jnp.any(food_grid > 0)
-    sentinel = jnp.asarray(grid_height + grid_width + 1, dtype=jnp.float32)
-    best = jnp.min(jnp.where(food_grid > 0, distances.astype(jnp.float32), sentinel))
-    return best, has_food
-
-
-def _distance_to_hub(position: jax.Array, hub_pos: jax.Array) -> jax.Array:
-    return jnp.sum(jnp.abs(position.astype(jnp.int32) - hub_pos.astype(jnp.int32))).astype(
-        jnp.float32
-    )
-
-
 def compute_forage_curriculum_rewards(
     *,
     previous_obs: JaxObs,
     next_obs: JaxObs,
     env_rewards: jax.Array,
     pickup_bonus: float,
-    distance_bonus: float,
 ) -> jax.Array:
+    """Add pickup shaping while leaving movement progress unshaped."""
+
     def one_env(
-        previous_ants_pos: jax.Array,
         previous_carrying: jax.Array,
-        previous_food: jax.Array,
-        previous_hub: jax.Array,
-        next_ants_pos: jax.Array,
         next_carrying: jax.Array,
-        next_food: jax.Array,
         env_reward: jax.Array,
     ) -> jax.Array:
         was_carrying = previous_carrying.astype(jnp.bool_)
         is_carrying = next_carrying.astype(jnp.bool_)
         pickups = jnp.logical_and(jnp.logical_not(was_carrying), is_carrying).astype(jnp.float32)
-
-        def one_ant(previous_pos: jax.Array, next_pos: jax.Array, carrying: jax.Array) -> jax.Array:
-            hub_progress = _distance_to_hub(previous_pos, previous_hub)
-            hub_progress -= _distance_to_hub(next_pos, previous_hub)
-            previous_food_distance, previous_has_food = _nearest_food_distance(
-                previous_pos,
-                previous_food,
-            )
-            next_food_distance, next_has_food = _nearest_food_distance(next_pos, next_food)
-            food_progress = previous_food_distance - next_food_distance
-            food_progress = jnp.where(
-                jnp.logical_and(previous_has_food, next_has_food),
-                food_progress,
-                0.0,
-            )
-            return jnp.where(carrying, hub_progress, food_progress)
-
-        progress = jax.vmap(one_ant)(previous_ants_pos, next_ants_pos, was_carrying)
         shaped = env_reward.astype(jnp.float32)
         shaped += float(pickup_bonus) * jnp.sum(pickups)
-        shaped += float(distance_bonus) * jnp.sum(progress)
         return shaped
 
     return jax.vmap(one_env)(
-        previous_obs["ants_pos"],
         previous_obs["ants_carrying"],
-        previous_obs["food"],
-        previous_obs["hub_pos"],
-        next_obs["ants_pos"],
         next_obs["ants_carrying"],
-        next_obs["food"],
         env_rewards,
     )
 
@@ -569,12 +573,13 @@ def compute_write_bit_penalties(
     write_bits: int,
     base_penalty: float,
     decay: float,
+    write_while_moving: bool = False,
 ) -> jax.Array:
     """Return per-env penalties for set write bits, with bit 0 most expensive."""
 
     if base_penalty <= 0.0:
         return jnp.zeros(actions.shape[0], dtype=jnp.float32)
-    write_values = _applied_write_values(actions)
+    write_values = _applied_write_values(actions, write_while_moving=write_while_moving)
     bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
     bit_mask = (write_values[..., None] >> bit_indices) & jnp.asarray(1, dtype=jnp.uint32)
     weights = float(base_penalty) * (float(decay) ** bit_indices.astype(jnp.float32))
@@ -619,13 +624,14 @@ def compute_write_bit_entropy_bonus(
     *,
     write_bits: int,
     entropy_scale: float,
+    write_while_moving: bool = False,
 ) -> jax.Array:
     """Return per-step rewards for balanced nonzero write-bit use in a rollout chunk."""
 
     if entropy_scale <= 0.0 or write_bits <= 0:
         return jnp.zeros(actions.shape[:2], dtype=jnp.float32)
 
-    write_values = _applied_write_values(actions)
+    write_values = _applied_write_values(actions, write_while_moving=write_while_moving)
     nonzero_writes = write_values > 0
     nonzero_count = jnp.sum(nonzero_writes.astype(jnp.float32), axis=(0, 2))
     bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
@@ -646,11 +652,17 @@ def compute_write_bit_entropy_bonus(
     ).astype(jnp.float32)
 
 
-def _applied_write_values(actions: jax.Array) -> jax.Array:
-    """Return write values that can affect the env; moving actions become zero."""
+def _applied_write_values(
+    actions: jax.Array,
+    *,
+    write_while_moving: bool = False,
+) -> jax.Array:
+    """Return write values allowed by the current movement/write timing mode."""
 
-    move_actions = actions[..., 0]
     write_values = actions[..., 1].astype(jnp.uint32)
+    if write_while_moving:
+        return write_values
+    move_actions = actions[..., 0]
     return jnp.where(move_actions == ACTION_STAY, write_values, 0).astype(jnp.uint32)
 
 

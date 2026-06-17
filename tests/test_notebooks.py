@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 
-MAPPO_STAGE_SIZES = (4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 25)
+MAPPO_STAGE_SIZES = tuple(range(4, 51))
 ANT_COUNT_STAGES = (2, 3, 4, 6, 8)
 MAX_NOTEBOOK_CODE_LINES = 40
 
@@ -43,20 +43,22 @@ def test_notebooks_are_clean_short_and_use_shared_workflows() -> None:
                 assert stale_import not in source, (path, stale_import)
 
 
-def test_mappo_curriculum_keeps_stage_count_and_reaches_25x25() -> None:
+def test_mappo_curriculum_keeps_stage_count_and_reaches_50x50() -> None:
     source = notebook_source(Path("notebooks/train_mappo_curriculum.ipynb"))
 
-    assert f"STAGE_SIZES = {MAPPO_STAGE_SIZES!r}" in source
+    assert "STAGE_SIZES = range(4, 51)" in source
     assert "workflows.build_forage_curriculum_stages(STAGE_SIZES)" in source
     assert "workflows.run_forage_curriculum" in source
     assert "workflows.render_forage_rollouts" in source
-    assert "from `4x4` through `25x25`" in source
+    assert "from `4x4` through `50x50`" in source
 
     spec = json.loads(Path("experiments/forage_curriculum.json").read_text(encoding="utf-8"))
-    assert spec["args"]["width"] == 25
-    assert spec["args"]["height"] == 25
-    assert spec["args"]["obs_width"] == 25
-    assert spec["args"]["obs_height"] == 25
+    assert spec["args"]["width"] == 50
+    assert spec["args"]["height"] == 50
+    assert spec["args"]["obs_width"] == 50
+    assert spec["args"]["obs_height"] == 50
+    assert spec["args"]["write_while_moving"] is True
+    assert spec["args"]["distance_bonus"] == 0.0
     assert spec["metadata"]["stage_sizes"] == list(MAPPO_STAGE_SIZES)
     assert spec["metadata"]["stage_count"] == len(MAPPO_STAGE_SIZES)
 
@@ -92,9 +94,15 @@ def test_communication_notebook_writes_distinct_vision_rollouts() -> None:
     assert "workflows.render_communication_rollouts" in source
     assert "extra_checkpoint_paths=CONSOLIDATED_CHECKPOINTS" in source
     assert "jax_mappo_25x25_{checkpoint.parent.parent.name}_vision_rollout.mp4" in helper_source
-    assert "policy_temperature=0.0" in helper_source
+    assert "NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 1.0" in helper_source
 
     spec = json.loads(Path("experiments/communication_bits.json").read_text(encoding="utf-8"))
+    assert spec["args"]["width"] == 25
+    assert spec["args"]["height"] == 25
+    assert spec["args"]["obs_width"] == 50
+    assert spec["args"]["obs_height"] == 50
+    assert spec["args"]["write_while_moving"] is True
+    assert spec["args"]["distance_bonus"] == 0.0
     assert spec["args"]["write_bit_entropy_bonus"] == 0.5
     assert spec["args"]["ent_coef"] == 0.02
     assert spec["metadata"]["consolidation"]["enabled"] is True
@@ -106,7 +114,7 @@ def test_communication_notebook_writes_distinct_vision_rollouts() -> None:
     assert spec["metadata"]["polish"]["args"]["ent_coef"] == 0.0
 
 
-def test_ant_count_curriculum_starts_from_three_bit_25x25_checkpoint() -> None:
+def test_ant_count_curriculum_starts_from_three_bit_50_padded_checkpoint() -> None:
     source = notebook_source(Path("notebooks/train_jax_ant_count_curriculum.ipynb"))
     helper_source = Path("src/ant_byte_env/notebook_workflows.py").read_text(encoding="utf-8")
 
@@ -114,9 +122,12 @@ def test_ant_count_curriculum_starts_from_three_bit_25x25_checkpoint() -> None:
     assert "workflows.ant_count_training_args" in source
     assert '"width": 25' in helper_source
     assert '"height": 25' in helper_source
+    assert '"obs_width": 50' in helper_source
+    assert '"obs_height": 50' in helper_source
     assert '"food_count": 23' in helper_source
     assert '"food_sources": 6' in helper_source
     assert '"max_steps": 2500' in helper_source
+    assert '"write_while_moving": True' in helper_source
     assert "ANT_STAGES = [2, 3, 4, 6, 8]" in source
     assert f"ANT_STAGES = {list(ANT_COUNT_STAGES)!r}" in source
     assert "communication_bits_25x25/3_bits/checkpoints/model.pkl" in source

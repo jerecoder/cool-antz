@@ -104,8 +104,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--distance-bonus",
         type=float,
-        default=0.02,
-        help="Reward for reducing distance to the current target.",
+        default=0.0,
+        help="Deprecated no-op kept for compatibility; Manhattan progress shaping is removed.",
     )
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument(

@@ -90,13 +90,13 @@ def collect_rollout(
             next_obs=next_obs,
             env_rewards=env_rewards,
             pickup_bonus=args.pickup_bonus,
-            distance_bonus=args.distance_bonus,
         )
         rewards -= compute_write_bit_penalties(
             actions,
             write_bits=args.write_bits,
             base_penalty=args.write_bit_penalty,
             decay=args.write_bit_penalty_decay,
+            write_while_moving=args.write_while_moving,
         )
         rewards += compute_terminal_write_entropy_bonus(
             next_obs,
@@ -153,6 +153,7 @@ def collect_rollout(
             transitions.actions,
             write_bits=args.write_bits,
             entropy_scale=args.write_bit_entropy_bonus,
+            write_while_moving=args.write_while_moving,
         ),
         dones=transitions.dones,
         terminations=transitions.terminations,

@@ -32,6 +32,9 @@ Primary ranking:
 The current 25x25 communication setup uses `num_steps = 80` and
 `max_steps = 2500`. PPO therefore updates after 80 sequential steps per
 environment, while a full time-limit episode can span roughly 31 PPO updates.
+It inherits the `50x50` observation padding and moving-write semantics from the
+JAX MAPPO forage curriculum notebook, even though the communication task itself
+is still `25x25`.
 
 The existing terminal write-entropy bonus is probably too sparse: most updates
 do not include an episode end, so the write head receives many gradients from
@@ -58,15 +61,16 @@ Keep these fixed during screening unless a run fails technically:
 
 - `width = 25`
 - `height = 25`
-- `obs_width = 25`
-- `obs_height = 25`
+- `obs_width = 50`
+- `obs_height = 50`
 - `actor_vision_radius = 1`
 - `max_steps = 2500`
+- `write_while_moving = true`
 - `num_minibatches = 4`
 - `update_epochs = 4`
 - `learning_rate = 2.5e-4`
 - `hidden_size = 128`
-- staged warm start from the 25x25 forage checkpoint
+- staged warm start from the 25x25 forage checkpoint with 50x50 observation padding
 
 ## Required Implementation Support
 

@@ -23,6 +23,7 @@
     "distance_bonus": 0.0,
     "hidden_size": 128,
     "write_bits": 5,
+    "write_while_moving": true,
     "seed": 1,
     "quiet": true,
     "random_food": true,

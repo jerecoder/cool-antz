@@ -8,12 +8,17 @@ import torch
 from ant_byte_env import (
     DEFAULT_WRITE_BITS,
     MAX_WRITE_BITS,
+    MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
     max_write_value,
 )
 from ant_byte_env.env import (
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_FACING,
+    MOVE_DOWN,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    MOVE_UP,
 )
 
 TensorObs = dict[str, torch.Tensor]
@@ -35,6 +40,30 @@ def _position_scale(height: int, width: int, device: torch.device) -> torch.Tens
 def _normalize_positions(positions: torch.Tensor, *, height: int, width: int) -> torch.Tensor:
     scale = _position_scale(height, width, positions.device)
     return positions.float() / scale
+
+
+def _facing_one_hot(ants_facing: torch.Tensor) -> torch.Tensor:
+    facing_index = torch.clamp(
+        ants_facing.long() - 1,
+        min=0,
+        max=MOVEMENT_ACTION_COUNT - 2,
+    )
+    return torch.nn.functional.one_hot(
+        facing_index,
+        num_classes=MOVEMENT_ACTION_COUNT - 1,
+    ).float()
+
+
+def _ants_facing_or_default(obs: TensorObs) -> torch.Tensor:
+    ants_facing = obs.get("ants_facing")
+    if ants_facing is None:
+        return torch.full(
+            obs["ants_pos"].shape[:2],
+            DEFAULT_FACING,
+            dtype=torch.long,
+            device=obs["ants_pos"].device,
+        )
+    return ants_facing.long()
 
 
 def _resolve_observation_grid_shape(
@@ -115,6 +144,7 @@ def build_central_observations(
         width=target_width,
     )
     ants_carrying = obs["ants_carrying"].float()
+    ants_facing = _facing_one_hot(_ants_facing_or_default(obs))
     ants_count_norm = _pad_grid(
         ants_count / ant_count_scale,
         height=target_height,
@@ -143,6 +173,7 @@ def build_central_observations(
         [
             ants_pos.reshape(batch_size, -1),
             ants_carrying.reshape(batch_size, -1),
+            ants_facing.reshape(batch_size, -1),
             ants_count_norm.reshape(batch_size, -1),
             food_norm.reshape(batch_size, -1),
             bytes_norm.reshape(batch_size, -1),
@@ -174,14 +205,8 @@ def build_actor_observations(
     ant_count_scale = max(float(obs["ants_pos"].shape[1]), 1.0)
     ants_count = _ants_count_grid(obs, height=food.shape[1], width=food.shape[2])
     own_carrying = obs["ants_carrying"].float().unsqueeze(-1)
-    ants_facing = obs.get("ants_facing")
-    if ants_facing is None:
-        ants_facing = torch.full(
-            obs["ants_pos"].shape[:2],
-            DEFAULT_FACING,
-            dtype=torch.long,
-            device=obs["ants_pos"].device,
-        )
+    ants_facing = _ants_facing_or_default(obs)
+    own_facing = _facing_one_hot(ants_facing)
     local_food = build_local_food_patches(
         food,
         obs["ants_pos"],
@@ -227,6 +252,7 @@ def build_actor_observations(
             local_hub,
             local_border,
             own_carrying,
+            own_facing,
         ],
         dim=-1,
     )
@@ -288,15 +314,22 @@ def build_local_grid_patches(
     radius: int,
     ants_facing: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Return flattened centered local grid patches around each ant."""
+    """Return flattened facing-aware local grid patches around each ant."""
 
     if radius < 0:
         raise ValueError("radius must be non-negative.")
-    del ants_facing
+    if ants_facing is None:
+        ants_facing = torch.full(
+            ants_pos.shape[:2],
+            DEFAULT_FACING,
+            dtype=torch.long,
+            device=ants_pos.device,
+        )
 
     batch_size, grid_height, grid_width = grid.shape
     num_agents = ants_pos.shape[1]
     patch_size = actor_vision_patch_size(radius)
+    offset_pairs = build_forward_vision_offsets(ants_facing.long(), depth=radius)
     patches = torch.zeros(
         (batch_size, num_agents, patch_size),
         dtype=torch.float32,
@@ -307,18 +340,17 @@ def build_local_grid_patches(
         for agent_index in range(num_agents):
             ant_x = int(ants_pos[batch_index, agent_index, 0])
             ant_y = int(ants_pos[batch_index, agent_index, 1])
-            patch_index = 0
-            for delta_y in range(-radius, radius + 1):
-                for delta_x in range(-radius, radius + 1):
-                    grid_x = ant_x + delta_x
-                    grid_y = ant_y + delta_y
-                    if 0 <= grid_x < grid_width and 0 <= grid_y < grid_height:
-                        patches[batch_index, agent_index, patch_index] = grid[
-                            batch_index,
-                            grid_y,
-                            grid_x,
-                        ]
-                    patch_index += 1
+            for patch_index in range(patch_size):
+                delta_x = int(offset_pairs[batch_index, agent_index, patch_index, 0])
+                delta_y = int(offset_pairs[batch_index, agent_index, patch_index, 1])
+                grid_x = ant_x + delta_x
+                grid_y = ant_y + delta_y
+                if 0 <= grid_x < grid_width and 0 <= grid_y < grid_height:
+                    patches[batch_index, agent_index, patch_index] = grid[
+                        batch_index,
+                        grid_y,
+                        grid_x,
+                    ]
 
     return patches
 
@@ -362,7 +394,26 @@ def build_forward_vision_offsets(ants_facing: torch.Tensor, *, depth: int) -> to
     offset_y = torch.repeat_interleave(axis, 2 * depth + 1)
     offset_x = torch.tile(axis, (2 * depth + 1,))
     offsets = torch.stack([offset_x, offset_y], dim=-1)
-    return offsets.expand(*ants_facing.shape, -1, -1)
+    right_offsets = offsets
+    down_offsets = torch.stack([-offset_y, offset_x], dim=-1)
+    left_offsets = torch.stack([-offset_x, -offset_y], dim=-1)
+    up_offsets = torch.stack([offset_y, -offset_x], dim=-1)
+    valid_facing = (
+        (ants_facing == MOVE_UP)
+        | (ants_facing == MOVE_RIGHT)
+        | (ants_facing == MOVE_DOWN)
+        | (ants_facing == MOVE_LEFT)
+    )
+    facing = torch.where(
+        valid_facing,
+        ants_facing,
+        torch.full_like(ants_facing, DEFAULT_FACING),
+    )
+    facing = facing.unsqueeze(-1).unsqueeze(-1)
+    expanded = right_offsets.expand(*ants_facing.shape, -1, -1)
+    expanded = torch.where(facing == MOVE_DOWN, down_offsets, expanded)
+    expanded = torch.where(facing == MOVE_LEFT, left_offsets, expanded)
+    return torch.where(facing == MOVE_UP, up_offsets, expanded)
 
 
 def build_local_hub_patches(

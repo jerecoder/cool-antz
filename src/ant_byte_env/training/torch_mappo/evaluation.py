@@ -12,6 +12,7 @@ from ant_byte_env import (
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_WRITE_BITS,
     AntByteForagingEnv,
+    MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
     write_value_count,
 )
@@ -177,7 +178,7 @@ def evaluate_checkpoint(
 
 def _actor_obs_dim_from_args(args: argparse.Namespace) -> int:
     patch_size = actor_vision_patch_size(int(args.actor_vision_radius))
-    return patch_size * (int(args.write_bits) + 4) + 1
+    return patch_size * (int(args.write_bits) + 4) + MOVEMENT_ACTION_COUNT
 
 
 def mastery_reached(

@@ -89,6 +89,7 @@ def main(
         step_penalty=args.step_penalty,
         write_penalty=args.write_penalty,
         write_bits=args.write_bits,
+        write_while_moving=args.write_while_moving,
     )
 
     reset_fn = jax.jit(lambda reset_key: reset_batch(args=args, env=env, key=reset_key))
@@ -165,8 +166,7 @@ def main(
     }
 
     for update in range(1, num_updates + 1):
-        key, reset_key, rollout_key, update_key = jax.random.split(key, 4)
-        states, obs = reset_fn(reset_key)
+        key, rollout_key, update_key = jax.random.split(key, 3)
         states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
         learning_rate = args.learning_rate
         if args.anneal_lr:

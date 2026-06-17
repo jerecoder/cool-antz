@@ -116,10 +116,11 @@ def test_render_step_count_caps_total_frames() -> None:
         _render_step_count(args, max_frames=0)
 
 
-def test_render_temperature_zero_means_deterministic_policy() -> None:
+def test_render_temperature_zero_is_deterministic_and_positive_samples() -> None:
     assert _deterministic_from_temperature(0.0)
-    with pytest.raises(ValueError, match="temperature=0.0"):
-        _deterministic_from_temperature(0.5)
+    assert not _deterministic_from_temperature(0.5)
+    with pytest.raises(ValueError, match="non-negative"):
+        _deterministic_from_temperature(-0.5)
 
 
 def test_jax_render_reset_options_respect_random_hub() -> None:
@@ -162,12 +163,13 @@ def test_env_from_args_accepts_render_tile_size() -> None:
     env.close()
 
 
-def test_render_cli_passes_reuse_existing_flag(monkeypatch, tmp_path: Path) -> None:
-    captured: dict[str, bool] = {}
+def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
 
     def fake_render_checkpoint(*args, reuse_existing: bool, **kwargs) -> Path:
-        del args, kwargs
+        del args
         captured["reuse_existing"] = reuse_existing
+        captured["policy_temperature"] = kwargs["policy_temperature"]
         return tmp_path / "rollout.mp4"
 
     monkeypatch.setattr(ant_cli, "render_checkpoint", fake_render_checkpoint)
@@ -182,11 +184,13 @@ def test_render_cli_passes_reuse_existing_flag(monkeypatch, tmp_path: Path) -> N
             "--backend",
             "jax",
             "--reuse-existing",
+            "--policy-temperature",
+            "1.0",
         ]
     )
 
     assert exit_code == 0
-    assert captured == {"reuse_existing": True}
+    assert captured == {"reuse_existing": True, "policy_temperature": 1.0}
 
 
 def test_food_alpha_drops_as_food_source_is_depleted() -> None:

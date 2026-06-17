@@ -32,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
             reuse_existing=args.reuse_existing,
             max_frames=args.max_frames,
             tile_size=args.tile_size,
+            policy_temperature=args.policy_temperature,
         )
         print(f"render saved to {args.output}")
         return 0
@@ -163,6 +164,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Override the render tile size in pixels.",
+    )
+    render.add_argument(
+        "--policy-temperature",
+        type=float,
+        default=0.0,
+        help="Use 0.0 for greedy rendering; any positive value samples from the policy.",
     )
 
     results = subparsers.add_parser("results", help="Manage curated result metadata.")

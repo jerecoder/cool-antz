@@ -15,6 +15,8 @@ from ant_byte_env import (
 )
 from ant_byte_env.training.torch_mappo.model import MAPPOAgent
 
+FACING_FEATURE_COUNT = MOVEMENT_ACTION_COUNT - 1
+
 
 def checkpoint_args(args: argparse.Namespace) -> dict[str, Any]:
     """Return checkpoint-safe CLI args made of torch safe-load primitives."""
@@ -107,7 +109,7 @@ def adapt_agent_state_dict_for_actor_window(
         actor_vision_radius=actor_vision_radius,
         source_layout=str(source_shape["layout"]),
     )
-    target_dim = target_patch_size * (write_bits + 4) + 1
+    target_dim = target_patch_size * (write_bits + 4) + 1 + FACING_FEATURE_COUNT
     if target_dim != actor_obs_dim:
         raise ValueError("Target actor observation dimension does not match this run.")
 
@@ -139,7 +141,19 @@ def adapt_agent_state_dict_for_actor_window(
             actor_vision_radius=actor_vision_radius,
             source_layout=str(source_shape["layout"]),
         )
-    new_weight[:, -1] = old_weight[:, -1]
+    source_tail_start = source_patch_size * (
+        write_bits + (4 if source_shape["include_ants_count"] else 3)
+    )
+    target_tail_start = target_patch_size * (write_bits + 4)
+    new_weight[:, target_tail_start] = old_weight[:, source_tail_start]
+    if source_shape["include_orientation"]:
+        new_weight[
+            :,
+            target_tail_start + 1 : target_tail_start + 1 + FACING_FEATURE_COUNT,
+        ] = old_weight[
+            :,
+            source_tail_start + 1 : source_tail_start + 1 + FACING_FEATURE_COUNT,
+        ]
 
     return {
         **adapted_state_dict,
@@ -163,14 +177,17 @@ def _actor_obs_source_shape(
         ("forward_only", DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius, False),
     )
     for include_ants_count in (True, False):
-        for layout, patch_size, include_current_row in source_layouts:
-            channels = write_bits + (4 if include_ants_count else 3)
-            if actor_obs_dim == patch_size * channels + 1:
-                return {
-                    "include_ants_count": include_ants_count,
-                    "include_current_row": include_current_row,
-                    "layout": layout,
-                }
+        for include_orientation in (True, False):
+            for layout, patch_size, include_current_row in source_layouts:
+                channels = write_bits + (4 if include_ants_count else 3)
+                orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+                if actor_obs_dim == patch_size * channels + 1 + orientation_features:
+                    return {
+                        "include_ants_count": include_ants_count,
+                        "include_orientation": include_orientation,
+                        "include_current_row": include_current_row,
+                        "layout": layout,
+                    }
     return None
 
 

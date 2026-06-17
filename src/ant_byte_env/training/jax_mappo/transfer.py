@@ -24,6 +24,7 @@ from ant_byte_env.training.jax_mappo.core import (
 )
 
 WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
+FACING_FEATURE_COUNT = MOVEMENT_ACTION_COUNT - 1
 
 
 def load_checkpoint_for_training(
@@ -82,6 +83,7 @@ def load_checkpoint_for_training(
         target_bits=target_write_bits,
         actor_vision_radius=actor_vision_radius,
         source_includes_ants_count=source_shape["include_ants_count"],
+        source_includes_orientation=source_shape["include_orientation"],
         source_layout=source_shape["layout"],
         write_head_transfer=write_head_transfer,
     )
@@ -119,6 +121,7 @@ def actor_obs_dim_for_bits(
     write_bits: int,
     actor_vision_radius: int,
     include_ants_count: bool = True,
+    include_orientation: bool = True,
     include_current_row: bool = True,
 ) -> int:
     if actor_vision_radius < 0:
@@ -129,7 +132,8 @@ def actor_obs_dim_for_bits(
     if not include_current_row:
         patch_size = DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius
     grid_channels = write_bits + (4 if include_ants_count else 3)
-    return patch_size * grid_channels + 1
+    orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+    return patch_size * grid_channels + 1 + orientation_features
 
 
 def source_actor_patch_size(*, actor_vision_radius: int, source_layout: str) -> int:
@@ -147,6 +151,7 @@ def source_actor_obs_dim(
     write_bits: int,
     actor_vision_radius: int,
     include_ants_count: bool,
+    include_orientation: bool,
     source_layout: str,
 ) -> int:
     patch_size = source_actor_patch_size(
@@ -154,7 +159,8 @@ def source_actor_obs_dim(
         source_layout=source_layout,
     )
     grid_channels = write_bits + (4 if include_ants_count else 3)
-    return patch_size * grid_channels + 1
+    orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+    return patch_size * grid_channels + 1 + orientation_features
 
 
 def _actor_obs_source_shape(
@@ -173,21 +179,31 @@ def _actor_obs_source_shape(
         ("forward_only", DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius, False),
     )
     for include_ants_count in (True, False):
-        for layout, patch_size, include_current_row in source_layouts:
-            grid_channels = write_bits + (4 if include_ants_count else 3)
-            expected_dim = patch_size * grid_channels + 1
-            if actor_obs_dim == expected_dim:
-                return {
-                    "include_ants_count": include_ants_count,
-                    "include_current_row": include_current_row,
-                    "layout": layout,
-                }
+        for include_orientation in (True, False):
+            for layout, patch_size, include_current_row in source_layouts:
+                grid_channels = write_bits + (4 if include_ants_count else 3)
+                orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+                expected_dim = patch_size * grid_channels + 1 + orientation_features
+                if actor_obs_dim == expected_dim:
+                    return {
+                        "include_ants_count": include_ants_count,
+                        "include_orientation": include_orientation,
+                        "include_current_row": include_current_row,
+                        "layout": layout,
+                    }
     return None
 
 
-def central_obs_dim_with_ants_count(*, num_ants: int, obs_height: int, obs_width: int) -> int:
+def central_obs_dim_with_ants_count(
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+    include_orientation: bool = True,
+) -> int:
     grid_area = obs_height * obs_width
-    return 3 * num_ants + 3 * grid_area + 4
+    orientation_features = FACING_FEATURE_COUNT * num_ants if include_orientation else 0
+    return 3 * num_ants + orientation_features + 3 * grid_area + 4
 
 
 def legacy_central_obs_dim(*, num_ants: int, obs_height: int, obs_width: int) -> int:
@@ -209,6 +225,12 @@ def expand_critic_input_for_ants_count(
         obs_height=source_height,
         obs_width=source_width,
     )
+    no_orientation_dim = central_obs_dim_with_ants_count(
+        num_ants=source_num_ants,
+        obs_height=source_height,
+        obs_width=source_width,
+        include_orientation=False,
+    )
     current_dim = central_obs_dim_with_ants_count(
         num_ants=source_num_ants,
         obs_height=source_height,
@@ -219,15 +241,23 @@ def expand_critic_input_for_ants_count(
 
     first_layer = params.critic_body[0]
     old_weight = jnp.asarray(first_layer.weight)
-    if old_weight.shape[0] != legacy_dim:
+    if old_weight.shape[0] == legacy_dim:
+        new_first_layer = expand_central_input_layer_for_ants_count(
+            first_layer,
+            num_ants=source_num_ants,
+            obs_height=source_height,
+            obs_width=source_width,
+        )
+    elif old_weight.shape[0] == no_orientation_dim:
+        new_first_layer = expand_central_input_layer_for_orientation(
+            first_layer,
+            num_ants=source_num_ants,
+            obs_height=source_height,
+            obs_width=source_width,
+        )
+    else:
         raise ValueError("Checkpoint central observation dimension does not match this run.")
 
-    new_first_layer = expand_central_input_layer_for_ants_count(
-        first_layer,
-        num_ants=source_num_ants,
-        obs_height=source_height,
-        obs_width=source_width,
-    )
     return JaxMAPPOParams(
         actor_body=params.actor_body,
         move_head=adapt_movement_head_layer(params.move_head),
@@ -260,18 +290,56 @@ def expand_central_input_layer_for_ants_count(
         raise ValueError(f"Expected central input dim {legacy_dim}, got {old_weight.shape[0]}.")
 
     prefix_dim = 3 * num_ants
+    orientation_dim = FACING_FEATURE_COUNT * num_ants
+    new_prefix_dim = prefix_dim + orientation_dim
     old_food = slice(prefix_dim, prefix_dim + grid_area)
     old_bytes = slice(prefix_dim + grid_area, prefix_dim + 2 * grid_area)
     old_tail = slice(prefix_dim + 2 * grid_area, legacy_dim)
-    new_food = slice(prefix_dim + grid_area, prefix_dim + 2 * grid_area)
-    new_bytes = slice(prefix_dim + 2 * grid_area, prefix_dim + 3 * grid_area)
-    new_tail = slice(prefix_dim + 3 * grid_area, current_dim)
+    new_food = slice(new_prefix_dim + grid_area, new_prefix_dim + 2 * grid_area)
+    new_bytes = slice(new_prefix_dim + 2 * grid_area, new_prefix_dim + 3 * grid_area)
+    new_tail = slice(new_prefix_dim + 3 * grid_area, current_dim)
 
     new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
     new_weight = new_weight.at[:prefix_dim, :].set(old_weight[:prefix_dim, :])
     new_weight = new_weight.at[new_food, :].set(old_weight[old_food, :])
     new_weight = new_weight.at[new_bytes, :].set(old_weight[old_bytes, :])
     new_weight = new_weight.at[new_tail, :].set(old_weight[old_tail, :])
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
+def expand_central_input_layer_for_orientation(
+    layer: LinearParams,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> LinearParams:
+    old_weight = jnp.asarray(layer.weight)
+    grid_area = obs_height * obs_width
+    no_orientation_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        include_orientation=False,
+    )
+    current_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    if old_weight.shape[0] != no_orientation_dim:
+        raise ValueError(
+            f"Expected central input dim {no_orientation_dim}, got {old_weight.shape[0]}."
+        )
+
+    prefix_dim = 3 * num_ants
+    orientation_dim = FACING_FEATURE_COUNT * num_ants
+    old_maps_and_tail = slice(prefix_dim, no_orientation_dim)
+    new_maps_and_tail = slice(prefix_dim + orientation_dim, current_dim)
+
+    new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
+    new_weight = new_weight.at[:prefix_dim, :].set(old_weight[:prefix_dim, :])
+    new_weight = new_weight.at[new_maps_and_tail, :].set(old_weight[old_maps_and_tail, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
@@ -289,11 +357,17 @@ def expand_params_for_write_bits(
     target_bits: int,
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
+    source_includes_orientation: bool = False,
     source_layout: str = "centered",
     write_head_transfer: str = "repeat",
 ) -> JaxMAPPOParams:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
-    if target_bits == old_bits and source_includes_ants_count and source_layout == "centered":
+    if (
+        target_bits == old_bits
+        and source_includes_ants_count
+        and source_includes_orientation
+        and source_layout == "centered"
+    ):
         return params
     if target_bits < old_bits:
         raise ValueError("target_bits must be at least old_bits.")
@@ -305,6 +379,7 @@ def expand_params_for_write_bits(
                 target_bits=target_bits,
                 actor_vision_radius=actor_vision_radius,
                 source_includes_ants_count=source_includes_ants_count,
+                source_includes_orientation=source_includes_orientation,
                 source_layout=source_layout,
             ),
             params.actor_body[1],
@@ -361,6 +436,7 @@ def expand_actor_input_layer(
     target_bits: int,
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
+    source_includes_orientation: bool = False,
     source_layout: str = "centered",
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
@@ -373,6 +449,7 @@ def expand_actor_input_layer(
         write_bits=old_bits,
         actor_vision_radius=actor_vision_radius,
         include_ants_count=source_includes_ants_count,
+        include_orientation=source_includes_orientation,
         source_layout=source_layout,
     )
     target_dim = actor_obs_dim_for_bits(
@@ -429,6 +506,19 @@ def expand_actor_input_layer(
         target_patch_size * (3 + target_bits),
         target_patch_size * (4 + target_bits),
     )
+    old_tail_start = source_patch_size * (old_bits + (4 if source_includes_ants_count else 3))
+    old_carrying = slice(old_tail_start, old_tail_start + 1)
+    old_orientation = (
+        slice(old_tail_start + 1, old_tail_start + 1 + FACING_FEATURE_COUNT)
+        if source_includes_orientation
+        else None
+    )
+    new_tail_start = target_patch_size * (target_bits + 4)
+    new_carrying = slice(new_tail_start, new_tail_start + 1)
+    new_orientation = slice(
+        new_tail_start + 1,
+        new_tail_start + 1 + FACING_FEATURE_COUNT,
+    )
 
     new_weight = copy_actor_patch_channel(
         new_weight,
@@ -472,7 +562,9 @@ def expand_actor_input_layer(
         actor_vision_radius=actor_vision_radius,
         source_layout=source_layout,
     )
-    new_weight = new_weight.at[-1, :].set(old_weight[-1, :])
+    new_weight = new_weight.at[new_carrying, :].set(old_weight[old_carrying, :])
+    if old_orientation is not None:
+        new_weight = new_weight.at[new_orientation, :].set(old_weight[old_orientation, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 

@@ -16,10 +16,11 @@ from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.rendering import render_checkpoint
 from ant_byte_env.vault import create_vault_entry
 
-FORAGE_STAGE_SIZES = (4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 25)
+FORAGE_STAGE_SIZES = tuple(range(4, 51))
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
+NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 1.0
 DEFAULT_JAX_MEMORY_FRACTION = "0.35"
 NOTEBOOK_SAFE_CLEANUP_DIR_NAMES = frozenset(
     {
@@ -499,11 +500,12 @@ def build_forage_common_args(
     actor_vision_radius: int,
     write_bits: int,
     gamma: float = 0.99,
+    write_while_moving: bool = True,
     seed: int = 1,
 ) -> list[str]:
     max_width = max(int(stage["width"]) for stage in stages)
     max_height = max(int(stage["height"]) for stage in stages)
-    return [
+    args = [
         "--num-envs",
         str(num_envs),
         "--num-steps",
@@ -528,14 +530,15 @@ def build_forage_common_args(
         "--random-hub",
         "--pickup-bonus",
         "0.25",
-        "--distance-bonus",
-        "0.02",
         "--hidden-size",
         "128",
         "--seed",
         str(seed),
         "--quiet",
     ]
+    if write_while_moving:
+        args.append("--write-while-moving")
+    return args
 
 
 def run_jax_smoke(train_main: Callable[..., dict[str, float]]) -> dict[str, float]:
@@ -868,13 +871,14 @@ def ant_count_training_args(
         **base_args,
         "width": 25,
         "height": 25,
-        "obs_width": 25,
-        "obs_height": 25,
+        "obs_width": 50,
+        "obs_height": 50,
         "food_count": 23,
         "food_sources": 6,
         "cookie_distance": 11,
         "max_steps": 2500,
         "write_bits": int(communication_bits),
+        "write_while_moving": True,
     }
 
 
@@ -1100,6 +1104,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
         step_penalty=args.step_penalty,
         write_penalty=args.write_penalty,
         write_bits=args.write_bits,
+        write_while_moving=args.write_while_moving,
     )
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
     central_obs = build_central_observations(
@@ -1340,6 +1345,7 @@ def render_rollout_suite(
     metadata: Mapping[str, Any],
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
 ) -> dict[str, Any]:
     from tqdm.auto import tqdm
 
@@ -1364,7 +1370,7 @@ def render_rollout_suite(
                 reuse_existing=False,
                 max_frames=max_frames,
                 tile_size=tile_size,
-                policy_temperature=0.0,
+                policy_temperature=policy_temperature,
             )
         )
     vault_entry_path = create_vault_entry(
@@ -1376,7 +1382,7 @@ def render_rollout_suite(
             **metadata,
             "render_max_frames": max_frames,
             "render_tile_size": tile_size,
-            "rollout_policy_temperature": 0.0,
+            "rollout_policy_temperature": policy_temperature,
             "rollout_seed_offsets": rollout_seed_offsets,
             "checkpoint_paths": [str(path) for path in checkpoints],
             "rollout_paths": [str(path) for path in rollout_paths],

@@ -130,6 +130,29 @@ def test_jax_movement_step_does_not_write_tile() -> None:
     assert int(info.num_writes) == 1
 
 
+def test_jax_write_while_moving_writes_landing_tile() -> None:
+    env = JaxAntByteForagingEnv(
+        width=4,
+        height=4,
+        num_ants=1,
+        food_count=0,
+        write_while_moving=True,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(8),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+    )
+
+    _, obs, _, _, _, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 1], dtype=jnp.int32),
+    )
+
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.array([1, 0]))
+    assert int(obs["bytes"][0, 1]) == 1
+    assert int(info.num_writes) == 1
+
+
 def test_jax_food_state_tracks_remaining_bite_counts() -> None:
     env = JaxAntByteForagingEnv(
         width=3,
