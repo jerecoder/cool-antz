@@ -227,7 +227,7 @@ def test_forage_50x50_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
         "H3",
         "H4",
     ]
-    assert [entry["id"] for entry in matrix["phases"]["memory"]] == ["M1", "M2"]
+    assert [entry["id"] for entry in matrix["phases"]["memory"]] == ["M1", "M2", "M3"]
     assert [entry["id"] for entry in matrix["phases"]["architecture"]] == ["A0", "A1", "A2"]
     assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
 

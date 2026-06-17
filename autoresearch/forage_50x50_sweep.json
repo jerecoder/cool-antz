@@ -210,6 +210,24 @@
           "write_bits": 3,
           "write_bit_entropy_bonus": 0.01
         }
+      },
+      {
+        "id": "M3",
+        "description": "Three-bit self-written trail memory with M1-sized network capacity.",
+        "run_dir": "runs/autoresearch/forage_50x50/memory/M3",
+        "global_update_cap": 625,
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.02,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 8,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "gae_lambda": 0.97,
+          "write_bits": 3,
+          "write_bit_entropy_bonus": 0.01
+        }
       }
     ],
     "architecture": [
