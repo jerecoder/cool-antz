@@ -58,6 +58,10 @@ class Transition(NamedTuple):
     values: jax.Array
     next_values: jax.Array
     env_rewards: jax.Array
+    pickup_events: jax.Array
+    delivery_events: jax.Array
+    carrying_ants: jax.Array
+    remaining_food: jax.Array
 
 
 class Rollout(NamedTuple):
@@ -72,6 +76,10 @@ class Rollout(NamedTuple):
     values: jax.Array
     next_values: jax.Array
     env_rewards: jax.Array
+    pickup_events: jax.Array
+    delivery_events: jax.Array
+    carrying_ants: jax.Array
+    remaining_food: jax.Array
 
 
 class TrainingBatch(NamedTuple):

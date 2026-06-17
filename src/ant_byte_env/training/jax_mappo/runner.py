@@ -50,6 +50,10 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
         "completed_episodes": float(jnp.sum(rollout.dones)),
         "terminated_episodes": float(jnp.sum(rollout.terminations)),
         "truncated_episodes": float(jnp.sum(rollout.truncations)),
+        "pickup_events": float(jnp.sum(rollout.pickup_events)),
+        "delivery_events": float(jnp.sum(rollout.delivery_events)),
+        "mean_carrying_ants": float(jnp.mean(rollout.carrying_ants)),
+        "final_mean_remaining_food": float(jnp.mean(rollout.remaining_food[-1])),
     }
 
 

@@ -52,11 +52,12 @@ from ant_byte_env.training.jax_mappo.transfer import (
     central_obs_dim_with_ants_count,
     legacy_central_obs_dim,
 )
-from ant_byte_env.training.jax_mappo.core import TrainingBatch, _shuffle_batch
+from ant_byte_env.training.jax_mappo.core import Rollout, TrainingBatch, _shuffle_batch
 from ant_byte_env.training.jax_mappo.probe import (
     _applied_probe_write_values,
     write_action_bit_summary,
 )
+from ant_byte_env.training.jax_mappo.runner import _rollout_stats
 
 
 def _batched_reset_obs() -> dict[str, jax.Array]:
@@ -411,6 +412,39 @@ def test_jax_forage_curriculum_distance_bonus_ignores_pickup_target_switch() -> 
     )
 
     np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.25], dtype=np.float32))
+
+
+def test_jax_rollout_stats_include_forage_diagnostics() -> None:
+    dummy = jnp.zeros((2, 2), dtype=jnp.float32)
+    rollout = Rollout(
+        actor_obs=dummy,
+        central_obs=dummy,
+        actions=dummy.astype(jnp.int32),
+        logprobs=dummy,
+        rewards=jnp.array([[1.0, 2.0], [3.0, 4.0]], dtype=jnp.float32),
+        dones=jnp.array([[False, True], [False, True]]),
+        terminations=jnp.array([[False, True], [False, False]]),
+        truncations=jnp.array([[False, False], [False, True]]),
+        values=dummy,
+        next_values=dummy,
+        env_rewards=jnp.array([[0.0, 1.0], [1.0, 0.0]], dtype=jnp.float32),
+        pickup_events=jnp.array([[1.0, 0.0], [0.0, 2.0]], dtype=jnp.float32),
+        delivery_events=jnp.array([[0.0, 1.0], [1.0, 0.0]], dtype=jnp.float32),
+        carrying_ants=jnp.array([[0.0, 1.0], [1.0, 1.0]], dtype=jnp.float32),
+        remaining_food=jnp.array([[7.0, 5.0], [6.0, 4.0]], dtype=jnp.float32),
+    )
+
+    stats = _rollout_stats(rollout)
+
+    assert stats["episode_return"] == 5.0
+    assert stats["env_return"] == 1.0
+    assert stats["completed_episodes"] == 2.0
+    assert stats["terminated_episodes"] == 1.0
+    assert stats["truncated_episodes"] == 1.0
+    assert stats["pickup_events"] == 3.0
+    assert stats["delivery_events"] == 2.0
+    assert stats["mean_carrying_ants"] == 0.75
+    assert stats["final_mean_remaining_food"] == 5.0
 
 
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:

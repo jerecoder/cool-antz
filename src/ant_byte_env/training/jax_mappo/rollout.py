@@ -106,6 +106,22 @@ def collect_rollout(
             entropy_scale=args.write_entropy_bonus,
             max_bonus=args.write_entropy_bonus_cap,
         )
+        previous_carrying = current_obs["ants_carrying"].astype(jnp.bool_)
+        next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
+        pickup_events = jnp.sum(
+            jnp.logical_and(jnp.logical_not(previous_carrying), next_carrying).astype(
+                jnp.float32
+            ),
+            axis=-1,
+        )
+        delivery_events = jnp.sum(
+            jnp.logical_and(previous_carrying, jnp.logical_not(next_carrying)).astype(
+                jnp.float32
+            ),
+            axis=-1,
+        )
+        carrying_ants = jnp.sum(next_carrying.astype(jnp.float32), axis=-1)
+        remaining_food = jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1))
 
         def reset_done_envs(_: None) -> tuple[JaxAntState, JaxObs]:
             reset_states, reset_obs = reset_batch(args=args, env=env, key=reset_key)
@@ -135,6 +151,10 @@ def collect_rollout(
             values=values,
             next_values=next_values,
             env_rewards=env_rewards,
+            pickup_events=pickup_events,
+            delivery_events=delivery_events,
+            carrying_ants=carrying_ants,
+            remaining_food=remaining_food,
         )
         return (carry_states, carry_obs, next_key), transition
 
@@ -162,5 +182,9 @@ def collect_rollout(
         values=transitions.values,
         next_values=transitions.next_values,
         env_rewards=transitions.env_rewards,
+        pickup_events=transitions.pickup_events,
+        delivery_events=transitions.delivery_events,
+        carrying_ants=transitions.carrying_ants,
+        remaining_food=transitions.remaining_food,
     )
     return final_states, final_obs, rollout
