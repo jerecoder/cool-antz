@@ -15,6 +15,7 @@ from ant_byte_env import MAX_WRITE_BITS
 from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
 from ant_byte_env.rendering import render_checkpoint
 from ant_byte_env.vault import create_vault_entry
+from ant_byte_env.wandb_tracking import WandbTracker
 
 FORAGE_STAGE_SIZES = tuple(range(4, 51))
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
@@ -583,70 +584,122 @@ def run_forage_curriculum(
     update_timesteps_per_stage: int,
     global_update_cap: int,
     train_main: Callable[..., dict[str, float]],
+    wandb_project: str | None = None,
+    wandb_entity: str | None = None,
+    wandb_group: str | None = None,
+    wandb_run_name: str | None = None,
+    wandb_mode: str = "online",
+    wandb_tags: Sequence[str] | None = None,
+    wandb_video_max_frames: int | None = 600,
 ) -> dict[str, Any]:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     stage_metrics: list[dict[str, Any]] = []
     stage_checkpoint_paths: list[Path] = []
     previous_checkpoint: Path | None = None
     final_train_metrics: dict[str, float] = {}
+    tracker = WandbTracker(
+        project=wandb_project,
+        entity=wandb_entity,
+        group=wandb_group,
+        name=wandb_run_name,
+        tags=wandb_tags,
+        mode=wandb_mode,
+        run_dir=checkpoint_dir.parent,
+        config={
+            "common_args": list(common_args),
+            "global_update_cap": int(global_update_cap),
+            "stages": [str(stage["name"]) for stage in stages],
+            "update_timesteps_per_stage": int(update_timesteps_per_stage),
+            "wandb_video_max_frames": wandb_video_max_frames,
+        },
+    )
 
-    for stage_index, stage in enumerate(stages, start=1):
-        print(f"Training stage {stage_index}/{len(stages)}: {stage['name']}")
-        print("First update for this shape may compile; progress starts after it returns.")
-        checkpoint_path = checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl"
-        progress = stage_update_progress(str(stage["name"]), global_update_cap)
+    try:
+        for stage_index, stage in enumerate(stages, start=1):
+            print(f"Training stage {stage_index}/{len(stages)}: {stage['name']}")
+            print("First update for this shape may compile; progress starts after it returns.")
+            checkpoint_path = checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl"
+            progress = stage_update_progress(str(stage["name"]), global_update_cap)
 
-        def record_progress(
-            update_index: int,
-            total_updates: int,
-            metrics: dict[str, float],
-        ) -> None:
-            del total_updates
-            progress.update(1)
-            progress.set_postfix(
-                loss=f"{metrics['loss']:.3f}",
-                ret=f"{metrics['episode_return']:.3f}",
-            )
-            stage_metrics.append(
-                {
+            def record_progress(
+                update_index: int,
+                total_updates: int,
+                metrics: dict[str, float],
+            ) -> None:
+                curriculum_step = _curriculum_global_step(
+                    stage_index=stage_index,
+                    update_timesteps_per_stage=update_timesteps_per_stage,
+                    global_update_cap=global_update_cap,
+                    metrics=metrics,
+                )
+                progress.update(1)
+                progress.set_postfix(
+                    loss=f"{metrics['loss']:.3f}",
+                    ret=f"{metrics['episode_return']:.3f}",
+                )
+                row = {
                     **stage,
                     **metrics,
+                    "stage_index": stage_index,
+                    "stage_name": str(stage["name"]),
                     "stage_update": update_index,
+                    "stage_total_updates": total_updates,
                     "global_update_cap": global_update_cap,
+                    "curriculum_global_step": curriculum_step,
                     "checkpoint": str(checkpoint_path),
                 }
-            )
+                stage_metrics.append(row)
+                tracker.log_metrics(row, step=curriculum_step)
 
-        train_args = [
-            *common_args,
-            "--total-timesteps",
-            str(update_timesteps_per_stage * global_update_cap),
-            "--width",
-            str(stage["width"]),
-            "--height",
-            str(stage["height"]),
-            "--food-count",
-            str(stage["food_count"]),
-            "--food-sources",
-            str(stage["food_sources"]),
-            "--cookie-distance",
-            str(stage["cookie_distance"]),
-            "--max-steps",
-            str(stage["max_steps"]),
-            "--save-model",
-            str(checkpoint_path),
-        ]
-        if previous_checkpoint is not None:
-            train_args.extend(["--load-model", str(previous_checkpoint)])
+            train_args = [
+                *common_args,
+                "--total-timesteps",
+                str(update_timesteps_per_stage * global_update_cap),
+                "--width",
+                str(stage["width"]),
+                "--height",
+                str(stage["height"]),
+                "--food-count",
+                str(stage["food_count"]),
+                "--food-sources",
+                str(stage["food_sources"]),
+                "--cookie-distance",
+                str(stage["cookie_distance"]),
+                "--max-steps",
+                str(stage["max_steps"]),
+                "--save-model",
+                str(checkpoint_path),
+            ]
+            if previous_checkpoint is not None:
+                train_args.extend(["--load-model", str(previous_checkpoint)])
 
-        try:
-            final_train_metrics = train_main(train_args, progress_callback=record_progress)
-        finally:
-            progress.close()
+            try:
+                final_train_metrics = train_main(train_args, progress_callback=record_progress)
+            finally:
+                progress.close()
 
-        stage_checkpoint_paths.append(checkpoint_path)
-        print(f"Saved checkpoint to {checkpoint_path}")
-        previous_checkpoint = checkpoint_path
+            stage_checkpoint_paths.append(checkpoint_path)
+            print(f"Saved checkpoint to {checkpoint_path}")
+            if tracker.enabled and _wandb_preview_enabled(wandb_video_max_frames):
+                preview_path = _render_forage_wandb_preview(
+                    checkpoint_path=checkpoint_path,
+                    checkpoint_dir=checkpoint_dir,
+                    stage_index=stage_index,
+                    max_frames=wandb_video_max_frames,
+                )
+                tracker.log_video(
+                    f"videos/forage/{stage['name']}",
+                    preview_path,
+                    step=_curriculum_global_step(
+                        stage_index=stage_index,
+                        update_timesteps_per_stage=update_timesteps_per_stage,
+                        global_update_cap=global_update_cap,
+                        metrics=final_train_metrics,
+                    ),
+                )
+            previous_checkpoint = checkpoint_path
+    finally:
+        tracker.finish()
 
     return {
         "stage_metrics": stage_metrics,
@@ -654,6 +707,42 @@ def run_forage_curriculum(
         "final_checkpoint_path": previous_checkpoint,
         "final_train_metrics": final_train_metrics,
     }
+
+
+def _curriculum_global_step(
+    *,
+    stage_index: int,
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    metrics: Mapping[str, float],
+) -> int:
+    stage_base = (int(stage_index) - 1) * int(update_timesteps_per_stage) * int(global_update_cap)
+    return stage_base + int(float(metrics.get("global_step", 0.0)))
+
+
+def _wandb_preview_enabled(max_frames: int | None) -> bool:
+    return max_frames is None or int(max_frames) > 0
+
+
+def _render_forage_wandb_preview(
+    *,
+    checkpoint_path: Path,
+    checkpoint_dir: Path,
+    stage_index: int,
+    max_frames: int | None,
+) -> Path:
+    media_dir = checkpoint_dir.parent / "media" / "wandb_previews"
+    output_path = media_dir / f"{checkpoint_path.stem}_preview.mp4"
+    return render_checkpoint(
+        checkpoint_path,
+        output_path,
+        backend="jax",
+        seed_offset=NOTEBOOK_ROLLOUT_SEED_OFFSET + int(stage_index) - 1,
+        reuse_existing=False,
+        max_frames=max_frames,
+        tile_size=NOTEBOOK_ROLLOUT_TILE_SIZE,
+        policy_temperature=NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    )
 
 
 def validate_communication_stages(bit_stages: Sequence[int]) -> None:

@@ -220,6 +220,137 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
     assert "--load-model" not in args
 
 
+def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    class FakeTracker:
+        instances: list["FakeTracker"] = []
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+            self.enabled = True
+            self.metrics: list[tuple[dict[str, object], int | None]] = []
+            self.videos: list[tuple[str, Path, int | None]] = []
+            self.finished = False
+            self.instances.append(self)
+
+        def log_metrics(self, metrics: dict[str, object], *, step: int | None = None) -> None:
+            self.metrics.append((metrics, step))
+
+        def log_video(self, key: str, path: Path, *, step: int | None = None) -> None:
+            self.videos.append((key, path, step))
+
+        def finish(self) -> None:
+            self.finished = True
+
+    captured_render_kwargs: list[dict[str, object]] = []
+
+    def fake_render_checkpoint(
+        checkpoint: Path,
+        output_path: Path,
+        **kwargs: object,
+    ) -> Path:
+        assert checkpoint.name == "jax_mappo_forage_stage1_4x4.pkl"
+        captured_render_kwargs.append(kwargs)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"mp4")
+        return output_path
+
+    def fake_train_main(args: list[str], progress_callback):
+        checkpoint_path = Path(args[args.index("--save-model") + 1])
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_path.write_bytes(b"checkpoint")
+        progress_callback(
+            1,
+            2,
+            {
+                "global_step": 128.0,
+                "loss": 0.1,
+                "episode_return": 2.0,
+                "env_return": 1.0,
+            },
+        )
+        progress_callback(
+            2,
+            2,
+            {
+                "global_step": 256.0,
+                "loss": 0.05,
+                "episode_return": 3.0,
+                "env_return": 2.0,
+            },
+        )
+        return {"global_step": 256.0, "loss": 0.05, "episode_return": 3.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+    monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
+    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+
+    stages = workflows.build_forage_curriculum_stages((4,))
+    result = workflows.run_forage_curriculum(
+        stages=stages,
+        checkpoint_dir=tmp_path / "checkpoints",
+        common_args=["--num-envs", "2", "--num-steps", "64"],
+        update_timesteps_per_stage=128,
+        global_update_cap=2,
+        train_main=fake_train_main,
+        wandb_project="cool-antz",
+        wandb_entity="team",
+        wandb_group="forage_curriculum_50x50",
+        wandb_run_name="phone",
+        wandb_mode="offline",
+        wandb_tags=["jax"],
+        wandb_video_max_frames=600,
+    )
+
+    tracker = FakeTracker.instances[0]
+    assert tracker.kwargs["project"] == "cool-antz"
+    assert tracker.kwargs["entity"] == "team"
+    assert tracker.kwargs["group"] == "forage_curriculum_50x50"
+    assert tracker.kwargs["name"] == "phone"
+    assert tracker.kwargs["mode"] == "offline"
+    assert tracker.metrics[0][1] == 128
+    assert tracker.metrics[1][1] == 256
+    assert tracker.metrics[1][0]["stage_name"] == "4x4"
+    assert tracker.metrics[1][0]["stage_update"] == 2
+    assert tracker.videos == [
+        (
+            "videos/forage/4x4",
+            tmp_path / "media" / "wandb_previews" / "jax_mappo_forage_stage1_4x4_preview.mp4",
+            256,
+        )
+    ]
+    assert captured_render_kwargs == [
+        {
+            "backend": "jax",
+            "seed_offset": workflows.NOTEBOOK_ROLLOUT_SEED_OFFSET,
+            "reuse_existing": False,
+            "max_frames": 600,
+            "tile_size": workflows.NOTEBOOK_ROLLOUT_TILE_SIZE,
+            "policy_temperature": workflows.NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+        }
+    ]
+    assert result["final_checkpoint_path"] == (
+        tmp_path / "checkpoints" / "jax_mappo_forage_stage1_4x4.pkl"
+    )
+    assert tracker.finished is True
+
+
 def test_ant_count_training_args_keep_25x25_task_with_50_padded_observations() -> None:
     args = workflows.ant_count_training_args(
         {"num_envs": 16, "num_steps": 80, "write_bits": 1},
