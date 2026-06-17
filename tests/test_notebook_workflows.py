@@ -351,6 +351,101 @@ def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
     assert tracker.finished is True
 
 
+def test_forage_curriculum_limits_wandb_previews_to_selected_stages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    class FakeTracker:
+        instances: list["FakeTracker"] = []
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+            self.enabled = True
+            self.metrics: list[tuple[dict[str, object], int | None]] = []
+            self.videos: list[tuple[str, Path, int | None]] = []
+            self.instances.append(self)
+
+        def log_metrics(self, metrics: dict[str, object], *, step: int | None = None) -> None:
+            self.metrics.append((metrics, step))
+
+        def log_video(self, key: str, path: Path, *, step: int | None = None) -> None:
+            self.videos.append((key, path, step))
+
+        def finish(self) -> None:
+            pass
+
+    rendered_checkpoints: list[str] = []
+
+    def fake_render_checkpoint(
+        checkpoint: Path,
+        output_path: Path,
+        **kwargs: object,
+    ) -> Path:
+        del kwargs
+        rendered_checkpoints.append(checkpoint.name)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"mp4")
+        return output_path
+
+    def fake_train_main(args: list[str], progress_callback):
+        checkpoint_path = Path(args[args.index("--save-model") + 1])
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_path.write_bytes(b"checkpoint")
+        progress_callback(
+            1,
+            1,
+            {
+                "global_step": 64.0,
+                "loss": 0.1,
+                "episode_return": 1.0,
+                "env_return": 0.0,
+            },
+        )
+        return {"global_step": 64.0, "loss": 0.1, "episode_return": 1.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+    monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
+    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+
+    workflows.run_forage_curriculum(
+        stages=workflows.build_forage_curriculum_stages((4, 5)),
+        checkpoint_dir=tmp_path / "checkpoints",
+        common_args=["--num-envs", "1", "--num-steps", "64"],
+        update_timesteps_per_stage=64,
+        global_update_cap=1,
+        train_main=fake_train_main,
+        wandb_project="cool-antz",
+        wandb_video_max_frames=600,
+        wandb_video_stage_names=["5x5"],
+    )
+
+    tracker = FakeTracker.instances[0]
+    assert [row["stage_name"] for row, _ in tracker.metrics] == ["4x4", "5x5"]
+    assert tracker.videos == [
+        (
+            "videos/forage/5x5",
+            tmp_path / "media" / "wandb_previews" / "jax_mappo_forage_stage1_5x5_preview.mp4",
+            128,
+        )
+    ]
+    assert rendered_checkpoints == ["jax_mappo_forage_stage1_5x5.pkl"]
+    assert tracker.kwargs["config"]["wandb_video_stage_names"] == ["5x5"]
+
+
 def test_ant_count_training_args_keep_25x25_task_with_50_padded_observations() -> None:
     args = workflows.ant_count_training_args(
         {"num_envs": 16, "num_steps": 80, "write_bits": 1},

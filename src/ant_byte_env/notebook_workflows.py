@@ -591,6 +591,7 @@ def run_forage_curriculum(
     wandb_mode: str = "online",
     wandb_tags: Sequence[str] | None = None,
     wandb_video_max_frames: int | None = 600,
+    wandb_video_stage_names: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     stage_metrics: list[dict[str, Any]] = []
@@ -611,6 +612,11 @@ def run_forage_curriculum(
             "stages": [str(stage["name"]) for stage in stages],
             "update_timesteps_per_stage": int(update_timesteps_per_stage),
             "wandb_video_max_frames": wandb_video_max_frames,
+            "wandb_video_stage_names": (
+                None
+                if wandb_video_stage_names is None
+                else [str(name) for name in wandb_video_stage_names]
+            ),
         },
     )
 
@@ -680,7 +686,11 @@ def run_forage_curriculum(
 
             stage_checkpoint_paths.append(checkpoint_path)
             print(f"Saved checkpoint to {checkpoint_path}")
-            if tracker.enabled and _wandb_preview_enabled(wandb_video_max_frames):
+            if (
+                tracker.enabled
+                and _wandb_preview_enabled(wandb_video_max_frames)
+                and _wandb_preview_stage_enabled(stage["name"], wandb_video_stage_names)
+            ):
                 preview_path = _render_forage_wandb_preview(
                     checkpoint_path=checkpoint_path,
                     checkpoint_dir=checkpoint_dir,
@@ -722,6 +732,15 @@ def _curriculum_global_step(
 
 def _wandb_preview_enabled(max_frames: int | None) -> bool:
     return max_frames is None or int(max_frames) > 0
+
+
+def _wandb_preview_stage_enabled(
+    stage_name: object,
+    enabled_stage_names: Sequence[str] | None,
+) -> bool:
+    if enabled_stage_names is None:
+        return True
+    return str(stage_name) in {str(name) for name in enabled_stage_names}
 
 
 def _render_forage_wandb_preview(
