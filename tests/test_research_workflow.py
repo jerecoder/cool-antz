@@ -227,7 +227,7 @@ def test_forage_50x50_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
         "H3",
         "H4",
     ]
-    assert [entry["id"] for entry in matrix["phases"]["memory"]] == ["M1", "M2", "M3"]
+    assert [entry["id"] for entry in matrix["phases"]["memory"]] == ["M1", "M2", "M3", "M4"]
     assert [entry["id"] for entry in matrix["phases"]["architecture"]] == ["A0", "A1", "A2"]
     assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
 
@@ -277,6 +277,29 @@ def test_forage_50x50_memory_plan_keeps_actor_local_with_wider_self_memory() -> 
     assert parsed.random_food
     assert parsed.random_hub
     assert "actor_observation" in plan["no_cheat_invariants"]
+
+
+def test_forage_50x50_m4_uses_lower_noise_two_bit_memory() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    plan = build_forage_50x50_sweep_plan(
+        phase="memory",
+        run_id="M4",
+        stage_sizes=[4, 8, 50],
+        global_update_cap=2,
+        num_envs=1,
+        num_steps=4,
+        wandb_mode="disabled",
+    )
+    parsed = parse_args(plan["common_args"])
+
+    assert parsed.num_ants == 1
+    assert parsed.actor_vision_radius == 1
+    assert parsed.write_bits == 2
+    assert parsed.hidden_size == 128
+    assert parsed.write_bit_entropy_bonus == 0.005
+    assert parsed.random_food
+    assert parsed.random_hub
 
 
 def test_forage_50x50_sweep_plan_builds_curriculum_with_wandb_milestones() -> None:
