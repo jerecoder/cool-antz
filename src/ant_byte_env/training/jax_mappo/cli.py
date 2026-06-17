@@ -111,6 +111,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Write resolved config, metrics, summary, and default checkpoint under this run directory.",
     )
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-group", type=str, default=None)
+    parser.add_argument("--wandb-run-name", type=str, default=None)
+    parser.add_argument(
+        "--wandb-mode",
+        choices=["online", "offline", "disabled"],
+        default="online",
+    )
+    parser.add_argument("--wandb-tags", nargs="*", default=None)
 
     args = parser.parse_args(argv)
     rollout_batch_size = args.num_envs * args.num_steps

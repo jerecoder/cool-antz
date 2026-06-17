@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import types
 
 import numpy as np
 import pytest
@@ -1520,6 +1521,44 @@ def test_jax_parse_args_accepts_write_head_transfer_modes() -> None:
         parse_args(["--write-head-transfer", "copy-old"])
 
 
+def test_jax_parse_args_accepts_wandb_flags() -> None:
+    args = parse_args(
+        [
+            "--wandb-project",
+            "cool-antz",
+            "--wandb-entity",
+            "team",
+            "--wandb-group",
+            "forage",
+            "--wandb-run-name",
+            "phone-run",
+            "--wandb-mode",
+            "offline",
+            "--wandb-tags",
+            "jax",
+            "50x50",
+        ]
+    )
+
+    assert args.wandb_project == "cool-antz"
+    assert args.wandb_entity == "team"
+    assert args.wandb_group == "forage"
+    assert args.wandb_run_name == "phone-run"
+    assert args.wandb_mode == "offline"
+    assert args.wandb_tags == ["jax", "50x50"]
+
+
+def test_jax_wandb_defaults_keep_tracking_disabled() -> None:
+    args = parse_args([])
+
+    assert args.wandb_project is None
+    assert args.wandb_entity is None
+    assert args.wandb_group is None
+    assert args.wandb_run_name is None
+    assert args.wandb_mode == "online"
+    assert args.wandb_tags is None
+
+
 @pytest.mark.parametrize(
     ("flag", "value", "message"),
     [
@@ -1584,6 +1623,72 @@ def test_tiny_jax_mappo_training_run_completes() -> None:
     assert np.isfinite(metrics["loss"])
     assert np.isfinite(metrics["policy_loss"])
     assert np.isfinite(metrics["value_loss"])
+
+
+def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeRun:
+        def __init__(self) -> None:
+            self.logs: list[tuple[dict[str, object], int | None]] = []
+            self.finished = False
+
+        def log(self, payload: dict[str, object], *, step: int | None = None) -> None:
+            self.logs.append((payload, step))
+
+        def finish(self) -> None:
+            self.finished = True
+
+    fake_run = FakeRun()
+    fake_wandb = types.SimpleNamespace(
+        init=lambda **kwargs: fake_run,
+        Video=lambda *args, **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "ant_byte_env.wandb_tracking.importlib.import_module",
+        lambda name: fake_wandb,
+    )
+
+    metrics = main(
+        [
+            "--total-timesteps",
+            "8",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--num-minibatches",
+            "1",
+            "--update-epochs",
+            "1",
+            "--width",
+            "4",
+            "--height",
+            "4",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "8",
+            "--hidden-size",
+            "16",
+            "--seed",
+            "7",
+            "--wandb-project",
+            "cool-antz",
+            "--wandb-mode",
+            "offline",
+            "--quiet",
+        ],
+    )
+
+    assert metrics["global_step"] == 8
+    assert [step for _, step in fake_run.logs] == [4, 8]
+    assert fake_run.logs[-1][0]["global_step"] == 8.0
+    assert fake_run.finished is True
 
 
 def test_jax_training_carries_episode_state_across_updates() -> None:

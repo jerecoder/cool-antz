@@ -11,6 +11,7 @@ import jax.numpy as jnp
 from ant_byte_env import write_value_count
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
+from ant_byte_env.wandb_tracking import WandbTracker
 from ant_byte_env.training.jax_mappo.checkpointing import (
     checkpoint_args,
     save_checkpoint,
@@ -133,6 +134,16 @@ def main(
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]
 
+    tracker = WandbTracker(
+        project=args.wandb_project,
+        entity=args.wandb_entity,
+        group=args.wandb_group,
+        name=args.wandb_run_name or run_name,
+        tags=args.wandb_tags,
+        mode=args.wandb_mode,
+        run_dir=args.run_dir,
+        config=checkpoint_args(args),
+    )
     rollout_fn = jax.jit(
         lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
             args=args,
@@ -165,71 +176,73 @@ def main(
         "episode_return": 0.0,
     }
 
-    for update in range(1, num_updates + 1):
-        key, rollout_key, update_key = jax.random.split(key, 3)
-        states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
-        learning_rate = args.learning_rate
-        if args.anneal_lr:
-            learning_rate *= 1.0 - (update - 1.0) / num_updates
+    try:
+        for update in range(1, num_updates + 1):
+            key, rollout_key, update_key = jax.random.split(key, 3)
+            states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
+            learning_rate = args.learning_rate
+            if args.anneal_lr:
+                learning_rate *= 1.0 - (update - 1.0) / num_updates
 
-        params, opt_state, update_metrics = update_fn(
-            params,
-            opt_state,
-            rollout,
-            learning_rate,
-            update_key,
-        )
-        global_step += steps_per_update
-        final_metrics = {
-            **_metrics_to_float(update_metrics),
-            **_rollout_stats(rollout),
-            "global_step": float(global_step),
-            "learning_rate": float(learning_rate),
-        }
-        if progress_callback is not None:
-            progress_callback(update, num_updates, final_metrics)
-        if not args.quiet:
-            print(
-                "update={update}/{num_updates} step={step} loss={loss:.4f} "
-                "return={episode_return:.3f} entropy={entropy:.3f}".format(
-                    update=update,
-                    num_updates=num_updates,
-                    step=global_step,
-                    **final_metrics,
-                )
+            params, opt_state, update_metrics = update_fn(
+                params,
+                opt_state,
+                rollout,
+                learning_rate,
+                update_key,
             )
-        if metrics_path is not None:
-            append_metrics(
-                metrics_path,
+            global_step += steps_per_update
+            final_metrics = {
+                **_metrics_to_float(update_metrics),
+                **_rollout_stats(rollout),
+                "global_step": float(global_step),
+                "learning_rate": float(learning_rate),
+            }
+            logged_metrics = {
+                "update": update,
+                "num_updates": num_updates,
+                **final_metrics,
+            }
+            if progress_callback is not None:
+                progress_callback(update, num_updates, final_metrics)
+            tracker.log_metrics(logged_metrics, step=global_step)
+            if not args.quiet:
+                print(
+                    "update={update}/{num_updates} step={step} loss={loss:.4f} "
+                    "return={episode_return:.3f} entropy={entropy:.3f}".format(
+                        update=update,
+                        num_updates=num_updates,
+                        step=global_step,
+                        **final_metrics,
+                    )
+                )
+            if metrics_path is not None:
+                append_metrics(metrics_path, logged_metrics)
+
+        if args.save_model is not None:
+            save_checkpoint(
+                args.save_model,
+                params=params,
+                opt_state=opt_state,
+                args=args,
+                central_obs_dim=central_obs_dim,
+                actor_obs_dim=actor_obs_dim,
+                run_name=run_name,
+                metrics=final_metrics,
+            )
+        if summary_path is not None:
+            write_json(
+                summary_path,
                 {
-                    "update": update,
-                    "num_updates": num_updates,
-                    **final_metrics,
+                    "backend": "jax",
+                    "run_name": run_name,
+                    "metrics": final_metrics,
+                    "checkpoint_path": args.save_model,
                 },
             )
-
-    if args.save_model is not None:
-        save_checkpoint(
-            args.save_model,
-            params=params,
-            opt_state=opt_state,
-            args=args,
-            central_obs_dim=central_obs_dim,
-            actor_obs_dim=actor_obs_dim,
-            run_name=run_name,
-            metrics=final_metrics,
-        )
-    if summary_path is not None:
-        write_json(
-            summary_path,
-            {
-                "backend": "jax",
-                "run_name": run_name,
-                "metrics": final_metrics,
-                "checkpoint_path": args.save_model,
-            },
-        )
-    return final_metrics
+        return final_metrics
+    finally:
+        tracker.finish()
 
 
 

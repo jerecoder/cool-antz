@@ -35,6 +35,9 @@ notebooks = [
   "notebook>=7.0",
   "tqdm>=4.66"
 ]
+wandb = [
+  "wandb>=0.18"
+]
 dev = [
   "jax>=0.4",
   "notebook>=7.0",
