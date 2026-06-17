@@ -344,6 +344,75 @@ def test_jax_forage_curriculum_rewards_add_pickup_without_target_progress() -> N
     np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.0], dtype=np.float32))
 
 
+def test_jax_forage_curriculum_distance_bonus_rewards_food_progress() -> None:
+    env = JaxAntByteForagingEnv(width=4, height=3, num_ants=1, food_count=1)
+    state, previous_obs, _ = env.reset(
+        jax.random.PRNGKey(5),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[2, 0]], dtype=jnp.int32),
+    )
+    _, next_obs, env_reward, _, _, _ = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs={key: jnp.expand_dims(value, axis=0) for key, value in previous_obs.items()},
+        next_obs={key: jnp.expand_dims(value, axis=0) for key, value in next_obs.items()},
+        env_rewards=jnp.asarray([env_reward], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        distance_bonus=0.5,
+    )
+
+    np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.1], dtype=np.float32))
+
+
+def test_jax_forage_curriculum_distance_bonus_rewards_hub_progress() -> None:
+    previous_obs = {
+        "food": jnp.zeros((1, 3, 4), dtype=jnp.int32),
+        "ants_pos": jnp.array([[[3, 0]]], dtype=jnp.int32),
+        "ants_carrying": jnp.array([[True]]),
+        "hub_pos": jnp.array([[0, 0]], dtype=jnp.int32),
+    }
+    next_obs = {
+        **previous_obs,
+        "ants_pos": jnp.array([[[2, 0]]], dtype=jnp.int32),
+    }
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs=previous_obs,
+        next_obs=next_obs,
+        env_rewards=jnp.asarray([0.0], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        distance_bonus=0.5,
+    )
+
+    np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.1], dtype=np.float32))
+
+
+def test_jax_forage_curriculum_distance_bonus_ignores_pickup_target_switch() -> None:
+    env = JaxAntByteForagingEnv(width=4, height=3, num_ants=1, food_count=1)
+    state, previous_obs, _ = env.reset(
+        jax.random.PRNGKey(5),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+    _, next_obs, env_reward, _, _, _ = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs={key: jnp.expand_dims(value, axis=0) for key, value in previous_obs.items()},
+        next_obs={key: jnp.expand_dims(value, axis=0) for key, value in next_obs.items()},
+        env_rewards=jnp.asarray([env_reward], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        distance_bonus=1.0,
+    )
+
+    np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.25], dtype=np.float32))
+
+
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     obs = _batched_reset_obs()
     central_obs = build_central_observations(obs, food_scale=3, write_bits=3)
@@ -1567,6 +1636,7 @@ def test_jax_wandb_defaults_keep_tracking_disabled() -> None:
         ("--write-entropy-bonus", "-0.1", "write-entropy-bonus"),
         ("--write-entropy-bonus-cap", "-0.1", "write-entropy-bonus-cap"),
         ("--write-bit-entropy-bonus", "-0.1", "write-bit-entropy-bonus"),
+        ("--distance-bonus", "-0.1", "distance-bonus"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(

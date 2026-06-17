@@ -90,6 +90,7 @@ def collect_rollout(
             next_obs=next_obs,
             env_rewards=env_rewards,
             pickup_bonus=args.pickup_bonus,
+            distance_bonus=args.distance_bonus,
         )
         rewards -= compute_write_bit_penalties(
             actions,

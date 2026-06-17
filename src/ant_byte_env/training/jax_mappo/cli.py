@@ -101,7 +101,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--distance-bonus",
         type=float,
         default=0.0,
-        help="Deprecated no-op kept for compatibility; Manhattan progress shaping is removed.",
+        help=(
+            "Trainer-side normalized Manhattan progress bonus toward food while empty and "
+            "toward the hub while carrying. Actor observations are unchanged."
+        ),
     )
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
@@ -160,4 +163,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-entropy-bonus-cap must be non-negative.")
     if args.write_bit_entropy_bonus < 0.0:
         raise ValueError("--write-bit-entropy-bonus must be non-negative.")
+    if args.distance_bonus < 0.0:
+        raise ValueError("--distance-bonus must be non-negative.")
     return args

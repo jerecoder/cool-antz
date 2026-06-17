@@ -545,8 +545,9 @@ def compute_forage_curriculum_rewards(
     next_obs: JaxObs,
     env_rewards: jax.Array,
     pickup_bonus: float,
+    distance_bonus: float = 0.0,
 ) -> jax.Array:
-    """Add pickup shaping while leaving movement progress unshaped."""
+    """Add trainer-side forage shaping without changing actor observations."""
 
     def one_env(
         previous_carrying: jax.Array,
@@ -560,11 +561,64 @@ def compute_forage_curriculum_rewards(
         shaped += float(pickup_bonus) * jnp.sum(pickups)
         return shaped
 
-    return jax.vmap(one_env)(
+    shaped_rewards = jax.vmap(one_env)(
         previous_obs["ants_carrying"],
         next_obs["ants_carrying"],
         env_rewards,
     )
+    if distance_bonus <= 0.0:
+        return shaped_rewards
+    progress = _forage_distance_progress(previous_obs=previous_obs, next_obs=next_obs)
+    return shaped_rewards + float(distance_bonus) * progress
+
+
+def _forage_distance_progress(*, previous_obs: JaxObs, next_obs: JaxObs) -> jax.Array:
+    previous_carrying = previous_obs["ants_carrying"].astype(jnp.bool_)
+    next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
+    same_target_mode = previous_carrying == next_carrying
+    food = previous_obs["food"]
+    previous_positions = previous_obs["ants_pos"]
+    next_positions = next_obs["ants_pos"]
+    previous_food_distance = _nearest_food_distances(food, previous_positions)
+    next_food_distance = _nearest_food_distances(food, next_positions)
+    previous_hub_distance = _hub_distances(previous_obs["hub_pos"], previous_positions)
+    next_hub_distance = _hub_distances(previous_obs["hub_pos"], next_positions)
+    previous_distance = jnp.where(
+        previous_carrying,
+        previous_hub_distance,
+        previous_food_distance,
+    )
+    next_distance = jnp.where(
+        previous_carrying,
+        next_hub_distance,
+        next_food_distance,
+    )
+    height, width = food.shape[1:]
+    normalizer = jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
+    progress = (previous_distance - next_distance) / normalizer
+    progress = jnp.where(same_target_mode, progress, 0.0)
+    return jnp.sum(progress, axis=-1).astype(jnp.float32)
+
+
+def _nearest_food_distances(food: jax.Array, ants_pos: jax.Array) -> jax.Array:
+    food_mask = food > 0
+    _, height, width = food_mask.shape
+    x_coords = jnp.arange(width, dtype=jnp.float32)[None, None, None, :]
+    y_coords = jnp.arange(height, dtype=jnp.float32)[None, None, :, None]
+    ant_x = ants_pos[..., 0].astype(jnp.float32)[:, :, None, None]
+    ant_y = ants_pos[..., 1].astype(jnp.float32)[:, :, None, None]
+    distances = jnp.abs(ant_x - x_coords) + jnp.abs(ant_y - y_coords)
+    large_distance = jnp.asarray(height + width + 1, dtype=jnp.float32)
+    masked_distances = jnp.where(food_mask[:, None, :, :], distances, large_distance)
+    nearest = jnp.min(masked_distances, axis=(-2, -1))
+    has_food = jnp.any(food_mask, axis=(-2, -1))[:, None]
+    return jnp.where(has_food, nearest, 0.0).astype(jnp.float32)
+
+
+def _hub_distances(hub_pos: jax.Array, ants_pos: jax.Array) -> jax.Array:
+    hub = hub_pos.astype(jnp.float32)[:, None, :]
+    positions = ants_pos.astype(jnp.float32)
+    return jnp.sum(jnp.abs(positions - hub), axis=-1).astype(jnp.float32)
 
 
 def compute_write_bit_penalties(
