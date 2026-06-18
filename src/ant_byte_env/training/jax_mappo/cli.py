@@ -128,6 +128,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "grid size. Actor observations are unchanged."
         ),
     )
+    parser.add_argument(
+        "--delivery-byte-trail-bonus",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side bonus per delivery scaled by pre-existing nonzero byte-trail "
+            "tiles. Actor observations are unchanged."
+        ),
+    )
+    parser.add_argument(
+        "--delivery-byte-trail-target-tiles",
+        type=float,
+        default=8.0,
+        help="Number of pre-existing nonzero byte tiles that saturates the delivery trail bonus.",
+    )
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
@@ -207,4 +222,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--distance-bonus must be non-negative.")
     if args.stage_completion_bonus < 0.0:
         raise ValueError("--stage-completion-bonus must be non-negative.")
+    if args.delivery_byte_trail_bonus < 0.0:
+        raise ValueError("--delivery-byte-trail-bonus must be non-negative.")
+    if args.delivery_byte_trail_target_tiles <= 0.0:
+        raise ValueError("--delivery-byte-trail-target-tiles must be positive.")
     return args

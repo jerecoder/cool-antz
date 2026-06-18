@@ -169,6 +169,25 @@
           "gamma": 0.99,
           "gae_lambda": 0.95
         }
+      },
+      {
+        "id": "R8",
+        "description": "Sparse baseline plus capped delivery byte-trail bonus to test whether successful delivery can make external byte memory causally useful.",
+        "run_dir": "runs/autoresearch/autocurriculum/reward/R8",
+        "probe_ablations": ["normal", "no_byte_read", "no_write"],
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.0,
+          "delivery_byte_trail_bonus": 0.5,
+          "delivery_byte_trail_target_tiles": 8,
+          "step_penalty": 0.0,
+          "ent_coef": 0.02,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
       }
     ],
     "algorithm": [

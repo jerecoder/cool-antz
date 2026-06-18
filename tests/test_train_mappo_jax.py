@@ -528,6 +528,39 @@ def test_jax_forage_curriculum_stage_completion_bonus_adds_only_on_stage_advance
     np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([4.0, 1.0]))
 
 
+def test_jax_forage_curriculum_delivery_byte_trail_bonus_requires_existing_active_bytes() -> None:
+    previous_obs = {
+        "food": jnp.zeros((3, 3, 3), dtype=jnp.int32),
+        "bytes": jnp.array(
+            [
+                [[1, 1, 0], [1, 1, 0], [0, 0, 0]],
+                [[0, 0, 1], [0, 0, 0], [0, 0, 0]],
+                [[1, 1, 1], [1, 1, 1], [0, 0, 0]],
+            ],
+            dtype=jnp.uint8,
+        ),
+        "ants_pos": jnp.array([[[0, 0]], [[0, 0]], [[0, 0]]], dtype=jnp.int32),
+        "ants_carrying": jnp.array([[True], [True], [True]]),
+        "hub_pos": jnp.array([[0, 0], [0, 0], [0, 0]], dtype=jnp.int32),
+        "active_grid_size": jnp.array([[2, 2], [2, 2], [3, 3]], dtype=jnp.int32),
+    }
+    next_obs = {**previous_obs, "ants_carrying": jnp.array([[False], [False], [False]])}
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs=previous_obs,
+        next_obs=next_obs,
+        env_rewards=jnp.asarray([1.0, 1.0, 1.0], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        delivery_byte_trail_bonus=0.5,
+        delivery_byte_trail_target_tiles=4,
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(shaped_rewards),
+        np.array([1.5, 1.0, 1.5], dtype=np.float32),
+    )
+
+
 def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     dummy = jnp.zeros((2, 2), dtype=jnp.float32)
     rollout = Rollout(
@@ -1946,6 +1979,8 @@ def test_jax_parse_args_accepts_log_interval() -> None:
         ("--write-bit-entropy-bonus", "-0.1", "write-bit-entropy-bonus"),
         ("--distance-bonus", "-0.1", "distance-bonus"),
         ("--stage-completion-bonus", "-0.1", "stage-completion-bonus"),
+        ("--delivery-byte-trail-bonus", "-0.1", "delivery-byte-trail-bonus"),
+        ("--delivery-byte-trail-target-tiles", "0", "delivery-byte-trail-target-tiles"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(

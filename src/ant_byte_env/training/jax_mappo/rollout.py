@@ -148,6 +148,8 @@ def collect_rollout(
                 jnp.zeros_like(env_rewards, dtype=jnp.float32),
             ),
             stage_completion_bonus=args.stage_completion_bonus,
+            delivery_byte_trail_bonus=args.delivery_byte_trail_bonus,
+            delivery_byte_trail_target_tiles=args.delivery_byte_trail_target_tiles,
         )
         rewards -= compute_write_bit_penalties(
             actions,

@@ -611,25 +611,62 @@ def compute_forage_curriculum_rewards(
     distance_bonus: float = 0.0,
     stage_completion_events: jax.Array | None = None,
     stage_completion_bonus: float = 0.0,
+    delivery_byte_trail_bonus: float = 0.0,
+    delivery_byte_trail_target_tiles: float = 8.0,
 ) -> jax.Array:
     """Add trainer-side forage shaping without changing actor observations."""
+
+    if delivery_byte_trail_bonus > 0.0:
+        previous_bytes = previous_obs["bytes"]
+    else:
+        previous_bytes = jnp.zeros_like(previous_obs["food"], dtype=jnp.uint8)
+    _, previous_height, previous_width = previous_bytes.shape
+    previous_active_size = _active_grid_size(
+        previous_obs,
+        fallback_height=previous_height,
+        fallback_width=previous_width,
+    )
 
     def one_env(
         previous_carrying: jax.Array,
         next_carrying: jax.Array,
         env_reward: jax.Array,
+        previous_bytes: jax.Array,
+        active_size: jax.Array,
     ) -> jax.Array:
         was_carrying = previous_carrying.astype(jnp.bool_)
         is_carrying = next_carrying.astype(jnp.bool_)
         pickups = jnp.logical_and(jnp.logical_not(was_carrying), is_carrying).astype(jnp.float32)
+        deliveries = jnp.logical_and(was_carrying, jnp.logical_not(is_carrying)).astype(
+            jnp.float32
+        )
         shaped = env_reward.astype(jnp.float32)
         shaped += float(pickup_bonus) * jnp.sum(pickups)
+        if delivery_byte_trail_bonus > 0.0:
+            active_width, active_height = active_size.astype(jnp.float32)
+            x_coords = jnp.arange(previous_width, dtype=jnp.float32)[None, :]
+            y_coords = jnp.arange(previous_height, dtype=jnp.float32)[:, None]
+            active_mask = (x_coords < active_width) & (y_coords < active_height)
+            nonzero_trail_tiles = jnp.sum(
+                jnp.logical_and(previous_bytes > 0, active_mask).astype(jnp.float32)
+            )
+            trail_fraction = jnp.minimum(
+                nonzero_trail_tiles / max(float(delivery_byte_trail_target_tiles), 1.0),
+                1.0,
+            )
+            shaped += (
+                float(delivery_byte_trail_bonus)
+                * jnp.sum(deliveries)
+                * trail_fraction
+            )
         return shaped
 
     shaped_rewards = jax.vmap(one_env)(
         previous_obs["ants_carrying"],
         next_obs["ants_carrying"],
         env_rewards,
+        previous_bytes,
+        previous_active_size,
     )
     if stage_completion_bonus > 0.0 and stage_completion_events is not None:
         shaped_rewards += float(stage_completion_bonus) * stage_completion_events.astype(
