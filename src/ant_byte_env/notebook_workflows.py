@@ -1437,6 +1437,14 @@ def render_autocurriculum_rollout(
     global_update_cap: int,
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    reuse_existing: bool = True,
+    wandb_project: str | None = None,
+    wandb_entity: str | None = None,
+    wandb_group: str | None = None,
+    wandb_run_name: str | None = None,
+    wandb_mode: str = "online",
+    wandb_tags: Sequence[str] | None = None,
+    wandb_step: int | float | None = None,
 ) -> dict[str, Any]:
     return render_rollout_suite(
         checkpoint_paths=[checkpoint_path],
@@ -1454,6 +1462,16 @@ def render_autocurriculum_rollout(
         },
         max_frames=max_frames,
         tile_size=tile_size,
+        reuse_existing=reuse_existing,
+        wandb_project=wandb_project,
+        wandb_entity=wandb_entity,
+        wandb_group=wandb_group,
+        wandb_run_name=wandb_run_name,
+        wandb_mode=wandb_mode,
+        wandb_tags=wandb_tags,
+        wandb_video_key_prefix="videos/autocurriculum",
+        wandb_video_names=["rollout"],
+        wandb_step=wandb_step,
     )
 
 
@@ -1550,6 +1568,16 @@ def render_rollout_suite(
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
     policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    reuse_existing: bool = False,
+    wandb_project: str | None = None,
+    wandb_entity: str | None = None,
+    wandb_group: str | None = None,
+    wandb_run_name: str | None = None,
+    wandb_mode: str = "online",
+    wandb_tags: Sequence[str] | None = None,
+    wandb_video_key_prefix: str | None = None,
+    wandb_video_names: Sequence[str] | None = None,
+    wandb_step: int | float | None = None,
 ) -> dict[str, Any]:
     from tqdm.auto import tqdm
 
@@ -1571,12 +1599,33 @@ def render_rollout_suite(
                 rollout_path_for_checkpoint(checkpoint, media_dir),
                 backend="jax",
                 seed_offset=seed_offset,
-                reuse_existing=False,
+                reuse_existing=reuse_existing,
                 max_frames=max_frames,
                 tile_size=tile_size,
                 policy_temperature=policy_temperature,
             )
         )
+    wandb_video_keys = _log_rollout_videos_to_wandb(
+        rollout_paths=rollout_paths,
+        key_prefix=wandb_video_key_prefix,
+        video_names=wandb_video_names,
+        project=wandb_project,
+        entity=wandb_entity,
+        group=wandb_group,
+        run_name=wandb_run_name,
+        mode=wandb_mode,
+        tags=wandb_tags,
+        run_dir=media_dir.parent,
+        step=wandb_step,
+        config={
+            **metadata,
+            "checkpoint_paths": [str(path) for path in checkpoints],
+            "rollout_paths": [str(path) for path in rollout_paths],
+            "render_max_frames": max_frames,
+            "render_tile_size": tile_size,
+            "reuse_existing": reuse_existing,
+        },
+    )
     vault_entry_path = create_vault_entry(
         vault_dir=vault_dir,
         title=title,
@@ -1587,9 +1636,58 @@ def render_rollout_suite(
             "render_max_frames": max_frames,
             "render_tile_size": tile_size,
             "rollout_policy_temperature": policy_temperature,
+            "reuse_existing": reuse_existing,
+            "wandb_video_keys": wandb_video_keys,
             "rollout_seed_offsets": rollout_seed_offsets,
             "checkpoint_paths": [str(path) for path in checkpoints],
             "rollout_paths": [str(path) for path in rollout_paths],
         },
     )
-    return {"rollout_paths": rollout_paths, "vault_entry_path": vault_entry_path}
+    return {
+        "rollout_paths": rollout_paths,
+        "vault_entry_path": vault_entry_path,
+        "wandb_video_keys": wandb_video_keys,
+    }
+
+
+def _log_rollout_videos_to_wandb(
+    *,
+    rollout_paths: Sequence[Path],
+    key_prefix: str | None,
+    video_names: Sequence[str] | None,
+    project: str | None,
+    entity: str | None,
+    group: str | None,
+    run_name: str | None,
+    mode: str,
+    tags: Sequence[str] | None,
+    run_dir: Path,
+    step: int | float | None,
+    config: Mapping[str, Any],
+) -> list[str]:
+    if key_prefix is None:
+        return []
+    tracker = WandbTracker(
+        project=project,
+        entity=entity,
+        group=group,
+        name=run_name,
+        tags=tags,
+        mode=mode,
+        run_dir=run_dir,
+        config=config,
+    )
+    logged_keys: list[str] = []
+    try:
+        for index, path in enumerate(rollout_paths):
+            if video_names is not None and index < len(video_names):
+                video_name = str(video_names[index])
+            else:
+                video_name = Path(path).stem
+            video_key = f"{key_prefix.rstrip('/')}/{video_name}"
+            tracker.log_video(video_key, Path(path), step=step)
+            if tracker.enabled:
+                logged_keys.append(video_key)
+    finally:
+        tracker.finish()
+    return logged_keys

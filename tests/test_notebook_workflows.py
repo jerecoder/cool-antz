@@ -732,6 +732,71 @@ def test_rollout_suite_uses_full_episode_render_defaults(
     ]
 
 
+def test_autocurriculum_rollout_reuses_existing_video_and_logs_wandb(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "checkpoints" / "model.pkl"
+    checkpoint_path.parent.mkdir()
+    checkpoint_path.write_bytes(b"checkpoint")
+    captured_render_kwargs: list[dict[str, object]] = []
+    tracker_instances: list[object] = []
+
+    def fake_render_checkpoint(
+        checkpoint: Path,
+        output_path: Path,
+        **kwargs: object,
+    ) -> Path:
+        del checkpoint
+        captured_render_kwargs.append(kwargs)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"mp4")
+        return output_path
+
+    class FakeTracker:
+        enabled = True
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+            self.videos: list[tuple[str, Path, int | None]] = []
+            self.finished = False
+            tracker_instances.append(self)
+
+        def log_video(self, key: str, path: Path, *, step=None, fps: int = 8) -> None:
+            del fps
+            self.videos.append((key, path, None if step is None else int(step)))
+
+        def finish(self) -> None:
+            self.finished = True
+
+    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
+
+    result = workflows.render_autocurriculum_rollout(
+        run_dir=tmp_path / "run",
+        checkpoint_path=checkpoint_path,
+        media_dir=tmp_path / "run" / "media",
+        global_update_cap=100,
+        wandb_project="cool-antz",
+        wandb_group="autocurriculum_50x50",
+        wandb_run_name="autocurriculum_50x50_rollout",
+        wandb_mode="offline",
+        wandb_step=1280,
+    )
+
+    rollout_path = tmp_path / "run" / "media" / "jax_mappo_autocurriculum_rollout.mp4"
+    assert captured_render_kwargs[0]["reuse_existing"] is True
+    assert result["rollout_paths"] == [rollout_path]
+    assert result["wandb_video_keys"] == ["videos/autocurriculum/rollout"]
+    assert len(tracker_instances) == 1
+    tracker = tracker_instances[0]
+    assert tracker.kwargs["project"] == "cool-antz"
+    assert tracker.kwargs["group"] == "autocurriculum_50x50"
+    assert tracker.kwargs["name"] == "autocurriculum_50x50_rollout"
+    assert tracker.videos == [("videos/autocurriculum/rollout", rollout_path, 1280)]
+    assert tracker.finished is True
+
+
 def test_rollout_suite_uses_distinct_seed_offsets_per_rollout(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
