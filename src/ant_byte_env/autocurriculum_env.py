@@ -20,6 +20,9 @@ from ant_byte_env.env import (
 )
 
 
+PADDED_RENDER_BACKGROUND = (215, 207, 181)
+
+
 class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
     """Square-grid foraging env that advances stages after enough deliveries.
 
@@ -214,7 +217,10 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
     def render(self) -> np.ndarray | None:
         if self._env is None:
             return None
-        return self._env.render()
+        frame = self._env.render()
+        if frame is None or self.render_mode != "rgb_array":
+            return frame
+        return self._pad_render_frame(frame)
 
     def close(self) -> None:
         if self._env is not None:
@@ -397,6 +403,21 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         padded_obs["food"][active_slice] = obs["food"]
         padded_obs["bytes"][active_slice] = obs["bytes"]
         return padded_obs
+
+    def _pad_render_frame(self, frame: np.ndarray) -> np.ndarray:
+        target_size = self.max_size * self.tile_size
+        if frame.shape[0] == target_size and frame.shape[1] == target_size:
+            return frame
+
+        padded = np.full(
+            (target_size, target_size, frame.shape[2]),
+            PADDED_RENDER_BACKGROUND,
+            dtype=frame.dtype,
+        )
+        height = min(frame.shape[0], target_size)
+        width = min(frame.shape[1], target_size)
+        padded[:height, :width] = frame[:height, :width]
+        return padded
 
     def _build_info(
         self,

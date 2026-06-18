@@ -77,6 +77,29 @@ def test_autocurriculum_advances_to_next_grid_after_six_deliveries() -> None:
     env.close()
 
 
+def test_autocurriculum_rgb_render_keeps_stable_max_size_shape() -> None:
+    env = AntByteAutoCurriculumEnv(
+        max_size=5,
+        max_steps=100,
+        num_ants=1,
+        render_mode="rgb_array",
+        tile_size=8,
+    )
+    env.reset(seed=19, options={"hub_pos": (0, 0), "food_positions": [(2, 0), (0, 2)]})
+
+    start_frame = env.render()
+    _deliver_first_source_cookies(env)
+    next_stage_frame = env.render()
+
+    assert start_frame is not None
+    assert next_stage_frame is not None
+    assert start_frame.shape == (5 * 8, 5 * 8, 3)
+    assert next_stage_frame.shape == start_frame.shape
+    assert start_frame.dtype == np.uint8
+    assert next_stage_frame.dtype == np.uint8
+    env.close()
+
+
 def test_autocurriculum_keeps_growing_from_five_to_six() -> None:
     env = AntByteAutoCurriculumEnv(
         max_size=6,
