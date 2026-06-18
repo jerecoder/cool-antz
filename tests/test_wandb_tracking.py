@@ -103,6 +103,29 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
     assert fake_run.finished is True
 
 
+def test_wandb_tracker_finish_does_not_raise_connection_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeRun:
+        finish_calls = 0
+
+        def finish(self) -> None:
+            self.finish_calls += 1
+            raise ConnectionResetError("Connection lost")
+
+    fake_run = FakeRun()
+    fake_wandb = types.SimpleNamespace(init=lambda **kwargs: fake_run)
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
+
+    tracker = WandbTracker(project="cool-antz")
+
+    with pytest.warns(RuntimeWarning, match="ConnectionResetError: Connection lost"):
+        tracker.finish()
+
+    tracker.finish()
+    assert fake_run.finish_calls == 1
+
+
 def test_wandb_tracker_missing_package_has_install_hint(monkeypatch: pytest.MonkeyPatch) -> None:
     def fail_import(name: str):
         raise ModuleNotFoundError(name=name)

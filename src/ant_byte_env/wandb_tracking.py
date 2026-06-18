@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import warnings
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -88,8 +89,19 @@ class WandbTracker:
         )
 
     def finish(self) -> None:
-        if self._run is not None:
-            self._run.finish()
+        if self._run is None:
+            return
+        run = self._run
+        self._run = None
+        try:
+            run.finish()
+        except Exception as exc:
+            warnings.warn(
+                "W&B run finish failed during cleanup; continuing shutdown without "
+                f"blocking the original training result: {type(exc).__name__}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
 
 def _import_wandb() -> Any:
