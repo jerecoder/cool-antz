@@ -126,7 +126,18 @@ def test_cleanup_notebook_artifacts_dry_run_and_delete(tmp_path: Path) -> None:
 def test_forage_stage_generation_reaches_50x50() -> None:
     stages = workflows.build_forage_curriculum_stages((4, 50))
 
-    assert stages[0] == {
+    assert {
+        key: stages[0][key]
+        for key in (
+            "name",
+            "width",
+            "height",
+            "food_count",
+            "food_sources",
+            "cookie_distance",
+            "max_steps",
+        )
+    } == {
         "name": "4x4",
         "width": 4,
         "height": 4,
@@ -149,6 +160,20 @@ def test_forage_food_sources_concentrate_total_food_budget() -> None:
     assert [stage["food_sources"] for stage in stages] == [1, 1, 2, 6]
     for stage in stages:
         assert 1 <= int(stage["food_sources"]) <= int(stage["food_count"])
+
+
+def test_forage_training_profiles_give_large_maps_more_budget() -> None:
+    stages = workflows.build_forage_curriculum_stages((4, 8, 15, 25, 50))
+
+    assert [stage["global_update_cap"] for stage in stages] == [
+        1500,
+        1500,
+        3000,
+        6000,
+        8000,
+    ]
+    assert [stage["num_steps"] for stage in stages] == [80, 80, 128, 160, 256]
+    assert [stage["gamma"] for stage in stages] == [0.99, 0.99, 0.995, 0.995, 0.997]
 
 
 def test_forage_common_args_use_largest_stage_padding_and_moving_writes() -> None:
@@ -218,6 +243,80 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
     assert "--write-while-moving" in args
     assert "--write-bits" not in args
     assert "--load-model" not in args
+
+
+def test_forage_curriculum_honors_stage_budget_and_hyperparameter_profiles(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def __init__(self, total_updates: int) -> None:
+            self.total_updates = total_updates
+
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    progress_totals: list[int] = []
+    captured_args: list[list[str]] = []
+
+    def fake_train_main(args: list[str], progress_callback):
+        captured_args.append(args)
+        total_timesteps = int(args[args.index("--total-timesteps") + 1])
+        progress_callback(
+            1,
+            1,
+            {
+                "global_step": float(total_timesteps),
+                "loss": 0.1,
+                "episode_return": 1.0,
+                "env_return": 0.0,
+            },
+        )
+        checkpoint_path = Path(args[args.index("--save-model") + 1])
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_path.write_bytes(b"checkpoint")
+        return {"global_step": float(total_timesteps), "loss": 0.1, "episode_return": 1.0}
+
+    def fake_progress(label: str, total_updates: int) -> FakeProgress:
+        del label
+        progress_totals.append(total_updates)
+        return FakeProgress(total_updates)
+
+    monkeypatch.setattr(workflows, "stage_update_progress", fake_progress)
+
+    stages = workflows.build_forage_curriculum_stages((4, 25))
+    result = workflows.run_forage_curriculum(
+        stages=stages,
+        checkpoint_dir=tmp_path / "checkpoints",
+        common_args=["--num-envs", "16", "--num-steps", "80", "--gamma", "0.99"],
+        update_timesteps_per_stage=1280,
+        global_update_cap=4000,
+        train_main=fake_train_main,
+        wandb_video_max_frames=0,
+    )
+
+    assert progress_totals == [1500, 6000]
+    assert [args[args.index("--total-timesteps") + 1] for args in captured_args] == [
+        "1920000",
+        "15360000",
+    ]
+    assert _last_arg(captured_args[0], "--num-steps") == "80"
+    assert _last_arg(captured_args[1], "--num-steps") == "160"
+    assert _last_arg(captured_args[0], "--gamma") == "0.99"
+    assert _last_arg(captured_args[1], "--gamma") == "0.995"
+    assert result["stage_metrics"][0]["curriculum_global_step"] == 1_920_000
+    assert result["stage_metrics"][1]["curriculum_global_step"] == 17_280_000
+
+
+def _last_arg(args: list[str], option: str) -> str:
+    index = len(args) - 1 - args[::-1].index(option)
+    return args[index + 1]
 
 
 def test_autocurriculum_training_helper_passes_single_env_curriculum_args(tmp_path: Path) -> None:
@@ -528,12 +627,12 @@ def test_forage_curriculum_limits_wandb_previews_to_selected_stages(
     tracker = FakeTracker.instances[0]
     assert [row["stage_name"] for row, _ in tracker.metrics] == ["4x4", "5x5"]
     assert tracker.videos == [
-        (
-            "videos/forage/5x5",
-            tmp_path / "media" / "wandb_previews" / "jax_mappo_forage_stage1_5x5_preview.mp4",
-            128,
-        )
-    ]
+            (
+                "videos/forage/5x5",
+                tmp_path / "media" / "wandb_previews" / "jax_mappo_forage_stage1_5x5_preview.mp4",
+                120064,
+            )
+        ]
     assert rendered_checkpoints == ["jax_mappo_forage_stage1_5x5.pkl"]
     assert tracker.kwargs["config"]["wandb_video_stage_names"] == ["5x5"]
 
@@ -570,6 +669,35 @@ def test_checkpoint_path_helpers_match_notebook_artifact_layout(tmp_path: Path) 
         tmp_path / "2_ants" / "checkpoints" / "model.pkl",
         tmp_path / "4_ants" / "checkpoints" / "model.pkl",
     ]
+
+
+def test_render_forage_rollouts_can_limit_stage_names(monkeypatch, tmp_path: Path) -> None:
+    captured_checkpoint_paths: list[Path] = []
+    captured_metadata: dict[str, object] = {}
+
+    def fake_render_rollout_suite(**kwargs):
+        captured_checkpoint_paths.extend(kwargs["checkpoint_paths"])
+        captured_metadata.update(dict(kwargs["metadata"]))
+        return {"rollout_paths": [], "vault_entry_path": tmp_path / "vault"}
+
+    monkeypatch.setattr(workflows, "render_rollout_suite", fake_render_rollout_suite)
+
+    workflows.render_forage_rollouts(
+        run_dir=tmp_path / "run",
+        checkpoint_dir=tmp_path / "checkpoints",
+        media_dir=tmp_path / "media",
+        stages=workflows.build_forage_curriculum_stages((4, 5, 8)),
+        stage_names=("5x5", "8x8"),
+        actor_vision_radius=1,
+        write_bits=1,
+        global_update_cap=8000,
+    )
+
+    assert captured_checkpoint_paths == [
+        tmp_path / "checkpoints" / "jax_mappo_forage_stage1_5x5.pkl",
+        tmp_path / "checkpoints" / "jax_mappo_forage_stage1_8x8.pkl",
+    ]
+    assert captured_metadata["stages"] == ["5x5", "8x8"]
 
 
 def test_communication_consolidation_runs_single_stage_with_overrides(

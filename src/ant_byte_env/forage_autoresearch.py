@@ -305,8 +305,9 @@ def _forage_stage_sizes(
 def _forage_stages_for_sizes(sizes: Sequence[int]) -> list[dict[str, Any]]:
     from ant_byte_env.notebook_workflows import build_forage_curriculum_stages
 
+    notebook_profile_keys = {"global_update_cap", "num_steps", "gamma", "update_timesteps"}
     return [
-        dict(stage)
+        {key: value for key, value in stage.items() if key not in notebook_profile_keys}
         for stage in build_forage_curriculum_stages(tuple(int(size) for size in sizes))
     ]
 

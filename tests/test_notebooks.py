@@ -55,18 +55,40 @@ def test_mappo_curriculum_keeps_stage_count_and_reaches_50x50() -> None:
     assert 'WANDB_GROUP = "forage_curriculum_50x50"' in source
     assert 'WANDB_MODE = "online"' in source
     assert "WANDB_VIDEO_MAX_FRAMES = 600" in source
+    assert "WANDB_VIDEO_STAGE_NAMES = workflows.FORAGE_WANDB_PREVIEW_STAGE_NAMES" in source
     assert "wandb_project=WANDB_PROJECT" in source
     assert "wandb_video_max_frames=WANDB_VIDEO_MAX_FRAMES" in source
+    assert "wandb_video_stage_names=WANDB_VIDEO_STAGE_NAMES" in source
 
     spec = json.loads(Path("experiments/forage_curriculum.json").read_text(encoding="utf-8"))
     assert spec["args"]["width"] == 50
     assert spec["args"]["height"] == 50
     assert spec["args"]["obs_width"] == 50
     assert spec["args"]["obs_height"] == 50
+    assert spec["args"]["total_timesteps"] == 32_768_000
+    assert spec["args"]["num_steps"] == 256
+    assert spec["args"]["gamma"] == 0.997
     assert spec["args"]["write_while_moving"] is True
     assert spec["args"]["distance_bonus"] == 0.0
+    assert spec["metadata"]["global_update_cap"] == 8000
     assert spec["metadata"]["stage_sizes"] == list(MAPPO_STAGE_SIZES)
     assert spec["metadata"]["stage_count"] == len(MAPPO_STAGE_SIZES)
+    assert spec["metadata"]["stage_training_profile"][-1] == {
+        "max_size": 50,
+        "global_update_cap": 8000,
+        "num_steps": 256,
+        "gamma": 0.997,
+    }
+    assert spec["metadata"]["wandb_preview_stage_names"] == [
+        "4x4",
+        "8x8",
+        "15x15",
+        "20x20",
+        "25x25",
+        "30x30",
+        "40x40",
+        "50x50",
+    ]
 
 
 def test_autocurriculum_notebook_uses_single_env_curriculum_config() -> None:

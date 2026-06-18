@@ -18,6 +18,22 @@ from ant_byte_env.vault import create_vault_entry
 from ant_byte_env.wandb_tracking import WandbTracker
 
 FORAGE_STAGE_SIZES = tuple(range(4, 51))
+FORAGE_STAGE_TRAINING_PROFILE = (
+    {"max_size": 8, "global_update_cap": 1500, "num_steps": 80, "gamma": 0.99},
+    {"max_size": 15, "global_update_cap": 3000, "num_steps": 128, "gamma": 0.995},
+    {"max_size": 25, "global_update_cap": 6000, "num_steps": 160, "gamma": 0.995},
+    {"max_size": 50, "global_update_cap": 8000, "num_steps": 256, "gamma": 0.997},
+)
+FORAGE_WANDB_PREVIEW_STAGE_NAMES = (
+    "4x4",
+    "8x8",
+    "15x15",
+    "20x20",
+    "25x25",
+    "30x30",
+    "40x40",
+    "50x50",
+)
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
@@ -481,9 +497,25 @@ def curriculum_food_sources(size: int) -> int:
     return max(1, min(food_count, concentrated_sources))
 
 
+def forage_training_profile(size: int) -> dict[str, int | float]:
+    for profile in FORAGE_STAGE_TRAINING_PROFILE:
+        if int(size) <= int(profile["max_size"]):
+            return {
+                "global_update_cap": int(profile["global_update_cap"]),
+                "num_steps": int(profile["num_steps"]),
+                "gamma": float(profile["gamma"]),
+            }
+    last_profile = FORAGE_STAGE_TRAINING_PROFILE[-1]
+    return {
+        "global_update_cap": int(last_profile["global_update_cap"]),
+        "num_steps": int(last_profile["num_steps"]),
+        "gamma": float(last_profile["gamma"]),
+    }
+
+
 def build_forage_curriculum_stages(
     stage_sizes: Sequence[int] = FORAGE_STAGE_SIZES,
-) -> list[dict[str, int | str]]:
+) -> list[dict[str, int | float | str]]:
     return [
         {
             "name": f"{size}x{size}",
@@ -493,6 +525,7 @@ def build_forage_curriculum_stages(
             "food_sources": curriculum_food_sources(int(size)),
             "cookie_distance": min(1 + (int(size) - 4) // 2, int(size) // 2),
             "max_steps": max(48, 4 * int(size) * int(size)),
+            **forage_training_profile(int(size)),
         }
         for size in stage_sizes
     ]
@@ -596,13 +629,14 @@ def run_forage_curriculum(
     wandb_mode: str = "online",
     wandb_tags: Sequence[str] | None = None,
     wandb_video_max_frames: int | None = 600,
-    wandb_video_stage_names: Sequence[str] | None = None,
+    wandb_video_stage_names: Sequence[str] | None = FORAGE_WANDB_PREVIEW_STAGE_NAMES,
 ) -> dict[str, Any]:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     stage_metrics: list[dict[str, Any]] = []
     stage_checkpoint_paths: list[Path] = []
     previous_checkpoint: Path | None = None
     final_train_metrics: dict[str, float] = {}
+    curriculum_step_base = 0
     tracker = WandbTracker(
         project=wandb_project,
         entity=wandb_entity,
@@ -616,6 +650,12 @@ def run_forage_curriculum(
             "global_update_cap": int(global_update_cap),
             "stages": [str(stage["name"]) for stage in stages],
             "update_timesteps_per_stage": int(update_timesteps_per_stage),
+            "stage_training_profiles": _forage_stage_training_profiles(
+                stages,
+                common_args=common_args,
+                fallback_update_timesteps=int(update_timesteps_per_stage),
+                fallback_update_cap=int(global_update_cap),
+            ),
             "wandb_video_max_frames": wandb_video_max_frames,
             "wandb_video_stage_names": (
                 None
@@ -627,10 +667,16 @@ def run_forage_curriculum(
 
     try:
         for stage_index, stage in enumerate(stages, start=1):
+            stage_update_cap = int(stage.get("global_update_cap", global_update_cap))
+            stage_update_timesteps = _forage_stage_update_timesteps(
+                stage,
+                common_args=common_args,
+                fallback_update_timesteps=int(update_timesteps_per_stage),
+            )
             print(f"Training stage {stage_index}/{len(stages)}: {stage['name']}")
             print("First update for this shape may compile; progress starts after it returns.")
             checkpoint_path = checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl"
-            progress = stage_update_progress(str(stage["name"]), global_update_cap)
+            progress = stage_update_progress(str(stage["name"]), stage_update_cap)
             last_progress_update = 0
 
             def record_progress(
@@ -639,11 +685,8 @@ def run_forage_curriculum(
                 metrics: dict[str, float],
             ) -> None:
                 nonlocal last_progress_update
-                curriculum_step = _curriculum_global_step(
-                    stage_index=stage_index,
-                    update_timesteps_per_stage=update_timesteps_per_stage,
-                    global_update_cap=global_update_cap,
-                    metrics=metrics,
+                curriculum_step = curriculum_step_base + int(
+                    float(metrics.get("global_step", 0.0))
                 )
                 last_progress_update = _advance_progress_to(
                     progress,
@@ -661,7 +704,8 @@ def run_forage_curriculum(
                     "stage_name": str(stage["name"]),
                     "stage_update": update_index,
                     "stage_total_updates": total_updates,
-                    "global_update_cap": global_update_cap,
+                    "global_update_cap": stage_update_cap,
+                    "stage_update_timesteps": stage_update_timesteps,
                     "curriculum_global_step": curriculum_step,
                     "checkpoint": str(checkpoint_path),
                 }
@@ -671,7 +715,7 @@ def run_forage_curriculum(
             train_args = [
                 *common_args,
                 "--total-timesteps",
-                str(update_timesteps_per_stage * global_update_cap),
+                str(stage_update_timesteps * stage_update_cap),
                 "--width",
                 str(stage["width"]),
                 "--height",
@@ -687,6 +731,10 @@ def run_forage_curriculum(
                 "--save-model",
                 str(checkpoint_path),
             ]
+            if "num_steps" in stage:
+                train_args.extend(["--num-steps", str(int(stage["num_steps"]))])
+            if "gamma" in stage:
+                train_args.extend(["--gamma", str(float(stage["gamma"]))])
             if previous_checkpoint is not None:
                 train_args.extend(["--load-model", str(previous_checkpoint)])
 
@@ -711,13 +759,10 @@ def run_forage_curriculum(
                 tracker.log_video(
                     f"videos/forage/{stage['name']}",
                     preview_path,
-                    step=_curriculum_global_step(
-                        stage_index=stage_index,
-                        update_timesteps_per_stage=update_timesteps_per_stage,
-                        global_update_cap=global_update_cap,
-                        metrics=final_train_metrics,
-                    ),
+                    step=curriculum_step_base
+                    + int(float(final_train_metrics.get("global_step", 0.0))),
                 )
+            curriculum_step_base += stage_update_timesteps * stage_update_cap
             previous_checkpoint = checkpoint_path
     finally:
         tracker.finish()
@@ -789,15 +834,54 @@ def run_autocurriculum_training(
     }
 
 
-def _curriculum_global_step(
+def _forage_stage_training_profiles(
+    stages: Sequence[Mapping[str, Any]],
     *,
-    stage_index: int,
-    update_timesteps_per_stage: int,
-    global_update_cap: int,
-    metrics: Mapping[str, float],
+    common_args: Sequence[str],
+    fallback_update_timesteps: int,
+    fallback_update_cap: int,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "stage": str(stage["name"]),
+            "global_update_cap": int(stage.get("global_update_cap", fallback_update_cap)),
+            "num_steps": int(stage["num_steps"]) if "num_steps" in stage else None,
+            "gamma": float(stage["gamma"]) if "gamma" in stage else None,
+            "update_timesteps": _forage_stage_update_timesteps(
+                stage,
+                common_args=common_args,
+                fallback_update_timesteps=fallback_update_timesteps,
+            ),
+        }
+        for stage in stages
+    ]
+
+
+def _forage_stage_update_timesteps(
+    stage: Mapping[str, Any],
+    *,
+    common_args: Sequence[str],
+    fallback_update_timesteps: int,
 ) -> int:
-    stage_base = (int(stage_index) - 1) * int(update_timesteps_per_stage) * int(global_update_cap)
-    return stage_base + int(float(metrics.get("global_step", 0.0)))
+    if "update_timesteps" in stage:
+        return int(stage["update_timesteps"])
+    if "num_steps" not in stage:
+        return int(fallback_update_timesteps)
+    num_envs = _argv_int(common_args, "--num-envs")
+    if num_envs is None:
+        return int(fallback_update_timesteps)
+    return update_timesteps(num_envs=num_envs, num_steps=int(stage["num_steps"]))
+
+
+def _argv_int(argv: Sequence[str], option: str) -> int | None:
+    try:
+        index = len(argv) - 1 - list(reversed(argv)).index(option)
+    except ValueError:
+        return None
+    try:
+        return int(argv[index + 1])
+    except (IndexError, ValueError):
+        return None
 
 
 def _advance_progress_to(
@@ -1448,9 +1532,11 @@ def render_forage_rollouts(
     global_update_cap: int,
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    stage_names: Sequence[str] | None = FORAGE_WANDB_PREVIEW_STAGE_NAMES,
 ) -> dict[str, Any]:
+    selected_stages = _filter_stages_by_name(stages, stage_names)
     return render_rollout_suite(
-        checkpoint_paths=forage_checkpoint_paths(checkpoint_dir, stages),
+        checkpoint_paths=forage_checkpoint_paths(checkpoint_dir, selected_stages),
         media_dir=media_dir,
         rollout_path_for_checkpoint=lambda checkpoint, media: (
             media / f"{checkpoint.stem}_rollout.mp4"
@@ -1460,7 +1546,7 @@ def render_forage_rollouts(
         title="JAX MAPPO curriculum policy rollouts",
         description="Rollout MP4 videos for each saved JAX MAPPO curriculum stage policy.",
         metadata={
-            "stages": [stage["name"] for stage in stages],
+            "stages": [stage["name"] for stage in selected_stages],
             "actor_vision_radius": actor_vision_radius,
             "write_bits": write_bits,
             "global_update_cap": global_update_cap,
@@ -1468,6 +1554,16 @@ def render_forage_rollouts(
         max_frames=max_frames,
         tile_size=tile_size,
     )
+
+
+def _filter_stages_by_name(
+    stages: Sequence[Mapping[str, Any]],
+    stage_names: Sequence[str] | None,
+) -> list[Mapping[str, Any]]:
+    if stage_names is None:
+        return list(stages)
+    enabled_names = {str(stage_name) for stage_name in stage_names}
+    return [stage for stage in stages if str(stage["name"]) in enabled_names]
 
 
 def render_autocurriculum_rollout(
