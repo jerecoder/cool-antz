@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import types
 
@@ -1767,9 +1768,16 @@ def test_jax_wandb_defaults_keep_tracking_disabled() -> None:
     assert args.wandb_tags is None
 
 
+def test_jax_parse_args_accepts_log_interval() -> None:
+    args = parse_args(["--log-interval", "10"])
+
+    assert args.log_interval == 10
+
+
 @pytest.mark.parametrize(
     ("flag", "value", "message"),
     [
+        ("--log-interval", "0", "log-interval"),
         ("--write-bit-penalty", "-0.1", "write-bit-penalty"),
         ("--write-bit-penalty-decay", "1.5", "write-bit-penalty-decay"),
         ("--write-entropy-bonus", "-0.1", "write-entropy-bonus"),
@@ -1834,6 +1842,50 @@ def test_tiny_jax_mappo_training_run_completes() -> None:
     assert np.isfinite(metrics["value_loss"])
 
 
+def test_tiny_jax_mappo_training_respects_log_interval() -> None:
+    progress_updates = []
+
+    metrics = main(
+        [
+            "--total-timesteps",
+            "20",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--num-minibatches",
+            "1",
+            "--update-epochs",
+            "1",
+            "--width",
+            "4",
+            "--height",
+            "4",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "8",
+            "--hidden-size",
+            "16",
+            "--seed",
+            "7",
+            "--log-interval",
+            "3",
+            "--quiet",
+        ],
+        progress_callback=lambda update, total, row: progress_updates.append(
+            (update, total, row["global_step"])
+        ),
+    )
+
+    assert metrics["global_step"] == 20
+    assert progress_updates == [(1, 5, 4.0), (3, 5, 12.0), (5, 5, 20.0)]
+
+
 def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1853,9 +1905,16 @@ def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
         init=lambda **kwargs: fake_run,
         Video=lambda *args, **kwargs: object(),
     )
+    original_import_module = importlib.import_module
+
+    def fake_import_module(name: str):
+        if name == "wandb":
+            return fake_wandb
+        return original_import_module(name)
+
     monkeypatch.setattr(
         "ant_byte_env.wandb_tracking.importlib.import_module",
-        lambda name: fake_wandb,
+        fake_import_module,
     )
 
     metrics = main(

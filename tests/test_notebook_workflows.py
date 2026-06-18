@@ -262,6 +262,56 @@ def test_autocurriculum_training_helper_passes_single_env_curriculum_args(tmp_pa
     assert result["checkpoint_path"] == tmp_path / "autocurriculum" / "checkpoints" / "model.pkl"
 
 
+def test_autocurriculum_progress_advances_by_reported_update_delta(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def __init__(self) -> None:
+            self.updates: list[int] = []
+
+        def update(self, value: int) -> None:
+            self.updates.append(value)
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    progress = FakeProgress()
+
+    def fake_train_main(argv: list[str], *, progress_callback):
+        del argv
+        for update_index in (1, 5, 10):
+            progress_callback(
+                update_index,
+                10,
+                {
+                    "loss": 0.1,
+                    "episode_return": 1.0,
+                    "global_step": float(update_index),
+                },
+            )
+        return {"loss": 0.1, "episode_return": 1.0, "global_step": 10.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: progress,
+    )
+
+    workflows.run_autocurriculum_training(
+        run_dir=tmp_path / "autocurriculum",
+        common_args=["--autocurriculum", "--width", "50", "--height", "50"],
+        update_timesteps_per_stage=1,
+        global_update_cap=10,
+        train_main=fake_train_main,
+    )
+
+    assert progress.updates == [1, 4, 5]
+
+
 def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

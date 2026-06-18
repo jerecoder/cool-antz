@@ -631,19 +631,25 @@ def run_forage_curriculum(
             print("First update for this shape may compile; progress starts after it returns.")
             checkpoint_path = checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl"
             progress = stage_update_progress(str(stage["name"]), global_update_cap)
+            last_progress_update = 0
 
             def record_progress(
                 update_index: int,
                 total_updates: int,
                 metrics: dict[str, float],
             ) -> None:
+                nonlocal last_progress_update
                 curriculum_step = _curriculum_global_step(
                     stage_index=stage_index,
                     update_timesteps_per_stage=update_timesteps_per_stage,
                     global_update_cap=global_update_cap,
                     metrics=metrics,
                 )
-                progress.update(1)
+                last_progress_update = _advance_progress_to(
+                    progress,
+                    update_index=update_index,
+                    previous_update_index=last_progress_update,
+                )
                 progress.set_postfix(
                     loss=f"{metrics['loss']:.3f}",
                     ret=f"{metrics['episode_return']:.3f}",
@@ -735,13 +741,19 @@ def run_autocurriculum_training(
     checkpoint_path = run_dir / "checkpoints" / "model.pkl"
     stage_metrics: list[dict[str, Any]] = []
     progress = stage_update_progress("autocurriculum", global_update_cap)
+    last_progress_update = 0
 
     def record_progress(
         update_index: int,
         total_updates: int,
         metrics: dict[str, float],
     ) -> None:
-        progress.update(1)
+        nonlocal last_progress_update
+        last_progress_update = _advance_progress_to(
+            progress,
+            update_index=update_index,
+            previous_update_index=last_progress_update,
+        )
         progress.set_postfix(
             loss=f"{metrics['loss']:.3f}",
             ret=f"{metrics['episode_return']:.3f}",
@@ -786,6 +798,17 @@ def _curriculum_global_step(
 ) -> int:
     stage_base = (int(stage_index) - 1) * int(update_timesteps_per_stage) * int(global_update_cap)
     return stage_base + int(float(metrics.get("global_step", 0.0)))
+
+
+def _advance_progress_to(
+    progress: Any,
+    *,
+    update_index: int,
+    previous_update_index: int,
+) -> int:
+    next_update_index = int(update_index)
+    progress.update(max(0, next_update_index - int(previous_update_index)))
+    return next_update_index
 
 
 def _wandb_preview_enabled(max_frames: int | None) -> bool:
@@ -852,14 +875,20 @@ def run_communication_bit_curriculum(
         print(f"Training communication stage: {target_bits} writable bits")
         print(f"Starting from: {previous_checkpoint}")
         progress = stage_update_progress(f"{target_bits} bits", global_update_cap)
+        last_progress_update = 0
 
         def record_progress(
             update_index: int,
             total_updates: int,
             metrics: dict[str, float],
         ) -> None:
+            nonlocal last_progress_update
             del total_updates
-            progress.update(1)
+            last_progress_update = _advance_progress_to(
+                progress,
+                update_index=update_index,
+                previous_update_index=last_progress_update,
+            )
             progress.set_postfix(
                 loss=f"{metrics['loss']:.3f}",
                 ret=f"{metrics['episode_return']:.3f}",
@@ -928,6 +957,7 @@ def run_communication_consolidation(
     checkpoint_path = stage_run_dir / "checkpoints" / "model.pkl"
     stage_metrics: list[dict[str, Any]] = []
     progress = stage_update_progress(stage_name, global_update_cap)
+    last_progress_update = 0
     print(f"Training communication consolidation: {stage_name}")
     print(f"Starting from: {source_checkpoint}")
 
@@ -936,8 +966,13 @@ def run_communication_consolidation(
         total_updates: int,
         metrics: dict[str, float],
     ) -> None:
+        nonlocal last_progress_update
         del total_updates
-        progress.update(1)
+        last_progress_update = _advance_progress_to(
+            progress,
+            update_index=update_index,
+            previous_update_index=last_progress_update,
+        )
         progress.set_postfix(
             loss=f"{metrics['loss']:.3f}",
             ret=f"{metrics['episode_return']:.3f}",
@@ -1112,14 +1147,20 @@ def run_ant_count_curriculum(
         )
 
         progress = stage_update_progress(f"{target_num_ants} ants", global_update_cap)
+        last_progress_update = 0
 
         def record_progress(
             update_index: int,
             total_updates: int,
             metrics: dict[str, float],
         ) -> None:
+            nonlocal last_progress_update
             del total_updates
-            progress.update(1)
+            last_progress_update = _advance_progress_to(
+                progress,
+                update_index=update_index,
+                previous_update_index=last_progress_update,
+            )
             progress.set_postfix(
                 loss=f"{metrics['loss']:.3f}",
                 ret=f"{metrics['episode_return']:.3f}",

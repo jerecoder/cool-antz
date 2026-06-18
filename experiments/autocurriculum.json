@@ -27,6 +27,7 @@
     "write_bits": 1,
     "write_while_moving": true,
     "seed": 1,
+    "log_interval": 10,
     "quiet": true,
     "random_food": true,
     "random_hub": true

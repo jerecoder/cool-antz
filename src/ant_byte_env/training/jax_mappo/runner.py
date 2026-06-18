@@ -106,6 +106,10 @@ def _autocurriculum_state_stats(states: Any) -> dict[str, float]:
     }
 
 
+def _should_report_update(*, update: int, num_updates: int, log_interval: int) -> bool:
+    return update == 1 or update == num_updates or update % log_interval == 0
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -232,33 +236,38 @@ def main(
                 update_key,
             )
             global_step += steps_per_update
-            final_metrics = {
-                **_metrics_to_float(update_metrics),
-                **_rollout_stats(rollout),
-                **_autocurriculum_state_stats(states),
-                "global_step": float(global_step),
-                "learning_rate": float(learning_rate),
-            }
-            logged_metrics = {
-                "update": update,
-                "num_updates": num_updates,
-                **final_metrics,
-            }
-            if progress_callback is not None:
-                progress_callback(update, num_updates, final_metrics)
-            tracker.log_metrics(logged_metrics, step=global_step)
-            if not args.quiet:
-                print(
-                    "update={update}/{num_updates} step={step} loss={loss:.4f} "
-                    "return={episode_return:.3f} entropy={entropy:.3f}".format(
-                        update=update,
-                        num_updates=num_updates,
-                        step=global_step,
-                        **final_metrics,
+            if _should_report_update(
+                update=update,
+                num_updates=num_updates,
+                log_interval=args.log_interval,
+            ):
+                final_metrics = {
+                    **_metrics_to_float(update_metrics),
+                    **_rollout_stats(rollout),
+                    **_autocurriculum_state_stats(states),
+                    "global_step": float(global_step),
+                    "learning_rate": float(learning_rate),
+                }
+                logged_metrics = {
+                    "update": update,
+                    "num_updates": num_updates,
+                    **final_metrics,
+                }
+                if progress_callback is not None:
+                    progress_callback(update, num_updates, final_metrics)
+                tracker.log_metrics(logged_metrics, step=global_step)
+                if not args.quiet:
+                    print(
+                        "update={update}/{num_updates} step={step} loss={loss:.4f} "
+                        "return={episode_return:.3f} entropy={entropy:.3f}".format(
+                            update=update,
+                            num_updates=num_updates,
+                            step=global_step,
+                            **final_metrics,
+                        )
                     )
-                )
-            if metrics_path is not None:
-                append_metrics(metrics_path, logged_metrics)
+                if metrics_path is not None:
+                    append_metrics(metrics_path, logged_metrics)
 
         if args.save_model is not None:
             save_checkpoint(

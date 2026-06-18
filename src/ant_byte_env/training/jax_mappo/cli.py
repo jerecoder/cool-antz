@@ -14,6 +14,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--exp-name", type=str, default="jax_mappo_forage")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--log-interval",
+        type=int,
+        default=1,
+        help="Report, print, and persist training metrics every N PPO updates.",
+    )
 
     parser.add_argument("--total-timesteps", type=int, default=100_000)
     parser.add_argument("--learning-rate", type=float, default=2.5e-4)
@@ -148,6 +154,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--update-epochs must be positive.")
     if args.hidden_size <= 0:
         raise ValueError("--hidden-size must be positive.")
+    if args.log_interval <= 0:
+        raise ValueError("--log-interval must be positive.")
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:
