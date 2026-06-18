@@ -131,14 +131,7 @@ def test_communication_autoresearch_matrix_resolves_jax_args() -> None:
     assert matrix["screening_bit_stages"] == [2, 3]
     assert matrix["final_bit_stages"] == [2, 3, 5, 8]
     assert [entry["id"] for entry in matrix["phases"]["horizon"]] == ["H0", "H1", "H2", "H3"]
-    assert [entry["id"] for entry in matrix["phases"]["reward"]] == [
-        "R0",
-        "R1",
-        "R2",
-        "R3",
-        "R4",
-        "R5",
-    ]
+    assert [entry["id"] for entry in matrix["phases"]["reward"]] == ["R0", "R1", "R2", "R3"]
     assert [entry["id"] for entry in matrix["phases"]["transfer"]] == ["T0", "T1", "T2"]
     assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1", "F2", "F3"]
     assert [entry["id"] for entry in matrix["phases"]["promoted_validation"]] == [
@@ -267,7 +260,14 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
     assert matrix["constraints"]["num_ants"] == 1
     assert matrix["constraints"]["actor_vision_radius"] == 1
     assert matrix["constraints"]["write_bits"] == 1
-    assert [entry["id"] for entry in matrix["phases"]["reward"]] == ["R0", "R1", "R2", "R3"]
+    assert [entry["id"] for entry in matrix["phases"]["reward"]] == [
+        "R0",
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+    ]
     assert [entry["id"] for entry in matrix["phases"]["algorithm"]] == [
         "H0",
         "H1",
@@ -275,6 +275,15 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
         "H3",
     ]
     assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1"]
+    reward_by_id = {entry["id"]: entry for entry in matrix["phases"]["reward"]}
+    assert reward_by_id["R4"]["args"]["distance_bonus"] == 0.0
+    assert reward_by_id["R4"]["args"]["write_bit_penalty"] > 0.0
+    assert reward_by_id["R5"]["args"]["pickup_bonus"] < reward_by_id["R0"]["args"]["pickup_bonus"]
+    for entry in [
+        *matrix["phases"]["algorithm"],
+        *matrix["phases"]["final"],
+    ]:
+        assert entry["args"]["distance_bonus"] == 0.0
 
     all_ids: set[str] = set()
     for entries in matrix["phases"].values():
