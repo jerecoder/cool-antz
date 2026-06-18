@@ -268,6 +268,7 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
         "R4",
         "R5",
         "R6",
+        "R7",
     ]
     assert [entry["id"] for entry in matrix["phases"]["algorithm"]] == [
         "H0",
@@ -281,6 +282,7 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
     assert reward_by_id["R4"]["args"]["write_bit_penalty"] > 0.0
     assert reward_by_id["R5"]["args"]["pickup_bonus"] < reward_by_id["R0"]["args"]["pickup_bonus"]
     assert reward_by_id["R6"]["args"]["write_while_moving"] is False
+    assert reward_by_id["R7"]["args"]["stage_completion_bonus"] > 0.0
     for entry in [
         *matrix["phases"]["algorithm"],
         *matrix["phases"]["final"],

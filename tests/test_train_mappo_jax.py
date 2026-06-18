@@ -507,6 +507,27 @@ def test_jax_forage_curriculum_distance_bonus_ignores_pickup_target_switch() -> 
     np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.25], dtype=np.float32))
 
 
+def test_jax_forage_curriculum_stage_completion_bonus_adds_only_on_stage_advance() -> None:
+    previous_obs = {
+        "food": jnp.zeros((2, 3, 4), dtype=jnp.int32),
+        "ants_pos": jnp.array([[[0, 0]], [[0, 0]]], dtype=jnp.int32),
+        "ants_carrying": jnp.array([[False], [False]]),
+        "hub_pos": jnp.array([[0, 0], [0, 0]], dtype=jnp.int32),
+    }
+    next_obs = previous_obs
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs=previous_obs,
+        next_obs=next_obs,
+        env_rewards=jnp.asarray([1.0, 1.0], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        stage_completion_events=jnp.asarray([1, 0], dtype=jnp.int32),
+        stage_completion_bonus=3.0,
+    )
+
+    np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([4.0, 1.0]))
+
+
 def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     dummy = jnp.zeros((2, 2), dtype=jnp.float32)
     rollout = Rollout(
@@ -1868,6 +1889,7 @@ def test_jax_parse_args_accepts_log_interval() -> None:
         ("--write-entropy-bonus-cap", "-0.1", "write-entropy-bonus-cap"),
         ("--write-bit-entropy-bonus", "-0.1", "write-bit-entropy-bonus"),
         ("--distance-bonus", "-0.1", "distance-bonus"),
+        ("--stage-completion-bonus", "-0.1", "stage-completion-bonus"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(

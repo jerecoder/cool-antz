@@ -73,7 +73,7 @@ def collect_rollout(
             action_key,
             deterministic=False,
         )
-        next_states, next_obs, env_rewards, terminated, truncated, _ = jax.vmap(env.step)(
+        next_states, next_obs, env_rewards, terminated, truncated, infos = jax.vmap(env.step)(
             current_states,
             flatten_agent_actions(actions),
         )
@@ -92,6 +92,12 @@ def collect_rollout(
             env_rewards=env_rewards,
             pickup_bonus=args.pickup_bonus,
             distance_bonus=args.distance_bonus,
+            stage_completion_events=getattr(
+                infos,
+                "advanced_stage",
+                jnp.zeros_like(env_rewards, dtype=jnp.float32),
+            ),
+            stage_completion_bonus=args.stage_completion_bonus,
         )
         rewards -= compute_write_bit_penalties(
             actions,

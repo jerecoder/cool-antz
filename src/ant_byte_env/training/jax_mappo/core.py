@@ -589,6 +589,8 @@ def compute_forage_curriculum_rewards(
     env_rewards: jax.Array,
     pickup_bonus: float,
     distance_bonus: float = 0.0,
+    stage_completion_events: jax.Array | None = None,
+    stage_completion_bonus: float = 0.0,
 ) -> jax.Array:
     """Add trainer-side forage shaping without changing actor observations."""
 
@@ -609,6 +611,10 @@ def compute_forage_curriculum_rewards(
         next_obs["ants_carrying"],
         env_rewards,
     )
+    if stage_completion_bonus > 0.0 and stage_completion_events is not None:
+        shaped_rewards += float(stage_completion_bonus) * stage_completion_events.astype(
+            jnp.float32
+        )
     if distance_bonus <= 0.0:
         return shaped_rewards
     progress = _forage_distance_progress(previous_obs=previous_obs, next_obs=next_obs)

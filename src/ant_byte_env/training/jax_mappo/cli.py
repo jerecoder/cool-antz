@@ -119,6 +119,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "toward the hub while carrying. Actor observations are unchanged."
         ),
     )
+    parser.add_argument(
+        "--stage-completion-bonus",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side bonus when an autocurriculum stage advances to the next active "
+            "grid size. Actor observations are unchanged."
+        ),
+    )
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
@@ -196,4 +205,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-bit-entropy-bonus must be non-negative.")
     if args.distance_bonus < 0.0:
         raise ValueError("--distance-bonus must be non-negative.")
+    if args.stage_completion_bonus < 0.0:
+        raise ValueError("--stage-completion-bonus must be non-negative.")
     return args
