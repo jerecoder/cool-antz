@@ -213,6 +213,30 @@
           "gamma": 0.99,
           "gae_lambda": 0.95
         }
+      },
+      {
+        "id": "R10",
+        "description": "Lighter stay-only byte protocol shaping to preserve sparse foraging while still testing causal byte reads.",
+        "run_dir": "runs/autoresearch/autocurriculum/reward/R10",
+        "probe_ablations": ["normal", "no_byte_read", "no_write"],
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.0,
+          "delivery_byte_trail_bonus": 0.25,
+          "delivery_byte_trail_target_tiles": 8,
+          "byte_follow_bonus": 0.03,
+          "carrying_byte_write_bonus": 0.015,
+          "write_bit_penalty": 0.005,
+          "write_bit_penalty_decay": 1.0,
+          "write_while_moving": false,
+          "step_penalty": 0.0,
+          "ent_coef": 0.02,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
       }
     ],
     "algorithm": [
