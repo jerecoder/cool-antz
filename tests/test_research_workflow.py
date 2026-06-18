@@ -272,6 +272,7 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
         "R8",
         "R9",
         "R10",
+        "R11",
     ]
     assert [entry["id"] for entry in matrix["phases"]["algorithm"]] == [
         "H0",
@@ -304,6 +305,15 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
     )
     assert reward_by_id["R10"]["args"]["write_while_moving"] is False
     assert reward_by_id["R10"]["probe_ablations"] == ["normal", "no_byte_read", "no_write"]
+    assert reward_by_id["R11"]["global_update_cap"] == 250
+    assert reward_by_id["R11"]["args"]["learning_rate"] < 2.5e-4
+    assert reward_by_id["R11"]["args"]["byte_follow_bonus"] > 0.0
+    assert (
+        reward_by_id["R11"]["args"]["carrying_byte_write_bonus"]
+        < reward_by_id["R10"]["args"]["carrying_byte_write_bonus"]
+    )
+    assert reward_by_id["R11"]["args"]["write_while_moving"] is False
+    assert reward_by_id["R11"]["probe_ablations"] == ["normal", "no_byte_read", "no_write"]
     for entry in [
         *matrix["phases"]["algorithm"],
         *matrix["phases"]["final"],
@@ -327,7 +337,7 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
             assert parsed.random_food
             assert parsed.random_hub
             assert parsed.write_while_moving is (
-                entry["id"] not in {"R6", "R8", "R9", "R10"}
+                entry["id"] not in {"R6", "R8", "R9", "R10", "R11"}
             )
 
 

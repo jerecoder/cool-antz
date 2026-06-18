@@ -237,6 +237,32 @@
           "gamma": 0.99,
           "gae_lambda": 0.95
         }
+      },
+      {
+        "id": "R11",
+        "description": "Short low-LR continuation recipe for fine-tuning a strong sparse checkpoint toward causal byte use without relearning foraging from scratch.",
+        "run_dir": "runs/autoresearch/autocurriculum/reward/R11",
+        "global_update_cap": 250,
+        "probe_ablations": ["normal", "no_byte_read", "no_write"],
+        "args": {
+          "learning_rate": 0.00005,
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.0,
+          "delivery_byte_trail_bonus": 0.2,
+          "delivery_byte_trail_target_tiles": 8,
+          "byte_follow_bonus": 0.015,
+          "carrying_byte_write_bonus": 0.006,
+          "write_bit_penalty": 0.004,
+          "write_bit_penalty_decay": 1.0,
+          "write_while_moving": false,
+          "step_penalty": 0.0,
+          "ent_coef": 0.01,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
       }
     ],
     "algorithm": [
