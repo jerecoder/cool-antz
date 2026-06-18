@@ -285,6 +285,7 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
     assert reward_by_id["R6"]["args"]["write_while_moving"] is False
     assert reward_by_id["R7"]["args"]["stage_completion_bonus"] > 0.0
     assert reward_by_id["R8"]["args"]["delivery_byte_trail_bonus"] > 0.0
+    assert reward_by_id["R8"]["args"]["write_while_moving"] is False
     assert reward_by_id["R8"]["probe_ablations"] == ["normal", "no_byte_read", "no_write"]
     for entry in [
         *matrix["phases"]["algorithm"],
@@ -308,7 +309,7 @@ def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
             assert parsed.write_bits == 1
             assert parsed.random_food
             assert parsed.random_hub
-            assert parsed.write_while_moving is (entry["id"] != "R6")
+            assert parsed.write_while_moving is (entry["id"] not in {"R6", "R8"})
 
 
 def test_autocurriculum_sweep_plan_builds_training_probe_and_wandb_notes() -> None:
