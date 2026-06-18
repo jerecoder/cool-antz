@@ -47,7 +47,7 @@ def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
 def _rollout_stats(rollout: Rollout) -> dict[str, float]:
     write_values = rollout.actions[..., 1].astype(jnp.float32)
     nonzero_write_actions = write_values > 0.0
-    return {
+    stats = {
         "episode_return": float(jnp.mean(jnp.sum(rollout.rewards, axis=0))),
         "env_return": float(jnp.mean(jnp.sum(rollout.env_rewards, axis=0))),
         "completed_episodes": float(jnp.sum(rollout.dones)),
@@ -66,6 +66,21 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
             jnp.mean(rollout.nonzero_byte_fraction[-1])
         ),
     }
+    if float(jnp.max(rollout.active_size)) > 0.0:
+        stats.update(
+            {
+                "autocurriculum_mean_active_size": float(jnp.mean(rollout.active_size)),
+                "autocurriculum_max_active_size": float(jnp.max(rollout.active_size)),
+                "autocurriculum_final_mean_active_size": float(
+                    jnp.mean(rollout.active_size[-1])
+                ),
+                "autocurriculum_mean_stage_delivered_food": float(
+                    jnp.mean(rollout.stage_delivered_food)
+                ),
+                "autocurriculum_completed_stages": float(jnp.sum(rollout.stage_advances)),
+            }
+        )
+    return stats
 
 
 def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
@@ -244,8 +259,8 @@ def main(
             ):
                 final_metrics = {
                     **_metrics_to_float(update_metrics),
-                    **_rollout_stats(rollout),
                     **_autocurriculum_state_stats(states),
+                    **_rollout_stats(rollout),
                     "global_step": float(global_step),
                     "learning_rate": float(learning_rate),
                 }

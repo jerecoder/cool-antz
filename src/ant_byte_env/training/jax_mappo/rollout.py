@@ -129,6 +129,22 @@ def collect_rollout(
         )
         carrying_ants = jnp.sum(next_carrying.astype(jnp.float32), axis=-1)
         remaining_food = jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1))
+        active_grid_size = next_obs.get("active_grid_size")
+        active_size = (
+            active_grid_size[..., 0].astype(jnp.float32)
+            if active_grid_size is not None
+            else jnp.zeros_like(env_rewards, dtype=jnp.float32)
+        )
+        stage_advances = getattr(
+            infos,
+            "advanced_stage",
+            jnp.zeros_like(env_rewards, dtype=jnp.float32),
+        ).astype(jnp.float32)
+        stage_delivered_food = getattr(
+            next_states,
+            "stage_delivered_food",
+            jnp.zeros_like(env_rewards, dtype=jnp.float32),
+        ).astype(jnp.float32)
         nonzero_byte_tiles = jnp.sum(
             (next_obs["bytes"] > 0).astype(jnp.float32),
             axis=(-2, -1),
@@ -167,6 +183,9 @@ def collect_rollout(
             delivery_events=delivery_events,
             carrying_ants=carrying_ants,
             remaining_food=remaining_food,
+            active_size=active_size,
+            stage_advances=stage_advances,
+            stage_delivered_food=stage_delivered_food,
             nonzero_byte_tiles=nonzero_byte_tiles,
             nonzero_byte_fraction=nonzero_byte_fraction,
         )
@@ -200,6 +219,9 @@ def collect_rollout(
         delivery_events=transitions.delivery_events,
         carrying_ants=transitions.carrying_ants,
         remaining_food=transitions.remaining_food,
+        active_size=transitions.active_size,
+        stage_advances=transitions.stage_advances,
+        stage_delivered_food=transitions.stage_delivered_food,
         nonzero_byte_tiles=transitions.nonzero_byte_tiles,
         nonzero_byte_fraction=transitions.nonzero_byte_fraction,
     )

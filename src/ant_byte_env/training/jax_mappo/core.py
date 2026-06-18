@@ -62,6 +62,9 @@ class Transition(NamedTuple):
     delivery_events: jax.Array
     carrying_ants: jax.Array
     remaining_food: jax.Array
+    active_size: jax.Array
+    stage_advances: jax.Array
+    stage_delivered_food: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
 
@@ -82,6 +85,9 @@ class Rollout(NamedTuple):
     delivery_events: jax.Array
     carrying_ants: jax.Array
     remaining_food: jax.Array
+    active_size: jax.Array
+    stage_advances: jax.Array
+    stage_delivered_food: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
 

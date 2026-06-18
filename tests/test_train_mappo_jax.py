@@ -552,6 +552,9 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
         delivery_events=jnp.array([[0.0, 1.0], [1.0, 0.0]], dtype=jnp.float32),
         carrying_ants=jnp.array([[0.0, 1.0], [1.0, 1.0]], dtype=jnp.float32),
         remaining_food=jnp.array([[7.0, 5.0], [6.0, 4.0]], dtype=jnp.float32),
+        active_size=jnp.array([[12.0, 15.0], [4.0, 4.0]], dtype=jnp.float32),
+        stage_advances=jnp.array([[1.0, 2.0], [0.0, 0.0]], dtype=jnp.float32),
+        stage_delivered_food=jnp.array([[2.0, 4.0], [0.0, 0.0]], dtype=jnp.float32),
         nonzero_byte_tiles=jnp.array([[0.0, 2.0], [4.0, 6.0]], dtype=jnp.float32),
         nonzero_byte_fraction=jnp.array([[0.0, 0.125], [0.25, 0.375]], dtype=jnp.float32),
     )
@@ -573,6 +576,11 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     assert stats["final_mean_nonzero_byte_tiles"] == 5.0
     assert stats["mean_nonzero_byte_fraction"] == 0.1875
     assert stats["final_mean_nonzero_byte_fraction"] == 0.3125
+    assert stats["autocurriculum_max_active_size"] == 15.0
+    assert stats["autocurriculum_mean_active_size"] == 8.75
+    assert stats["autocurriculum_final_mean_active_size"] == 4.0
+    assert stats["autocurriculum_completed_stages"] == 3.0
+    assert stats["autocurriculum_mean_stage_delivered_food"] == 1.5
 
 
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:

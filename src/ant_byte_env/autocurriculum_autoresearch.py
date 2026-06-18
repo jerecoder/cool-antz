@@ -348,7 +348,7 @@ def probe_autocurriculum_checkpoint(
         )
     )
     final_states, _, rollout = rollout_fn(jax.random.PRNGKey(args.seed + seed_offset + 1))
-    stats = {**_rollout_stats(rollout), **_autocurriculum_state_stats(final_states)}
+    stats = {**_autocurriculum_state_stats(final_states), **_rollout_stats(rollout)}
     env_steps = int(num_envs) * int(rollout_steps)
     deliveries = float(stats.get("delivery_events", 0.0))
     completed_stages = float(stats.get("autocurriculum_completed_stages", 0.0))
