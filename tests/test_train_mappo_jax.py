@@ -557,6 +557,19 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
         stage_delivered_food=jnp.array([[2.0, 4.0], [0.0, 0.0]], dtype=jnp.float32),
         nonzero_byte_tiles=jnp.array([[0.0, 2.0], [4.0, 6.0]], dtype=jnp.float32),
         nonzero_byte_fraction=jnp.array([[0.0, 0.125], [0.25, 0.375]], dtype=jnp.float32),
+        applied_nonzero_write_actions=jnp.array(
+            [[0.0, 1.0], [1.0, 0.0]],
+            dtype=jnp.float32,
+        ),
+        empty_nonzero_write_actions=jnp.array(
+            [[0.0, 1.0], [1.0, 0.0]],
+            dtype=jnp.float32,
+        ),
+        carrying_nonzero_write_actions=jnp.zeros((2, 2), dtype=jnp.float32),
+        empty_write_action_slots=jnp.ones((2, 2), dtype=jnp.float32),
+        carrying_write_action_slots=jnp.zeros((2, 2), dtype=jnp.float32),
+        write_attempts=jnp.array([[1.0, 2.0], [3.0, 4.0]], dtype=jnp.float32),
+        overwrite_events=jnp.array([[0.0, 1.0], [0.0, 1.0]], dtype=jnp.float32),
     )
 
     stats = _rollout_stats(rollout)
@@ -572,6 +585,12 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     assert stats["final_mean_remaining_food"] == 5.0
     assert stats["write_action_nonzero_rate"] == 0.5
     assert stats["mean_write_action_value"] == 0.75
+    assert stats["applied_write_action_nonzero_rate"] == 0.5
+    assert stats["empty_write_action_nonzero_rate"] == 0.5
+    assert stats["carrying_write_action_nonzero_rate"] == 0.0
+    assert stats["nonzero_writes_per_delivery"] == 1.0
+    assert stats["mean_write_attempts_per_env_step"] == 2.5
+    assert stats["mean_overwrites_per_env_step"] == 0.5
     assert stats["mean_nonzero_byte_tiles"] == 3.0
     assert stats["final_mean_nonzero_byte_tiles"] == 5.0
     assert stats["mean_nonzero_byte_fraction"] == 0.1875
@@ -1386,6 +1405,35 @@ def test_jax_rollout_carries_unfinished_state_between_calls() -> None:
     assert not bool(np.asarray(first_rollout.dones)[0, 0])
     assert not bool(np.asarray(second_rollout.dones)[0, 0])
     assert int(np.asarray(states.step_count)[0]) == 2
+
+
+def test_jax_rollout_can_ablate_write_actions_for_memory_probe() -> None:
+    args = _rollout_args(["--write-while-moving"])
+    args.write_action_ablation = True
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        write_bits=args.write_bits,
+        write_while_moving=args.write_while_moving,
+    )
+    params, states, obs = _params_for_args(args, env)
+
+    _, _, rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(4),
+    )
+
+    assert bool(jnp.all(rollout.actions[..., 1] == 0))
+    assert float(jnp.sum(rollout.applied_nonzero_write_actions)) == 0.0
 
 
 def test_jax_rollout_auto_resets_completed_envs() -> None:

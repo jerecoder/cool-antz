@@ -330,7 +330,12 @@ def test_autocurriculum_sweep_plan_builds_training_probe_and_wandb_notes() -> No
     assert plan["update_timesteps"] == 4
     assert plan["total_train_env_steps"] == 8
     assert plan["checkpoint"].endswith("reward/R2/checkpoints/model.pkl")
-    assert plan["probe"] == {"rollout_steps": 12, "num_envs": 2, "seed_offset": 3_000_000}
+    assert plan["probe"] == {
+        "rollout_steps": 12,
+        "num_envs": 2,
+        "seed_offset": 3_000_000,
+        "ablations": ["normal"],
+    }
     assert plan["rollout"]["enabled"] is False
     assert plan["wandb"]["project"] == "cool-antz"
     assert plan["wandb"]["mode"] == "offline"
@@ -1182,6 +1187,10 @@ def test_cli_autocurriculum_plan_prints_executable_plan(
             "12",
             "--probe-num-envs",
             "2",
+            "--probe-ablation",
+            "normal",
+            "no_byte_read",
+            "no_write",
             "--no-render",
             "--wandb-mode",
             "offline",
@@ -1194,6 +1203,7 @@ def test_cli_autocurriculum_plan_prints_executable_plan(
     assert payload["phase"] == "reward"
     assert payload["total_train_env_steps"] == 8
     assert payload["probe"]["rollout_steps"] == 12
+    assert payload["probe"]["ablations"] == ["normal", "no_byte_read", "no_write"]
     assert payload["rollout"]["enabled"] is False
     assert payload["wandb"]["mode"] == "offline"
     assert "No-cheat constraints" in payload["wandb"]["notes"]
@@ -1538,6 +1548,9 @@ def test_cli_autocurriculum_run_uses_executable_plan(
             "12",
             "--probe-num-envs",
             "2",
+            "--probe-ablation",
+            "normal",
+            "no_write",
             "--load-model",
             str(tmp_path / "source.pkl"),
             "--no-render",
@@ -1552,6 +1565,7 @@ def test_cli_autocurriculum_run_uses_executable_plan(
     assert payload["id"] == "R2"
     assert str(captured_plan["run_dir"]).startswith(str(tmp_path / "cli-smoke"))
     assert captured_plan["probe"]["rollout_steps"] == 12
+    assert captured_plan["probe"]["ablations"] == ["normal", "no_write"]
     assert captured_plan["wandb"]["mode"] == "disabled"
     assert captured_plan["total_train_env_steps"] == 4
     assert captured_plan["load_model"] == str(tmp_path / "source.pkl")

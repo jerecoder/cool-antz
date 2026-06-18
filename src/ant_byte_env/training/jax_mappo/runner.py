@@ -47,6 +47,14 @@ def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
 def _rollout_stats(rollout: Rollout) -> dict[str, float]:
     write_values = rollout.actions[..., 1].astype(jnp.float32)
     nonzero_write_actions = write_values > 0.0
+    delivery_events = jnp.sum(rollout.delivery_events)
+    action_slot_count = max(
+        int(rollout.actions.shape[0] * rollout.actions.shape[1] * rollout.actions.shape[2]),
+        1,
+    )
+    empty_write_slots = jnp.sum(rollout.empty_write_action_slots)
+    carrying_write_slots = jnp.sum(rollout.carrying_write_action_slots)
+    applied_nonzero_writes = jnp.sum(rollout.applied_nonzero_write_actions)
     stats = {
         "episode_return": float(jnp.mean(jnp.sum(rollout.rewards, axis=0))),
         "env_return": float(jnp.mean(jnp.sum(rollout.env_rewards, axis=0))),
@@ -54,11 +62,27 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
         "terminated_episodes": float(jnp.sum(rollout.terminations)),
         "truncated_episodes": float(jnp.sum(rollout.truncations)),
         "pickup_events": float(jnp.sum(rollout.pickup_events)),
-        "delivery_events": float(jnp.sum(rollout.delivery_events)),
+        "delivery_events": float(delivery_events),
         "mean_carrying_ants": float(jnp.mean(rollout.carrying_ants)),
         "final_mean_remaining_food": float(jnp.mean(rollout.remaining_food[-1])),
         "write_action_nonzero_rate": float(jnp.mean(nonzero_write_actions)),
         "mean_write_action_value": float(jnp.mean(write_values)),
+        "applied_write_action_nonzero_rate": float(
+            applied_nonzero_writes / float(action_slot_count)
+        ),
+        "empty_write_action_nonzero_rate": float(
+            jnp.sum(rollout.empty_nonzero_write_actions)
+            / jnp.maximum(empty_write_slots, 1.0)
+        ),
+        "carrying_write_action_nonzero_rate": float(
+            jnp.sum(rollout.carrying_nonzero_write_actions)
+            / jnp.maximum(carrying_write_slots, 1.0)
+        ),
+        "nonzero_writes_per_delivery": float(
+            applied_nonzero_writes / jnp.maximum(delivery_events, 1.0)
+        ),
+        "mean_write_attempts_per_env_step": float(jnp.mean(rollout.write_attempts)),
+        "mean_overwrites_per_env_step": float(jnp.mean(rollout.overwrite_events)),
         "mean_nonzero_byte_tiles": float(jnp.mean(rollout.nonzero_byte_tiles)),
         "final_mean_nonzero_byte_tiles": float(jnp.mean(rollout.nonzero_byte_tiles[-1])),
         "mean_nonzero_byte_fraction": float(jnp.mean(rollout.nonzero_byte_fraction)),

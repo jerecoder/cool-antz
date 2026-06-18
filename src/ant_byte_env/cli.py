@@ -194,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
             wandb_project=args.wandb_project,
             wandb_mode=args.wandb_mode,
             load_model=args.load_model,
+            probe_ablations=args.probe_ablations,
         )
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
@@ -219,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
             wandb_project=args.wandb_project,
             wandb_mode=args.wandb_mode,
             load_model=args.load_model,
+            probe_ablations=args.probe_ablations,
         )
         try:
             payload = execute_autocurriculum_sweep_plan(
@@ -457,6 +459,14 @@ def _add_autocurriculum_autoresearch_args(parser: argparse.ArgumentParser) -> No
     parser.add_argument("--num-steps", type=int, default=None)
     parser.add_argument("--probe-rollout-steps", type=int, default=None)
     parser.add_argument("--probe-num-envs", type=int, default=None)
+    parser.add_argument(
+        "--probe-ablation",
+        dest="probe_ablations",
+        choices=["normal", "no_byte_read", "no_write", "no_byte_read_no_write"],
+        nargs="+",
+        default=None,
+        help="Probe-time memory ablations to run alongside the normal rollout.",
+    )
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
         "--render-rollout",

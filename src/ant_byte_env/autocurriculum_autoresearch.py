@@ -50,6 +50,12 @@ AUTOCURRICULUM_ARG_EXCLUDES = {
 AUTOCURRICULUM_NO_CHEAT_NUM_ANTS = 1
 AUTOCURRICULUM_NO_CHEAT_ACTOR_VISION_RADIUS = 1
 AUTOCURRICULUM_NO_CHEAT_WRITE_BITS = 1
+AUTOCURRICULUM_PROBE_ABLATIONS = (
+    "normal",
+    "no_byte_read",
+    "no_write",
+    "no_byte_read_no_write",
+)
 AUTOCURRICULUM_DISALLOWED_ACTOR_HINT_KEYS = {
     "actor_food_direction",
     "actor_food_distance",
@@ -83,6 +89,7 @@ def build_autocurriculum_sweep_plan(
     wandb_project: str | None = None,
     wandb_mode: str | None = None,
     load_model: Path | None = None,
+    probe_ablations: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Return one no-cheat autocurriculum experiment plan."""
 
@@ -176,6 +183,10 @@ def build_autocurriculum_sweep_plan(
     )
     if probe_steps <= 0 or probe_envs <= 0:
         raise ValueError("probe_rollout_steps and probe_num_envs must be positive.")
+    ablations = _resolve_probe_ablations(
+        entry.get("probe_ablations", matrix.get("probe_ablations")),
+        override=probe_ablations,
+    )
 
     return {
         "matrix_path": str(matrix_path),
@@ -201,6 +212,7 @@ def build_autocurriculum_sweep_plan(
             "rollout_steps": probe_steps,
             "num_envs": probe_envs,
             "seed_offset": int(entry.get("probe_seed_offset", 3_000_000)),
+            "ablations": ablations,
         },
         "rollout": {
             "enabled": bool(rollout_config.get("enabled", True)),
@@ -268,6 +280,7 @@ def execute_autocurriculum_sweep_plan(
         rollout_steps=int(probe_config["rollout_steps"]),
         num_envs=int(probe_config["num_envs"]),
         seed_offset=int(probe_config.get("seed_offset", 3_000_000)),
+        ablations=tuple(probe_config.get("ablations", ("normal",))),
     )
     rollout_path = _render_autocurriculum_rollout(
         plan=plan,
@@ -304,17 +317,67 @@ def probe_autocurriculum_checkpoint(
     rollout_steps: int = 1000,
     num_envs: int = 16,
     seed_offset: int = 3_000_000,
+    ablations: tuple[str, ...] | list[str] = ("normal",),
 ) -> dict[str, Any]:
     """Run a fast fresh-start vectorized rollout probe for one checkpoint."""
 
     if rollout_steps <= 0 or num_envs <= 0:
         raise ValueError("rollout_steps and num_envs must be positive.")
+    ablation_names = _resolve_probe_ablations(ablations)
     raw_checkpoint = read_checkpoint(checkpoint_path)
     args = _checkpoint_args_with_defaults(raw_checkpoint.get("args", {}))
     args.num_envs = int(num_envs)
     args.num_steps = int(rollout_steps)
+    normal_metrics = _probe_autocurriculum_variant(
+        checkpoint_path=checkpoint_path,
+        raw_args=args,
+        rollout_steps=rollout_steps,
+        num_envs=num_envs,
+        seed_offset=seed_offset,
+        ablation="normal",
+    )
+    ablation_payload = {
+        name: _probe_autocurriculum_variant(
+            checkpoint_path=checkpoint_path,
+            raw_args=args,
+            rollout_steps=rollout_steps,
+            num_envs=num_envs,
+            seed_offset=seed_offset,
+            ablation=name,
+        )
+        for name in ablation_names
+        if name != "normal"
+    }
+    return {
+        "checkpoint": str(checkpoint_path),
+        "rollout_steps": int(rollout_steps),
+        "num_envs": int(num_envs),
+        "env_steps": int(num_envs) * int(rollout_steps),
+        "metrics": normal_metrics,
+        "ablations": ablation_payload,
+    }
+
+
+def _probe_autocurriculum_variant(
+    *,
+    checkpoint_path: Path,
+    raw_args: argparse.Namespace,
+    rollout_steps: int,
+    num_envs: int,
+    seed_offset: int,
+    ablation: str,
+) -> dict[str, float]:
+    args = argparse.Namespace(**vars(raw_args))
+    args.num_envs = int(num_envs)
+    args.num_steps = int(rollout_steps)
+    args.actor_byte_read_ablation = ablation in {"no_byte_read", "no_byte_read_no_write"}
+    args.write_action_ablation = ablation in {"no_write", "no_byte_read_no_write"}
     env = _make_env(args)
-    states, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed + seed_offset))
+    states, obs = reset_batch(
+        args=args,
+        env=env,
+        key=jax.random.PRNGKey(args.seed + seed_offset),
+    )
     central_obs = build_central_observations(
         obs,
         food_scale=args.food_count,
@@ -353,15 +416,9 @@ def probe_autocurriculum_checkpoint(
     deliveries = float(stats.get("delivery_events", 0.0))
     completed_stages = float(stats.get("autocurriculum_completed_stages", 0.0))
     return {
-        "checkpoint": str(checkpoint_path),
-        "rollout_steps": int(rollout_steps),
-        "num_envs": int(num_envs),
-        "env_steps": env_steps,
-        "metrics": {
-            **stats,
-            "delivery_events_per_1000_env_steps": deliveries / max(env_steps, 1) * 1000.0,
-            "completed_stages_per_env": completed_stages / max(int(num_envs), 1),
-        },
+        **stats,
+        "delivery_events_per_1000_env_steps": deliveries / max(env_steps, 1) * 1000.0,
+        "completed_stages_per_env": completed_stages / max(int(num_envs), 1),
     }
 
 
@@ -396,6 +453,26 @@ def _checkpoint_args_with_defaults(saved_args: dict[str, object]) -> argparse.Na
     for key, value in saved_args.items():
         setattr(args, key, value)
     return args
+
+
+def _resolve_probe_ablations(
+    configured: Any,
+    *,
+    override: list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    raw_values = override if override is not None else configured
+    if raw_values is None:
+        raw_values = ("normal",)
+    if isinstance(raw_values, str):
+        raw_values = (raw_values,)
+    ablations = [str(value) for value in raw_values]
+    unknown = sorted(set(ablations) - set(AUTOCURRICULUM_PROBE_ABLATIONS))
+    if unknown:
+        choices = ", ".join(AUTOCURRICULUM_PROBE_ABLATIONS)
+        raise ValueError(
+            f"unknown autocurriculum probe ablation {unknown[0]!r}; choices: {choices}"
+        )
+    return list(dict.fromkeys(["normal", *ablations]))
 
 
 def _validate_autocurriculum_training_args(common_args: list[str]) -> None:
@@ -572,6 +649,13 @@ def _log_autocurriculum_outputs_to_wandb(
     probe_metrics = {
         f"probe/{key}": value for key, value in probe_payload.get("metrics", {}).items()
     }
+    for ablation_name, ablation_metrics in probe_payload.get("ablations", {}).items():
+        probe_metrics.update(
+            {
+                f"probe/ablation/{ablation_name}/{key}": value
+                for key, value in dict(ablation_metrics).items()
+            }
+        )
     tracker.log_metrics(probe_metrics, step=step)
     if rollout_path is not None:
         tracker.log_video("videos/autocurriculum/sampled_rollout", rollout_path, step=step)

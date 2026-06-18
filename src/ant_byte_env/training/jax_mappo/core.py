@@ -67,6 +67,13 @@ class Transition(NamedTuple):
     stage_delivered_food: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
+    applied_nonzero_write_actions: jax.Array
+    empty_nonzero_write_actions: jax.Array
+    carrying_nonzero_write_actions: jax.Array
+    empty_write_action_slots: jax.Array
+    carrying_write_action_slots: jax.Array
+    write_attempts: jax.Array
+    overwrite_events: jax.Array
 
 
 class Rollout(NamedTuple):
@@ -90,6 +97,13 @@ class Rollout(NamedTuple):
     stage_delivered_food: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
+    applied_nonzero_write_actions: jax.Array
+    empty_nonzero_write_actions: jax.Array
+    carrying_nonzero_write_actions: jax.Array
+    empty_write_action_slots: jax.Array
+    carrying_write_action_slots: jax.Array
+    write_attempts: jax.Array
+    overwrite_events: jax.Array
 
 
 class TrainingBatch(NamedTuple):

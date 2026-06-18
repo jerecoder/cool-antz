@@ -8,6 +8,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
+from ant_byte_env import ACTION_STAY
 from ant_byte_env.jax_env import JaxAntByteForagingEnv, JaxAntState, JaxObs
 from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
@@ -36,6 +37,53 @@ def _select_reset_values(current: Any, reset: Any, dones: jax.Array) -> Any:
     return jax.tree_util.tree_map(select_leaf, current, reset)
 
 
+def _actor_observation_source(args: argparse.Namespace, obs: JaxObs) -> JaxObs:
+    if not bool(getattr(args, "actor_byte_read_ablation", False)):
+        return obs
+    return {**obs, "bytes": jnp.zeros_like(obs["bytes"])}
+
+
+def _executed_actions(args: argparse.Namespace, actions: jax.Array) -> jax.Array:
+    if not bool(getattr(args, "write_action_ablation", False)):
+        return actions
+    return actions.at[..., 1].set(0)
+
+
+def _write_action_diagnostics(
+    args: argparse.Namespace,
+    actions: jax.Array,
+    previous_carrying: jax.Array,
+    infos: Any,
+) -> dict[str, jax.Array]:
+    write_values = actions[..., 1].astype(jnp.float32)
+    if bool(getattr(args, "write_while_moving", False)):
+        applied_write_values = write_values
+    else:
+        applied_write_values = jnp.where(actions[..., 0] == ACTION_STAY, write_values, 0.0)
+    nonzero_applied = applied_write_values > 0.0
+    carrying_mask = previous_carrying.astype(jnp.bool_)
+    empty_mask = jnp.logical_not(carrying_mask)
+    zero_events = jnp.zeros(actions.shape[:1], dtype=jnp.float32)
+    return {
+        "applied_nonzero_write_actions": jnp.sum(
+            nonzero_applied.astype(jnp.float32),
+            axis=-1,
+        ),
+        "empty_nonzero_write_actions": jnp.sum(
+            jnp.logical_and(nonzero_applied, empty_mask).astype(jnp.float32),
+            axis=-1,
+        ),
+        "carrying_nonzero_write_actions": jnp.sum(
+            jnp.logical_and(nonzero_applied, carrying_mask).astype(jnp.float32),
+            axis=-1,
+        ),
+        "empty_write_action_slots": jnp.sum(empty_mask.astype(jnp.float32), axis=-1),
+        "carrying_write_action_slots": jnp.sum(carrying_mask.astype(jnp.float32), axis=-1),
+        "write_attempts": getattr(infos, "num_writes", zero_events).astype(jnp.float32),
+        "overwrite_events": getattr(infos, "num_overwrites", zero_events).astype(jnp.float32),
+    }
+
+
 def collect_rollout(
     *,
     args: argparse.Namespace,
@@ -58,8 +106,9 @@ def collect_rollout(
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
+        actor_obs_source = _actor_observation_source(args, current_obs)
         actor_obs = build_actor_observations(
-            current_obs,
+            actor_obs_source,
             food_scale=args.food_count,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
@@ -73,9 +122,10 @@ def collect_rollout(
             action_key,
             deterministic=False,
         )
+        actions_for_env = _executed_actions(args, actions)
         next_states, next_obs, env_rewards, terminated, truncated, infos = jax.vmap(env.step)(
             current_states,
-            flatten_agent_actions(actions),
+            flatten_agent_actions(actions_for_env),
         )
         dones = jnp.logical_or(terminated, truncated)
         next_central_obs = build_central_observations(
@@ -150,6 +200,12 @@ def collect_rollout(
             axis=(-2, -1),
         )
         nonzero_byte_fraction = nonzero_byte_tiles / float(env.height * env.width)
+        write_diagnostics = _write_action_diagnostics(
+            args,
+            actions_for_env,
+            previous_carrying,
+            infos,
+        )
 
         def reset_done_envs(_: None) -> tuple[JaxAntState, JaxObs]:
             reset_states, reset_obs = reset_batch(args=args, env=env, key=reset_key)
@@ -170,7 +226,7 @@ def collect_rollout(
         transition = Transition(
             actor_obs=actor_obs,
             central_obs=central_obs,
-            actions=actions,
+            actions=actions_for_env,
             logprobs=logprobs,
             rewards=rewards,
             dones=dones,
@@ -188,6 +244,7 @@ def collect_rollout(
             stage_delivered_food=stage_delivered_food,
             nonzero_byte_tiles=nonzero_byte_tiles,
             nonzero_byte_fraction=nonzero_byte_fraction,
+            **write_diagnostics,
         )
         return (carry_states, carry_obs, next_key), transition
 
@@ -224,5 +281,12 @@ def collect_rollout(
         stage_delivered_food=transitions.stage_delivered_food,
         nonzero_byte_tiles=transitions.nonzero_byte_tiles,
         nonzero_byte_fraction=transitions.nonzero_byte_fraction,
+        applied_nonzero_write_actions=transitions.applied_nonzero_write_actions,
+        empty_nonzero_write_actions=transitions.empty_nonzero_write_actions,
+        carrying_nonzero_write_actions=transitions.carrying_nonzero_write_actions,
+        empty_write_action_slots=transitions.empty_write_action_slots,
+        carrying_write_action_slots=transitions.carrying_write_action_slots,
+        write_attempts=transitions.write_attempts,
+        overwrite_events=transitions.overwrite_events,
     )
     return final_states, final_obs, rollout
