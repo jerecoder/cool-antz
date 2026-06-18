@@ -193,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
             max_render_frames=args.max_render_frames,
             wandb_project=args.wandb_project,
             wandb_mode=args.wandb_mode,
+            load_model=args.load_model,
         )
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
@@ -217,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
             max_render_frames=args.max_render_frames,
             wandb_project=args.wandb_project,
             wandb_mode=args.wandb_mode,
+            load_model=args.load_model,
         )
         try:
             payload = execute_autocurriculum_sweep_plan(
@@ -455,6 +457,7 @@ def _add_autocurriculum_autoresearch_args(parser: argparse.ArgumentParser) -> No
     parser.add_argument("--num-steps", type=int, default=None)
     parser.add_argument("--probe-rollout-steps", type=int, default=None)
     parser.add_argument("--probe-num-envs", type=int, default=None)
+    parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
         "--render-rollout",
         dest="render_rollout",

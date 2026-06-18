@@ -357,6 +357,38 @@ def test_autocurriculum_sweep_plan_rejects_cheating_actor_radius(tmp_path: Path)
         )
 
 
+def test_autocurriculum_sweep_plan_can_continue_from_checkpoint(tmp_path: Path) -> None:
+    source_checkpoint = tmp_path / "source.pkl"
+
+    plan = build_autocurriculum_sweep_plan(
+        phase="reward",
+        run_id="R0",
+        run_root=tmp_path / "continued",
+        global_update_cap=2,
+        num_envs=1,
+        num_steps=4,
+        probe_rollout_steps=12,
+        probe_num_envs=2,
+        render_rollout=False,
+        wandb_mode="offline",
+        load_model=source_checkpoint,
+    )
+
+    assert plan["load_model"] == str(source_checkpoint)
+    assert "--load-model" in plan["training_argv"]
+    assert str(source_checkpoint) in plan["training_argv"]
+    assert "Continuation source checkpoint" in plan["wandb"]["notes"]
+
+
+def test_autocurriculum_sweep_plan_rejects_in_place_continuation() -> None:
+    with pytest.raises(ValueError, match="load_model"):
+        build_autocurriculum_sweep_plan(
+            phase="reward",
+            run_id="R0",
+            load_model=Path("runs/autoresearch/autocurriculum/reward/R0/checkpoints/model.pkl"),
+        )
+
+
 def test_execute_autocurriculum_sweep_plan_runs_train_probe_and_render(
     tmp_path: Path,
 ) -> None:
@@ -1506,6 +1538,8 @@ def test_cli_autocurriculum_run_uses_executable_plan(
             "12",
             "--probe-num-envs",
             "2",
+            "--load-model",
+            str(tmp_path / "source.pkl"),
             "--no-render",
             "--wandb-mode",
             "disabled",
@@ -1520,6 +1554,7 @@ def test_cli_autocurriculum_run_uses_executable_plan(
     assert captured_plan["probe"]["rollout_steps"] == 12
     assert captured_plan["wandb"]["mode"] == "disabled"
     assert captured_plan["total_train_env_steps"] == 4
+    assert captured_plan["load_model"] == str(tmp_path / "source.pkl")
     assert captured_check_resources == [False]
     assert captured_resume_completed == [True]
 

@@ -82,6 +82,7 @@ def build_autocurriculum_sweep_plan(
     max_render_frames: int | None = None,
     wandb_project: str | None = None,
     wandb_mode: str | None = None,
+    load_model: Path | None = None,
 ) -> dict[str, Any]:
     """Return one no-cheat autocurriculum experiment plan."""
 
@@ -117,6 +118,9 @@ def build_autocurriculum_sweep_plan(
         override_root=run_root,
     )
     checkpoint_path = run_dir / "checkpoints" / "model.pkl"
+    load_model_path = Path(load_model) if load_model is not None else None
+    if load_model_path is not None and load_model_path.resolve() == checkpoint_path.resolve():
+        raise ValueError("load_model must differ from the output checkpoint path.")
     update_timesteps = int(merged_args["num_envs"]) * int(merged_args["num_steps"])
     total_timesteps = update_timesteps * update_cap
     merged_args["total_timesteps"] = total_timesteps
@@ -133,6 +137,7 @@ def build_autocurriculum_sweep_plan(
         entry=entry,
         phase=phase,
         run_id=run_id,
+        load_model=load_model_path,
     )
     common_args = config_args_to_argv(
         {
@@ -150,6 +155,7 @@ def build_autocurriculum_sweep_plan(
         str(run_dir),
         "--save-model",
         str(checkpoint_path),
+        *(["--load-model", str(load_model_path)] if load_model_path is not None else []),
         *_wandb_argv(wandb, notes=notes),
     ]
     rollout_config = dict(matrix.get("rollout", {}))
@@ -180,6 +186,7 @@ def build_autocurriculum_sweep_plan(
         "base_config": str(base_config),
         "run_dir": str(run_dir),
         "checkpoint": str(checkpoint_path),
+        "load_model": str(load_model_path) if load_model_path is not None else None,
         "global_update_cap": update_cap,
         "update_timesteps": update_timesteps,
         "total_train_env_steps": total_timesteps,
@@ -456,6 +463,7 @@ def _autocurriculum_wandb_notes(
     entry: dict[str, Any],
     phase: str,
     run_id: str,
+    load_model: Path | None = None,
 ) -> str:
     analysis = dict(matrix.get("analysis", {}))
     lines = [
@@ -465,6 +473,8 @@ def _autocurriculum_wandb_notes(
     for key in ("diagnosis", "reward_plan", "metric_plan"):
         if analysis.get(key):
             lines.append(f"{key.replace('_', ' ').title()}: {analysis[key]}")
+    if load_model is not None:
+        lines.append(f"Continuation source checkpoint: {load_model}")
     lines.append(
         "No-cheat constraints: one ant, actor vision radius 1, one write bit, "
         "feed-forward policy, no actor food/hub coordinates or direction vectors."
