@@ -2,6 +2,7 @@
 
 from gymnasium.envs.registration import register, registry
 
+from ant_byte_env.autocurriculum_env import AntByteAutoCurriculumEnv
 from ant_byte_env.env import (
     ACTION_DOWN,
     ACTION_LEFT,
@@ -29,7 +30,14 @@ if "AntByteForaging-v0" not in registry:
         entry_point="ant_byte_env.env:AntByteForagingEnv",
     )
 
+if "AntByteAutoCurriculum-v0" not in registry:
+    register(
+        id="AntByteAutoCurriculum-v0",
+        entry_point="ant_byte_env.autocurriculum_env:AntByteAutoCurriculumEnv",
+    )
+
 __all__ = [
+    "AntByteAutoCurriculumEnv",
     "AntByteForagingEnv",
     "ACTION_DOWN",
     "ACTION_LEFT",
