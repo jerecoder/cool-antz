@@ -131,6 +131,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--wandb-entity", type=str, default=None)
     parser.add_argument("--wandb-group", type=str, default=None)
     parser.add_argument("--wandb-run-name", type=str, default=None)
+    parser.add_argument("--wandb-notes", type=str, default=None)
     parser.add_argument(
         "--wandb-mode",
         choices=["online", "offline", "disabled"],

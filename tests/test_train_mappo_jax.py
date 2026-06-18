@@ -4,6 +4,7 @@ import argparse
 import importlib
 import json
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -1820,6 +1821,8 @@ def test_jax_parse_args_accepts_wandb_flags() -> None:
             "forage",
             "--wandb-run-name",
             "phone-run",
+            "--wandb-notes",
+            "distance reward test",
             "--wandb-mode",
             "offline",
             "--wandb-tags",
@@ -1832,6 +1835,7 @@ def test_jax_parse_args_accepts_wandb_flags() -> None:
     assert args.wandb_entity == "team"
     assert args.wandb_group == "forage"
     assert args.wandb_run_name == "phone-run"
+    assert args.wandb_notes == "distance reward test"
     assert args.wandb_mode == "offline"
     assert args.wandb_tags == ["jax", "50x50"]
 
@@ -1843,6 +1847,7 @@ def test_jax_wandb_defaults_keep_tracking_disabled() -> None:
     assert args.wandb_entity is None
     assert args.wandb_group is None
     assert args.wandb_run_name is None
+    assert args.wandb_notes is None
     assert args.wandb_mode == "online"
     assert args.wandb_tags is None
 
@@ -1967,22 +1972,38 @@ def test_tiny_jax_mappo_training_respects_log_interval() -> None:
 
 def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     class FakeRun:
         def __init__(self) -> None:
             self.logs: list[tuple[dict[str, object], int | None]] = []
+            self.artifacts: list[object] = []
             self.finished = False
 
         def log(self, payload: dict[str, object], *, step: int | None = None) -> None:
             self.logs.append((payload, step))
 
+        def log_artifact(self, artifact: object, *, aliases=None) -> None:
+            del aliases
+            self.artifacts.append(artifact)
+
         def finish(self) -> None:
             self.finished = True
+
+    class FakeArtifact:
+        def __init__(self, name: str, *, type: str) -> None:
+            self.name = name
+            self.type = type
+            self.files: list[str] = []
+
+        def add_file(self, path: str) -> None:
+            self.files.append(path)
 
     fake_run = FakeRun()
     fake_wandb = types.SimpleNamespace(
         init=lambda **kwargs: fake_run,
         Video=lambda *args, **kwargs: object(),
+        Artifact=FakeArtifact,
     )
     original_import_module = importlib.import_module
 
@@ -2028,6 +2049,10 @@ def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
             "cool-antz",
             "--wandb-mode",
             "offline",
+            "--wandb-notes",
+            "tiny wandb artifact smoke",
+            "--save-model",
+            str(tmp_path / "model.pkl"),
             "--quiet",
         ],
     )
@@ -2035,6 +2060,7 @@ def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
     assert metrics["global_step"] == 8
     assert [step for _, step in fake_run.logs] == [4, 8]
     assert fake_run.logs[-1][0]["global_step"] == 8.0
+    assert fake_run.artifacts
     assert fake_run.finished is True
 
 

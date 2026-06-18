@@ -23,10 +23,14 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
     class FakeRun:
         def __init__(self) -> None:
             self.logs: list[tuple[dict[str, object], int | None]] = []
+            self.artifacts: list[tuple[object, list[str] | None]] = []
             self.finished = False
 
         def log(self, payload: dict[str, object], *, step: int | None = None) -> None:
             self.logs.append((payload, step))
+
+        def log_artifact(self, artifact: object, *, aliases: list[str] | None = None) -> None:
+            self.artifacts.append((artifact, aliases))
 
         def finish(self) -> None:
             self.finished = True
@@ -37,6 +41,15 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
             self.fps = fps
             self.format = format
 
+    class FakeArtifact:
+        def __init__(self, name: str, *, type: str) -> None:
+            self.name = name
+            self.type = type
+            self.files: list[str] = []
+
+        def add_file(self, path: str) -> None:
+            self.files.append(path)
+
     fake_run = FakeRun()
     init_kwargs: dict[str, object] = {}
 
@@ -44,7 +57,7 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
         init_kwargs.update(kwargs)
         return fake_run
 
-    fake_wandb = types.SimpleNamespace(init=fake_init, Video=FakeVideo)
+    fake_wandb = types.SimpleNamespace(init=fake_init, Video=FakeVideo, Artifact=FakeArtifact)
     monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
     video_path = tmp_path / "preview.mp4"
     video_path.write_bytes(b"mp4")
@@ -58,9 +71,11 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
         mode="offline",
         run_dir=tmp_path,
         config={"gamma": 0.99},
+        notes="Testing short autocurriculum reward shaping.",
     )
     tracker.log_metrics({"loss": 0.5}, step=128)
     tracker.log_video("videos/4x4", video_path, step=128, fps=8)
+    tracker.log_artifact("checkpoint", video_path, artifact_type="model", aliases=["latest"])
     tracker.finish()
 
     assert init_kwargs["project"] == "cool-antz"
@@ -71,6 +86,7 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
     assert init_kwargs["mode"] == "offline"
     assert init_kwargs["dir"] == str(tmp_path)
     assert init_kwargs["config"] == {"gamma": 0.99}
+    assert init_kwargs["notes"] == "Testing short autocurriculum reward shaping."
     assert fake_run.logs[0] == ({"loss": 0.5}, 128)
     video_payload, video_step = fake_run.logs[1]
     assert video_step == 128
@@ -78,6 +94,12 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
     assert video_payload["videos/4x4"].path == str(video_path)
     assert video_payload["videos/4x4"].fps == 8
     assert video_payload["videos/4x4"].format == "mp4"
+    artifact, aliases = fake_run.artifacts[0]
+    assert isinstance(artifact, FakeArtifact)
+    assert artifact.name == "checkpoint"
+    assert artifact.type == "model"
+    assert artifact.files == [str(video_path)]
+    assert aliases == ["latest"]
     assert fake_run.finished is True
 
 

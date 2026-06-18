@@ -176,6 +176,59 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "autocurriculum-plan":
+        from ant_byte_env.autocurriculum_autoresearch import build_autocurriculum_sweep_plan
+
+        payload = build_autocurriculum_sweep_plan(
+            matrix_path=args.matrix,
+            phase=args.phase,
+            run_id=args.run_id,
+            run_root=args.run_root,
+            global_update_cap=args.global_update_cap,
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            probe_rollout_steps=args.probe_rollout_steps,
+            probe_num_envs=args.probe_num_envs,
+            render_rollout=args.render_rollout,
+            max_render_frames=args.max_render_frames,
+            wandb_project=args.wandb_project,
+            wandb_mode=args.wandb_mode,
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "autocurriculum-run":
+        from ant_byte_env.autocurriculum_autoresearch import (
+            build_autocurriculum_sweep_plan,
+            execute_autocurriculum_sweep_plan,
+        )
+        from ant_byte_env.autoresearch import AutoresearchResourceError
+
+        plan = build_autocurriculum_sweep_plan(
+            matrix_path=args.matrix,
+            phase=args.phase,
+            run_id=args.run_id,
+            run_root=args.run_root,
+            global_update_cap=args.global_update_cap,
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            probe_rollout_steps=args.probe_rollout_steps,
+            probe_num_envs=args.probe_num_envs,
+            render_rollout=args.render_rollout,
+            max_render_frames=args.max_render_frames,
+            wandb_project=args.wandb_project,
+            wandb_mode=args.wandb_mode,
+        )
+        try:
+            payload = execute_autocurriculum_sweep_plan(
+                plan,
+                check_resources=not args.skip_resource_check,
+                resume_completed=not args.rerun_completed,
+            )
+        except AutoresearchResourceError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     parser.print_help()
     return 1
 
@@ -357,6 +410,18 @@ def _build_parser() -> argparse.ArgumentParser:
     forage_run.add_argument("--wandb-video-max-frames", type=int, default=None)
     forage_run.add_argument("--rerun-completed", action="store_true")
     forage_run.add_argument("--skip-resource-check", action="store_true")
+    autocurriculum_plan = autoresearch_subparsers.add_parser(
+        "autocurriculum-plan",
+        help="Print a no-cheat single-ant 50x50 autocurriculum plan.",
+    )
+    _add_autocurriculum_autoresearch_args(autocurriculum_plan)
+    autocurriculum_run = autoresearch_subparsers.add_parser(
+        "autocurriculum-run",
+        help="Execute a no-cheat single-ant 50x50 autocurriculum plan.",
+    )
+    _add_autocurriculum_autoresearch_args(autocurriculum_run)
+    autocurriculum_run.add_argument("--rerun-completed", action="store_true")
+    autocurriculum_run.add_argument("--skip-resource-check", action="store_true")
     communication_rank = autoresearch_subparsers.add_parser(
         "communication-rank",
         help="Rank completed communication probe artifacts by balanced delivery.",
@@ -374,6 +439,36 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Probe JSON filename inside each matrix probe_output_dir.",
     )
     return parser
+
+
+def _add_autocurriculum_autoresearch_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/autocurriculum_sweep.json"),
+    )
+    parser.add_argument("--phase", required=True)
+    parser.add_argument("--id", dest="run_id", required=True)
+    parser.add_argument("--run-root", type=Path, default=None)
+    parser.add_argument("--global-update-cap", type=int, default=None)
+    parser.add_argument("--num-envs", type=int, default=None)
+    parser.add_argument("--num-steps", type=int, default=None)
+    parser.add_argument("--probe-rollout-steps", type=int, default=None)
+    parser.add_argument("--probe-num-envs", type=int, default=None)
+    parser.add_argument(
+        "--render-rollout",
+        dest="render_rollout",
+        action="store_true",
+        default=None,
+    )
+    parser.add_argument("--no-render", dest="render_rollout", action="store_false")
+    parser.add_argument("--max-render-frames", type=int, default=None)
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument(
+        "--wandb-mode",
+        choices=["online", "offline", "disabled"],
+        default=None,
+    )
 
 
 def _run_train(args: argparse.Namespace, overrides: list[str]) -> int:

@@ -187,6 +187,7 @@ def main(
         mode=args.wandb_mode,
         run_dir=args.run_dir,
         config=checkpoint_args(args),
+        notes=args.wandb_notes,
     )
     rollout_fn = jax.jit(
         lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
@@ -279,6 +280,12 @@ def main(
                 actor_obs_dim=actor_obs_dim,
                 run_name=run_name,
                 metrics=final_metrics,
+            )
+            tracker.log_artifact(
+                "jax-mappo-checkpoint",
+                args.save_model,
+                artifact_type="model",
+                aliases=["latest"],
             )
         if summary_path is not None:
             write_json(

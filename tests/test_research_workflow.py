@@ -17,6 +17,10 @@ from ant_byte_env.autoresearch import (
     execute_communication_sweep_plan,
     rank_communication_gate_probes,
 )
+from ant_byte_env.autocurriculum_autoresearch import (
+    build_autocurriculum_sweep_plan,
+    execute_autocurriculum_sweep_plan,
+)
 from ant_byte_env.forage_autoresearch import (
     build_forage_50x50_sweep_plan,
     execute_forage_50x50_sweep_plan,
@@ -251,6 +255,162 @@ def test_forage_50x50_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
             assert parsed.random_food
             assert parsed.random_hub
             assert parsed.write_while_moving
+
+
+def test_autocurriculum_autoresearch_matrix_keeps_no_cheat_jax_args() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    matrix = json.loads(Path("autoresearch/autocurriculum_sweep.json").read_text())
+    base_spec = load_experiment_config(Path(matrix["base_config"]))
+    run_root = str(matrix["run_root"])
+
+    assert matrix["constraints"]["num_ants"] == 1
+    assert matrix["constraints"]["actor_vision_radius"] == 1
+    assert matrix["constraints"]["write_bits"] == 1
+    assert [entry["id"] for entry in matrix["phases"]["reward"]] == ["R0", "R1", "R2", "R3"]
+    assert [entry["id"] for entry in matrix["phases"]["algorithm"]] == [
+        "H0",
+        "H1",
+        "H2",
+        "H3",
+    ]
+    assert [entry["id"] for entry in matrix["phases"]["final"]] == ["F1"]
+
+    all_ids: set[str] = set()
+    for entries in matrix["phases"].values():
+        for entry in entries:
+            assert entry["id"] not in all_ids
+            all_ids.add(entry["id"])
+            assert str(entry["run_dir"]).startswith(f"{run_root}/")
+            merged_args = {**base_spec.args, **entry["args"]}
+            parsed = parse_args(config_args_to_argv(merged_args))
+            assert parsed.autocurriculum is True
+            assert parsed.width == 50
+            assert parsed.height == 50
+            assert parsed.num_ants == 1
+            assert parsed.actor_vision_radius == 1
+            assert parsed.write_bits == 1
+            assert parsed.random_food
+            assert parsed.random_hub
+            assert parsed.write_while_moving
+
+
+def test_autocurriculum_sweep_plan_builds_training_probe_and_wandb_notes() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    plan = build_autocurriculum_sweep_plan(
+        phase="reward",
+        run_id="R2",
+        global_update_cap=2,
+        num_envs=1,
+        num_steps=4,
+        probe_rollout_steps=12,
+        probe_num_envs=2,
+        render_rollout=False,
+        wandb_mode="offline",
+    )
+    parsed = parse_args(plan["common_args"])
+
+    assert plan["id"] == "R2"
+    assert plan["phase"] == "reward"
+    assert plan["global_update_cap"] == 2
+    assert plan["update_timesteps"] == 4
+    assert plan["total_train_env_steps"] == 8
+    assert plan["checkpoint"].endswith("reward/R2/checkpoints/model.pkl")
+    assert plan["probe"] == {"rollout_steps": 12, "num_envs": 2, "seed_offset": 3_000_000}
+    assert plan["rollout"]["enabled"] is False
+    assert plan["wandb"]["project"] == "cool-antz"
+    assert plan["wandb"]["mode"] == "offline"
+    assert "progress shaping" in plan["wandb"]["notes"]
+    assert "--wandb-notes" in plan["training_argv"]
+    assert parsed.autocurriculum is True
+    assert parsed.num_ants == 1
+    assert parsed.actor_vision_radius == 1
+    assert parsed.write_bits == 1
+    assert parsed.distance_bonus == 0.05
+
+
+def test_autocurriculum_sweep_plan_rejects_cheating_actor_radius(tmp_path: Path) -> None:
+    matrix = json.loads(Path("autoresearch/autocurriculum_sweep.json").read_text())
+    matrix["phases"]["reward"][0]["args"]["actor_vision_radius"] = 2
+    matrix_path = tmp_path / "matrix.json"
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="actor_vision_radius"):
+        build_autocurriculum_sweep_plan(
+            matrix_path=matrix_path,
+            phase="reward",
+            run_id="R0",
+        )
+
+
+def test_execute_autocurriculum_sweep_plan_runs_train_probe_and_render(
+    tmp_path: Path,
+) -> None:
+    plan = build_autocurriculum_sweep_plan(
+        phase="reward",
+        run_id="R2",
+        run_root=tmp_path / "autocurriculum",
+        global_update_cap=1,
+        num_envs=1,
+        num_steps=4,
+        probe_rollout_steps=12,
+        probe_num_envs=2,
+        render_rollout=True,
+        max_render_frames=8,
+        wandb_mode="disabled",
+    )
+    calls: dict[str, object] = {}
+
+    def fake_train_main(argv: list[str]) -> dict[str, float]:
+        calls["train_argv"] = argv
+        checkpoint = Path(str(plan["checkpoint"]))
+        checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint.write_bytes(b"checkpoint")
+        return {"global_step": 4.0, "autocurriculum_max_active_size": 5.0}
+
+    def fake_probe_checkpoint(checkpoint_path: Path, **kwargs: object) -> dict[str, object]:
+        calls["probe"] = {"checkpoint": checkpoint_path, **kwargs}
+        return {
+            "checkpoint": str(checkpoint_path),
+            "rollout_steps": 12,
+            "num_envs": 2,
+            "env_steps": 24,
+            "metrics": {
+                "autocurriculum_max_active_size": 6.0,
+                "delivery_events_per_1000_env_steps": 42.0,
+            },
+        }
+
+    def fake_render_checkpoint(
+        checkpoint_path: Path,
+        output_path: Path,
+        **kwargs: object,
+    ) -> Path:
+        calls["render"] = {"checkpoint": checkpoint_path, "output": output_path, **kwargs}
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"mp4")
+        return output_path
+
+    summary = execute_autocurriculum_sweep_plan(
+        plan,
+        train_main=fake_train_main,
+        probe_checkpoint=fake_probe_checkpoint,
+        render_checkpoint_fn=fake_render_checkpoint,
+        check_resources=False,
+    )
+
+    assert summary["resumed"] is False
+    assert calls["probe"]["rollout_steps"] == 12
+    assert calls["probe"]["num_envs"] == 2
+    assert calls["render"]["max_frames"] == 8
+    assert calls["render"]["policy_temperature"] == 1.0
+    assert summary["probe"]["metrics"]["autocurriculum_max_active_size"] == 6.0
+    assert summary["rollout_path"].endswith("sampled_autocurriculum_rollout.mp4")
+    assert summary["wandb"]["enabled"] is False
+    assert json.loads(
+        (tmp_path / "autocurriculum" / "reward" / "R2" / "sweep_summary.json").read_text()
+    )["id"] == "R2"
 
 
 def test_forage_50x50_memory_plan_keeps_actor_local_with_wider_self_memory() -> None:
@@ -956,6 +1116,44 @@ def test_cli_forage_plan_prints_curriculum_plan(
     assert payload["wandb"]["mode"] == "offline"
 
 
+def test_cli_autocurriculum_plan_prints_executable_plan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "autocurriculum-plan",
+            "--phase",
+            "reward",
+            "--id",
+            "R2",
+            "--global-update-cap",
+            "2",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--probe-rollout-steps",
+            "12",
+            "--probe-num-envs",
+            "2",
+            "--no-render",
+            "--wandb-mode",
+            "offline",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["id"] == "R2"
+    assert payload["phase"] == "reward"
+    assert payload["total_train_env_steps"] == 8
+    assert payload["probe"]["rollout_steps"] == 12
+    assert payload["rollout"]["enabled"] is False
+    assert payload["wandb"]["mode"] == "offline"
+    assert "No-cheat constraints" in payload["wandb"]["notes"]
+
+
 def test_communication_rank_balances_sampled_and_deterministic_delivery(
     tmp_path: Path,
 ) -> None:
@@ -1237,6 +1435,78 @@ def test_cli_forage_run_uses_executable_plan(
     assert captured_plan["wandb"]["mode"] == "disabled"
     assert captured_plan["wandb"]["video_stage_names"] == ["5x5"]
     assert captured_plan["total_train_env_steps"] == 8
+    assert captured_check_resources == [False]
+    assert captured_resume_completed == [True]
+
+
+def test_cli_autocurriculum_run_uses_executable_plan(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    import ant_byte_env.autocurriculum_autoresearch as autocurriculum_module
+
+    captured_plan: dict[str, object] = {}
+    captured_check_resources: list[bool] = []
+    captured_resume_completed: list[bool] = []
+
+    def fake_execute_autocurriculum_sweep_plan(
+        plan: dict[str, object],
+        *,
+        check_resources: bool,
+        resume_completed: bool,
+    ) -> dict[str, object]:
+        captured_plan.update(plan)
+        captured_check_resources.append(check_resources)
+        captured_resume_completed.append(resume_completed)
+        return {
+            "phase": plan["phase"],
+            "id": plan["id"],
+            "summary_path": "runs/autoresearch/autocurriculum/reward/R2/sweep_summary.json",
+            "resumed": False,
+            "probe": {},
+        }
+
+    monkeypatch.setattr(
+        autocurriculum_module,
+        "execute_autocurriculum_sweep_plan",
+        fake_execute_autocurriculum_sweep_plan,
+    )
+
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "autocurriculum-run",
+            "--phase",
+            "reward",
+            "--id",
+            "R2",
+            "--run-root",
+            str(tmp_path / "cli-smoke"),
+            "--global-update-cap",
+            "1",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--probe-rollout-steps",
+            "12",
+            "--probe-num-envs",
+            "2",
+            "--no-render",
+            "--wandb-mode",
+            "disabled",
+            "--skip-resource-check",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["id"] == "R2"
+    assert str(captured_plan["run_dir"]).startswith(str(tmp_path / "cli-smoke"))
+    assert captured_plan["probe"]["rollout_steps"] == 12
+    assert captured_plan["wandb"]["mode"] == "disabled"
+    assert captured_plan["total_train_env_steps"] == 4
     assert captured_check_resources == [False]
     assert captured_resume_completed == [True]
 

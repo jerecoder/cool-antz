@@ -21,6 +21,7 @@ class WandbTracker:
         mode: str = "online",
         run_dir: Path | None = None,
         config: Mapping[str, Any] | None = None,
+        notes: str | None = None,
     ) -> None:
         self._wandb: Any | None = None
         self._run: Any | None = None
@@ -37,6 +38,7 @@ class WandbTracker:
             mode=mode,
             dir=str(run_dir) if run_dir is not None else None,
             config=dict(config or {}),
+            notes=notes,
         )
 
     @property
@@ -66,6 +68,23 @@ class WandbTracker:
         self._run.log(
             {key: self._wandb.Video(str(path), fps=int(fps), format="mp4")},
             step=None if step is None else int(step),
+        )
+
+    def log_artifact(
+        self,
+        name: str,
+        path: Path,
+        *,
+        artifact_type: str,
+        aliases: Sequence[str] | None = None,
+    ) -> None:
+        if self._run is None or self._wandb is None:
+            return
+        artifact = self._wandb.Artifact(name, type=artifact_type)
+        artifact.add_file(str(path))
+        self._run.log_artifact(
+            artifact,
+            aliases=list(aliases) if aliases is not None else None,
         )
 
     def finish(self) -> None:
