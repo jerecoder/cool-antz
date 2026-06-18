@@ -602,21 +602,37 @@ def get_action_and_value(
     return actions, logprob, entropy, value
 
 
+def _grid_values_at_positions(grid: jax.Array, positions: jax.Array) -> jax.Array:
+    batch_index = jnp.arange(grid.shape[0])[:, None]
+    x_pos = positions[..., 0].astype(jnp.int32)
+    y_pos = positions[..., 1].astype(jnp.int32)
+    return grid[batch_index, y_pos, x_pos]
+
+
 def compute_forage_curriculum_rewards(
     *,
     previous_obs: JaxObs,
     next_obs: JaxObs,
     env_rewards: jax.Array,
+    actions: jax.Array | None = None,
     pickup_bonus: float,
     distance_bonus: float = 0.0,
     stage_completion_events: jax.Array | None = None,
     stage_completion_bonus: float = 0.0,
     delivery_byte_trail_bonus: float = 0.0,
     delivery_byte_trail_target_tiles: float = 8.0,
+    byte_follow_bonus: float = 0.0,
+    carrying_byte_write_bonus: float = 0.0,
+    write_while_moving: bool = False,
 ) -> jax.Array:
     """Add trainer-side forage shaping without changing actor observations."""
 
-    if delivery_byte_trail_bonus > 0.0:
+    uses_byte_shaping = (
+        delivery_byte_trail_bonus > 0.0
+        or byte_follow_bonus > 0.0
+        or carrying_byte_write_bonus > 0.0
+    )
+    if uses_byte_shaping:
         previous_bytes = previous_obs["bytes"]
     else:
         previous_bytes = jnp.zeros_like(previous_obs["food"], dtype=jnp.uint8)
@@ -626,6 +642,40 @@ def compute_forage_curriculum_rewards(
         fallback_height=previous_height,
         fallback_width=previous_width,
     )
+    previous_carrying = previous_obs["ants_carrying"].astype(jnp.bool_)
+    next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
+    previous_positions = previous_obs["ants_pos"].astype(jnp.int32)
+    next_positions = next_obs["ants_pos"].astype(jnp.int32)
+
+    if actions is None:
+        applied_write_values = jnp.zeros(previous_carrying.shape, dtype=jnp.uint32)
+    else:
+        applied_write_values = _applied_write_values(
+            actions,
+            write_while_moving=write_while_moving,
+        )
+
+    target_bytes = _grid_values_at_positions(previous_bytes, next_positions)
+    target_food = _grid_values_at_positions(previous_obs["food"], next_positions)
+    target_is_hub = jnp.all(next_positions == previous_obs["hub_pos"][:, None, :], axis=-1)
+    fresh_carrying_writes = (
+        previous_carrying
+        & (applied_write_values > 0)
+        & (target_bytes == 0)
+        & (target_food <= 0)
+        & jnp.logical_not(target_is_hub)
+    )
+
+    moved = jnp.any(next_positions != previous_positions, axis=-1)
+    previous_food_distance = _nearest_food_distances(previous_obs["food"], previous_positions)
+    next_food_distance = _nearest_food_distances(previous_obs["food"], next_positions)
+    byte_follow_events = (
+        jnp.logical_not(previous_carrying)
+        & jnp.logical_not(next_carrying)
+        & moved
+        & (target_bytes > 0)
+        & (next_food_distance < previous_food_distance)
+    )
 
     def one_env(
         previous_carrying: jax.Array,
@@ -633,6 +683,8 @@ def compute_forage_curriculum_rewards(
         env_reward: jax.Array,
         previous_bytes: jax.Array,
         active_size: jax.Array,
+        fresh_carrying_writes: jax.Array,
+        byte_follow_events: jax.Array,
     ) -> jax.Array:
         was_carrying = previous_carrying.astype(jnp.bool_)
         is_carrying = next_carrying.astype(jnp.bool_)
@@ -659,14 +711,24 @@ def compute_forage_curriculum_rewards(
                 * jnp.sum(deliveries)
                 * trail_fraction
             )
+        if carrying_byte_write_bonus > 0.0:
+            shaped += float(carrying_byte_write_bonus) * jnp.sum(
+                fresh_carrying_writes.astype(jnp.float32)
+            )
+        if byte_follow_bonus > 0.0:
+            shaped += float(byte_follow_bonus) * jnp.sum(
+                byte_follow_events.astype(jnp.float32)
+            )
         return shaped
 
     shaped_rewards = jax.vmap(one_env)(
-        previous_obs["ants_carrying"],
-        next_obs["ants_carrying"],
+        previous_carrying,
+        next_carrying,
         env_rewards,
         previous_bytes,
         previous_active_size,
+        fresh_carrying_writes,
+        byte_follow_events,
     )
     if stage_completion_bonus > 0.0 and stage_completion_events is not None:
         shaped_rewards += float(stage_completion_bonus) * stage_completion_events.astype(

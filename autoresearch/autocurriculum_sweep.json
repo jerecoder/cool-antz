@@ -189,6 +189,30 @@
           "gamma": 0.99,
           "gae_lambda": 0.95
         }
+      },
+      {
+        "id": "R9",
+        "description": "Stay-only byte protocol shaping: carrying ants get immediate credit for fresh trail writes and empty ants get credit for following existing bytes toward food.",
+        "run_dir": "runs/autoresearch/autocurriculum/reward/R9",
+        "probe_ablations": ["normal", "no_byte_read", "no_write"],
+        "args": {
+          "pickup_bonus": 0.25,
+          "distance_bonus": 0.0,
+          "delivery_byte_trail_bonus": 0.25,
+          "delivery_byte_trail_target_tiles": 8,
+          "byte_follow_bonus": 0.05,
+          "carrying_byte_write_bonus": 0.03,
+          "write_bit_penalty": 0.005,
+          "write_bit_penalty_decay": 1.0,
+          "write_while_moving": false,
+          "step_penalty": 0.0,
+          "ent_coef": 0.02,
+          "hidden_size": 128,
+          "num_envs": 16,
+          "num_steps": 80,
+          "gamma": 0.99,
+          "gae_lambda": 0.95
+        }
       }
     ],
     "algorithm": [

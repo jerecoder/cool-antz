@@ -140,6 +140,7 @@ def collect_rollout(
             previous_obs=current_obs,
             next_obs=next_obs,
             env_rewards=env_rewards,
+            actions=actions_for_env,
             pickup_bonus=args.pickup_bonus,
             distance_bonus=args.distance_bonus,
             stage_completion_events=getattr(
@@ -150,9 +151,12 @@ def collect_rollout(
             stage_completion_bonus=args.stage_completion_bonus,
             delivery_byte_trail_bonus=args.delivery_byte_trail_bonus,
             delivery_byte_trail_target_tiles=args.delivery_byte_trail_target_tiles,
+            byte_follow_bonus=args.byte_follow_bonus,
+            carrying_byte_write_bonus=args.carrying_byte_write_bonus,
+            write_while_moving=args.write_while_moving,
         )
         rewards -= compute_write_bit_penalties(
-            actions,
+            actions_for_env,
             write_bits=args.write_bits,
             base_penalty=args.write_bit_penalty,
             decay=args.write_bit_penalty_decay,

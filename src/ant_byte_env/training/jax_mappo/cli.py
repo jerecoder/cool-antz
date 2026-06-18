@@ -143,6 +143,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=8.0,
         help="Number of pre-existing nonzero byte tiles that saturates the delivery trail bonus.",
     )
+    parser.add_argument(
+        "--byte-follow-bonus",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side bonus when an empty ant moves onto a pre-existing byte tile "
+            "and reduces nearest-food distance. Actor observations are unchanged."
+        ),
+    )
+    parser.add_argument(
+        "--carrying-byte-write-bonus",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side bonus for a carrying ant applying a nonzero write to a fresh "
+            "non-food, non-hub tile. Actor observations are unchanged."
+        ),
+    )
     parser.add_argument("--save-model", type=Path, default=None)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
@@ -226,4 +244,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--delivery-byte-trail-bonus must be non-negative.")
     if args.delivery_byte_trail_target_tiles <= 0.0:
         raise ValueError("--delivery-byte-trail-target-tiles must be positive.")
+    if args.byte_follow_bonus < 0.0:
+        raise ValueError("--byte-follow-bonus must be non-negative.")
+    if args.carrying_byte_write_bonus < 0.0:
+        raise ValueError("--carrying-byte-write-bonus must be non-negative.")
     return args

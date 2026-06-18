@@ -561,6 +561,85 @@ def test_jax_forage_curriculum_delivery_byte_trail_bonus_requires_existing_activ
     )
 
 
+def test_jax_forage_curriculum_byte_follow_bonus_rewards_food_progress_on_bytes() -> None:
+    previous_obs = {
+        "food": jnp.array(
+            [
+                [[0, 0, 1], [0, 0, 0], [0, 0, 0]],
+                [[0, 0, 1], [0, 0, 0], [0, 0, 0]],
+            ],
+            dtype=jnp.int32,
+        ),
+        "bytes": jnp.array(
+            [
+                [[0, 1, 0], [0, 0, 0], [0, 0, 0]],
+                [[0, 0, 0], [1, 0, 0], [0, 0, 0]],
+            ],
+            dtype=jnp.uint8,
+        ),
+        "ants_pos": jnp.array([[[0, 0]], [[0, 0]]], dtype=jnp.int32),
+        "ants_carrying": jnp.array([[False], [False]]),
+        "hub_pos": jnp.array([[0, 0], [0, 0]], dtype=jnp.int32),
+    }
+    next_obs = {
+        **previous_obs,
+        "ants_pos": jnp.array([[[1, 0]], [[0, 1]]], dtype=jnp.int32),
+    }
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs=previous_obs,
+        next_obs=next_obs,
+        env_rewards=jnp.asarray([0.0, 0.0], dtype=jnp.float32),
+        pickup_bonus=0.0,
+        byte_follow_bonus=0.4,
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(shaped_rewards),
+        np.array([0.4, 0.0], dtype=np.float32),
+    )
+
+
+def test_jax_forage_curriculum_carrying_byte_write_bonus_rewards_fresh_writes() -> None:
+    previous_obs = {
+        "food": jnp.zeros((3, 3, 3), dtype=jnp.int32),
+        "bytes": jnp.array(
+            [
+                [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+                [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
+                [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+            ],
+            dtype=jnp.uint8,
+        ),
+        "ants_pos": jnp.array([[[1, 1]], [[1, 1]], [[1, 1]]], dtype=jnp.int32),
+        "ants_carrying": jnp.array([[True], [True], [False]]),
+        "hub_pos": jnp.array([[0, 0], [0, 0], [0, 0]], dtype=jnp.int32),
+    }
+    next_obs = previous_obs
+    actions = jnp.array(
+        [
+            [[ACTION_STAY, 1]],
+            [[ACTION_STAY, 1]],
+            [[ACTION_STAY, 1]],
+        ],
+        dtype=jnp.int32,
+    )
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs=previous_obs,
+        next_obs=next_obs,
+        env_rewards=jnp.asarray([0.0, 0.0, 0.0], dtype=jnp.float32),
+        actions=actions,
+        pickup_bonus=0.0,
+        carrying_byte_write_bonus=0.07,
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(shaped_rewards),
+        np.array([0.07, 0.0, 0.0], dtype=np.float32),
+    )
+
+
 def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     dummy = jnp.zeros((2, 2), dtype=jnp.float32)
     rollout = Rollout(
@@ -1469,6 +1548,66 @@ def test_jax_rollout_can_ablate_write_actions_for_memory_probe() -> None:
     assert float(jnp.sum(rollout.applied_nonzero_write_actions)) == 0.0
 
 
+def test_jax_rollout_write_ablation_suppresses_write_shaping_reward() -> None:
+    args = _rollout_args(["--carrying-byte-write-bonus", "1.0"])
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        write_bits=args.write_bits,
+        write_while_moving=args.write_while_moving,
+    )
+    params, states, _ = _params_for_args(args, env)
+    move_bias = jnp.full_like(params.move_head.bias, -1000.0).at[ACTION_STAY].set(1000.0)
+    write_bias = jnp.full_like(params.write_head.bias, -1000.0).at[1].set(1000.0)
+    params = params._replace(
+        move_head=LinearParams(weight=jnp.zeros_like(params.move_head.weight), bias=move_bias),
+        write_head=LinearParams(weight=jnp.zeros_like(params.write_head.weight), bias=write_bias),
+    )
+    ants_pos = jnp.array([[[1, 1]]], dtype=jnp.int32)
+    states = states._replace(
+        ants_pos=ants_pos,
+        ants_count=jax.vmap(env._build_ants_count_grid)(ants_pos),
+        ants_carrying=jnp.array([[True]]),
+        food=jnp.zeros_like(states.food),
+        initial_food=jnp.zeros_like(states.initial_food),
+        bytes=jnp.zeros_like(states.bytes),
+        hub_pos=jnp.array([[0, 0]], dtype=jnp.int32),
+    )
+    obs = env.observe(states)
+
+    args.write_action_ablation = False
+    _, _, normal_rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(4),
+    )
+    args.write_action_ablation = True
+    _, _, ablated_rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(4),
+    )
+
+    normal_actions = np.asarray(normal_rollout.actions)
+    ablated_actions = np.asarray(ablated_rollout.actions)
+    assert int(normal_actions[0, 0, 0, 0]) == ACTION_STAY
+    assert int(normal_actions[0, 0, 0, 1]) == 1
+    assert int(ablated_actions[0, 0, 0, 1]) == 0
+    np.testing.assert_allclose(np.asarray(normal_rollout.rewards), np.array([[1.0]]))
+    np.testing.assert_allclose(np.asarray(ablated_rollout.rewards), np.array([[0.0]]))
+
+
 def test_jax_rollout_auto_resets_completed_envs() -> None:
     args = _rollout_args(
         [
@@ -1981,6 +2120,8 @@ def test_jax_parse_args_accepts_log_interval() -> None:
         ("--stage-completion-bonus", "-0.1", "stage-completion-bonus"),
         ("--delivery-byte-trail-bonus", "-0.1", "delivery-byte-trail-bonus"),
         ("--delivery-byte-trail-target-tiles", "0", "delivery-byte-trail-target-tiles"),
+        ("--byte-follow-bonus", "-0.1", "byte-follow-bonus"),
+        ("--carrying-byte-write-bonus", "-0.1", "carrying-byte-write-bonus"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(
