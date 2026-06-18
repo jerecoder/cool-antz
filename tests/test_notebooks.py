@@ -76,6 +76,10 @@ def test_autocurriculum_notebook_uses_single_env_curriculum_config() -> None:
     assert "workflows.render_autocurriculum_rollout" in source
     assert 'WANDB_GROUP = "autocurriculum_50x50"' in source
     assert "AUTOCURRICULUM_CONFIG" in source
+    assert "ADVANCE_COOKIES = 6" in source
+    assert 'experiment_args["autocurriculum_success_cookies"] = ADVANCE_COOKIES' in source
+    assert 'experiment_args["food_count"] = ADVANCE_COOKIES * FOOD_SOURCES' in source
+    assert "workflows.config_common_args(\n    experiment_args," in source
     assert "from `4x4` through `50x50` inside each episode" in source
 
     spec = json.loads(Path("experiments/autocurriculum.json").read_text(encoding="utf-8"))
