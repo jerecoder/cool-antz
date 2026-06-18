@@ -13,7 +13,171 @@ from ant_byte_env import (
     MOVEMENT_ACTION_COUNT,
     AntByteForagingEnv,
 )
+from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
+from ant_byte_env.training.jax_mappo.core import build_actor_observations
+
+
+def _batched(obs: dict[str, jax.Array]) -> dict[str, jax.Array]:
+    return {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
+
+
+def _deliver_first_jax_source(env: JaxAntByteAutoCurriculumEnv, state, count: int = 6):
+    result = None
+    for _ in range(count):
+        state, *_ = env.step(state, jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32))
+        state, *_ = env.step(state, jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32))
+        state, *_ = env.step(state, jnp.array([ACTION_LEFT, 0], dtype=jnp.int32))
+        result = env.step(state, jnp.array([ACTION_LEFT, 0], dtype=jnp.int32))
+        state = result[0]
+    assert result is not None
+    return result
+
+
+def test_jax_autocurriculum_reset_uses_fixed_shape_start_stage() -> None:
+    env = JaxAntByteAutoCurriculumEnv(
+        width=50,
+        height=50,
+        num_ants=1,
+        food_count=12,
+        food_source_count=2,
+        max_steps=200,
+    )
+
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(0),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[2, 0], [0, 2]], dtype=jnp.int32),
+    )
+
+    assert int(state.active_size) == 4
+    assert obs["food"].shape == (50, 50)
+    assert obs["ants_count"].shape == (50, 50)
+    assert obs["bytes"].shape == (50, 50)
+    np.testing.assert_array_equal(np.asarray(obs["active_grid_size"]), np.array([4, 4]))
+    assert int(obs["food"][0, 2]) == 6
+    assert int(obs["food"][2, 0]) == 6
+    assert int(jnp.count_nonzero(obs["food"])) == 2
+    assert int(info.stage_delivered_food) == 0
+    assert int(info.active_size) == 4
+
+
+def test_jax_autocurriculum_food_starts_outside_actor_view() -> None:
+    env = JaxAntByteAutoCurriculumEnv(
+        width=50,
+        height=50,
+        num_ants=1,
+        food_count=12,
+        food_source_count=2,
+        max_steps=200,
+        actor_vision_radius=1,
+    )
+
+    _, obs, _ = env.reset(jax.random.PRNGKey(1))
+    actor_obs = build_actor_observations(
+        _batched(obs),
+        food_scale=12,
+        actor_vision_radius=1,
+    )
+
+    np.testing.assert_array_equal(np.asarray(actor_obs[0, 0, :9]), np.zeros(9))
+    assert int(jnp.count_nonzero(obs["food"])) == 2
+    assert set(np.asarray(obs["food"])[np.asarray(obs["food"]) > 0].tolist()) == {6}
+
+
+def test_jax_autocurriculum_movement_clamps_to_active_size() -> None:
+    env = JaxAntByteAutoCurriculumEnv(
+        width=50,
+        height=50,
+        num_ants=1,
+        food_count=12,
+        food_source_count=2,
+        max_steps=200,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(2),
+        hub_pos=jnp.array([3, 3], dtype=jnp.int32),
+        food_positions=jnp.array([[0, 0], [1, 0]], dtype=jnp.int32),
+    )
+
+    state, obs, *_ = env.step(state, jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32))
+
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.array([3, 3]))
+
+
+def test_jax_autocurriculum_stage_advance_is_not_episode_done() -> None:
+    env = JaxAntByteAutoCurriculumEnv(
+        width=5,
+        height=5,
+        num_ants=1,
+        food_count=12,
+        food_source_count=2,
+        max_steps=200,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(3),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[2, 0], [0, 2]], dtype=jnp.int32),
+    )
+
+    state, obs, reward, terminated, truncated, info = _deliver_first_jax_source(env, state)
+
+    assert float(reward) == 1.0
+    assert not bool(terminated)
+    assert not bool(truncated)
+    assert int(state.active_size) == 5
+    assert int(state.stage_delivered_food) == 0
+    assert int(info.advanced_stage) == 1
+    assert int(info.completed_stage_size) == 4
+    assert int(info.completed_stage_delivered_food) == 6
+    np.testing.assert_array_equal(np.asarray(obs["active_grid_size"]), np.array([5, 5]))
+    assert int(jnp.sum(obs["food"])) == 12
+
+
+def test_jax_autocurriculum_final_stage_terminates() -> None:
+    env = JaxAntByteAutoCurriculumEnv(
+        width=4,
+        height=4,
+        num_ants=1,
+        food_count=12,
+        food_source_count=2,
+        max_steps=200,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(4),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[2, 0], [0, 2]], dtype=jnp.int32),
+    )
+
+    state, _, _, terminated, truncated, info = _deliver_first_jax_source(env, state)
+
+    assert bool(terminated)
+    assert not bool(truncated)
+    assert int(state.active_size) == 4
+    assert int(state.stage_delivered_food) == 6
+    assert int(info.completed_stage_size) == 4
+
+
+def test_jax_autocurriculum_global_budget_truncates_mid_stage() -> None:
+    env = JaxAntByteAutoCurriculumEnv(
+        width=50,
+        height=50,
+        num_ants=1,
+        food_count=12,
+        food_source_count=2,
+        max_steps=1,
+    )
+    state, _, _ = env.reset(jax.random.PRNGKey(5))
+
+    _, _, _, terminated, truncated, info = env.step(
+        state,
+        jnp.array([ACTION_STAY, 0], dtype=jnp.int32),
+    )
+
+    assert not bool(terminated)
+    assert bool(truncated)
+    assert int(info.step_count) == 1
+    assert int(info.active_size) == 4
 
 
 def test_jax_reset_matches_env_observation_contract() -> None:

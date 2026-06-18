@@ -69,6 +69,29 @@ def test_mappo_curriculum_keeps_stage_count_and_reaches_50x50() -> None:
     assert spec["metadata"]["stage_count"] == len(MAPPO_STAGE_SIZES)
 
 
+def test_autocurriculum_notebook_uses_single_env_curriculum_config() -> None:
+    source = notebook_source(Path("notebooks/train_mappo_autocurriculum.ipynb"))
+
+    assert "workflows.run_autocurriculum_training" in source
+    assert "workflows.render_autocurriculum_rollout" in source
+    assert 'WANDB_GROUP = "autocurriculum_50x50"' in source
+    assert "AUTOCURRICULUM_CONFIG" in source
+    assert "from `4x4` through `50x50` inside each episode" in source
+
+    spec = json.loads(Path("experiments/autocurriculum.json").read_text(encoding="utf-8"))
+    assert spec["args"]["autocurriculum"] is True
+    assert spec["args"]["width"] == 50
+    assert spec["args"]["height"] == 50
+    assert spec["args"]["obs_width"] == 50
+    assert spec["args"]["obs_height"] == 50
+    assert spec["args"]["food_count"] == 12
+    assert spec["args"]["food_sources"] == 2
+    assert spec["metadata"]["autocurriculum_start_size"] == 4
+    assert spec["metadata"]["autocurriculum_success_cookies"] == 6
+    assert spec["metadata"]["food_source_count"] == 2
+    assert spec["metadata"]["cookies_per_source"] == 6
+
+
 def test_notebook_render_cells_do_not_cap_rollout_frames() -> None:
     for path in sorted(Path("notebooks").glob("*.ipynb")):
         source = notebook_source(path)

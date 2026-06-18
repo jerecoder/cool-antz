@@ -39,6 +39,11 @@ COMMUNICATION_ARG_EXCLUDES = {
     "load_model",
     "run_dir",
 }
+AUTOCURRICULUM_ARG_EXCLUDES = {
+    "total_timesteps",
+    "save_model",
+    "run_dir",
+}
 ANT_COUNT_ARG_EXCLUDES = COMMUNICATION_ARG_EXCLUDES | {"num_ants"}
 
 
@@ -719,6 +724,59 @@ def run_forage_curriculum(
     }
 
 
+def run_autocurriculum_training(
+    *,
+    run_dir: Path,
+    common_args: Sequence[str],
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    train_main: Callable[..., dict[str, float]],
+) -> dict[str, Any]:
+    checkpoint_path = run_dir / "checkpoints" / "model.pkl"
+    stage_metrics: list[dict[str, Any]] = []
+    progress = stage_update_progress("autocurriculum", global_update_cap)
+
+    def record_progress(
+        update_index: int,
+        total_updates: int,
+        metrics: dict[str, float],
+    ) -> None:
+        progress.update(1)
+        progress.set_postfix(
+            loss=f"{metrics['loss']:.3f}",
+            ret=f"{metrics['episode_return']:.3f}",
+        )
+        stage_metrics.append(
+            {
+                **metrics,
+                "stage_update": int(update_index),
+                "stage_total_updates": int(total_updates),
+                "global_update_cap": int(global_update_cap),
+                "checkpoint": str(checkpoint_path),
+            }
+        )
+
+    train_args = [
+        *common_args,
+        "--total-timesteps",
+        str(int(update_timesteps_per_stage) * int(global_update_cap)),
+        "--run-dir",
+        str(run_dir),
+        "--save-model",
+        str(checkpoint_path),
+    ]
+    try:
+        final_train_metrics = train_main(train_args, progress_callback=record_progress)
+    finally:
+        progress.close()
+
+    return {
+        "checkpoint_path": checkpoint_path,
+        "stage_metrics": stage_metrics,
+        "final_train_metrics": final_train_metrics,
+    }
+
+
 def _curriculum_global_step(
     *,
     stage_index: int,
@@ -1191,6 +1249,7 @@ def expand_critic_input_for_ant_count(
 def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     import jax
 
+    from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
     from ant_byte_env.jax_env import JaxAntByteForagingEnv
     from ant_byte_env.training.jax_mappo.cli import parse_args
     from ant_byte_env.training.jax_mappo.core import (
@@ -1200,20 +1259,29 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
     args = parse_args(list(argv))
-    env = JaxAntByteForagingEnv(
-        width=args.width,
-        height=args.height,
-        num_ants=args.num_ants,
-        food_count=args.food_count,
-        food_source_count=args.food_sources,
-        max_steps=args.max_steps,
-        random_food=args.random_food,
-        random_hub=args.random_hub,
-        step_penalty=args.step_penalty,
-        write_penalty=args.write_penalty,
-        write_bits=args.write_bits,
-        write_while_moving=args.write_while_moving,
-    )
+    env_kwargs = {
+        "width": args.width,
+        "height": args.height,
+        "num_ants": args.num_ants,
+        "food_count": args.food_count,
+        "food_source_count": args.food_sources,
+        "max_steps": args.max_steps,
+        "random_food": args.random_food,
+        "random_hub": args.random_hub,
+        "step_penalty": args.step_penalty,
+        "write_penalty": args.write_penalty,
+        "write_bits": args.write_bits,
+        "write_while_moving": args.write_while_moving,
+    }
+    if bool(getattr(args, "autocurriculum", False)):
+        env = JaxAntByteAutoCurriculumEnv(
+            **env_kwargs,
+            start_size=args.autocurriculum_start_size,
+            success_cookies=args.autocurriculum_success_cookies,
+            actor_vision_radius=args.actor_vision_radius,
+        )
+    else:
+        env = JaxAntByteForagingEnv(**env_kwargs)
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
     central_obs = build_central_observations(
         obs,
@@ -1355,6 +1423,34 @@ def render_forage_rollouts(
             "actor_vision_radius": actor_vision_radius,
             "write_bits": write_bits,
             "global_update_cap": global_update_cap,
+        },
+        max_frames=max_frames,
+        tile_size=tile_size,
+    )
+
+
+def render_autocurriculum_rollout(
+    *,
+    run_dir: Path,
+    checkpoint_path: Path,
+    media_dir: Path,
+    global_update_cap: int,
+    max_frames: int | None = None,
+    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+) -> dict[str, Any]:
+    return render_rollout_suite(
+        checkpoint_paths=[checkpoint_path],
+        media_dir=media_dir,
+        rollout_path_for_checkpoint=lambda _checkpoint, media: (
+            media / "jax_mappo_autocurriculum_rollout.mp4"
+        ),
+        progress_desc="rendering autocurriculum policy",
+        vault_dir=run_dir / "vault",
+        title="JAX MAPPO autocurriculum policy rollout",
+        description="Rollout MP4 video for the single-env JAX MAPPO autocurriculum policy.",
+        metadata={
+            "global_update_cap": int(global_update_cap),
+            "autocurriculum": True,
         },
         max_frames=max_frames,
         tile_size=tile_size,

@@ -19,6 +19,7 @@ from ant_byte_env import (
     MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
 )
+from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo import (
     LinearParams,
@@ -143,6 +144,96 @@ def _params_for_args(args: argparse.Namespace, env: JaxAntByteForagingEnv):
 def _food_source_signature(food_grid: np.ndarray) -> tuple[tuple[int, int], ...]:
     food_positions = np.argwhere(food_grid > 0)[:, ::-1]
     return tuple(tuple(int(coord) for coord in position) for position in food_positions)
+
+
+def test_jax_parse_args_accepts_autocurriculum_defaults() -> None:
+    args = parse_args(
+        [
+            "--autocurriculum",
+            "--width",
+            "50",
+            "--height",
+            "50",
+            "--obs-width",
+            "50",
+            "--obs-height",
+            "50",
+            "--food-count",
+            "12",
+            "--food-sources",
+            "2",
+            "--max-steps",
+            "10000",
+        ]
+    )
+
+    assert args.autocurriculum is True
+    assert args.autocurriculum_start_size == 4
+    assert args.autocurriculum_success_cookies == 6
+    assert args.food_count == 12
+    assert args.food_sources == 2
+
+
+def test_jax_autocurriculum_reset_batch_uses_fixed_critic_shape() -> None:
+    args = _rollout_args(
+        [
+            "--autocurriculum",
+            "--width",
+            "50",
+            "--height",
+            "50",
+            "--obs-width",
+            "50",
+            "--obs-height",
+            "50",
+            "--food-count",
+            "12",
+            "--food-sources",
+            "2",
+            "--max-steps",
+            "200",
+        ]
+    )
+    env = JaxAntByteAutoCurriculumEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        start_size=args.autocurriculum_start_size,
+        success_cookies=args.autocurriculum_success_cookies,
+        actor_vision_radius=args.actor_vision_radius,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        write_bits=args.write_bits,
+    )
+
+    states, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
+    central_obs = build_central_observations(
+        obs,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+
+    assert states.food.shape[-2:] == (50, 50)
+    assert int(np.asarray(states.active_size)[0]) == 4
+    assert central_obs.shape[-1] == 7511
+    assert actor_obs.shape[-1] == 50
+    np.testing.assert_allclose(
+        np.asarray(central_obs[0, -2:]),
+        np.array([4 / 50, 4 / 50], dtype=np.float32),
+    )
 
 
 def test_jax_observation_builders_match_mappo_shapes() -> None:

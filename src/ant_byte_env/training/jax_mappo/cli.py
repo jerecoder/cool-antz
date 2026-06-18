@@ -37,6 +37,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--obs-width", type=int, default=None)
     parser.add_argument("--obs-height", type=int, default=None)
     parser.add_argument(
+        "--autocurriculum",
+        action="store_true",
+        help="Grow the active square grid inside each episode after enough deliveries.",
+    )
+    parser.add_argument("--autocurriculum-start-size", type=int, default=4)
+    parser.add_argument("--autocurriculum-success-cookies", type=int, default=6)
+    parser.add_argument(
         "--actor-vision-radius",
         type=int,
         default=DEFAULT_ACTOR_VISION_DEPTH,
@@ -145,6 +152,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:
         raise ValueError("food_count requires at least one non-hub tile.")
+    if args.autocurriculum:
+        if args.width != args.height:
+            raise ValueError("--autocurriculum requires a square max grid.")
+        if args.autocurriculum_start_size <= 0:
+            raise ValueError("--autocurriculum-start-size must be positive.")
+        if args.autocurriculum_start_size > args.width:
+            raise ValueError("--autocurriculum-start-size must be no larger than --width.")
+        if args.autocurriculum_success_cookies <= 0:
+            raise ValueError("--autocurriculum-success-cookies must be positive.")
+        if args.food_sources != 2:
+            raise ValueError("--autocurriculum uses exactly two food sources.")
+        if args.food_count != args.autocurriculum_success_cookies * args.food_sources:
+            raise ValueError(
+                "--food-count must equal --autocurriculum-success-cookies * --food-sources."
+            )
     if args.obs_width is not None and args.obs_width < args.width:
         raise ValueError("--obs-width must be at least --width.")
     if args.obs_height is not None and args.obs_height < args.height:

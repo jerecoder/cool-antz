@@ -9,6 +9,7 @@ import numpy as np
 from gymnasium import spaces
 
 from ant_byte_env.env import (
+    DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_WRITE_BITS,
     MAX_WRITE_BITS,
     MOVEMENT_ACTION_COUNT,
@@ -33,12 +34,12 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         self,
         *,
         start_size: int = 4,
-        max_size: int = 25,
+        max_size: int = 50,
         cookies_per_stage: int = 6,
         max_steps: int = 500,
         num_ants: int = 4,
         food_count: int | None = None,
-        food_source_count: int = 1,
+        food_source_count: int = 2,
         render_mode: str | None = None,
         tile_size: int = 32,
         random_food: bool = True,
@@ -47,9 +48,12 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
+        actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
         seed: int | None = None,
     ) -> None:
-        stage_food_count = cookies_per_stage if food_count is None else food_count
+        stage_food_count = (
+            int(cookies_per_stage) * int(food_source_count) if food_count is None else food_count
+        )
         self._validate_constructor_args(
             start_size=start_size,
             max_size=max_size,
@@ -63,6 +67,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             step_penalty=step_penalty,
             write_penalty=write_penalty,
             write_bits=write_bits,
+            actor_vision_radius=actor_vision_radius,
         )
 
         self.start_size = int(start_size)
@@ -80,6 +85,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
+        self.actor_vision_radius = int(actor_vision_radius)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self._constructor_seed = seed
@@ -123,6 +129,12 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
                     dtype=np.uint8,
                 ),
                 "hub_pos": spaces.Box(
+                    low=0,
+                    high=max_coord,
+                    shape=(2,),
+                    dtype=np.int32,
+                ),
+                "active_grid_size": spaces.Box(
                     low=0,
                     high=max_coord,
                     shape=(2,),
@@ -224,6 +236,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         step_penalty: float,
         write_penalty: float,
         write_bits: int,
+        actor_vision_radius: int,
     ) -> None:
         if start_size <= 0:
             raise ValueError("start_size must be positive.")
@@ -235,8 +248,10 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             raise ValueError("max_steps must be positive.")
         if num_ants <= 0:
             raise ValueError("num_ants must be positive.")
-        if food_count < cookies_per_stage:
-            raise ValueError("food_count must be at least cookies_per_stage.")
+        if food_source_count != 2:
+            raise ValueError("autocurriculum stages use exactly two food sources.")
+        if food_count != cookies_per_stage * food_source_count:
+            raise ValueError("food_count must equal cookies_per_stage * food_source_count.")
         if food_count > 0 and start_size * start_size <= 1:
             raise ValueError("food_count requires at least one non-hub tile.")
         if food_source_count <= 0:
@@ -253,8 +268,15 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             or write_bits > MAX_WRITE_BITS
         ):
             raise ValueError(f"write_bits must be an integer from 1 to {MAX_WRITE_BITS}.")
+        if actor_vision_radius < 0:
+            raise ValueError("actor_vision_radius must be non-negative.")
         if render_mode is not None and render_mode not in AntByteForagingEnv.metadata["render_modes"]:
             raise ValueError(f"Unsupported render_mode: {render_mode!r}.")
+        _validate_far_food_capacity(
+            size=int(start_size),
+            source_count=int(food_source_count),
+            vision_radius=int(actor_vision_radius),
+        )
 
     def _reset_stage(
         self,
@@ -263,6 +285,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
     ) -> tuple[ObsType, dict[str, int]]:
         if self._env is not None:
             self._env.close()
+        stage_options = self._stage_reset_options(options)
         self._env = AntByteForagingEnv(
             width=self.current_size,
             height=self.current_size,
@@ -272,15 +295,91 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             max_steps=self.max_steps,
             render_mode=self.render_mode,
             tile_size=self.tile_size,
-            random_food=self.random_food,
-            random_hub=self.random_hub,
+            random_food=False,
+            random_hub=False,
             step_penalty=self.step_penalty,
             write_penalty=self.write_penalty,
             write_bits=self.write_bits,
             write_while_moving=self.write_while_moving,
         )
         stage_seed = int(self.np_random.integers(0, np.iinfo(np.int32).max))
-        return self._env.reset(seed=stage_seed, options=options)
+        return self._env.reset(seed=stage_seed, options=stage_options)
+
+    def _stage_reset_options(self, options: dict[str, Any] | None) -> dict[str, Any]:
+        reset_options = dict(options or {})
+        hub_pos = reset_options.get("hub_pos")
+        if hub_pos is None:
+            hub_pos = self._sample_hub_pos()
+        else:
+            hub_pos = tuple(int(coord) for coord in self._coerce_position(hub_pos))
+        food_positions = reset_options.get("food_positions")
+        if food_positions is None:
+            food_positions = self._sample_food_positions(hub_pos)
+        else:
+            food_positions = [
+                tuple(int(coord) for coord in self._coerce_position(raw_pos))
+                for raw_pos in food_positions
+            ]
+            self._validate_food_positions(food_positions, hub_pos=hub_pos)
+        return {"hub_pos": hub_pos, "food_positions": food_positions}
+
+    def _sample_hub_pos(self) -> tuple[int, int]:
+        if self.random_hub:
+            return (
+                int(self.np_random.integers(0, self.current_size)),
+                int(self.np_random.integers(0, self.current_size)),
+            )
+        center = self.current_size // 2
+        return center, center
+
+    def _sample_food_positions(self, hub_pos: tuple[int, int]) -> list[tuple[int, int]]:
+        candidates = _far_food_candidates(
+            size=self.current_size,
+            hub_pos=hub_pos,
+            vision_radius=self.actor_vision_radius,
+        )
+        if len(candidates) < self.food_source_count:
+            raise ValueError(
+                "active stage is too small to place two food sources outside initial actor vision."
+            )
+        if self.random_food:
+            chosen_indices = self.np_random.choice(
+                len(candidates),
+                size=self.food_source_count,
+                replace=False,
+            )
+            return [candidates[int(index)] for index in np.atleast_1d(chosen_indices)]
+        return candidates[: self.food_source_count]
+
+    def _validate_food_positions(
+        self,
+        positions: list[tuple[int, int]],
+        *,
+        hub_pos: tuple[int, int],
+    ) -> None:
+        if len(positions) != self.food_source_count:
+            raise ValueError("autocurriculum stages require exactly two food positions.")
+        allowed = set(
+            _far_food_candidates(
+                size=self.current_size,
+                hub_pos=hub_pos,
+                vision_radius=self.actor_vision_radius,
+            )
+        )
+        for position in positions:
+            if position not in allowed:
+                raise ValueError(
+                    "food_positions must be inside the active grid and outside initial actor vision."
+                )
+
+    def _coerce_position(self, raw_pos: Any) -> tuple[int, int]:
+        position = np.asarray(raw_pos, dtype=np.int32)
+        if position.shape != (2,):
+            raise ValueError("positions must be two-item (x, y) pairs.")
+        x_pos, y_pos = int(position[0]), int(position[1])
+        if not (0 <= x_pos < self.current_size and 0 <= y_pos < self.current_size):
+            raise ValueError(f"position {(x_pos, y_pos)!r} is outside the active grid.")
+        return x_pos, y_pos
 
     def _pad_obs(self, obs: ObsType) -> ObsType:
         padded_obs: ObsType = {
@@ -291,6 +390,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             "food": np.zeros((self.max_size, self.max_size), dtype=np.int32),
             "bytes": np.zeros((self.max_size, self.max_size), dtype=np.uint8),
             "hub_pos": obs["hub_pos"].astype(np.int32, copy=True),
+            "active_grid_size": np.array([self.current_size, self.current_size], dtype=np.int32),
         }
         active_slice = (slice(0, self.current_size), slice(0, self.current_size))
         padded_obs["ants_count"][active_slice] = obs["ants_count"]
@@ -321,3 +421,42 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             "completed_stage_size": int(completed_stage_size),
             "completed_stage_delivered_food": int(completed_stage_delivered_food),
         }
+
+
+def _far_food_candidates(
+    *,
+    size: int,
+    hub_pos: tuple[int, int],
+    vision_radius: int,
+) -> list[tuple[int, int]]:
+    hub_x, hub_y = hub_pos
+    return [
+        (x_pos, y_pos)
+        for y_pos in range(size)
+        for x_pos in range(size)
+        if (x_pos, y_pos) != hub_pos
+        and max(abs(x_pos - hub_x), abs(y_pos - hub_y)) > vision_radius
+    ]
+
+
+def _validate_far_food_capacity(
+    *,
+    size: int,
+    source_count: int,
+    vision_radius: int,
+) -> None:
+    for hub_y in range(size):
+        for hub_x in range(size):
+            if (
+                len(
+                    _far_food_candidates(
+                        size=size,
+                        hub_pos=(hub_x, hub_y),
+                        vision_radius=vision_radius,
+                    )
+                )
+                < source_count
+            ):
+                raise ValueError(
+                    "start_size is too small to place two food sources outside initial actor vision."
+                )

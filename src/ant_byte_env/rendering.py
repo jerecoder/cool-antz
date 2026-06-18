@@ -13,6 +13,7 @@ import numpy as np
 from ant_byte_env import (
     DEFAULT_ACTOR_VISION_DEPTH,
     DEFAULT_WRITE_BITS,
+    AntByteAutoCurriculumEnv,
     AntByteForagingEnv,
     MOVEMENT_ACTION_COUNT,
     actor_vision_patch_size,
@@ -380,7 +381,29 @@ def _env_from_args(
     *,
     render_mode: str,
     tile_size: int | None = None,
-) -> AntByteForagingEnv:
+) -> AntByteForagingEnv | AntByteAutoCurriculumEnv:
+    if bool(getattr(args, "autocurriculum", False)):
+        env_kwargs: dict[str, Any] = {
+            "start_size": int(getattr(args, "autocurriculum_start_size", 4)),
+            "max_size": args.width,
+            "cookies_per_stage": int(getattr(args, "autocurriculum_success_cookies", 6)),
+            "num_ants": args.num_ants,
+            "food_count": args.food_count,
+            "food_source_count": args.food_sources,
+            "max_steps": args.max_steps,
+            "random_food": args.random_food,
+            "random_hub": bool(getattr(args, "random_hub", False)),
+            "step_penalty": args.step_penalty,
+            "write_penalty": args.write_penalty,
+            "write_bits": args.write_bits,
+            "write_while_moving": bool(getattr(args, "write_while_moving", False)),
+            "actor_vision_radius": int(getattr(args, "actor_vision_radius", 1)),
+            "render_mode": render_mode,
+        }
+        if tile_size is not None:
+            env_kwargs["tile_size"] = int(tile_size)
+        return AntByteAutoCurriculumEnv(**env_kwargs)
+
     env_kwargs: dict[str, Any] = {
         "width": args.width,
         "height": args.height,
@@ -406,6 +429,8 @@ def _jax_render_reset_options(
     *,
     seed: int | None = None,
 ) -> dict[str, tuple[int, int] | list[tuple[int, int]]] | None:
+    if bool(getattr(args, "autocurriculum", False)):
+        return None
     if bool(getattr(args, "random_hub", False)):
         rng = np.random.default_rng(seed)
         hub = (

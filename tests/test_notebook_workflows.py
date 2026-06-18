@@ -220,6 +220,48 @@ def test_config_common_args_excludes_stage_specific_keys() -> None:
     assert "--load-model" not in args
 
 
+def test_autocurriculum_training_helper_passes_single_env_curriculum_args(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def fake_train_main(argv: list[str], *, progress_callback):
+        calls.append(argv)
+        progress_callback(
+            1,
+            1,
+            {
+                "loss": 0.5,
+                "episode_return": 1.0,
+                "global_step": 16.0,
+            },
+        )
+        return {"loss": 0.5, "episode_return": 1.0, "global_step": 16.0}
+
+    result = workflows.run_autocurriculum_training(
+        run_dir=tmp_path / "autocurriculum",
+        common_args=[
+            "--autocurriculum",
+            "--width",
+            "50",
+            "--height",
+            "50",
+            "--food-count",
+            "12",
+            "--food-sources",
+            "2",
+        ],
+        update_timesteps_per_stage=16,
+        global_update_cap=1,
+        train_main=fake_train_main,
+    )
+
+    assert calls
+    train_args = calls[0]
+    assert "--autocurriculum" in train_args
+    assert train_args[train_args.index("--total-timesteps") + 1] == "16"
+    assert train_args[train_args.index("--run-dir") + 1] == str(tmp_path / "autocurriculum")
+    assert result["checkpoint_path"] == tmp_path / "autocurriculum" / "checkpoints" / "model.pkl"
+
+
 def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

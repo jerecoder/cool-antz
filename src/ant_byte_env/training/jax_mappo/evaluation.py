@@ -8,6 +8,7 @@ from pathlib import Path
 import jax
 import numpy as np
 
+from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.cli import parse_args
@@ -38,20 +39,7 @@ def evaluate_params(
         args,
         shuffle_positions=shuffle_positions,
     )
-    env = JaxAntByteForagingEnv(
-        width=eval_source_args.width,
-        height=eval_source_args.height,
-        num_ants=eval_source_args.num_ants,
-        food_count=eval_source_args.food_count,
-        food_source_count=eval_source_args.food_sources,
-        max_steps=eval_source_args.max_steps,
-        random_food=eval_source_args.random_food,
-        random_hub=eval_source_args.random_hub,
-        step_penalty=eval_source_args.step_penalty,
-        write_penalty=eval_source_args.write_penalty,
-        write_bits=eval_source_args.write_bits,
-        write_while_moving=bool(getattr(eval_source_args, "write_while_moving", False)),
-    )
+    env = _make_eval_env(eval_source_args)
     eval_args = argparse.Namespace(**{**vars(eval_source_args), "num_envs": 1})
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
 
@@ -147,20 +135,7 @@ def evaluate_checkpoint(
 
 
 def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
-    env = JaxAntByteForagingEnv(
-        width=args.width,
-        height=args.height,
-        num_ants=args.num_ants,
-        food_count=args.food_count,
-        food_source_count=args.food_sources,
-        max_steps=args.max_steps,
-        random_food=args.random_food,
-        random_hub=args.random_hub,
-        step_penalty=args.step_penalty,
-        write_penalty=args.write_penalty,
-        write_bits=args.write_bits,
-        write_while_moving=bool(getattr(args, "write_while_moving", False)),
-    )
+    env = _make_eval_env(args)
     shape_args = argparse.Namespace(**{**vars(args), "num_envs": 1})
     _, obs = reset_batch(args=shape_args, env=env, key=jax.random.PRNGKey(args.seed))
     central_obs = build_central_observations(
@@ -179,6 +154,31 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
         obs_height=args.obs_height,
     )
     return central_obs.shape[-1], actor_obs.shape[-1]
+
+
+def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
+    common_kwargs = {
+        "width": args.width,
+        "height": args.height,
+        "num_ants": args.num_ants,
+        "food_count": args.food_count,
+        "food_source_count": args.food_sources,
+        "max_steps": args.max_steps,
+        "random_food": args.random_food,
+        "random_hub": args.random_hub,
+        "step_penalty": args.step_penalty,
+        "write_penalty": args.write_penalty,
+        "write_bits": args.write_bits,
+        "write_while_moving": bool(getattr(args, "write_while_moving", False)),
+    }
+    if bool(getattr(args, "autocurriculum", False)):
+        return JaxAntByteAutoCurriculumEnv(
+            **common_kwargs,
+            start_size=int(getattr(args, "autocurriculum_start_size", 4)),
+            success_cookies=int(getattr(args, "autocurriculum_success_cookies", 6)),
+            actor_vision_radius=int(getattr(args, "actor_vision_radius", 1)),
+        )
+    return JaxAntByteForagingEnv(**common_kwargs)
 
 
 def _checkpoint_args_with_defaults(saved_args: dict[str, object]) -> argparse.Namespace:

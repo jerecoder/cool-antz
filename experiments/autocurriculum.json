@@ -1,0 +1,43 @@
+{
+  "name": "autocurriculum",
+  "backend": "jax",
+  "description": "Single-env JAX MAPPO autocurriculum that grows from 4x4 through 50x50 after six deliveries per stage.",
+  "args": {
+    "exp_name": "jax_mappo_autocurriculum",
+    "autocurriculum": true,
+    "total_timesteps": 12800000,
+    "num_envs": 16,
+    "num_steps": 80,
+    "num_minibatches": 4,
+    "update_epochs": 4,
+    "width": 50,
+    "height": 50,
+    "obs_width": 50,
+    "obs_height": 50,
+    "actor_vision_radius": 1,
+    "autocurriculum_start_size": 4,
+    "autocurriculum_success_cookies": 6,
+    "num_ants": 1,
+    "food_count": 12,
+    "food_sources": 2,
+    "max_steps": 10000,
+    "pickup_bonus": 0.25,
+    "distance_bonus": 0.0,
+    "hidden_size": 128,
+    "write_bits": 1,
+    "write_while_moving": true,
+    "seed": 1,
+    "quiet": true,
+    "random_food": true,
+    "random_hub": true
+  },
+  "metadata": {
+    "global_update_cap": 10000,
+    "stage_range": "4x4-50x50",
+    "autocurriculum_start_size": 4,
+    "autocurriculum_success_cookies": 6,
+    "food_source_count": 2,
+    "cookies_per_source": 6,
+    "notes": "Each episode starts at 4x4 and grows the active square grid by one after six hub deliveries. Each active stage has two food sources with six bites each, sampled outside the initial actor vision."
+  }
+}

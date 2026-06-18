@@ -148,6 +148,22 @@ def _resolve_observation_grid_shape(
     return current_height, current_width, target_height, target_width
 
 
+def _active_grid_size(
+    obs: JaxObs,
+    *,
+    fallback_height: int,
+    fallback_width: int,
+) -> jax.Array:
+    active_grid_size = obs.get("active_grid_size")
+    batch_size = obs["food"].shape[0]
+    if active_grid_size is None:
+        return jnp.broadcast_to(
+            jnp.asarray([fallback_width, fallback_height], dtype=jnp.float32),
+            (batch_size, 2),
+        )
+    return active_grid_size.astype(jnp.float32).reshape((batch_size, 2))
+
+
 def _pad_grid(grid: jax.Array, *, height: int, width: int) -> jax.Array:
     if grid.shape[1:] == (height, width):
         return grid
@@ -189,6 +205,11 @@ def build_central_observations(
         obs_height=obs_height,
         obs_width=obs_width,
     )
+    active_grid_size = _active_grid_size(
+        obs,
+        fallback_height=current_height,
+        fallback_width=current_width,
+    )
     ants_pos = _normalize_positions(obs["ants_pos"], height=target_height, width=target_width)
     ants_count = _ants_count_grid(obs, height=current_height, width=current_width)
     hub_pos = _normalize_positions(obs["hub_pos"], height=target_height, width=target_width)
@@ -209,14 +230,10 @@ def build_central_observations(
         height=target_height,
         width=target_width,
     )
-    grid_size = jnp.asarray(
-        [
-            current_width / max(float(target_width), 1.0),
-            current_height / max(float(target_height), 1.0),
-        ],
+    grid_size = active_grid_size / jnp.asarray(
+        [max(float(target_width), 1.0), max(float(target_height), 1.0)],
         dtype=jnp.float32,
     )
-    grid_size = jnp.broadcast_to(grid_size, (batch_size, 2))
     return jnp.concatenate(
         [
             ants_pos.reshape(batch_size, -1),
@@ -280,11 +297,16 @@ def build_actor_observations(
         grid_width=food.shape[2],
         radius=actor_vision_radius,
     )
+    active_grid_size = _active_grid_size(
+        obs,
+        fallback_height=food.shape[1],
+        fallback_width=food.shape[2],
+    )
     local_border = build_local_border_patches(
         obs["ants_pos"],
         ants_facing=ants_facing,
-        grid_height=food.shape[1],
-        grid_width=food.shape[2],
+        grid_height=active_grid_size[:, 1],
+        grid_width=active_grid_size[:, 0],
         radius=actor_vision_radius,
     )
     return jnp.concatenate(
@@ -361,8 +383,8 @@ def build_local_grid_patches(
 def build_local_border_patches(
     ants_pos: jax.Array,
     *,
-    grid_height: int,
-    grid_width: int,
+    grid_height: int | jax.Array,
+    grid_width: int | jax.Array,
     radius: int,
     ants_facing: jax.Array | None = None,
 ) -> jax.Array:
@@ -378,8 +400,17 @@ def build_local_border_patches(
     positions = ants_pos.astype(jnp.int32)[:, :, None, :] + offset_pairs
     x_pos = positions[..., 0]
     y_pos = positions[..., 1]
-    valid = (0 <= x_pos) & (x_pos < grid_width) & (0 <= y_pos) & (y_pos < grid_height)
+    width_limit = _grid_limit_for_positions(grid_width)
+    height_limit = _grid_limit_for_positions(grid_height)
+    valid = (0 <= x_pos) & (x_pos < width_limit) & (0 <= y_pos) & (y_pos < height_limit)
     return jnp.where(valid, 0.0, 1.0).astype(jnp.float32)
+
+
+def _grid_limit_for_positions(limit: int | jax.Array) -> jax.Array:
+    limit_array = jnp.asarray(limit, dtype=jnp.int32)
+    if limit_array.ndim == 0:
+        return limit_array
+    return limit_array.reshape((limit_array.shape[0], 1, 1))
 
 
 def build_forward_vision_offsets(ants_facing: jax.Array, *, depth: int) -> jax.Array:

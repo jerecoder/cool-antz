@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 
 from ant_byte_env import write_value_count
+from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
 from ant_byte_env.wandb_tracking import WandbTracker
@@ -67,6 +68,44 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
     }
 
 
+def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
+    common_kwargs = {
+        "width": args.width,
+        "height": args.height,
+        "num_ants": args.num_ants,
+        "food_count": args.food_count,
+        "food_source_count": args.food_sources,
+        "max_steps": args.max_steps,
+        "random_food": args.random_food,
+        "random_hub": args.random_hub,
+        "step_penalty": args.step_penalty,
+        "write_penalty": args.write_penalty,
+        "write_bits": args.write_bits,
+        "write_while_moving": args.write_while_moving,
+    }
+    if bool(getattr(args, "autocurriculum", False)):
+        return JaxAntByteAutoCurriculumEnv(
+            **common_kwargs,
+            start_size=args.autocurriculum_start_size,
+            success_cookies=args.autocurriculum_success_cookies,
+            actor_vision_radius=args.actor_vision_radius,
+        )
+    return JaxAntByteForagingEnv(**common_kwargs)
+
+
+def _autocurriculum_state_stats(states: Any) -> dict[str, float]:
+    if not hasattr(states, "active_size"):
+        return {}
+    return {
+        "autocurriculum_mean_active_size": float(jnp.mean(states.active_size.astype(jnp.float32))),
+        "autocurriculum_max_active_size": float(jnp.max(states.active_size)),
+        "autocurriculum_mean_stage_delivered_food": float(
+            jnp.mean(states.stage_delivered_food.astype(jnp.float32))
+        ),
+        "autocurriculum_completed_stages": float(jnp.sum(states.completed_stages)),
+    }
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -92,20 +131,7 @@ def main(
             },
         )
 
-    env = JaxAntByteForagingEnv(
-        width=args.width,
-        height=args.height,
-        num_ants=args.num_ants,
-        food_count=args.food_count,
-        food_source_count=args.food_sources,
-        max_steps=args.max_steps,
-        random_food=args.random_food,
-        random_hub=args.random_hub,
-        step_penalty=args.step_penalty,
-        write_penalty=args.write_penalty,
-        write_bits=args.write_bits,
-        write_while_moving=args.write_while_moving,
-    )
+    env = _make_env(args)
 
     reset_fn = jax.jit(lambda reset_key: reset_batch(args=args, env=env, key=reset_key))
 
@@ -209,6 +235,7 @@ def main(
             final_metrics = {
                 **_metrics_to_float(update_metrics),
                 **_rollout_stats(rollout),
+                **_autocurriculum_state_stats(states),
                 "global_step": float(global_step),
                 "learning_rate": float(learning_rate),
             }

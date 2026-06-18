@@ -44,6 +44,10 @@ def reset_batch(
     key: jax.Array,
 ) -> tuple[JaxAntState, JaxObs]:
     reset_keys = jax.random.split(key, args.num_envs)
+    if bool(getattr(args, "autocurriculum", False)):
+        states, obs, _ = jax.vmap(env.reset)(reset_keys)
+        return states, obs
+
     if args.random_hub:
         hub_key_x, hub_key_y = jax.random.split(jax.random.fold_in(key, 11))
         hub_positions = jnp.stack(
