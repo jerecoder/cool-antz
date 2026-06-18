@@ -29,7 +29,7 @@ def evaluate_params(
     args: argparse.Namespace,
     num_episodes: int,
     seed_offset: int = 1_000_000,
-    deterministic: bool = True,
+    deterministic: bool | None = None,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     if num_episodes <= 0:
@@ -41,6 +41,10 @@ def evaluate_params(
     )
     env = _make_eval_env(eval_source_args)
     eval_args = argparse.Namespace(**{**vars(eval_source_args), "num_envs": 1})
+    use_deterministic_actions = _evaluation_deterministic_default(
+        eval_args,
+        deterministic=deterministic,
+    )
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
 
     episode_returns: list[float] = []
@@ -78,7 +82,7 @@ def evaluate_params(
                 actor_obs,
                 central_obs,
                 action_key,
-                deterministic=deterministic,
+                deterministic=use_deterministic_actions,
             )
             state, obs, reward, terminated, truncated, _ = jax.vmap(env.step)(
                 state,
@@ -111,7 +115,7 @@ def evaluate_checkpoint(
     *,
     num_episodes: int,
     seed_offset: int = 1_000_000,
-    deterministic: bool = True,
+    deterministic: bool | None = None,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     raw_checkpoint = read_checkpoint(checkpoint_path)
@@ -132,6 +136,16 @@ def evaluate_checkpoint(
         deterministic=deterministic,
         shuffle_positions=shuffle_positions,
     )
+
+
+def _evaluation_deterministic_default(
+    args: argparse.Namespace,
+    *,
+    deterministic: bool | None,
+) -> bool:
+    if deterministic is not None:
+        return bool(deterministic)
+    return not bool(getattr(args, "autocurriculum", False))
 
 
 def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:

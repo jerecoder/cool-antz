@@ -1683,6 +1683,85 @@ def test_jax_evaluate_params_shuffles_colony_and_cookie_sources_by_default(
         assert hub not in food_sources
 
 
+def test_jax_autocurriculum_evaluation_samples_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = parse_args(
+        [
+            "--autocurriculum",
+            "--total-timesteps",
+            "2",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "1",
+            "--num-minibatches",
+            "1",
+            "--width",
+            "4",
+            "--height",
+            "4",
+            "--obs-width",
+            "4",
+            "--obs-height",
+            "4",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "12",
+            "--food-sources",
+            "2",
+            "--max-steps",
+            "1",
+            "--actor-vision-radius",
+            "1",
+            "--hidden-size",
+            "4",
+            "--seed",
+            "31",
+            "--quiet",
+        ]
+    )
+    env = JaxAntByteAutoCurriculumEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        start_size=args.autocurriculum_start_size,
+        success_cookies=args.autocurriculum_success_cookies,
+        actor_vision_radius=args.actor_vision_radius,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        write_bits=args.write_bits,
+    )
+    params, _, _ = _params_for_args(args, env)
+    observed_determinism: list[bool] = []
+
+    import ant_byte_env.training.jax_mappo.evaluation as jax_evaluation
+
+    original_get_action_and_value = jax_evaluation.get_action_and_value
+
+    def recording_get_action_and_value(*call_args, deterministic: bool, **kwargs):
+        observed_determinism.append(bool(deterministic))
+        return original_get_action_and_value(
+            *call_args,
+            deterministic=deterministic,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        jax_evaluation,
+        "get_action_and_value",
+        recording_get_action_and_value,
+    )
+
+    evaluate_params(params=params, args=args, num_episodes=1)
+
+    assert observed_determinism == [False]
+
+
 def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
     params = init_agent_params(
         jax.random.PRNGKey(0),

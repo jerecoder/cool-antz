@@ -71,6 +71,7 @@ def collect_rollout(
             actor_obs,
             central_obs,
             action_key,
+            deterministic=False,
         )
         next_states, next_obs, env_rewards, terminated, truncated, _ = jax.vmap(env.step)(
             current_states,
