@@ -67,6 +67,7 @@ class JaxAntByteForagingEnv:
         random_food: bool = True,
         random_hub: bool = False,
         step_penalty: float = 0.0,
+        completion_bonus: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
@@ -79,6 +80,7 @@ class JaxAntByteForagingEnv:
             food_source_count=food_source_count,
             max_steps=max_steps,
             step_penalty=step_penalty,
+            completion_bonus=completion_bonus,
             write_penalty=write_penalty,
             write_bits=write_bits,
         )
@@ -92,6 +94,7 @@ class JaxAntByteForagingEnv:
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
         self.step_penalty = float(step_penalty)
+        self.completion_bonus = float(completion_bonus)
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
@@ -112,6 +115,7 @@ class JaxAntByteForagingEnv:
         food_source_count: int,
         max_steps: int,
         step_penalty: float,
+        completion_bonus: float,
         write_penalty: float,
         write_bits: int,
     ) -> None:
@@ -129,6 +133,8 @@ class JaxAntByteForagingEnv:
             raise ValueError("max_steps must be positive.")
         if step_penalty < 0:
             raise ValueError("step_penalty must be non-negative.")
+        if completion_bonus < 0:
+            raise ValueError("completion_bonus must be non-negative.")
         if write_penalty < 0:
             raise ValueError("write_penalty must be non-negative.")
         if (
@@ -291,12 +297,14 @@ class JaxAntByteForagingEnv:
             step_count=step_count,
             initial_food_total=state.initial_food_total,
         )
+        terminated = delivered_food >= state.initial_food_total
         reward = (
             delivery_count.astype(jnp.float32)
             - jnp.asarray(self.step_penalty * self.num_ants, dtype=jnp.float32)
             - num_writes.astype(jnp.float32) * jnp.asarray(self.write_penalty, dtype=jnp.float32)
+            + terminated.astype(jnp.float32)
+            * jnp.asarray(self.completion_bonus, dtype=jnp.float32)
         )
-        terminated = delivered_food >= state.initial_food_total
         truncated = step_count >= self.max_steps
         info = self.info(next_state, num_writes=num_writes, num_overwrites=num_overwrites)
         return next_state, self.observe(next_state), reward, terminated, truncated, info

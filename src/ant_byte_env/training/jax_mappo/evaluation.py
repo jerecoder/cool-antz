@@ -353,6 +353,7 @@ def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntBy
         "random_food": args.random_food,
         "random_hub": args.random_hub,
         "step_penalty": args.step_penalty,
+        "completion_bonus": getattr(args, "completion_bonus", 0.0),
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": bool(getattr(args, "write_while_moving", False)),

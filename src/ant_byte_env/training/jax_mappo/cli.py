@@ -84,6 +84,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--food-sources", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=64)
     parser.add_argument("--step-penalty", type=float, default=0.0)
+    parser.add_argument(
+        "--completion-bonus",
+        type=float,
+        default=0.0,
+        help="One-time reward bonus when all food is delivered before truncation.",
+    )
     parser.add_argument("--write-penalty", type=float, default=0.0)
     parser.add_argument(
         "--write-bit-penalty",
@@ -279,6 +285,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-bit-entropy-bonus must be non-negative.")
     if args.distance_bonus < 0.0:
         raise ValueError("--distance-bonus must be non-negative.")
+    if args.completion_bonus < 0.0:
+        raise ValueError("--completion-bonus must be non-negative.")
     if args.stage_completion_bonus < 0.0:
         raise ValueError("--stage-completion-bonus must be non-negative.")
     if args.delivery_byte_trail_bonus < 0.0:

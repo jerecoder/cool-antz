@@ -1702,8 +1702,73 @@
       }
     },
     {
-      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "id": "DISTANCE_CAP24_SPEED_COMPLETION_BONUS_430",
       "priority": 37,
+      "mode": "forage_curriculum",
+      "family": "reward_shaping",
+      "title": "Completion-bonus polish for the last missed food at 430 steps",
+      "hypothesis": "The best 24-ant, 12-source, 430-step policies are fast enough but repeatedly average just below 22/23 delivered. The environment currently gives no special reward for complete clearance beyond the final delivery itself, so the policy may rationally trade away the last difficult pickup/return. A one-time completion bonus should push the learned policy toward full clears while the hard 430-step cap preserves speed.",
+      "intervention": "Add completion_bonus 2.0 and fine-tune the DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430 checkpoint for one 25x25, 12-source, max_steps-430 stage. Keep the previous step_penalty 0.000045, low entropy, tight PPO clipping, and conservative learning_rate 0.00002.",
+      "success_signal": "A win should exceed 22/23 delivered with mean episode length below 430 and improve success rate over the parent checkpoint's 50-52% range.",
+      "report_notes": "This is a targeted reward-shaping polish for final completion. It preserves the same 24-ant, 12-source, 430-step task used by the near-miss policy, adding only an all-food completion incentive during training.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_COMPLETION_BONUS_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 500,
+      "custom_stages": [
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 12,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 500,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.000045,
+        "completion_bonus": 2.0,
+        "ent_coef": 0.0002,
+        "clip_coef": 0.06,
+        "learning_rate": 0.00002,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 4100000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t095_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4100000,
+            "move_temperature": 0.95
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4100000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-COMPLETION-BONUS-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "completion-bonus", "reward-shaping", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "priority": 38,
       "mode": "forage_curriculum",
       "family": "food_distribution",
       "title": "Thirty-two-ant final throughput push at 430 steps",
@@ -1767,7 +1832,7 @@
     },
     {
       "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
-      "priority": 38,
+      "priority": 39,
       "mode": "forage_curriculum",
       "family": "efficiency_finetune",
       "title": "Eight-ant horizon ramp from 900 to 550 steps",

@@ -118,6 +118,7 @@ def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
         "random_food": args.random_food,
         "random_hub": args.random_hub,
         "step_penalty": args.step_penalty,
+        "completion_bonus": args.completion_bonus,
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": args.write_while_moving,

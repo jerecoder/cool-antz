@@ -84,6 +84,7 @@ class JaxAntByteAutoCurriculumEnv:
         random_food: bool = True,
         random_hub: bool = False,
         step_penalty: float = 0.0,
+        completion_bonus: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
@@ -99,6 +100,7 @@ class JaxAntByteAutoCurriculumEnv:
             food_source_count=food_source_count,
             max_steps=max_steps,
             step_penalty=step_penalty,
+            completion_bonus=completion_bonus,
             write_penalty=write_penalty,
             write_bits=write_bits,
             actor_vision_radius=actor_vision_radius,
@@ -114,6 +116,7 @@ class JaxAntByteAutoCurriculumEnv:
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
         self.step_penalty = float(step_penalty)
+        self.completion_bonus = float(completion_bonus)
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
@@ -141,6 +144,7 @@ class JaxAntByteAutoCurriculumEnv:
         food_source_count: int,
         max_steps: int,
         step_penalty: float,
+        completion_bonus: float,
         write_penalty: float,
         write_bits: int,
         actor_vision_radius: int,
@@ -165,6 +169,8 @@ class JaxAntByteAutoCurriculumEnv:
             raise ValueError("max_steps must be positive.")
         if step_penalty < 0:
             raise ValueError("step_penalty must be non-negative.")
+        if completion_bonus < 0:
+            raise ValueError("completion_bonus must be non-negative.")
         if write_penalty < 0:
             raise ValueError("write_penalty must be non-negative.")
         if (
@@ -375,6 +381,8 @@ class JaxAntByteAutoCurriculumEnv:
             delivery_count.astype(jnp.float32)
             - jnp.asarray(self.step_penalty * self.num_ants, dtype=jnp.float32)
             - num_writes.astype(jnp.float32) * jnp.asarray(self.write_penalty, dtype=jnp.float32)
+            + final_stage_complete.astype(jnp.float32)
+            * jnp.asarray(self.completion_bonus, dtype=jnp.float32)
         )
         info = self.info(
             next_state,

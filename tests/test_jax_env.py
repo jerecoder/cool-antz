@@ -268,6 +268,35 @@ def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
     assert int(info.delivered_food) == 1
 
 
+def test_jax_completion_bonus_rewards_final_delivery_only() -> None:
+    env = JaxAntByteForagingEnv(
+        width=3,
+        height=1,
+        num_ants=1,
+        food_count=1,
+        completion_bonus=2.5,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(1),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+
+    state, _, reward, terminated, _, _ = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+    assert float(reward) == 0.0
+    assert not bool(terminated)
+
+    _, _, reward, terminated, _, _ = env.step(
+        state,
+        jnp.array([ACTION_LEFT, 0], dtype=jnp.int32),
+    )
+    assert float(reward) == 3.5
+    assert bool(terminated)
+
+
 def test_jax_movement_step_does_not_write_tile() -> None:
     env = JaxAntByteForagingEnv(width=4, height=4, num_ants=1, food_count=0)
     state, _, _ = env.reset(
