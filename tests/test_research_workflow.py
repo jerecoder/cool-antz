@@ -118,6 +118,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP16_SPEED_TEMP_GRID",
         "DISTANCE_CAP24_SPEED_RAMP_24A_430",
         "DISTANCE_CAP24_SPEED_SOURCES12_430",
+        "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
@@ -471,6 +472,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    sources12_polish = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
 
     four_parsed = parse_args(four_ant["common_args"])
     eight_parsed = parse_args(eight_ant["common_args"])
@@ -533,6 +541,15 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     assert [stage["food_sources"] for stage in sources12["stages"]] == [12, 12, 12]
     assert [stage["max_steps"] for stage in sources12["stages"]] == [700, 550, 430]
     assert sources12["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_SOURCES12_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+
+    assert sources12_polish["family"] == "food_distribution"
+    assert sources12_polish["stage_sizes"] == [25]
+    assert sources12_polish["stages"][0]["food_sources"] == 12
+    assert sources12_polish["stages"][0]["max_steps"] == 430
+    assert sources12_polish["stages"][0]["global_update_cap"] == 700
+    assert sources12_polish["source_checkpoint"].endswith(
         "DISTANCE_CAP24_SPEED_SOURCES12_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
     )
 
