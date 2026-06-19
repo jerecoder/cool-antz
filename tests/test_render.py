@@ -16,6 +16,7 @@ from ant_byte_env.rendering import (
     _jax_render_reset_options,
     _render_frame,
     _render_step_count,
+    render_checkpoint,
 )
 
 
@@ -210,6 +211,16 @@ def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> N
         "move_temperature": 0.95,
         "write_temperature": 1.0,
     }
+
+
+def test_render_checkpoint_rejects_torch_action_mode(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="only supported for JAX"):
+        render_checkpoint(
+            tmp_path / "model.pt",
+            tmp_path / "rollout.mp4",
+            backend="torch",
+            action_mode="sampled_move_greedy_write",
+        )
 
 
 def test_food_alpha_drops_as_food_source_is_depleted() -> None:

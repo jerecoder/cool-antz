@@ -41,6 +41,9 @@ def render_checkpoint(
     max_frames: int | None = None,
     tile_size: int | None = None,
     policy_temperature: float = 0.0,
+    action_mode: str | None = None,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
 ) -> Path:
     actual_backend = backend or infer_checkpoint_backend(checkpoint_path)
     if actual_backend not in {"torch", "jax"}:
