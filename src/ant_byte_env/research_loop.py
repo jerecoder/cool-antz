@@ -824,6 +824,7 @@ def _research_stages(
             stage["cookie_distance"] = min(scaled, max(1, size // 2))
 
     profile = list(entry.get("stage_training_profile", matrix.get("stage_training_profile", [])))
+    stage_overrides = dict(entry.get("stage_overrides", {}))
     for stage in stages:
         stage["global_update_cap"] = int(global_update_cap)
         matching = _stage_profile_for_size(int(stage["width"]), profile)
@@ -833,6 +834,7 @@ def _research_stages(
                     stage[key] = matching[key]
             if not update_cap_overridden and "global_update_cap" in matching:
                 stage["global_update_cap"] = int(matching["global_update_cap"])
+        stage.update(stage_overrides)
     return stages
 
 

@@ -91,6 +91,9 @@ def evaluate_params(
     episode_lengths: list[int] = []
     delivered_food: list[float] = []
     delivered_fractions: list[float] = []
+    steps_per_delivered_food: list[float] = []
+    ant_steps_per_delivered_food: list[float] = []
+    delivered_per_1000_ant_steps: list[float] = []
     successes: list[float] = []
 
     for _ in range(num_episodes):
@@ -110,8 +113,15 @@ def evaluate_params(
                 break
 
         delivered = float(np.asarray(state.delivered_food)[0])
+        delivered_denominator = max(delivered, 1.0)
+        ant_steps = float(episode_length) * max(float(eval_args.num_ants), 1.0)
         delivered_food.append(delivered)
         delivered_fractions.append(delivered / max(float(eval_args.food_count), 1.0))
+        steps_per_delivered_food.append(float(episode_length) / delivered_denominator)
+        ant_steps_per_delivered_food.append(ant_steps / delivered_denominator)
+        delivered_per_1000_ant_steps.append(
+            1000.0 * delivered / max(ant_steps, 1.0)
+        )
         episode_returns.append(episode_return)
         episode_lengths.append(episode_length)
         successes.append(float(episode_terminated))
@@ -122,6 +132,13 @@ def evaluate_params(
         "eval_mean_delivered_fraction": float(np.mean(delivered_fractions)),
         "eval_mean_episode_return": float(np.mean(episode_returns)),
         "eval_mean_episode_length": float(np.mean(episode_lengths)),
+        "eval_mean_steps_per_delivered_food": float(np.mean(steps_per_delivered_food)),
+        "eval_mean_ant_steps_per_delivered_food": float(
+            np.mean(ant_steps_per_delivered_food)
+        ),
+        "eval_mean_delivered_food_per_1000_ant_steps": float(
+            np.mean(delivered_per_1000_ant_steps)
+        ),
     }
 
 

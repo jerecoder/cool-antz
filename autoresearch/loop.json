@@ -1005,6 +1005,156 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SPEED_4A_800",
+      "priority": 26,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Four-ant speed fine-tune with an 800-step horizon",
+      "hypothesis": "The best deployment policy clears 25x25 but takes about 1715 steps because training never paid for time. A warm-start fine-tune with a shorter episode cap and a small per-ant step penalty should preserve full clearance while forcing the colony to abandon dithering and repeated partial routes.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint and train only the standard shuffled 25x25 distribution for 800 updates. Keep four ants, distance_bonus 0.02, low entropy, sampled rollouts, and greedy-write deployment evaluation, but cap episodes at 800 steps and add step_penalty 0.0002.",
+      "success_signal": "The sampled-move/greedy-write held-out gate should still deliver at least 22/23 food while driving mean episode length below 800 and mean steps per delivered food far below the current 1715/22.6 regime.",
+      "report_notes": "This is the first true efficiency intervention: same task geometry and same four ants, but the reward and horizon now explicitly penalize slow clearing. Use it to separate route competence from speed pressure.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SPEED_4A_800",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 800,
+      "stage_sizes": [25],
+      "stage_overrides": {
+        "max_steps": 800
+      },
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 800, "num_steps": 256, "gamma": 0.995}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "step_penalty": 0.0002,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 2800000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 2800000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SPEED-4A-800",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "speed", "step-penalty", "short-horizon", "efficiency"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP4_SPEED_4A_550",
+      "priority": 27,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Four-ant direct 4x speed target at 550 steps",
+      "hypothesis": "If the four-ant colony already knows a near-complete route, stronger time pressure may be enough to compress its behavior to the requested 4x speedup without adding more agents. Failure here would indicate a physical throughput or exploration bottleneck rather than merely weak incentives.",
+      "intervention": "Warm-start from DISTANCE_CAP4_SHARP, train a single 25x25 stage for 1000 updates with max_steps 550, step_penalty 0.00035, gamma 0.995, low entropy, and conservative PPO updates. Evaluate the reportable sampled-move temperature 1.10 with greedy writes on 64 shuffled layouts.",
+      "success_signal": "A win must deliver at least 22/23 food with mean episode length at or below 550, giving a clear 3.1x+ improvement over 1715 steps and close to the requested 4x regime without changing ant count.",
+      "report_notes": "This is the honest single-policy speed stress test. It keeps four ants and the standard food distribution so a pass means efficiency improved, not just that we added throughput.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SPEED_4A_550",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1000,
+      "stage_sizes": [25],
+      "stage_overrides": {
+        "max_steps": 550
+      },
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1000, "num_steps": 256, "gamma": 0.995}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "step_penalty": 0.00035,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00004,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 2900000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 2900000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SPEED-4A-550",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP8_SPEED_8A_550",
+      "priority": 28,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Eight-ant throughput jump at the 550-step target",
+      "hypothesis": "If four ants cannot clear 23 food inside 550 steps, the limiting factor may be embodied throughput rather than route knowledge. Doubling the colony while freezing new-ant critic inputs at zero initially should reuse the learned local policy and let more workers collect in parallel.",
+      "intervention": "Load the four-ant DISTANCE_CAP4_SHARP checkpoint into an eight-ant critic, train only 25x25 for 900 updates with max_steps 550, a gentler per-ant step_penalty 0.00016, distance_bonus 0.02, low entropy, and the same sampled-move/greedy-write deployment evaluation.",
+      "success_signal": "A win should deliver at least 22/23 food with mean episode length below 550. That would be a practical 4x-speed candidate enabled by more parallel ants rather than only reward reshaping.",
+      "report_notes": "This tests the user's allowed 'more agents' path. Because all ants share the same actor and the critic transfer zeros only the extra-ant columns, any improvement is from parallel embodied execution plus light adaptation, not a brand-new architecture.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_SPEED_8A_550",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 900,
+      "stage_sizes": [25],
+      "stage_overrides": {
+        "max_steps": 550
+      },
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 900, "num_steps": 256, "gamma": 0.995}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 8,
+        "hidden_size": 192,
+        "step_penalty": 0.00016,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 3000000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 3000000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP8-SPEED-8A-550",
+        "tags": ["distance-bonus", "multi-ant", "eight-ants", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",

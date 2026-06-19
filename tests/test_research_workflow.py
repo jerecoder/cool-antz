@@ -110,6 +110,9 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_SHARP_TEMP_CONFIRM_GRID",
         "DISTANCE_CAP4_SHARP_TEMP_HIGH_GRID",
         "DISTANCE_CAP4_SHARP_TEMP_TOP3_CONFIRM",
+        "DISTANCE_CAP4_SPEED_4A_800",
+        "DISTANCE_CAP4_SPEED_4A_550",
+        "DISTANCE_CAP8_SPEED_8A_550",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -140,6 +143,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "movement_mode_alignment",
         "seed_robustness",
         "deployment_policy",
+        "efficiency_finetune",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -421,6 +425,49 @@ def test_research_loop_plan_can_change_cookie_distance_and_stage_sizes() -> None
 
     assert near["stages"][-1]["cookie_distance"] < 12
     assert fine["stage_sizes"][-4:] == [22, 23, 24, 25]
+
+
+def test_research_loop_plan_can_target_short_horizon_speed() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    four_ant = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_SPEED_4A_550",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    eight_ant = build_research_experiment_plan(
+        run_id="DISTANCE_CAP8_SPEED_8A_550",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+
+    four_parsed = parse_args(four_ant["common_args"])
+    eight_parsed = parse_args(eight_ant["common_args"])
+
+    assert four_ant["family"] == "efficiency_finetune"
+    assert four_ant["stage_sizes"] == [25]
+    assert four_ant["stages"][0]["max_steps"] == 550
+    assert four_ant["stages"][0]["global_update_cap"] == 1000
+    assert four_ant["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert four_parsed.num_ants == 4
+    assert four_parsed.step_penalty == 0.00035
+    assert four_ant["evaluation"]["action_modes"][0]["move_temperature"] == 1.1
+
+    assert eight_ant["family"] == "efficiency_finetune"
+    assert eight_ant["stage_sizes"] == [25]
+    assert eight_ant["stages"][0]["max_steps"] == 550
+    assert eight_ant["stages"][0]["global_update_cap"] == 900
+    assert eight_ant["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert eight_parsed.num_ants == 8
+    assert eight_parsed.step_penalty == 0.00016
 
 
 def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> None:

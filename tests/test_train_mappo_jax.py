@@ -1133,6 +1133,90 @@ def test_jax_evaluate_checkpoint_uses_transfer_adapter_for_legacy_shapes(tmp_pat
     assert set(metrics) >= {"eval_success_rate", "eval_mean_delivered_fraction"}
 
 
+def test_jax_checkpoint_transfer_can_increase_ant_count_for_critic(tmp_path) -> None:
+    write_bits = 1
+    radius = 1
+    hidden_size = 8
+    source_num_ants = 4
+    target_num_ants = 8
+    obs_height = 25
+    obs_width = 25
+    source_central_dim = central_obs_dim_with_ants_count(
+        num_ants=source_num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    target_central_dim = central_obs_dim_with_ants_count(
+        num_ants=target_num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=source_central_dim,
+        actor_obs_dim=actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+    )
+    source_path = tmp_path / "four_ant.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=radius,
+            width=obs_width,
+            height=obs_height,
+            obs_width=obs_width,
+            obs_height=obs_height,
+            num_ants=source_num_ants,
+            food_count=23,
+            food_sources=6,
+            max_steps=2500,
+            save_model=source_path,
+        ),
+        central_obs_dim=source_central_dim,
+        actor_obs_dim=actor_obs_dim,
+        run_name="four_ant",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=target_central_dim,
+        actor_obs_dim=actor_obs_dim,
+        target_write_bits=write_bits,
+        actor_vision_radius=radius,
+    )
+
+    transferred = checkpoint["params"]
+    source_weight = np.asarray(source_params.critic_body[0].weight)
+    target_weight = np.asarray(transferred.critic_body[0].weight)
+    grid_area = obs_height * obs_width
+    source_maps_start = 7 * source_num_ants
+    target_maps_start = 7 * target_num_ants
+    np.testing.assert_allclose(target_weight[: 2 * source_num_ants], source_weight[:8])
+    np.testing.assert_allclose(
+        target_weight[2 * target_num_ants : 2 * target_num_ants + source_num_ants],
+        source_weight[2 * source_num_ants : 3 * source_num_ants],
+    )
+    np.testing.assert_allclose(
+        target_weight[target_maps_start : target_maps_start + 3 * grid_area],
+        source_weight[source_maps_start : source_maps_start + 3 * grid_area],
+    )
+    np.testing.assert_allclose(
+        target_weight[2 * source_num_ants : 2 * target_num_ants],
+        np.zeros((2 * (target_num_ants - source_num_ants), hidden_size), dtype=np.float32),
+    )
+    assert checkpoint["central_obs_dim"] == target_central_dim
+    assert checkpoint["actor_obs_dim"] == actor_obs_dim
+
+
 def test_jax_communication_probe_writes_checkpoint_schema(tmp_path) -> None:
     args = parse_args(
         [
@@ -1966,6 +2050,9 @@ def test_jax_evaluate_params_reports_delivery_metrics() -> None:
     assert metrics["eval_mean_delivered_fraction"] == 1.0
     assert metrics["eval_mean_episode_return"] == 1.0
     assert metrics["eval_mean_episode_length"] == 2.0
+    assert metrics["eval_mean_steps_per_delivered_food"] == 2.0
+    assert metrics["eval_mean_ant_steps_per_delivered_food"] == 2.0
+    assert metrics["eval_mean_delivered_food_per_1000_ant_steps"] == 500.0
 
 
 def test_jax_evaluate_params_shuffles_colony_and_cookie_sources_by_default(
