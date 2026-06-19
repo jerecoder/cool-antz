@@ -434,6 +434,39 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_LONG_CREDIT_ENTROPY_PENALTY",
+      "priority": 14,
+      "mode": "forage_curriculum",
+      "family": "entropy_penalty",
+      "title": "Collapse successful sampled routes toward argmax with entropy penalty",
+      "hypothesis": "The best current policies clear shuffled 25x25 almost perfectly when sampled, so successful trajectories already exist in the policy distribution. The remaining failure is that deterministic argmax does not reliably choose those route actions. A small negative entropy coefficient should penalize diffuse action distributions and concentrate successful sampled behavior onto the mode without forcing every rollout action to be greedy.",
+      "intervention": "Load the DISTANCE_CAP4_LONG_CREDIT_GENTLE_GREEDY checkpoint, train only the standard 25x25 distribution for 600 updates, keep gamma 0.999, gae_lambda 0.98, and num_steps 384, set ent_coef to -0.0005, use a conservative learning_rate 0.00002 and clip_coef 0.08, and keep four ants with distance_bonus 0.02.",
+      "success_signal": "The strengthened 8+8 held-out gate should beat 16/23 deterministic delivery while sampled delivery remains near 23/23.",
+      "report_notes": "Tests whether explicit entropy minimization is a cleaner argmax-alignment mechanism than greedy rollout mixing. This keeps the task distribution fixed and changes only the policy regularization pressure.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_ENTROPY_PENALTY",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_GENTLE_GREEDY/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 600,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 600, "num_steps": 384, "gamma": 0.999}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "gamma": 0.999,
+        "gae_lambda": 0.98,
+        "ent_coef": -0.0005,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00002,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-LONG-CREDIT-ENTROPY-PENALTY",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "gamma999", "entropy-penalty", "mode-alignment"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
