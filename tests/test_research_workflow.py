@@ -115,6 +115,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP8_SPEED_8A_550",
         "DISTANCE_CAP12_SPEED_12A_550",
         "DISTANCE_CAP16_SPEED_16A_550",
+        "DISTANCE_CAP16_SPEED_TEMP_GRID",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
@@ -611,6 +612,26 @@ def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> N
     top3_modes = top3_plan["evaluation"]["action_modes"]
     assert [mode["move_temperature"] for mode in top3_modes] == [1.1, 1.25, 1.4]
     assert [mode["episodes"] for mode in top3_modes] == [128, 128, 128]
+
+    speed_temp_plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP16_SPEED_TEMP_GRID",
+        run_root=tmp_path / "loop",
+        wandb_mode="disabled",
+    )
+
+    speed_temp_modes = speed_temp_plan["evaluation"]["action_modes"]
+    assert speed_temp_plan["mode"] == "checkpoint_evaluation"
+    assert speed_temp_plan["source_checkpoint"].endswith(
+        "DISTANCE_CAP16_SPEED_16A_550/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert [mode["move_temperature"] for mode in speed_temp_modes] == [
+        0.9,
+        1.1,
+        1.3,
+        1.5,
+        1.8,
+    ]
+    assert len({mode["seed_offset"] for mode in speed_temp_modes}) == 1
 
 
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:
