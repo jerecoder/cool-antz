@@ -89,6 +89,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "CAPACITY4",
         "DISTANCE_CAP4",
         "DISTANCE_CAP4_SHARP",
+        "DISTANCE_CAP4_BALANCED",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -171,6 +172,20 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert parsed.distance_bonus == 0.02
     assert parsed.ent_coef == 0.001
     assert parsed.clip_coef == 0.15
+
+    balanced = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_BALANCED",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    balanced_parsed = parse_args(balanced["common_args"])
+
+    assert "moderate entropy" in balanced["title"].lower()
+    assert balanced["stages"][-1]["global_update_cap"] == 1500
+    assert balanced_parsed.ent_coef == 0.003
+    assert balanced_parsed.clip_coef == 0.15
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:

@@ -150,8 +150,37 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_BALANCED",
       "priority": 4,
+      "mode": "forage_curriculum",
+      "family": "policy_sharpening",
+      "title": "Distance plus four ants with moderate entropy sharpening",
+      "hypothesis": "DISTANCE_CAP4_SHARP greatly improved greedy delivery but slightly reduced sampled full-clear performance. A moderate entropy coefficient may preserve more stochastic exploration while still sharpening the useful route actions enough for greedy evaluation.",
+      "intervention": "Use the same standard 25x25 distribution and late-stage consolidation as DISTANCE_CAP4_SHARP, but set ent_coef to 0.003 rather than 0.001 while keeping clip_coef 0.15.",
+      "success_signal": "Beat DISTANCE_CAP4_SHARP's extended balance by keeping deterministic delivery near or above 16 while pushing sampled delivery back to a clean 23-food full-clear regime.",
+      "report_notes": "Tests the entropy tradeoff directly after discovering that low entropy improves greedy behavior but weakens live large-stage training.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_BALANCED",
+      "global_update_cap": 950,
+      "stage_training_profile": [
+        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
+        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
+        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.003,
+        "clip_coef": 0.15
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-BALANCED",
+        "tags": ["distance-bonus", "multi-ant", "moderate-entropy", "policy-sharpening"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 5,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",
