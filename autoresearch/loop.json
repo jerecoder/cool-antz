@@ -559,6 +559,36 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_SEED2",
+      "priority": 18,
+      "mode": "forage_curriculum",
+      "family": "seed_robustness",
+      "title": "Replicate the winning SHARP recipe with a second seed",
+      "hypothesis": "The low-entropy SHARP curriculum is still the strongest robust deterministic policy, while fine-tunes and observability changes mostly preserve sampled solving but fail argmax. The remaining variance may come from the full curriculum trajectory and initialization seed. Re-running the exact winning recipe with a second seed tests whether a better deterministic mode can emerge without changing the algorithm.",
+      "intervention": "Train from scratch with the same settings as DISTANCE_CAP4_SHARP: distance_bonus 0.02, four ants, radius-1 actor vision, hidden size 192, moving writes, random layouts, ent_coef 0.001, clip_coef 0.15, and 1500 updates on high-end stages. Only change seed from 1 to 2.",
+      "success_signal": "The strengthened 8+8 held-out gate should match or beat DISTANCE_CAP4_SHARP, ideally with deterministic delivery above 16/23 and sampled delivery above 22/23.",
+      "report_notes": "Tests seed sensitivity of the best-performing algorithmic recipe. A win gives a better checkpoint; a loss supports reporting SHARP as a strong but seed-sensitive curriculum result.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_SEED2",
+      "global_update_cap": 950,
+      "stage_training_profile": [
+        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
+        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
+        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "seed": 2,
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-SEED2",
+        "tags": ["distance-bonus", "multi-ant", "low-entropy", "policy-sharpening", "seed-replication"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
