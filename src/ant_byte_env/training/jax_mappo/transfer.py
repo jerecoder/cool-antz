@@ -64,15 +64,12 @@ def load_checkpoint_for_training(
             "actor_obs_dim": actor_obs_dim,
         }
 
-    source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
-    if source_actor_vision_radius != actor_vision_radius:
-        raise ValueError("Checkpoint actor vision radius does not match this run.")
-
     source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
+    source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
     source_shape = _actor_obs_source_shape(
         actor_obs_dim=source_actor_obs_dim,
         write_bits=source_write_bits,
-        actor_vision_radius=actor_vision_radius,
+        actor_vision_radius=source_actor_vision_radius,
     )
     if source_shape is None:
         raise ValueError("Checkpoint actor observation dimension does not match its write-bit config.")
@@ -81,11 +78,17 @@ def load_checkpoint_for_training(
         params,
         old_bits=source_write_bits,
         target_bits=target_write_bits,
-        actor_vision_radius=actor_vision_radius,
+        actor_vision_radius=source_actor_vision_radius,
         source_includes_ants_count=source_shape["include_ants_count"],
         source_includes_orientation=source_shape["include_orientation"],
         source_layout=source_shape["layout"],
         write_head_transfer=write_head_transfer,
+    )
+    params = resize_params_for_actor_vision_radius(
+        params,
+        write_bits=target_write_bits,
+        source_actor_vision_radius=source_actor_vision_radius,
+        target_actor_vision_radius=actor_vision_radius,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_write_bits,
@@ -103,6 +106,7 @@ def load_checkpoint_for_training(
         "args": {
             **source_args,
             "write_bits": target_write_bits,
+            "actor_vision_radius": actor_vision_radius,
             "transfer_source_checkpoint": str(path),
             "write_head_transfer": write_head_transfer,
         },
@@ -496,6 +500,32 @@ def expand_params_for_write_bits(
     )
 
 
+def resize_params_for_actor_vision_radius(
+    params: JaxMAPPOParams,
+    *,
+    write_bits: int,
+    source_actor_vision_radius: int,
+    target_actor_vision_radius: int,
+) -> JaxMAPPOParams:
+    if source_actor_vision_radius == target_actor_vision_radius:
+        return params
+    return JaxMAPPOParams(
+        actor_body=(
+            resize_actor_input_layer_for_vision_radius(
+                params.actor_body[0],
+                write_bits=write_bits,
+                source_actor_vision_radius=source_actor_vision_radius,
+                target_actor_vision_radius=target_actor_vision_radius,
+            ),
+            params.actor_body[1],
+        ),
+        move_head=adapt_movement_head_layer(params.move_head),
+        write_head=params.write_head,
+        critic_body=params.critic_body,
+        value_head=params.value_head,
+    )
+
+
 def adapt_movement_head(params: JaxMAPPOParams) -> tuple[JaxMAPPOParams, bool]:
     move_head = adapt_movement_head_layer(params.move_head)
     if move_head is params.move_head:
@@ -664,6 +694,86 @@ def expand_actor_input_layer(
     if old_orientation is not None:
         new_weight = new_weight.at[new_orientation, :].set(old_weight[old_orientation, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
+def resize_actor_input_layer_for_vision_radius(
+    layer: LinearParams,
+    *,
+    write_bits: int,
+    source_actor_vision_radius: int,
+    target_actor_vision_radius: int,
+) -> LinearParams:
+    old_weight = jnp.asarray(layer.weight)
+    source_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=source_actor_vision_radius,
+    )
+    target_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=target_actor_vision_radius,
+    )
+    if old_weight.shape[0] != source_dim:
+        raise ValueError(f"Expected actor input dim {source_dim}, got {old_weight.shape[0]}.")
+
+    source_patch_size = actor_vision_patch_size(source_actor_vision_radius)
+    target_patch_size = actor_vision_patch_size(target_actor_vision_radius)
+    channel_count = write_bits + 4
+    new_weight = jnp.zeros((target_dim, old_weight.shape[1]), dtype=old_weight.dtype)
+    for channel_index in range(channel_count):
+        source = slice(
+            channel_index * source_patch_size,
+            (channel_index + 1) * source_patch_size,
+        )
+        target = slice(
+            channel_index * target_patch_size,
+            (channel_index + 1) * target_patch_size,
+        )
+        new_weight = copy_centered_actor_patch_channel_between_radii(
+            new_weight,
+            old_weight,
+            source=source,
+            target=target,
+            source_actor_vision_radius=source_actor_vision_radius,
+            target_actor_vision_radius=target_actor_vision_radius,
+        )
+
+    source_tail_start = channel_count * source_patch_size
+    target_tail_start = channel_count * target_patch_size
+    tail_width = 1 + FACING_FEATURE_COUNT
+    new_weight = new_weight.at[
+        target_tail_start : target_tail_start + tail_width,
+        :,
+    ].set(
+        old_weight[
+            source_tail_start : source_tail_start + tail_width,
+            :,
+        ]
+    )
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
+def copy_centered_actor_patch_channel_between_radii(
+    new_weight: jnp.ndarray,
+    old_weight: jnp.ndarray,
+    *,
+    source: slice,
+    target: slice,
+    source_actor_vision_radius: int,
+    target_actor_vision_radius: int,
+) -> jnp.ndarray:
+    source_width = 2 * source_actor_vision_radius + 1
+    target_width = 2 * target_actor_vision_radius + 1
+    shared_radius = min(source_actor_vision_radius, target_actor_vision_radius)
+    for offset_y in range(-shared_radius, shared_radius + 1):
+        for offset_x in range(-shared_radius, shared_radius + 1):
+            source_index = (offset_y + source_actor_vision_radius) * source_width
+            source_index += offset_x + source_actor_vision_radius
+            target_index = (offset_y + target_actor_vision_radius) * target_width
+            target_index += offset_x + target_actor_vision_radius
+            new_weight = new_weight.at[target.start + target_index, :].set(
+                old_weight[source.start + source_index, :]
+            )
+    return new_weight
 
 
 def copy_actor_patch_channel(
