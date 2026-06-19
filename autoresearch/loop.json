@@ -818,6 +818,73 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_TEMP_CONFIRM_GRID",
+      "priority": 23,
+      "mode": "checkpoint_evaluation",
+      "family": "deployment_policy",
+      "title": "Larger same-seed temperature confirmation grid",
+      "hypothesis": "The 48-episode paired sweep favored movement temperature 1.25, but the 128-episode confirmation on a new seed stream regressed to 22.52/23 and 84.4% success. A larger same-seed grid across the leading temperatures should determine whether 1.25 is genuinely best or whether 1.0-1.1 is more robust.",
+      "intervention": "Do not retrain. Load the best DISTANCE_CAP4_SHARP checkpoint, keep write decisions greedy, and evaluate movement temperatures 0.90, 1.00, 1.10, 1.25, and 1.40 over 96 shuffled 25x25 episodes each using the same seed stream for every temperature.",
+      "success_signal": "Pick the policy with the best combined delivery, success, and episode length. The winner should stay above 22.5/23 delivered food over 96 episodes and ideally exceed 85% success.",
+      "report_notes": "This is the robustness sweep after the first confirmation gate. Use it to choose the deployment temperature rather than relying on the smaller 48-episode best case.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_TEMP_CONFIRM_GRID",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 2500000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 2500000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 2500000,
+            "move_temperature": 1.0
+          },
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 2500000,
+            "move_temperature": 1.1
+          },
+          {
+            "name": "sampled_move_t125_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 2500000,
+            "move_temperature": 1.25
+          },
+          {
+            "name": "sampled_move_t140_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 2500000,
+            "move_temperature": 1.4
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-TEMP-CONFIRM-GRID",
+        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "confirmation-grid", "deployment-policy"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
