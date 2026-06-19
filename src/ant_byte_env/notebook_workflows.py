@@ -638,6 +638,8 @@ def run_forage_curriculum(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     stage_metrics: list[dict[str, Any]] = []
     stage_checkpoint_paths: list[Path] = []
+    terminal_stage_checkpoint_paths: list[Path] = []
+    best_stage_checkpoint_paths: list[Path] = []
     previous_checkpoint = Path(initial_checkpoint) if initial_checkpoint is not None else None
     if previous_checkpoint is not None and not previous_checkpoint.exists():
         raise FileNotFoundError(f"initial forage checkpoint does not exist: {previous_checkpoint}")
@@ -693,6 +695,16 @@ def run_forage_curriculum(
             print(f"Training stage {stage_index}/{len(stages)}: {stage['name']}")
             print("First update for this shape may compile; progress starts after it returns.")
             checkpoint_path = checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl"
+            best_checkpoint_path = (
+                checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}_best.pkl"
+                if bool(
+                    stage.get(
+                        "save_best_checkpoint",
+                        stage.get("select_best_checkpoint", False),
+                    )
+                )
+                else None
+            )
             progress = stage_update_progress(str(stage["name"]), stage_update_cap)
             last_progress_update = 0
 
@@ -726,6 +738,8 @@ def run_forage_curriculum(
                     "curriculum_global_step": curriculum_step,
                     "checkpoint": str(checkpoint_path),
                 }
+                if best_checkpoint_path is not None:
+                    row["best_checkpoint"] = str(best_checkpoint_path)
                 stage_metrics.append(row)
                 tracker.log_metrics(row, step=curriculum_step)
 
@@ -752,6 +766,17 @@ def run_forage_curriculum(
                 train_args.extend(["--num-steps", str(int(stage["num_steps"]))])
             if "gamma" in stage:
                 train_args.extend(["--gamma", str(float(stage["gamma"]))])
+            if best_checkpoint_path is not None:
+                train_args.extend(
+                    [
+                        "--save-best-model",
+                        str(best_checkpoint_path),
+                        "--best-model-metric",
+                        str(stage.get("best_checkpoint_metric", "episode_return")),
+                        "--best-model-mode",
+                        str(stage.get("best_checkpoint_mode", "max")),
+                    ]
+                )
             if previous_checkpoint is not None:
                 train_args.extend(["--load-model", str(previous_checkpoint)])
 
@@ -760,15 +785,28 @@ def run_forage_curriculum(
             finally:
                 progress.close()
 
-            stage_checkpoint_paths.append(checkpoint_path)
+            terminal_stage_checkpoint_paths.append(checkpoint_path)
+            selected_checkpoint_path = checkpoint_path
+            if bool(stage.get("select_best_checkpoint", False)):
+                if best_checkpoint_path is None or not best_checkpoint_path.exists():
+                    raise FileNotFoundError(
+                        "stage requested best-checkpoint selection, but no best checkpoint "
+                        f"was written for {stage['name']}"
+                    )
+                selected_checkpoint_path = best_checkpoint_path
+            if best_checkpoint_path is not None and best_checkpoint_path.exists():
+                best_stage_checkpoint_paths.append(best_checkpoint_path)
+            stage_checkpoint_paths.append(selected_checkpoint_path)
             print(f"Saved checkpoint to {checkpoint_path}")
+            if selected_checkpoint_path != checkpoint_path:
+                print(f"Selected best checkpoint {selected_checkpoint_path}")
             if (
                 tracker.enabled
                 and _wandb_preview_enabled(wandb_video_max_frames)
                 and _wandb_preview_stage_enabled(stage["name"], wandb_video_stage_names)
             ):
                 preview_path = _render_forage_wandb_preview(
-                    checkpoint_path=checkpoint_path,
+                    checkpoint_path=selected_checkpoint_path,
                     checkpoint_dir=checkpoint_dir,
                     stage_index=stage_index,
                     max_frames=wandb_video_max_frames,
@@ -780,13 +818,15 @@ def run_forage_curriculum(
                     + int(float(final_train_metrics.get("global_step", 0.0))),
                 )
             curriculum_step_base += stage_update_timesteps * stage_update_cap
-            previous_checkpoint = checkpoint_path
+            previous_checkpoint = selected_checkpoint_path
     finally:
         tracker.finish()
 
     return {
         "stage_metrics": stage_metrics,
         "stage_checkpoint_paths": stage_checkpoint_paths,
+        "terminal_stage_checkpoint_paths": terminal_stage_checkpoint_paths,
+        "best_stage_checkpoint_paths": best_stage_checkpoint_paths,
         "final_checkpoint_path": previous_checkpoint,
         "final_train_metrics": final_train_metrics,
     }

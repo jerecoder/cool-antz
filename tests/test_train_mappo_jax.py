@@ -49,6 +49,7 @@ from ant_byte_env.training.jax_mappo import (
     save_checkpoint,
     write_value_count,
 )
+from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.transfer import (
     adapt_movement_head_layer,
     actor_obs_dim_for_bits,
@@ -2361,6 +2362,25 @@ def test_jax_parse_args_accepts_log_interval() -> None:
     assert args.log_interval == 10
 
 
+def test_jax_parse_args_accepts_best_model_options(tmp_path: Path) -> None:
+    best_path = tmp_path / "best.pkl"
+
+    args = parse_args(
+        [
+            "--save-best-model",
+            str(best_path),
+            "--best-model-metric",
+            "episode_return",
+            "--best-model-mode",
+            "max",
+        ]
+    )
+
+    assert args.save_best_model == best_path
+    assert args.best_model_metric == "episode_return"
+    assert args.best_model_mode == "max"
+
+
 def test_jax_parse_args_accepts_deterministic_rollout_fraction() -> None:
     args = parse_args(["--deterministic-rollout-fraction", "0.25"])
 
@@ -2602,6 +2622,59 @@ def test_tiny_jax_mappo_training_logs_wandb_when_enabled(
     assert fake_run.logs[-1][0]["global_step"] == 8.0
     assert fake_run.artifacts
     assert fake_run.finished is True
+
+
+def test_tiny_jax_mappo_training_saves_best_checkpoint(tmp_path: Path) -> None:
+    final_path = tmp_path / "model.pkl"
+    best_path = tmp_path / "model_best.pkl"
+
+    metrics = main(
+        [
+            "--total-timesteps",
+            "8",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--num-minibatches",
+            "1",
+            "--update-epochs",
+            "1",
+            "--width",
+            "4",
+            "--height",
+            "4",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "8",
+            "--hidden-size",
+            "16",
+            "--seed",
+            "7",
+            "--save-model",
+            str(final_path),
+            "--save-best-model",
+            str(best_path),
+            "--best-model-metric",
+            "episode_return",
+            "--quiet",
+        ],
+    )
+
+    assert metrics["global_step"] == 8
+    assert final_path.exists()
+    assert best_path.exists()
+    checkpoint = read_checkpoint(best_path)
+    assert checkpoint["args"]["save_best_model"] == str(best_path)
+    assert checkpoint["metrics"]["best_model_metric_value"] == checkpoint["metrics"][
+        "episode_return"
+    ]
+    assert checkpoint["metrics"]["best_model_update"] in {1.0, 2.0}
 
 
 def test_jax_training_carries_episode_state_across_updates() -> None:

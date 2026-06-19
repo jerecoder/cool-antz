@@ -197,6 +197,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--save-model", type=Path, default=None)
+    parser.add_argument(
+        "--save-best-model",
+        type=Path,
+        default=None,
+        help=(
+            "Optionally overwrite this checkpoint whenever --best-model-metric "
+            "improves at a logged training update."
+        ),
+    )
+    parser.add_argument(
+        "--best-model-metric",
+        type=str,
+        default="episode_return",
+        help="Logged metric used to choose --save-best-model checkpoints.",
+    )
+    parser.add_argument(
+        "--best-model-mode",
+        choices=["max", "min"],
+        default="max",
+        help="Whether larger or smaller --best-model-metric values are better.",
+    )
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
         "--run-dir",
@@ -246,6 +267,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--hidden-size must be positive.")
     if args.log_interval <= 0:
         raise ValueError("--log-interval must be positive.")
+    if args.save_best_model is not None and not args.best_model_metric:
+        raise ValueError(
+            "--best-model-metric must be non-empty when --save-best-model is set."
+        )
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:

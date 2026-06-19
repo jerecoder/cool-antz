@@ -150,6 +150,19 @@ def _should_report_update(*, update: int, num_updates: int, log_interval: int) -
     return update == 1 or update == num_updates or update % log_interval == 0
 
 
+def _metric_is_better(
+    *,
+    value: float,
+    best_value: float | None,
+    mode: str,
+) -> bool:
+    if best_value is None:
+        return True
+    if mode == "min":
+        return value < best_value
+    return value > best_value
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -260,6 +273,8 @@ def main(
         "value_loss": 0.0,
         "episode_return": 0.0,
     }
+    best_model_metric_value: float | None = None
+    best_model_metrics: dict[str, float] | None = None
 
     try:
         for update in range(1, num_updates + 1):
@@ -294,6 +309,40 @@ def main(
                     "num_updates": num_updates,
                     **final_metrics,
                 }
+                if args.save_best_model is not None:
+                    if args.best_model_metric not in final_metrics:
+                        raise ValueError(
+                            f"best model metric {args.best_model_metric!r} "
+                            "was not reported by this training loop."
+                        )
+                    metric_value = float(final_metrics[args.best_model_metric])
+                    if _metric_is_better(
+                        value=metric_value,
+                        best_value=best_model_metric_value,
+                        mode=args.best_model_mode,
+                    ):
+                        best_model_metric_value = metric_value
+                        best_model_metrics = {
+                            **final_metrics,
+                            "best_model_metric_value": metric_value,
+                            "best_model_update": float(update),
+                            "best_model_global_step": float(global_step),
+                        }
+                        save_checkpoint(
+                            args.save_best_model,
+                            params=params,
+                            opt_state=opt_state,
+                            args=args,
+                            central_obs_dim=central_obs_dim,
+                            actor_obs_dim=actor_obs_dim,
+                            run_name=run_name,
+                            metrics=best_model_metrics,
+                        )
+                    logged_metrics.update(
+                        {
+                            "best_model_metric_value": float(best_model_metric_value),
+                        }
+                    )
                 if progress_callback is not None:
                     progress_callback(update, num_updates, final_metrics)
                 tracker.log_metrics(logged_metrics, step=global_step)
@@ -327,15 +376,31 @@ def main(
                 artifact_type="model",
                 aliases=["latest"],
             )
+        if args.save_best_model is not None and args.save_best_model.exists():
+            tracker.log_artifact(
+                "jax-mappo-best-checkpoint",
+                args.save_best_model,
+                artifact_type="model",
+                aliases=["best"],
+            )
         if summary_path is not None:
+            summary = {
+                "backend": "jax",
+                "run_name": run_name,
+                "metrics": final_metrics,
+                "checkpoint_path": args.save_model,
+            }
+            if args.save_best_model is not None:
+                summary.update(
+                    {
+                        "best_checkpoint_path": args.save_best_model,
+                        "best_checkpoint_metric": args.best_model_metric,
+                        "best_checkpoint_metrics": best_model_metrics,
+                    }
+                )
             write_json(
                 summary_path,
-                {
-                    "backend": "jax",
-                    "run_name": run_name,
-                    "metrics": final_metrics,
-                    "checkpoint_path": args.save_model,
-                },
+                summary,
             )
         return final_metrics
     finally:

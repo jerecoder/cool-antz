@@ -126,6 +126,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_DENSE2_430",
         "DISTANCE_CAP24_SPEED_DENSE2_TRAIL_430",
         "DISTANCE_CAP24_SPEED_SOURCES16_430",
+        "DISTANCE_CAP24_SPEED_BEST_SELECT_430",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -159,6 +160,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "seed_robustness",
         "deployment_policy",
         "efficiency_finetune",
+        "checkpoint_selection",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -522,6 +524,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    best_select = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_BEST_SELECT_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -648,6 +657,20 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     )
     assert sources16_parsed.num_ants == 24
     assert sources16_parsed.completion_bonus == 1.5
+
+    best_select_parsed = parse_args(best_select["common_args"])
+    assert best_select["family"] == "checkpoint_selection"
+    assert best_select["stage_sizes"] == [25]
+    assert best_select["stages"][0]["food_sources"] == 12
+    assert best_select["stages"][0]["max_steps"] == 430
+    assert best_select["stages"][0]["save_best_checkpoint"] is True
+    assert best_select["stages"][0]["select_best_checkpoint"] is True
+    assert best_select["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_BEST_SELECT_430/checkpoints/jax_mappo_forage_stage1_25x25_best.pkl"
+    )
+    assert best_select_parsed.num_ants == 24
+    assert best_select_parsed.completion_bonus == 1.5
+    assert best_select_parsed.log_interval == 10
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"

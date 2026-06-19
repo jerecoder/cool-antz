@@ -542,6 +542,78 @@ def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
     assert tracker.finished is True
 
 
+def test_forage_curriculum_can_select_best_stage_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    captured_args: list[list[str]] = []
+
+    def fake_train_main(args: list[str], progress_callback):
+        captured_args.append(args)
+        checkpoint_path = Path(args[args.index("--save-model") + 1])
+        best_checkpoint_path = Path(args[args.index("--save-best-model") + 1])
+        assert args[args.index("--best-model-metric") + 1] == "episode_return"
+        assert args[args.index("--best-model-mode") + 1] == "max"
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_path.write_bytes(b"terminal")
+        best_checkpoint_path.write_bytes(b"best")
+        progress_callback(
+            1,
+            1,
+            {
+                "global_step": 64.0,
+                "loss": 0.1,
+                "episode_return": 2.0,
+                "env_return": 1.0,
+            },
+        )
+        return {"global_step": 64.0, "loss": 0.1, "episode_return": 2.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+
+    stage = {
+        **workflows.build_forage_curriculum_stages((4,))[0],
+        "save_best_checkpoint": True,
+        "select_best_checkpoint": True,
+        "best_checkpoint_metric": "episode_return",
+        "best_checkpoint_mode": "max",
+    }
+    result = workflows.run_forage_curriculum(
+        stages=[stage],
+        checkpoint_dir=tmp_path / "checkpoints",
+        common_args=["--num-envs", "1", "--num-steps", "64"],
+        update_timesteps_per_stage=64,
+        global_update_cap=1,
+        train_main=fake_train_main,
+        wandb_video_max_frames=0,
+    )
+
+    terminal_path = tmp_path / "checkpoints" / "jax_mappo_forage_stage1_4x4.pkl"
+    best_path = tmp_path / "checkpoints" / "jax_mappo_forage_stage1_4x4_best.pkl"
+    assert captured_args[0][captured_args[0].index("--save-best-model") + 1] == str(
+        best_path
+    )
+    assert result["terminal_stage_checkpoint_paths"] == [terminal_path]
+    assert result["best_stage_checkpoint_paths"] == [best_path]
+    assert result["stage_checkpoint_paths"] == [best_path]
+    assert result["final_checkpoint_path"] == best_path
+    assert result["stage_metrics"][0]["best_checkpoint"] == str(best_path)
+
+
 def test_forage_curriculum_limits_wandb_previews_to_selected_stages(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
