@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -153,13 +154,18 @@ def execute_research_experiment_plan(
     *,
     train_main: Callable[..., dict[str, float]] | None = None,
     run_curriculum: Callable[..., dict[str, Any]] | None = None,
+    evaluate_checkpoint: Callable[..., dict[str, float]] | None = None,
     check_resources: bool = True,
     resume_completed: bool = True,
+    min_disk_free_gb: float = 5.0,
 ) -> dict[str, Any]:
     """Run one research-loop experiment and persist its plan, note, and summary."""
 
     if check_resources:
-        assert_autoresearch_resources_available()
+        assert_autoresearch_resources_available(
+            min_disk_free_gb=min_disk_free_gb,
+            context=f"research loop {plan['id']}",
+        )
     if train_main is None:
         from ant_byte_env.training.jax_mappo.runner import main as train_main
 
@@ -189,12 +195,28 @@ def execute_research_experiment_plan(
             note_path=note_path,
         )
 
-    payload = {
+    payload: dict[str, Any] = {
         **summary,
         "plan_path": str(plan_path),
         "note_path": str(note_path),
         "summary_path": str(summary_path),
     }
+    evaluation_path = run_dir / "evaluation.json"
+    evaluation = _evaluate_research_plan_checkpoint(
+        plan,
+        summary=payload,
+        evaluate_checkpoint=evaluate_checkpoint,
+    )
+    if evaluation:
+        write_json(evaluation_path, evaluation)
+        payload["evaluation"] = evaluation
+        payload["evaluation_path"] = str(evaluation_path)
+    write_json(summary_path, payload)
+    payload["research_artifacts"] = _log_sidecar_research_artifacts(
+        plan=plan,
+        paths=[note_path, plan_path, summary_path, *([evaluation_path] if evaluation else [])],
+        evaluation=evaluation,
+    )
     write_json(summary_path, payload)
     return payload
 
@@ -209,6 +231,7 @@ def run_research_experiment(
     num_steps: int | None = None,
     wandb_project: str | None = None,
     wandb_mode: str | None = None,
+    min_disk_free_gb: float = 5.0,
     check_resources: bool = True,
     resume_completed: bool = True,
 ) -> dict[str, Any]:
@@ -228,7 +251,92 @@ def run_research_experiment(
         plan,
         check_resources=check_resources,
         resume_completed=resume_completed,
+        min_disk_free_gb=min_disk_free_gb,
     )
+
+
+def run_research_loop(
+    *,
+    matrix_path: Path = DEFAULT_RESEARCH_LOOP_MATRIX,
+    run_root: Path | None = None,
+    run_ids: Sequence[str] | None = None,
+    max_runs: int | None = None,
+    global_update_cap: int | None = None,
+    num_envs: int | None = None,
+    num_steps: int | None = None,
+    wandb_project: str | None = None,
+    wandb_mode: str | None = None,
+    min_disk_free_gb: float = 5.0,
+    check_resources: bool = True,
+    resume_completed: bool = True,
+) -> dict[str, Any]:
+    """Run pending active-loop experiments in priority order and write a ledger."""
+
+    matrix = load_research_loop_matrix(matrix_path)
+    entries = sorted(
+        [research_loop_entry(matrix, run_id=str(entry["id"])) for entry in matrix["experiments"]],
+        key=lambda entry: (int(entry.get("priority", 100)), str(entry["id"])),
+    )
+    requested = {str(run_id) for run_id in run_ids or []}
+    selected = [entry for entry in entries if not requested or str(entry["id"]) in requested]
+    if max_runs is not None:
+        if int(max_runs) <= 0:
+            raise ValueError("max_runs must be positive when provided.")
+        selected = selected[: int(max_runs)]
+
+    ledger_root = Path(str(matrix.get("run_root", "runs/autoresearch/forage_loop")))
+    if run_root is not None:
+        ledger_root = Path(run_root)
+    ledger_root.mkdir(parents=True, exist_ok=True)
+    ledger_path = ledger_root / "ledger.json"
+    ledger_jsonl_path = ledger_root / "ledger.jsonl"
+
+    results: list[dict[str, Any]] = []
+    for entry in selected:
+        run_id = str(entry["id"])
+        summary = run_research_experiment(
+            matrix_path=matrix_path,
+            run_id=run_id,
+            run_root=run_root,
+            global_update_cap=global_update_cap,
+            num_envs=num_envs,
+            num_steps=num_steps,
+            wandb_project=wandb_project,
+            wandb_mode=wandb_mode,
+            min_disk_free_gb=min_disk_free_gb,
+            check_resources=check_resources,
+            resume_completed=resume_completed,
+        )
+        ledger_row = {
+            "finished_at": _utc_now(),
+            "id": run_id,
+            "mode": summary.get("mode"),
+            "run_dir": summary.get("run_dir"),
+            "summary_path": summary.get("summary_path"),
+            "resumed": bool(summary.get("resumed", False)),
+            "score": _summary_score(summary),
+            "evaluation": summary.get("evaluation", {}),
+        }
+        results.append(ledger_row)
+        with ledger_jsonl_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(ledger_row, sort_keys=True) + "\n")
+        write_json(
+            ledger_path,
+            {
+                "matrix_path": str(matrix_path),
+                "updated_at": _utc_now(),
+                "run_count": len(results),
+                "results": results,
+            },
+        )
+
+    return {
+        "matrix_path": str(matrix_path),
+        "ledger_path": str(ledger_path),
+        "ledger_jsonl_path": str(ledger_jsonl_path),
+        "results": results,
+        "ranking": rank_research_loop_runs(matrix_path=matrix_path, run_ids=[row["id"] for row in results]),
+    }
 
 
 def rank_research_loop_runs(
@@ -252,10 +360,14 @@ def rank_research_loop_runs(
             continue
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         target_metrics = _target_stage_metrics(summary, target_stage=target_stage)
-        if not target_metrics:
+        evaluation = summary.get("evaluation", {})
+        eval_score = _evaluation_score(evaluation) if isinstance(evaluation, Mapping) else None
+        if not target_metrics and eval_score is None:
             missing.append(run_id)
             continue
-        score = _promotion_score(target_metrics)
+        score = eval_score if eval_score is not None else _promotion_score(target_metrics)
+        deterministic = evaluation.get("deterministic", {}) if isinstance(evaluation, Mapping) else {}
+        sampled = evaluation.get("sampled", {}) if isinstance(evaluation, Mapping) else {}
         rows.append(
             {
                 "id": run_id,
@@ -263,6 +375,26 @@ def rank_research_loop_runs(
                 "family": entry.get("family", ""),
                 "target_stage": target_stage,
                 "score": score,
+                "eval_deterministic_return": float(
+                    deterministic.get("eval_mean_episode_return", 0.0)
+                    if isinstance(deterministic, Mapping)
+                    else 0.0
+                ),
+                "eval_sampled_return": float(
+                    sampled.get("eval_mean_episode_return", 0.0)
+                    if isinstance(sampled, Mapping)
+                    else 0.0
+                ),
+                "eval_deterministic_delivered": float(
+                    deterministic.get("eval_mean_delivered_food", 0.0)
+                    if isinstance(deterministic, Mapping)
+                    else 0.0
+                ),
+                "eval_sampled_delivered": float(
+                    sampled.get("eval_mean_delivered_food", 0.0)
+                    if isinstance(sampled, Mapping)
+                    else 0.0
+                ),
                 "episode_return": float(target_metrics.get("episode_return", 0.0)),
                 "delivery_events": float(target_metrics.get("delivery_events", 0.0)),
                 "pickup_events": float(target_metrics.get("pickup_events", 0.0)),
@@ -297,6 +429,11 @@ def research_experiment_markdown(plan: Mapping[str, Any]) -> str:
         "",
         "## Success Signal",
         str(plan.get("success_signal", "")),
+        "",
+        "## Evaluation Gate",
+        "```json",
+        json.dumps(plan.get("evaluation", {}), indent=2, sort_keys=True),
+        "```",
         "",
         "## Report Notes",
         str(plan.get("report_notes", "")),
@@ -384,8 +521,9 @@ def _build_forage_research_plan(
         "resolved_args": {
             key: value
             for key, value in merged_args.items()
-            if key not in {"save_model", "load_model", "run_dir"}
+            if key not in RESEARCH_LOOP_ARG_EXCLUDES
         },
+        "evaluation": _research_evaluation_config(matrix=matrix, entry=entry),
         "wandb": _research_wandb_config(
             matrix=matrix,
             entry=entry,
@@ -463,6 +601,7 @@ def _build_autocurriculum_research_plan(
             for key, value in merged_args.items()
             if key not in {"save_model", "load_model", "run_dir"}
         },
+        "evaluation": _research_evaluation_config(matrix=matrix, entry=entry),
         "wandb": wandb,
     }
 
@@ -528,6 +667,7 @@ def _execute_autocurriculum_plan(
     plan_path: Path,
     note_path: Path,
 ) -> dict[str, Any]:
+    del plan_path, note_path
     checkpoint = Path(str(plan["checkpoint"]))
     resumed = bool(resume_completed and checkpoint.exists())
     if resumed:
@@ -538,11 +678,6 @@ def _execute_autocurriculum_plan(
         if "--wandb-notes" not in argv:
             argv.extend(["--wandb-notes", notes])
         train_metrics = train_main(argv)
-    artifact_log = _log_sidecar_research_artifacts(
-        plan=plan,
-        plan_path=plan_path,
-        note_path=note_path,
-    )
     return {
         "id": plan["id"],
         "mode": plan["mode"],
@@ -550,7 +685,6 @@ def _execute_autocurriculum_plan(
         "resumed": resumed,
         "checkpoint": str(checkpoint),
         "wandb": plan["wandb"],
-        "research_artifacts": artifact_log,
         "train_metrics": _jsonable(train_metrics),
     }
 
@@ -577,6 +711,19 @@ def _research_stages(
         for stage in stages:
             food_count = int(stage["food_count"])
             stage["food_sources"] = max(1, min(food_count, math.ceil(food_count / divisor)))
+
+    cookie_distance_scale = entry.get(
+        "cookie_distance_scale",
+        matrix.get("cookie_distance_scale"),
+    )
+    if cookie_distance_scale is not None:
+        scale = float(cookie_distance_scale)
+        if scale <= 0.0:
+            raise ValueError("cookie_distance_scale must be positive.")
+        for stage in stages:
+            size = int(stage["width"])
+            scaled = max(1, int(round(int(stage["cookie_distance"]) * scale)))
+            stage["cookie_distance"] = min(scaled, max(1, size // 2))
 
     profile = list(entry.get("stage_training_profile", matrix.get("stage_training_profile", [])))
     for stage in stages:
@@ -638,6 +785,27 @@ def _research_wandb_config(
     }
 
 
+def _research_evaluation_config(
+    *,
+    matrix: Mapping[str, Any],
+    entry: Mapping[str, Any],
+) -> dict[str, Any]:
+    payload = {
+        "deterministic_episodes": 8,
+        "sampled_episodes": 4,
+        "seed_offset": 1_000_000,
+        "shuffle_positions": True,
+    }
+    payload.update(dict(matrix.get("evaluation", {})))
+    payload.update(dict(entry.get("evaluation", {})))
+    return {
+        "deterministic_episodes": int(payload.get("deterministic_episodes", 0)),
+        "sampled_episodes": int(payload.get("sampled_episodes", 0)),
+        "seed_offset": int(payload.get("seed_offset", 1_000_000)),
+        "shuffle_positions": bool(payload.get("shuffle_positions", True)),
+    }
+
+
 def _wandb_argv(wandb: Mapping[str, Any]) -> list[str]:
     argv: list[str] = []
     if wandb.get("project") is not None:
@@ -694,11 +862,68 @@ def _promotion_score(metrics: Mapping[str, Any]) -> float:
     return episode_return + 0.02 * deliveries - 0.01 * remaining
 
 
+def _evaluate_research_plan_checkpoint(
+    plan: Mapping[str, Any],
+    *,
+    summary: Mapping[str, Any],
+    evaluate_checkpoint: Callable[..., dict[str, float]] | None,
+) -> dict[str, Any]:
+    evaluation = dict(plan.get("evaluation", {}))
+    deterministic_episodes = int(evaluation.get("deterministic_episodes", 0))
+    sampled_episodes = int(evaluation.get("sampled_episodes", 0))
+    if deterministic_episodes <= 0 and sampled_episodes <= 0:
+        return {}
+
+    checkpoint_value = summary.get("final_checkpoint") or summary.get("checkpoint")
+    if checkpoint_value is None:
+        return {
+            "error": "missing_checkpoint",
+            "deterministic_episodes": deterministic_episodes,
+            "sampled_episodes": sampled_episodes,
+        }
+    checkpoint_path = Path(str(checkpoint_value))
+    if not checkpoint_path.exists():
+        return {
+            "error": "missing_checkpoint_file",
+            "checkpoint": str(checkpoint_path),
+            "deterministic_episodes": deterministic_episodes,
+            "sampled_episodes": sampled_episodes,
+        }
+
+    if evaluate_checkpoint is None:
+        from ant_byte_env.training.jax_mappo.evaluation import evaluate_checkpoint
+
+    seed_offset = int(evaluation.get("seed_offset", 1_000_000))
+    shuffle_positions = bool(evaluation.get("shuffle_positions", True))
+    payload: dict[str, Any] = {
+        "checkpoint": str(checkpoint_path),
+        "shuffle_positions": shuffle_positions,
+        "seed_offset": seed_offset,
+    }
+    if deterministic_episodes > 0:
+        payload["deterministic"] = evaluate_checkpoint(
+            checkpoint_path,
+            num_episodes=deterministic_episodes,
+            seed_offset=seed_offset,
+            deterministic=True,
+            shuffle_positions=shuffle_positions,
+        )
+    if sampled_episodes > 0:
+        payload["sampled"] = evaluate_checkpoint(
+            checkpoint_path,
+            num_episodes=sampled_episodes,
+            seed_offset=seed_offset + 100_000,
+            deterministic=False,
+            shuffle_positions=shuffle_positions,
+        )
+    return payload
+
+
 def _log_sidecar_research_artifacts(
     *,
     plan: Mapping[str, Any],
-    plan_path: Path,
-    note_path: Path,
+    paths: Sequence[Path],
+    evaluation: Mapping[str, Any],
 ) -> dict[str, Any]:
     from ant_byte_env.wandb_tracking import WandbTracker
 
@@ -707,7 +932,7 @@ def _log_sidecar_research_artifacts(
         project=wandb.get("project"),
         entity=wandb.get("entity"),
         group=wandb.get("group"),
-        name=f"{wandb.get('name')}-research-files" if wandb.get("name") else None,
+        name=f"{wandb.get('name')}-research-ledger" if wandb.get("name") else None,
         tags=[*list(wandb.get("tags") or []), "research-files"],
         mode=str(wandb.get("mode", "online")),
         run_dir=Path(str(plan["run_dir"])),
@@ -719,18 +944,74 @@ def _log_sidecar_research_artifacts(
         },
         notes=str(plan.get("notes_markdown", "")),
     )
-    for path in (note_path, plan_path):
-        tracker.log_artifact(
-            f"research-{plan['id']}-{path.stem}",
-            path,
-            artifact_type="research-plan",
-            aliases=[str(plan["id"]), "latest"],
-        )
+    if evaluation:
+        tracker.log_metrics(_flatten_evaluation_metrics(evaluation))
+    was_enabled = tracker.enabled
+    for path in paths:
+        if path.exists():
+            tracker.log_artifact(
+                f"research-{plan['id']}-{path.stem}",
+                path,
+                artifact_type="research-plan",
+                aliases=[str(plan["id"]), "latest"],
+            )
     tracker.finish()
     return {
-        "enabled": tracker.enabled,
-        "logged_files": [str(note_path), str(plan_path)] if tracker.enabled else [],
+        "enabled": was_enabled,
+        "logged_files": [str(path) for path in paths if was_enabled and path.exists()],
     }
+
+
+def _flatten_evaluation_metrics(evaluation: Mapping[str, Any]) -> dict[str, float]:
+    flat: dict[str, float] = {}
+    for mode in ("deterministic", "sampled"):
+        metrics = evaluation.get(mode)
+        if not isinstance(metrics, Mapping):
+            continue
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)):
+                clean_key = str(key)
+                if clean_key.startswith("eval_"):
+                    clean_key = clean_key[len("eval_") :]
+                flat[f"evaluation/{mode}/{clean_key}"] = float(value)
+    if "score" in evaluation and isinstance(evaluation["score"], (int, float)):
+        flat["evaluation/score"] = float(evaluation["score"])
+    return flat
+
+
+def _summary_score(summary: Mapping[str, Any]) -> float:
+    evaluation = summary.get("evaluation", {})
+    if isinstance(evaluation, Mapping):
+        score = _evaluation_score(evaluation)
+        if score is not None:
+            return score
+
+    target_stage = str(summary.get("target_stage", "25x25"))
+    if "curriculum" in summary:
+        metrics = _target_stage_metrics(summary, target_stage=target_stage)
+    else:
+        metrics = {}
+    if metrics:
+        return _promotion_score(metrics)
+    return 0.0
+
+
+def _evaluation_score(evaluation: Mapping[str, Any]) -> float | None:
+    rows = [
+        metrics
+        for mode in ("deterministic", "sampled")
+        if isinstance((metrics := evaluation.get(mode)), Mapping)
+    ]
+    if not rows:
+        return None
+    mean_return = sum(float(row.get("eval_mean_episode_return", 0.0)) for row in rows) / len(rows)
+    mean_delivery = sum(float(row.get("eval_mean_delivered_food", 0.0)) for row in rows) / len(rows)
+    mean_fraction = sum(float(row.get("eval_mean_delivered_fraction", 0.0)) for row in rows) / len(rows)
+    return mean_return + 0.02 * mean_delivery + 0.5 * mean_fraction
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _jsonable(value: Any) -> Any:

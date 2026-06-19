@@ -1,15 +1,21 @@
 {
-  "name": "forage_25x25_improvement_loop",
+  "name": "forage_25x25_improvement_loop_v2",
   "base_config": "experiments/forage_curriculum.json",
   "run_root": "runs/autoresearch/forage_loop",
   "default_global_update_cap": 900,
-  "default_stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 22, 25],
+  "default_stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 22, 24, 25],
   "food_source_divisor": 4,
   "target": {
     "stage_name": "25x25",
-    "baseline": "The interrupted scaled-budget curriculum was still below 1.0 return at 25x25 and the latest saved 24x24 checkpoint had only 6 deliveries with 17.5 food remaining.",
+    "baseline": "Recent local summaries were still weak: autocurriculum stayed at active size 4 with episode_return around 0.42, and the latest forage-style 25x25-level summary showed about 0.16 return with two deliveries.",
     "minimum_promotion_episode_return": 3.0,
     "strong_promotion_episode_return": 5.0
+  },
+  "evaluation": {
+    "deterministic_episodes": 4,
+    "sampled_episodes": 2,
+    "seed_offset": 1000000,
+    "shuffle_positions": true
   },
   "default_args": {
     "num_envs": 8,
@@ -39,25 +45,46 @@
   ],
   "wandb": {
     "project": "cool-antz",
-    "group": "forage_25x25_improvement_loop",
+    "group": "forage_25x25_improvement_loop_v2",
     "mode": "online",
-    "tags": ["jax", "mappo", "forage-loop", "25x25-gate"]
+    "tags": ["jax", "mappo", "forage-loop-v2", "25x25-gate"]
   },
   "wandb_video": {
     "stage_names": ["15x15", "20x20", "25x25"],
-    "max_frames": 500
+    "max_frames": 240
   },
   "experiments": [
     {
-      "id": "CAPACITY4",
+      "id": "DISTANCE_SHAPE",
       "priority": 1,
+      "mode": "forage_curriculum",
+      "family": "reward_shaping",
+      "title": "Small dense progress reward without actor oracle inputs",
+      "hypothesis": "The 25x25 failure may be sparse navigation feedback. A tiny trainer-side distance-progress bonus can teach food-seeking and hub-return trajectories while leaving actor observations unchanged.",
+      "intervention": "Use distance_bonus 0.02, gamma 0.997, concentrated food, moving writes, and the standard 4x4 to 25x25 staged ladder.",
+      "success_signal": "Held-out 25x25 evaluation should show a large jump in delivered food and episode return, not merely more pickups.",
+      "report_notes": "If this wins, report it as reward-shaping for credit density rather than an easier observation space.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_SHAPE",
+      "global_update_cap": 900,
+      "args": {
+        "distance_bonus": 0.02,
+        "ent_coef": 0.006
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-SHAPE",
+        "tags": ["distance-bonus", "reward-shaping"]
+      }
+    },
+    {
+      "id": "CAPACITY4",
+      "priority": 2,
       "mode": "forage_curriculum",
       "family": "exploration_capacity",
       "title": "Four ants with the same local policy",
-      "hypothesis": "The sharp scale cliff is partly exploration throughput: one ant rarely sees enough food-hub transitions on 20x20-25x25 maps. Four ants should produce more pickups and deliveries without giving the actor oracle coordinates.",
+      "hypothesis": "The scale cliff is partly exploration throughput: one ant rarely sees enough food-hub transitions on 20x20-25x25 maps. Four ants should produce more pickups and deliveries without giving the actor oracle coordinates.",
       "intervention": "Increase num_ants from 1 to 4 while keeping radius-1 local observations, moving writes, concentrated food, and the long-horizon gamma profile.",
-      "success_signal": "At 25x25, deliveries and episode_return should be several times the single-ant baseline; remaining food should fall sharply.",
-      "report_notes": "If this wins, the report can say the bottleneck was not only optimizer budget; parallel embodied exploration changed the data distribution.",
+      "success_signal": "At 25x25, deliveries and evaluation return should be several times the single-ant baseline; remaining food should fall sharply.",
+      "report_notes": "This isolates embodied parallel exploration from observation changes.",
       "run_dir": "runs/autoresearch/forage_loop/CAPACITY4",
       "global_update_cap": 900,
       "args": {
@@ -72,7 +99,7 @@
     },
     {
       "id": "VISION2",
-      "priority": 2,
+      "priority": 3,
       "mode": "forage_curriculum",
       "family": "observation",
       "title": "Single ant with radius-2 local vision",
@@ -92,12 +119,33 @@
       }
     },
     {
+      "id": "NEAR_COOKIE",
+      "priority": 4,
+      "mode": "forage_curriculum",
+      "family": "cookie_distribution",
+      "title": "Shorter source-hub distances during scale-up",
+      "hypothesis": "The learner may fail because larger stages make first successful delivery loops too rare. Shorter cookie distances should increase complete pickup-delivery examples while still requiring navigation on 25x25.",
+      "intervention": "Scale per-stage cookie_distance by 0.5, preserve total food and random layouts, and keep all policy/trainer parameters otherwise close to baseline.",
+      "success_signal": "If delivery improves much more than pickup, route-length distribution was the bottleneck.",
+      "report_notes": "This explicitly tests cookie placement geometry, not model capacity.",
+      "run_dir": "runs/autoresearch/forage_loop/NEAR_COOKIE",
+      "global_update_cap": 900,
+      "cookie_distance_scale": 0.5,
+      "args": {
+        "ent_coef": 0.008
+      },
+      "wandb": {
+        "name": "loop-NEAR-COOKIE",
+        "tags": ["cookie-distance", "curriculum-geometry"]
+      }
+    },
+    {
       "id": "DENSE8",
-      "priority": 3,
+      "priority": 5,
       "mode": "forage_curriculum",
       "family": "food_distribution",
       "title": "Denser food sources for easier route consolidation",
-      "hypothesis": "The ant may not get enough repeated local evidence for the same route when food is spread over many sources. Fewer, richer sources should make the pickup-delivery behavior easier to consolidate before 25x25.",
+      "hypothesis": "The ant may not get enough repeated local evidence for the same route when food is spread over many sources. Fewer, richer sources should make pickup-delivery behavior easier to consolidate before 25x25.",
       "intervention": "Keep total food per stage but set food_source_divisor to 8, so larger maps have fewer source tiles with more bites per source.",
       "success_signal": "25x25 delivery_events should improve more than pickup_events; that would mean the agent is exploiting repeated source-hub trips.",
       "report_notes": "This tests distribution design rather than policy architecture.",
@@ -114,7 +162,7 @@
     },
     {
       "id": "GAMMA999",
-      "priority": 4,
+      "priority": 6,
       "mode": "forage_curriculum",
       "family": "credit_assignment",
       "title": "Higher gamma with longer rollouts",
@@ -142,8 +190,29 @@
       }
     },
     {
+      "id": "LADDER_FINE",
+      "priority": 7,
+      "mode": "forage_curriculum",
+      "family": "stage_schedule",
+      "title": "Finer high-end stage ladder",
+      "hypothesis": "The handoff from mid-size maps to 25x25 may be too abrupt. A ladder with dense stages from 18x18 through 25x25 should reduce forgetting and make final-stage behavior more stable.",
+      "intervention": "Use stage sizes 4,6,8,10,12,15,18,20,21,22,23,24,25 with the standard long-horizon profile.",
+      "success_signal": "Held-out 25x25 evaluation should improve even if per-stage training budgets are unchanged, indicating schedule smoothness matters.",
+      "report_notes": "This tests curriculum size spacing directly.",
+      "run_dir": "runs/autoresearch/forage_loop/LADDER_FINE",
+      "global_update_cap": 850,
+      "stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 21, 22, 23, 24, 25],
+      "args": {
+        "ent_coef": 0.008
+      },
+      "wandb": {
+        "name": "loop-LADDER-FINE",
+        "tags": ["stage-schedule", "fine-ladder"]
+      }
+    },
+    {
       "id": "VISION2_CAP4",
-      "priority": 5,
+      "priority": 8,
       "mode": "forage_curriculum",
       "family": "combined_capacity",
       "title": "Four ants plus radius-2 vision",
@@ -165,8 +234,31 @@
       }
     },
     {
+      "id": "BYTE_TRAIL",
+      "priority": 9,
+      "mode": "forage_curriculum",
+      "family": "memory_shaping",
+      "title": "Reward byte trails only when they support delivery",
+      "hypothesis": "Moving writes may be present but unused because there is no immediate reason to create persistent route marks. Small trail/follow bonuses can make byte memory useful without rewarding arbitrary writing.",
+      "intervention": "Add carrying_byte_write_bonus, byte_follow_bonus, and delivery_byte_trail_bonus while keeping one writable bit and moving writes.",
+      "success_signal": "A winning run should increase delivery return and maintain or improve write-to-delivery usefulness, not just write entropy.",
+      "report_notes": "This tests whether learned external memory helps long-horizon foraging.",
+      "run_dir": "runs/autoresearch/forage_loop/BYTE_TRAIL",
+      "global_update_cap": 900,
+      "args": {
+        "carrying_byte_write_bonus": 0.002,
+        "byte_follow_bonus": 0.003,
+        "delivery_byte_trail_bonus": 0.15,
+        "ent_coef": 0.006
+      },
+      "wandb": {
+        "name": "loop-BYTE-TRAIL",
+        "tags": ["byte-trail", "memory-shaping"]
+      }
+    },
+    {
       "id": "AUTO_STAGE",
-      "priority": 6,
+      "priority": 10,
       "mode": "autocurriculum",
       "base_config": "experiments/autocurriculum.json",
       "family": "autocurriculum",

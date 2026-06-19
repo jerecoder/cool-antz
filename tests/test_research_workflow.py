@@ -84,17 +84,33 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
     ids = [entry["id"] for entry in matrix["experiments"]]
     families = {entry["family"] for entry in matrix["experiments"]}
 
-    assert ids == ["CAPACITY4", "VISION2", "DENSE8", "GAMMA999", "VISION2_CAP4", "AUTO_STAGE"]
+    assert ids == [
+        "DISTANCE_SHAPE",
+        "CAPACITY4",
+        "VISION2",
+        "NEAR_COOKIE",
+        "DENSE8",
+        "GAMMA999",
+        "LADDER_FINE",
+        "VISION2_CAP4",
+        "BYTE_TRAIL",
+        "AUTO_STAGE",
+    ]
     assert {
+        "reward_shaping",
         "exploration_capacity",
         "observation",
+        "cookie_distribution",
         "food_distribution",
         "credit_assignment",
+        "stage_schedule",
         "combined_capacity",
+        "memory_shaping",
         "autocurriculum",
     } <= families
     assert matrix["target"]["stage_name"] == "25x25"
     assert matrix["target"]["minimum_promotion_episode_return"] > 1.0
+    assert matrix["evaluation"]["deterministic_episodes"] >= 4
     for entry in matrix["experiments"]:
         assert entry["hypothesis"]
         assert entry["intervention"]
@@ -119,8 +135,10 @@ def test_research_loop_plan_builds_forage_curriculum_with_notes() -> None:
     assert plan["stage_sizes"][-1] == 25
     assert plan["target"]["stage_name"] == "25x25"
     assert "## Hypothesis" in plan["notes_markdown"]
+    assert "## Evaluation Gate" in plan["notes_markdown"]
     assert "Four ants" in plan["notes_markdown"]
     assert plan["wandb"]["mode"] == "disabled"
+    assert plan["evaluation"]["sampled_episodes"] == 2
     assert parsed.num_envs == 1
     assert parsed.num_steps == 4
     assert parsed.num_ants == 4
@@ -159,6 +177,26 @@ def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:
     assert auto_parsed.stage_completion_bonus == 3.0
 
 
+def test_research_loop_plan_can_change_cookie_distance_and_stage_sizes() -> None:
+    near = build_research_experiment_plan(
+        run_id="NEAR_COOKIE",
+        global_update_cap=2,
+        num_envs=1,
+        num_steps=4,
+        wandb_mode="disabled",
+    )
+    fine = build_research_experiment_plan(
+        run_id="LADDER_FINE",
+        global_update_cap=2,
+        num_envs=1,
+        num_steps=4,
+        wandb_mode="disabled",
+    )
+
+    assert near["stages"][-1]["cookie_distance"] < 12
+    assert fine["stage_sizes"][-4:] == [22, 23, 24, 25]
+
+
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:
     plan = build_research_experiment_plan(
         run_id="VISION2",
@@ -195,10 +233,31 @@ def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path
             "final_train_metrics": {"global_step": 4.0},
         }
 
+    def fake_evaluate_checkpoint(
+        checkpoint_path: Path,
+        *,
+        num_episodes: int,
+        seed_offset: int,
+        deterministic: bool,
+        shuffle_positions: bool,
+    ) -> dict[str, float]:
+        assert checkpoint_path.name == "jax_mappo_forage_stage1_25x25.pkl"
+        assert num_episodes in {2, 4}
+        assert seed_offset >= 1_000_000
+        assert shuffle_positions is True
+        return {
+            "eval_success_rate": 0.0,
+            "eval_mean_delivered_food": 3.0 if deterministic else 2.0,
+            "eval_mean_delivered_fraction": 0.25,
+            "eval_mean_episode_return": 2.5 if deterministic else 2.0,
+            "eval_mean_episode_length": 100.0,
+        }
+
     summary = execute_research_experiment_plan(
         plan,
         train_main=fake_train_main,
         run_curriculum=fake_run_curriculum,
+        evaluate_checkpoint=fake_evaluate_checkpoint,
         check_resources=False,
     )
 
@@ -206,9 +265,11 @@ def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path
     assert "radius-2" in Path(summary["note_path"]).read_text(encoding="utf-8")
     assert Path(summary["plan_path"]).exists()
     assert Path(summary["summary_path"]).exists()
+    assert Path(summary["evaluation_path"]).exists()
     assert calls["wandb_notes"].startswith("# VISION2")
     assert [path.name for path in calls["wandb_artifact_paths"]] == ["experiment.md", "plan.json"]
     assert summary["curriculum"]["stage_metrics"][0]["episode_return"] == 4.0
+    assert summary["evaluation"]["deterministic"]["eval_mean_episode_return"] == 2.5
 
 
 def test_research_loop_rank_reads_target_stage(tmp_path: Path) -> None:
@@ -242,7 +303,7 @@ def test_research_loop_rank_reads_target_stage(tmp_path: Path) -> None:
 
     ranked = rank_research_loop_runs(matrix_path=matrix_path)
 
-    assert [row["id"] for row in ranked["ranked"]] == ["VISION2", "CAPACITY4"]
+    assert [row["id"] for row in ranked["ranked"]] == ["CAPACITY4", "DISTANCE_SHAPE"]
     assert ranked["missing"] == []
 
 
@@ -306,6 +367,46 @@ def test_cli_research_loop_run_uses_executable_plan(
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["id"] == "CAPACITY4"
+
+
+def test_cli_research_loop_auto_uses_controller(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import ant_byte_env.research_loop as research_loop_module
+
+    def fake_run_research_loop(**kwargs: object) -> dict[str, object]:
+        assert kwargs["run_ids"] == ["DISTANCE_SHAPE", "CAPACITY4"]
+        assert kwargs["max_runs"] == 2
+        assert kwargs["min_disk_free_gb"] == 4.0
+        return {
+            "ledger_path": "runs/autoresearch/forage_loop/ledger.json",
+            "results": [{"id": "DISTANCE_SHAPE"}],
+        }
+
+    monkeypatch.setattr(
+        research_loop_module,
+        "run_research_loop",
+        fake_run_research_loop,
+    )
+
+    exit_code = cli_main(
+        [
+            "autoresearch",
+            "loop-auto",
+            "--ids",
+            "DISTANCE_SHAPE",
+            "CAPACITY4",
+            "--max-runs",
+            "2",
+            "--min-disk-free-gb",
+            "4.0",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["results"][0]["id"] == "DISTANCE_SHAPE"
 
 
 def test_cli_research_loop_run_reports_resource_failures(

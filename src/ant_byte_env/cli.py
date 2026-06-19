@@ -65,174 +65,6 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "communication-plan":
-        from ant_byte_env.autoresearch import build_communication_sweep_plan
-
-        payload = build_communication_sweep_plan(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_id=args.run_id,
-            run_root=args.run_root,
-            bit_stages=args.bit_stages,
-            global_update_cap=args.global_update_cap,
-            num_envs=args.num_envs,
-            num_steps=args.num_steps,
-            probe_episodes=args.probe_episodes,
-            render_rollouts=args.render_rollouts,
-            max_render_frames=args.max_render_frames,
-        )
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "communication-run":
-        from ant_byte_env.autoresearch import (
-            AutoresearchResourceError,
-            build_communication_sweep_plan,
-            execute_communication_sweep_plan,
-        )
-
-        plan = build_communication_sweep_plan(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_id=args.run_id,
-            run_root=args.run_root,
-            bit_stages=args.bit_stages,
-            global_update_cap=args.global_update_cap,
-            num_envs=args.num_envs,
-            num_steps=args.num_steps,
-            probe_episodes=args.probe_episodes,
-            render_rollouts=args.render_rollouts,
-            max_render_frames=args.max_render_frames,
-        )
-        try:
-            payload = execute_communication_sweep_plan(
-                plan,
-                check_resources=not args.skip_resource_check,
-                resume_completed=not args.rerun_completed,
-            )
-        except AutoresearchResourceError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "communication-rank":
-        from ant_byte_env.autoresearch import rank_communication_gate_probes
-
-        payload = rank_communication_gate_probes(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_ids=args.ids,
-            probe_filename=args.probe_filename,
-        )
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "forage-plan":
-        from ant_byte_env.forage_autoresearch import build_forage_50x50_sweep_plan
-
-        payload = build_forage_50x50_sweep_plan(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_id=args.run_id,
-            run_root=args.run_root,
-            stage_sizes=args.stage_sizes,
-            global_update_cap=args.global_update_cap,
-            num_envs=args.num_envs,
-            num_steps=args.num_steps,
-            wandb_project=args.wandb_project,
-            wandb_mode=args.wandb_mode,
-            wandb_video_stage_names=args.wandb_video_stages,
-            wandb_video_max_frames=args.wandb_video_max_frames,
-        )
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "forage-run":
-        from ant_byte_env.autoresearch import AutoresearchResourceError
-        from ant_byte_env.forage_autoresearch import (
-            build_forage_50x50_sweep_plan,
-            execute_forage_50x50_sweep_plan,
-        )
-
-        plan = build_forage_50x50_sweep_plan(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_id=args.run_id,
-            run_root=args.run_root,
-            stage_sizes=args.stage_sizes,
-            global_update_cap=args.global_update_cap,
-            num_envs=args.num_envs,
-            num_steps=args.num_steps,
-            wandb_project=args.wandb_project,
-            wandb_mode=args.wandb_mode,
-            wandb_video_stage_names=args.wandb_video_stages,
-            wandb_video_max_frames=args.wandb_video_max_frames,
-        )
-        try:
-            payload = execute_forage_50x50_sweep_plan(
-                plan,
-                check_resources=not args.skip_resource_check,
-                resume_completed=not args.rerun_completed,
-            )
-        except AutoresearchResourceError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "autocurriculum-plan":
-        from ant_byte_env.autocurriculum_autoresearch import build_autocurriculum_sweep_plan
-
-        payload = build_autocurriculum_sweep_plan(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_id=args.run_id,
-            run_root=args.run_root,
-            global_update_cap=args.global_update_cap,
-            num_envs=args.num_envs,
-            num_steps=args.num_steps,
-            probe_rollout_steps=args.probe_rollout_steps,
-            probe_num_envs=args.probe_num_envs,
-            render_rollout=args.render_rollout,
-            max_render_frames=args.max_render_frames,
-            wandb_project=args.wandb_project,
-            wandb_mode=args.wandb_mode,
-            load_model=args.load_model,
-            probe_ablations=args.probe_ablations,
-        )
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if args.command == "autoresearch" and args.autoresearch_command == "autocurriculum-run":
-        from ant_byte_env.autocurriculum_autoresearch import (
-            build_autocurriculum_sweep_plan,
-            execute_autocurriculum_sweep_plan,
-        )
-        from ant_byte_env.autoresearch import AutoresearchResourceError
-
-        plan = build_autocurriculum_sweep_plan(
-            matrix_path=args.matrix,
-            phase=args.phase,
-            run_id=args.run_id,
-            run_root=args.run_root,
-            global_update_cap=args.global_update_cap,
-            num_envs=args.num_envs,
-            num_steps=args.num_steps,
-            probe_rollout_steps=args.probe_rollout_steps,
-            probe_num_envs=args.probe_num_envs,
-            render_rollout=args.render_rollout,
-            max_render_frames=args.max_render_frames,
-            wandb_project=args.wandb_project,
-            wandb_mode=args.wandb_mode,
-            load_model=args.load_model,
-            probe_ablations=args.probe_ablations,
-        )
-        try:
-            payload = execute_autocurriculum_sweep_plan(
-                plan,
-                check_resources=not args.skip_resource_check,
-                resume_completed=not args.rerun_completed,
-            )
-        except AutoresearchResourceError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
     if args.command == "autoresearch" and args.autoresearch_command == "loop-plan":
         from ant_byte_env.research_loop import build_research_experiment_plan
 
@@ -262,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
                 num_steps=args.num_steps,
                 wandb_project=args.wandb_project,
                 wandb_mode=args.wandb_mode,
+                min_disk_free_gb=args.min_disk_free_gb,
                 check_resources=not args.skip_resource_check,
                 resume_completed=not args.rerun_completed,
             )
@@ -277,6 +110,30 @@ def main(argv: list[str] | None = None) -> int:
             matrix_path=args.matrix,
             run_ids=args.ids,
         )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "loop-auto":
+        from ant_byte_env.autoresearch import AutoresearchResourceError
+        from ant_byte_env.research_loop import run_research_loop
+
+        try:
+            payload = run_research_loop(
+                matrix_path=args.matrix,
+                run_root=args.run_root,
+                run_ids=args.ids,
+                max_runs=args.max_runs,
+                global_update_cap=args.global_update_cap,
+                num_envs=args.num_envs,
+                num_steps=args.num_steps,
+                wandb_project=args.wandb_project,
+                wandb_mode=args.wandb_mode,
+                min_disk_free_gb=args.min_disk_free_gb,
+                check_resources=not args.skip_resource_check,
+                resume_completed=not args.rerun_completed,
+            )
+        except AutoresearchResourceError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     parser.print_help()
@@ -358,120 +215,6 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="autoresearch_command",
         required=True,
     )
-    communication_plan = autoresearch_subparsers.add_parser(
-        "communication-plan",
-        help="Print staged train/probe commands for a communication sweep entry.",
-    )
-    communication_plan.add_argument(
-        "--matrix",
-        type=Path,
-        default=Path("autoresearch/communication_sweep.json"),
-    )
-    communication_plan.add_argument("--phase", required=True)
-    communication_plan.add_argument("--id", dest="run_id", required=True)
-    communication_plan.add_argument("--run-root", type=Path, default=None)
-    communication_plan.add_argument("--bit-stages", type=int, nargs="+", default=None)
-    communication_plan.add_argument("--global-update-cap", type=int, default=None)
-    communication_plan.add_argument("--num-envs", type=int, default=None)
-    communication_plan.add_argument("--num-steps", type=int, default=None)
-    communication_plan.add_argument("--probe-episodes", type=int, default=1)
-    communication_plan.add_argument(
-        "--render-rollouts",
-        dest="render_rollouts",
-        action="store_true",
-        default=False,
-    )
-    communication_plan.add_argument("--no-render", dest="render_rollouts", action="store_false")
-    communication_plan.add_argument("--max-render-frames", type=int, default=300)
-    communication_run = autoresearch_subparsers.add_parser(
-        "communication-run",
-        help="Execute staged training and probing for a communication sweep entry.",
-    )
-    communication_run.add_argument(
-        "--matrix",
-        type=Path,
-        default=Path("autoresearch/communication_sweep.json"),
-    )
-    communication_run.add_argument("--phase", required=True)
-    communication_run.add_argument("--id", dest="run_id", required=True)
-    communication_run.add_argument("--run-root", type=Path, default=None)
-    communication_run.add_argument("--bit-stages", type=int, nargs="+", default=None)
-    communication_run.add_argument("--global-update-cap", type=int, default=None)
-    communication_run.add_argument("--num-envs", type=int, default=None)
-    communication_run.add_argument("--num-steps", type=int, default=None)
-    communication_run.add_argument("--probe-episodes", type=int, default=1)
-    communication_run.add_argument(
-        "--render-rollouts",
-        dest="render_rollouts",
-        action="store_true",
-        default=False,
-    )
-    communication_run.add_argument("--no-render", dest="render_rollouts", action="store_false")
-    communication_run.add_argument("--max-render-frames", type=int, default=300)
-    communication_run.add_argument("--rerun-completed", action="store_true")
-    communication_run.add_argument("--skip-resource-check", action="store_true")
-    forage_plan = autoresearch_subparsers.add_parser(
-        "forage-plan",
-        help="Print a no-cheat single-ant 50x50 forage curriculum plan.",
-    )
-    forage_plan.add_argument(
-        "--matrix",
-        type=Path,
-        default=Path("autoresearch/forage_50x50_sweep.json"),
-    )
-    forage_plan.add_argument("--phase", required=True)
-    forage_plan.add_argument("--id", dest="run_id", required=True)
-    forage_plan.add_argument("--run-root", type=Path, default=None)
-    forage_plan.add_argument("--stage-sizes", type=int, nargs="+", default=None)
-    forage_plan.add_argument("--global-update-cap", type=int, default=None)
-    forage_plan.add_argument("--num-envs", type=int, default=None)
-    forage_plan.add_argument("--num-steps", type=int, default=None)
-    forage_plan.add_argument("--wandb-project", type=str, default=None)
-    forage_plan.add_argument(
-        "--wandb-mode",
-        choices=["online", "offline", "disabled"],
-        default=None,
-    )
-    forage_plan.add_argument("--wandb-video-stages", nargs="+", default=None)
-    forage_plan.add_argument("--wandb-video-max-frames", type=int, default=None)
-    forage_run = autoresearch_subparsers.add_parser(
-        "forage-run",
-        help="Execute a no-cheat single-ant 50x50 forage curriculum plan.",
-    )
-    forage_run.add_argument(
-        "--matrix",
-        type=Path,
-        default=Path("autoresearch/forage_50x50_sweep.json"),
-    )
-    forage_run.add_argument("--phase", required=True)
-    forage_run.add_argument("--id", dest="run_id", required=True)
-    forage_run.add_argument("--run-root", type=Path, default=None)
-    forage_run.add_argument("--stage-sizes", type=int, nargs="+", default=None)
-    forage_run.add_argument("--global-update-cap", type=int, default=None)
-    forage_run.add_argument("--num-envs", type=int, default=None)
-    forage_run.add_argument("--num-steps", type=int, default=None)
-    forage_run.add_argument("--wandb-project", type=str, default=None)
-    forage_run.add_argument(
-        "--wandb-mode",
-        choices=["online", "offline", "disabled"],
-        default=None,
-    )
-    forage_run.add_argument("--wandb-video-stages", nargs="+", default=None)
-    forage_run.add_argument("--wandb-video-max-frames", type=int, default=None)
-    forage_run.add_argument("--rerun-completed", action="store_true")
-    forage_run.add_argument("--skip-resource-check", action="store_true")
-    autocurriculum_plan = autoresearch_subparsers.add_parser(
-        "autocurriculum-plan",
-        help="Print a no-cheat single-ant 50x50 autocurriculum plan.",
-    )
-    _add_autocurriculum_autoresearch_args(autocurriculum_plan)
-    autocurriculum_run = autoresearch_subparsers.add_parser(
-        "autocurriculum-run",
-        help="Execute a no-cheat single-ant 50x50 autocurriculum plan.",
-    )
-    _add_autocurriculum_autoresearch_args(autocurriculum_run)
-    autocurriculum_run.add_argument("--rerun-completed", action="store_true")
-    autocurriculum_run.add_argument("--skip-resource-check", action="store_true")
     loop_plan = autoresearch_subparsers.add_parser(
         "loop-plan",
         help="Print a self-contained active research-loop experiment plan.",
@@ -482,6 +225,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Execute one active research-loop experiment.",
     )
     _add_research_loop_args(loop_run)
+    loop_run.add_argument("--min-disk-free-gb", type=float, default=5.0)
     loop_run.add_argument("--rerun-completed", action="store_true")
     loop_run.add_argument("--skip-resource-check", action="store_true")
     loop_rank = autoresearch_subparsers.add_parser(
@@ -494,62 +238,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path("autoresearch/loop.json"),
     )
     loop_rank.add_argument("--ids", nargs="+", default=None)
-    communication_rank = autoresearch_subparsers.add_parser(
-        "communication-rank",
-        help="Rank completed communication probe artifacts by balanced delivery.",
+    loop_auto = autoresearch_subparsers.add_parser(
+        "loop-auto",
+        help="Run pending active-loop experiments and write an autoresearch ledger.",
     )
-    communication_rank.add_argument(
-        "--matrix",
-        type=Path,
-        default=Path("autoresearch/communication_sweep.json"),
-    )
-    communication_rank.add_argument("--phase", required=True)
-    communication_rank.add_argument("--ids", nargs="+", default=None)
-    communication_rank.add_argument(
-        "--probe-filename",
-        default="communication_probe.json",
-        help="Probe JSON filename inside each matrix probe_output_dir.",
-    )
+    _add_research_auto_args(loop_auto)
+    loop_auto.add_argument("--max-runs", type=int, default=None)
+    loop_auto.add_argument("--min-disk-free-gb", type=float, default=5.0)
+    loop_auto.add_argument("--rerun-completed", action="store_true")
+    loop_auto.add_argument("--skip-resource-check", action="store_true")
     return parser
-
-
-def _add_autocurriculum_autoresearch_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--matrix",
-        type=Path,
-        default=Path("autoresearch/autocurriculum_sweep.json"),
-    )
-    parser.add_argument("--phase", required=True)
-    parser.add_argument("--id", dest="run_id", required=True)
-    parser.add_argument("--run-root", type=Path, default=None)
-    parser.add_argument("--global-update-cap", type=int, default=None)
-    parser.add_argument("--num-envs", type=int, default=None)
-    parser.add_argument("--num-steps", type=int, default=None)
-    parser.add_argument("--probe-rollout-steps", type=int, default=None)
-    parser.add_argument("--probe-num-envs", type=int, default=None)
-    parser.add_argument(
-        "--probe-ablation",
-        dest="probe_ablations",
-        choices=["normal", "no_byte_read", "no_write", "no_byte_read_no_write"],
-        nargs="+",
-        default=None,
-        help="Probe-time memory ablations to run alongside the normal rollout.",
-    )
-    parser.add_argument("--load-model", type=Path, default=None)
-    parser.add_argument(
-        "--render-rollout",
-        dest="render_rollout",
-        action="store_true",
-        default=None,
-    )
-    parser.add_argument("--no-render", dest="render_rollout", action="store_false")
-    parser.add_argument("--max-render-frames", type=int, default=None)
-    parser.add_argument("--wandb-project", type=str, default=None)
-    parser.add_argument(
-        "--wandb-mode",
-        choices=["online", "offline", "disabled"],
-        default=None,
-    )
 
 
 def _add_research_loop_args(parser: argparse.ArgumentParser) -> None:
@@ -559,6 +257,25 @@ def _add_research_loop_args(parser: argparse.ArgumentParser) -> None:
         default=Path("autoresearch/loop.json"),
     )
     parser.add_argument("--id", dest="run_id", required=True)
+    parser.add_argument("--run-root", type=Path, default=None)
+    parser.add_argument("--global-update-cap", type=int, default=None)
+    parser.add_argument("--num-envs", type=int, default=None)
+    parser.add_argument("--num-steps", type=int, default=None)
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument(
+        "--wandb-mode",
+        choices=["online", "offline", "disabled"],
+        default=None,
+    )
+
+
+def _add_research_auto_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/loop.json"),
+    )
+    parser.add_argument("--ids", nargs="+", default=None)
     parser.add_argument("--run-root", type=Path, default=None)
     parser.add_argument("--global-update-cap", type=int, default=None)
     parser.add_argument("--num-envs", type=int, default=None)

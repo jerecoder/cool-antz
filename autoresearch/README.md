@@ -1,19 +1,25 @@
 # Forage Improvement Autoresearch
 
-This folder contains the active autoresearch loop. Older communication and no-cheat 50x50 sweep files were intentionally removed so new runs do not mix stale assumptions with the current goal.
+This folder contains the active autoresearch loop for improving JAX MAPPO forage performance at the 25x25 gate. Older communication, no-cheat 50x50, and one-off sweep matrices have been removed from the active interface so new runs use one comparable experiment ledger.
 
 ## Commands
 
-Plan an experiment:
+Plan one experiment:
 
 ```bash
-PYTHONPATH=src ant-byte autoresearch loop-plan --id CAPACITY4 --wandb-mode disabled
+PYTHONPATH=src ant-byte autoresearch loop-plan --id DISTANCE_SHAPE --wandb-mode disabled
 ```
 
-Run an experiment:
+Run one experiment:
 
 ```bash
-PYTHONPATH=src ant-byte autoresearch loop-run --id CAPACITY4 --wandb-mode online
+PYTHONPATH=src ant-byte autoresearch loop-run --id DISTANCE_SHAPE --wandb-mode online
+```
+
+Run pending experiments in priority order:
+
+```bash
+PYTHONPATH=src ant-byte autoresearch loop-auto --max-runs 2 --wandb-mode online
 ```
 
 Rank completed runs:
@@ -22,10 +28,13 @@ Rank completed runs:
 PYTHONPATH=src ant-byte autoresearch loop-rank
 ```
 
-Each run writes:
+## Artifacts
 
-- `experiment.md`: conceptual hypothesis, intervention, baseline, and report notes
-- `plan.json`: resolved executable settings
-- `summary.json`: training result and artifact pointers
+Each run writes under `runs/autoresearch/forage_loop/<experiment-id>/`:
 
-For forage-curriculum experiments, `experiment.md` and `plan.json` are also attached to the same W&B run as research-plan artifacts.
+- `experiment.md`: hypothesis, intervention, baseline, evaluation gate, and report notes
+- `plan.json`: fully resolved executable settings
+- `evaluation.json`: deterministic and sampled held-out checkpoint evaluation
+- `summary.json`: training result, evaluation result, and artifact pointers
+
+The autonomous controller also writes `ledger.json` and append-only `ledger.jsonl` under the loop root. W&B receives the training metrics plus research-plan artifacts; the sidecar ledger run logs the summary/evaluation files and flattened evaluation metrics.
