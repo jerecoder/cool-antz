@@ -113,6 +113,9 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_SPEED_4A_800",
         "DISTANCE_CAP4_SPEED_4A_550",
         "DISTANCE_CAP8_SPEED_8A_550",
+        "DISTANCE_CAP12_SPEED_12A_550",
+        "DISTANCE_CAP16_SPEED_16A_550",
+        "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -444,9 +447,17 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    ramp = build_research_experiment_plan(
+        run_id="DISTANCE_CAP8_SPEED_RAMP_8A",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
 
     four_parsed = parse_args(four_ant["common_args"])
     eight_parsed = parse_args(eight_ant["common_args"])
+    ramp_parsed = parse_args(ramp["common_args"])
 
     assert four_ant["family"] == "efficiency_finetune"
     assert four_ant["stage_sizes"] == [25]
@@ -468,6 +479,21 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     )
     assert eight_parsed.num_ants == 8
     assert eight_parsed.step_penalty == 0.00016
+
+    assert ramp["family"] == "efficiency_finetune"
+    assert ramp["stage_sizes"] == [25, 25, 25]
+    assert [stage["name"] for stage in ramp["stages"]] == [
+        "25x25_900",
+        "25x25_700",
+        "25x25",
+    ]
+    assert [stage["max_steps"] for stage in ramp["stages"]] == [900, 700, 550]
+    assert [stage["global_update_cap"] for stage in ramp["stages"]] == [300, 300, 300]
+    assert ramp["final_checkpoint"].endswith(
+        "DISTANCE_CAP8_SPEED_RAMP_8A/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert ramp_parsed.num_ants == 8
+    assert ramp_parsed.step_penalty == 0.00012
 
 
 def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> None:

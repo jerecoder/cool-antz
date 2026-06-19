@@ -796,6 +796,27 @@ def _research_stages(
 ) -> list[dict[str, Any]]:
     from ant_byte_env.notebook_workflows import build_forage_curriculum_stages
 
+    custom_stages = entry.get("custom_stages")
+    if custom_stages is not None:
+        stages = [dict(stage) for stage in custom_stages]
+        if not stages:
+            raise ValueError("custom_stages must contain at least one stage.")
+        required_keys = {
+            "name",
+            "width",
+            "height",
+            "food_count",
+            "food_sources",
+            "cookie_distance",
+            "max_steps",
+        }
+        for stage in stages:
+            missing = sorted(required_keys.difference(stage))
+            if missing:
+                raise ValueError(f"custom stage is missing required keys: {missing}")
+            stage.setdefault("global_update_cap", int(global_update_cap))
+        return stages
+
     sizes = [int(size) for size in entry.get("stage_sizes", matrix.get("default_stage_sizes", []))]
     if not sizes:
         raise ValueError("research loop forage experiments require stage_sizes.")

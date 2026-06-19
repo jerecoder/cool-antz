@@ -1155,6 +1155,187 @@
       }
     },
     {
+      "id": "DISTANCE_CAP12_SPEED_12A_550",
+      "priority": 29,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Twelve-ant throughput test at the 550-step target",
+      "hypothesis": "The eight-ant direct run improved mean length to about 539 steps but still delivered only about 17/23 food. If the remaining gap is collection throughput rather than route knowledge, a twelve-ant shared policy should raise delivered food inside the same 550-step cap without needing a different observation space.",
+      "intervention": "Load the four-ant DISTANCE_CAP4_SHARP checkpoint into a twelve-ant critic, train a single 25x25 stage for 800 updates with max_steps 550, distance_bonus 0.02, low entropy, and a per-ant-normalized step_penalty 0.00010. Evaluate sampled movement at temperature 1.10 with greedy writes.",
+      "success_signal": "A win should beat the eight-ant run by moving delivery above 20/23 while keeping mean length at or below 550; a full success needs at least 22/23 delivered with materially higher success rate.",
+      "report_notes": "This is a throughput scaling test after the first eight-ant result. It preserves the learned local actor and only increases embodied parallelism, so failures point to coordination/interference rather than lack of workers.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP12_SPEED_12A_550",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 800,
+      "stage_sizes": [25],
+      "stage_overrides": {
+        "max_steps": 550
+      },
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 800, "num_steps": 256, "gamma": 0.995}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 12,
+        "hidden_size": 192,
+        "step_penalty": 0.0001,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 3100000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 3100000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP12-SPEED-12A-550",
+        "tags": ["distance-bonus", "multi-ant", "twelve-ants", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP16_SPEED_16A_550",
+      "priority": 30,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Sixteen-ant saturation test at the 550-step target",
+      "hypothesis": "If twelve ants still under-clear, the bottleneck may be physical route coverage under a strict horizon. A sixteen-ant shared policy tests whether aggressive parallelism can reach the 4x speed target before coordination costs dominate.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP checkpoint into a sixteen-ant critic, train one 25x25 stage for 700 updates with max_steps 550, distance_bonus 0.02, low entropy, and step_penalty 0.000075 so the total per-step colony penalty stays close to the eight- and twelve-ant tests.",
+      "success_signal": "A win should deliver at least 22/23 food in roughly 550 steps. If delivery does not improve over twelve ants, the report should treat ant-count scaling as saturated and pivot to horizon curriculum or task geometry.",
+      "report_notes": "This is the high-throughput stress test authorized by the user. Because all ants share one policy, it reveals whether simple parallelism is enough before implementing frozen helper/NPC policy machinery.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP16_SPEED_16A_550",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 700,
+      "stage_sizes": [25],
+      "stage_overrides": {
+        "max_steps": 550
+      },
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 700, "num_steps": 256, "gamma": 0.995}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 16,
+        "hidden_size": 192,
+        "step_penalty": 0.000075,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 3200000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 3200000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP16-SPEED-16A-550",
+        "tags": ["distance-bonus", "multi-ant", "sixteen-ants", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
+      "priority": 31,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Eight-ant horizon ramp from 900 to 550 steps",
+      "hypothesis": "The direct 550-step eight-ant run improved speed but failed to preserve full clearance. A smoother horizon curriculum should first let the transferred eight-ant colony learn fast complete routes at 900 and 700 steps, then compress to the 550-step target without abruptly erasing delivery behavior.",
+      "intervention": "Load the four-ant DISTANCE_CAP4_SHARP checkpoint into an eight-ant critic and train three explicit 25x25 stages: max_steps 900, then 700, then 550. Keep the same standard food distribution, distance_bonus 0.02, low entropy, gamma 0.995, and a per-ant-normalized step_penalty 0.00012.",
+      "success_signal": "Beat the direct eight-ant 550 run by preserving higher delivery while ending near the 550-step cap. The target remains at least 22/23 delivered with mean episode length below 650, then below 550 if successful.",
+      "report_notes": "This tests autocurriculum-like compression of episode horizon while keeping size and food distribution fixed. It is the clean follow-up if direct short-horizon pressure caused under-delivery.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_SPEED_RAMP_8A",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 300,
+      "custom_stages": [
+        {
+          "name": "25x25_900",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 11,
+          "max_steps": 900,
+          "global_update_cap": 300,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "25x25_700",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 11,
+          "max_steps": 700,
+          "global_update_cap": 300,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 11,
+          "max_steps": 550,
+          "global_update_cap": 300,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 8,
+        "hidden_size": 192,
+        "step_penalty": 0.00012,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 3300000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 3300000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP8-SPEED-RAMP-8A",
+        "tags": ["distance-bonus", "multi-ant", "eight-ants", "warm-start", "speed", "horizon-ramp", "step-penalty", "4x-target"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
