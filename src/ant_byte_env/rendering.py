@@ -45,6 +45,8 @@ def render_checkpoint(
     actual_backend = backend or infer_checkpoint_backend(checkpoint_path)
     if actual_backend not in {"torch", "jax"}:
         raise ValueError("backend must be 'torch' or 'jax'.")
+    if actual_backend == "torch" and action_mode is not None:
+        raise ValueError("action_mode rendering is only supported for JAX checkpoints.")
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
         output_path=output_path,
@@ -73,6 +75,9 @@ def render_checkpoint(
             max_frames=max_frames,
             tile_size=tile_size,
             policy_temperature=policy_temperature,
+            action_mode=action_mode,
+            move_temperature=move_temperature,
+            write_temperature=write_temperature,
         )
     raise ValueError("backend must be 'torch' or 'jax'.")
 
@@ -87,6 +92,9 @@ def render_torch_checkpoint(
     max_frames: int | None = None,
     tile_size: int | None = None,
     policy_temperature: float = 0.0,
+    action_mode: str | None = None,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
 ) -> Path:
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
@@ -194,6 +202,9 @@ def render_jax_checkpoint(
     max_frames: int | None = None,
     tile_size: int | None = None,
     policy_temperature: float = 0.0,
+    action_mode: str | None = None,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
 ) -> Path:
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
@@ -210,6 +221,10 @@ def render_jax_checkpoint(
         build_central_observations,
         get_action_and_value,
     )
+    from ant_byte_env.training.jax_mappo.evaluation import (
+        _evaluation_actions_for_mode,
+        validate_evaluation_action_mode,
+    )
     from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -218,6 +233,9 @@ def render_jax_checkpoint(
     args = argparse.Namespace(**raw_checkpoint["args"])
     step_count = _render_step_count(args, max_frames=max_frames)
     deterministic = _deterministic_from_temperature(policy_temperature)
+    resolved_action_mode = (
+        None if action_mode is None else validate_evaluation_action_mode(action_mode)
+    )
 
     env = _env_from_args(args, render_mode="rgb_array", tile_size=tile_size)
     writer = imageio.get_writer(output_path, fps=AntByteForagingEnv.metadata["render_fps"])
@@ -261,7 +279,11 @@ def render_jax_checkpoint(
             build_actor_observations=build_actor_observations,
             build_central_observations=build_central_observations,
             get_action_and_value=get_action_and_value,
+            evaluation_actions_for_mode=_evaluation_actions_for_mode,
             jax=jax,
+            action_mode=resolved_action_mode,
+            move_temperature=move_temperature,
+            write_temperature=write_temperature,
         )
         writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
         key = jax.random.PRNGKey(args.seed + seed_offset)
@@ -325,7 +347,11 @@ def _compile_jax_action_selector(
     build_actor_observations: Callable[..., Any],
     build_central_observations: Callable[..., Any],
     get_action_and_value: Callable[..., Any],
+    evaluation_actions_for_mode: Callable[..., Any] | None = None,
     jax: Any,
+    action_mode: str | None = None,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
 ) -> Callable[..., Any]:
     @jax.jit
     def select_action(obs_batch: dict[str, Any], action_key: Any) -> Any:
@@ -344,14 +370,28 @@ def _compile_jax_action_selector(
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
-        actions, _, _, _ = get_action_and_value(
+        if action_mode is None:
+            actions, _, _, _ = get_action_and_value(
+                params,
+                actor_obs,
+                central_obs,
+                action_key,
+                deterministic=deterministic,
+            )
+            return actions
+        if evaluation_actions_for_mode is None:
+            raise ValueError(
+                "evaluation action selector is required for action_mode rendering."
+            )
+        return evaluation_actions_for_mode(
             params,
             actor_obs,
             central_obs,
             action_key,
-            deterministic=deterministic,
+            action_mode=action_mode,
+            move_temperature=move_temperature,
+            write_temperature=write_temperature,
         )
-        return actions
 
     return select_action
 

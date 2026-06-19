@@ -169,7 +169,11 @@ def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> N
     def fake_render_checkpoint(*args, reuse_existing: bool, **kwargs) -> Path:
         del args
         captured["reuse_existing"] = reuse_existing
+        captured["seed_offset"] = kwargs["seed_offset"]
         captured["policy_temperature"] = kwargs["policy_temperature"]
+        captured["action_mode"] = kwargs["action_mode"]
+        captured["move_temperature"] = kwargs["move_temperature"]
+        captured["write_temperature"] = kwargs["write_temperature"]
         return tmp_path / "rollout.mp4"
 
     monkeypatch.setattr(ant_cli, "render_checkpoint", fake_render_checkpoint)
@@ -184,13 +188,28 @@ def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> N
             "--backend",
             "jax",
             "--reuse-existing",
+            "--seed-offset",
+            "4600000",
             "--policy-temperature",
+            "1.0",
+            "--action-mode",
+            "sampled_move_greedy_write",
+            "--move-temperature",
+            "0.95",
+            "--write-temperature",
             "1.0",
         ]
     )
 
     assert exit_code == 0
-    assert captured == {"reuse_existing": True, "policy_temperature": 1.0}
+    assert captured == {
+        "reuse_existing": True,
+        "seed_offset": 4600000,
+        "policy_temperature": 1.0,
+        "action_mode": "sampled_move_greedy_write",
+        "move_temperature": 0.95,
+        "write_temperature": 1.0,
+    }
 
 
 def test_food_alpha_drops_as_food_source_is_depleted() -> None:

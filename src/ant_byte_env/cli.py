@@ -28,11 +28,15 @@ def main(argv: list[str] | None = None) -> int:
             args.checkpoint,
             args.output,
             backend=args.backend,
+            seed_offset=args.seed_offset,
             show_vision=not args.no_vision,
             reuse_existing=args.reuse_existing,
             max_frames=args.max_frames,
             tile_size=args.tile_size,
             policy_temperature=args.policy_temperature,
+            action_mode=args.action_mode,
+            move_temperature=args.move_temperature,
+            write_temperature=args.write_temperature,
         )
         print(f"render saved to {args.output}")
         return 0
@@ -155,6 +159,12 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--output", type=Path, required=True)
     render.add_argument("--backend", choices=["torch", "jax"], default=None)
     render.add_argument(
+        "--seed-offset",
+        type=int,
+        default=100_000,
+        help="Offset added to the checkpoint seed for reset and action sampling.",
+    )
+    render.add_argument(
         "--no-vision",
         action="store_true",
         help="Render without ant vision overlays.",
@@ -181,6 +191,27 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.0,
         help="Use 0.0 for greedy rendering; any positive value samples from the policy.",
+    )
+    render.add_argument(
+        "--action-mode",
+        type=str,
+        default=None,
+        help=(
+            "Optional JAX evaluation action mode to render, such as "
+            "sampled_move_greedy_write."
+        ),
+    )
+    render.add_argument(
+        "--move-temperature",
+        type=float,
+        default=1.0,
+        help="Movement-head sampling temperature when --action-mode samples movement.",
+    )
+    render.add_argument(
+        "--write-temperature",
+        type=float,
+        default=1.0,
+        help="Write-head sampling temperature when --action-mode samples writes.",
     )
 
     results = subparsers.add_parser("results", help="Manage curated result metadata.")
