@@ -336,8 +336,40 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_SHARP_NEAR",
       "priority": 10,
+      "mode": "forage_curriculum",
+      "family": "cookie_distribution",
+      "title": "Warm-start best checkpoint on shorter 25x25 cookie routes",
+      "hypothesis": "The standard 25x25 distribution may fail greedily because long source-hub routes compound small argmax errors. Shorter cookie distances should preserve the same 25x25 navigation canvas but create more complete pickup-delivery loops, revealing whether route length is the main remaining bottleneck.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint, train only a 25x25 stage with cookie_distance scaled to 0.5 of the standard value, keep distance_bonus 0.02 and four ants, use ent_coef 0.001, clip_coef 0.10, update_epochs 6, and learning_rate 0.00005.",
+      "success_signal": "Held-out deterministic delivery should move toward full clearance on the shorter-route 25x25 distribution while sampled delivery remains near 23/23.",
+      "report_notes": "This is intentionally not the same target distribution as the standard 25x25 leaderboard. It tests cookie geometry and route-length sensitivity for curriculum/reporting.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_NEAR",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1200,
+      "stage_sizes": [25],
+      "cookie_distance_scale": 0.5,
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-NEAR",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "cookie-distance", "distribution"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 11,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",

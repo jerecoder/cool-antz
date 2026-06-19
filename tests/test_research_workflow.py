@@ -95,6 +95,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_GREEDY_TUNE",
         "DISTANCE_CAP4_MIXED_TUNE",
         "DISTANCE_CAP4_NO_WRITE",
+        "DISTANCE_CAP4_SHARP_NEAR",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -302,6 +303,28 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert no_write_parsed.clip_coef == 0.1
     assert no_write_parsed.learning_rate == 0.00005
     assert no_write_parsed.update_epochs == 6
+
+    near = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_SHARP_NEAR",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    near_parsed = parse_args(near["common_args"])
+
+    assert near["family"] == "cookie_distribution"
+    assert near["stage_sizes"] == [25]
+    assert near["stages"][0]["cookie_distance"] < 12
+    assert near["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert near_parsed.num_ants == 4
+    assert near_parsed.distance_bonus == 0.02
+    assert near_parsed.ent_coef == 0.001
+    assert near_parsed.clip_coef == 0.1
+    assert near_parsed.learning_rate == 0.00005
+    assert near_parsed.update_epochs == 6
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:
