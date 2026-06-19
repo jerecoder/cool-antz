@@ -94,15 +94,23 @@ def test_mappo_curriculum_keeps_stage_count_and_reaches_50x50() -> None:
 def test_mappo_exploration_curriculum_uses_visit_reward_without_memory() -> None:
     source = notebook_source(Path("notebooks/train_mappo_exploration_curriculum.ipynb"))
 
-    assert "workflows.build_exploration_curriculum_stages(STAGE_SIZES)" in source
-    assert "workflows.build_exploration_common_args" in source
+    assert (
+        'EXPLORATION_CONFIG = PROJECT_ROOT / "experiments" / "exploration_curriculum.json"'
+        in source
+    )
+    assert "experiment = workflows.load_jax_experiment(EXPLORATION_CONFIG)" in source
+    assert "workflows.build_exploration_curriculum_stages(" in source
+    assert "workflows.config_common_args(" in source
+    assert "exclude=workflows.EXPLORATION_ARG_EXCLUDES" in source
     assert "workflows.run_exploration_curriculum" in source
     assert "workflows.render_exploration_rollouts" in source
-    assert "STAGE_SIZES = range(4, 51)" in source
-    assert "ACTOR_VISION_RADIUS = 1" in source
-    assert "WRITE_BITS = 1" in source
+    assert 'STAGE_SIZES = tuple(int(size) for size in experiment.metadata["stage_sizes"])' in source
+    assert 'ACTOR_VISION_RADIUS = int(experiment.args["actor_vision_radius"])' in source
+    assert 'WRITE_BITS = int(experiment.args["write_bits"])' in source
+    assert 'WANDB_PROJECT = "cool-antz"' in source
     assert 'WANDB_GROUP = "exploration_curriculum_50x50"' in source
-    assert "WANDB_VIDEO_STAGE_NAMES = workflows.EXPLORATION_WANDB_PREVIEW_STAGE_NAMES" in source
+    assert "WANDB_VIDEO_STAGE_NAMES = None" in source
+    assert 'training_profile=experiment.metadata["stage_training_profile"]' in source
 
     helper_source = Path("src/ant_byte_env/notebook_workflows.py").read_text(
         encoding="utf-8"
@@ -112,6 +120,27 @@ def test_mappo_exploration_curriculum_uses_visit_reward_without_memory() -> None
     assert '"--write-action-ablation"' in helper_source
     assert '"food_count": curriculum_food_count(int(size))' in helper_source
     assert '"food_sources": curriculum_food_sources(int(size))' in helper_source
+    assert '"max_size": 50, "global_update_cap": 1500' in helper_source
+    assert "EXPLORATION_WANDB_PREVIEW_STAGE_NAMES: tuple[str, ...] | None = None" in (
+        helper_source
+    )
+
+    spec = json.loads(Path("experiments/exploration_curriculum.json").read_text(encoding="utf-8"))
+    assert spec["args"]["reward_mode"] == "explore"
+    assert spec["args"]["no_food_termination"] is True
+    assert spec["args"]["write_action_ablation"] is True
+    assert spec["metadata"]["stage_sizes"] == list(MAPPO_STAGE_SIZES)
+    assert spec["metadata"]["stage_count"] == len(MAPPO_STAGE_SIZES)
+    assert spec["metadata"]["global_update_cap"] == 1500
+    assert spec["metadata"]["stage_training_profile"] == [
+        {
+            "max_size": 50,
+            "global_update_cap": 1500,
+            "num_steps": 80,
+            "gamma": 0.99,
+        }
+    ]
+    assert spec["metadata"]["wandb_video_stage_names"] is None
 
 
 def test_autocurriculum_notebook_uses_single_env_curriculum_config() -> None:

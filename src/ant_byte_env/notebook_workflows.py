@@ -35,8 +35,10 @@ FORAGE_WANDB_PREVIEW_STAGE_NAMES = (
     "50x50",
 )
 EXPLORATION_STAGE_SIZES = tuple(range(4, 51))
-EXPLORATION_STAGE_TRAINING_PROFILE = FORAGE_STAGE_TRAINING_PROFILE
-EXPLORATION_WANDB_PREVIEW_STAGE_NAMES = FORAGE_WANDB_PREVIEW_STAGE_NAMES
+EXPLORATION_STAGE_TRAINING_PROFILE = (
+    {"max_size": 50, "global_update_cap": 1500, "num_steps": 80, "gamma": 0.99},
+)
+EXPLORATION_WANDB_PREVIEW_STAGE_NAMES: tuple[str, ...] | None = None
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
@@ -61,6 +63,18 @@ COMMUNICATION_ARG_EXCLUDES = {
 AUTOCURRICULUM_ARG_EXCLUDES = {
     "total_timesteps",
     "save_model",
+    "run_dir",
+}
+EXPLORATION_ARG_EXCLUDES = {
+    "total_timesteps",
+    "width",
+    "height",
+    "food_count",
+    "food_sources",
+    "cookie_distance",
+    "max_steps",
+    "save_model",
+    "load_model",
     "run_dir",
 }
 ANT_COUNT_ARG_EXCLUDES = COMMUNICATION_ARG_EXCLUDES | {"num_ants"}
@@ -501,14 +515,21 @@ def curriculum_food_sources(size: int) -> int:
 
 
 def forage_training_profile(size: int) -> dict[str, int | float]:
-    for profile in FORAGE_STAGE_TRAINING_PROFILE:
+    return _training_profile_for_size(int(size), FORAGE_STAGE_TRAINING_PROFILE)
+
+
+def _training_profile_for_size(
+    size: int,
+    training_profile: Sequence[Mapping[str, Any]],
+) -> dict[str, int | float]:
+    for profile in training_profile:
         if int(size) <= int(profile["max_size"]):
             return {
                 "global_update_cap": int(profile["global_update_cap"]),
                 "num_steps": int(profile["num_steps"]),
                 "gamma": float(profile["gamma"]),
             }
-    last_profile = FORAGE_STAGE_TRAINING_PROFILE[-1]
+    last_profile = training_profile[-1]
     return {
         "global_update_cap": int(last_profile["global_update_cap"]),
         "num_steps": int(last_profile["num_steps"]),
@@ -536,6 +557,8 @@ def build_forage_curriculum_stages(
 
 def build_exploration_curriculum_stages(
     stage_sizes: Sequence[int] = EXPLORATION_STAGE_SIZES,
+    *,
+    training_profile: Sequence[Mapping[str, Any]] | None = None,
 ) -> list[dict[str, int | float | str]]:
     return [
         {
@@ -546,26 +569,24 @@ def build_exploration_curriculum_stages(
             "food_sources": curriculum_food_sources(int(size)),
             "cookie_distance": min(1 + (int(size) - 4) // 2, int(size) // 2),
             "max_steps": max(48, 4 * int(size) * int(size)),
-            **exploration_training_profile(int(size)),
+            **exploration_training_profile(
+                int(size),
+                training_profile=training_profile,
+            ),
         }
         for size in stage_sizes
     ]
 
 
-def exploration_training_profile(size: int) -> dict[str, int | float]:
-    for profile in EXPLORATION_STAGE_TRAINING_PROFILE:
-        if int(size) <= int(profile["max_size"]):
-            return {
-                "global_update_cap": int(profile["global_update_cap"]),
-                "num_steps": int(profile["num_steps"]),
-                "gamma": float(profile["gamma"]),
-            }
-    last_profile = EXPLORATION_STAGE_TRAINING_PROFILE[-1]
-    return {
-        "global_update_cap": int(last_profile["global_update_cap"]),
-        "num_steps": int(last_profile["num_steps"]),
-        "gamma": float(last_profile["gamma"]),
-    }
+def exploration_training_profile(
+    size: int,
+    *,
+    training_profile: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, int | float]:
+    return _training_profile_for_size(
+        int(size),
+        training_profile or EXPLORATION_STAGE_TRAINING_PROFILE,
+    )
 
 
 def build_forage_common_args(
