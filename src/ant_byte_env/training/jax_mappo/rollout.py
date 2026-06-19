@@ -20,6 +20,7 @@ from ant_byte_env.training.jax_mappo.core import (
     compute_terminal_write_entropy_bonus,
     compute_write_bit_entropy_bonus,
     compute_write_bit_penalties,
+    evaluate_actions,
     flatten_agent_actions,
     get_action_and_value,
     get_value,
@@ -98,7 +99,10 @@ def collect_rollout(
         _: Any,
     ) -> tuple[tuple[JaxAntState, JaxObs, jax.Array], Transition]:
         current_states, current_obs, current_key = carry
-        action_key, mix_key, reset_key, next_key = jax.random.split(current_key, 4)
+        action_key, both_mix_key, move_mix_key, reset_key, next_key = jax.random.split(
+            current_key,
+            5,
+        )
         central_obs = build_central_observations(
             current_obs,
             food_scale=args.food_count,
@@ -118,7 +122,10 @@ def collect_rollout(
         deterministic_fraction = float(getattr(args, "deterministic_rollout_fraction", 0.0))
         if bool(getattr(args, "deterministic_rollout", False)):
             deterministic_fraction = 1.0
-        if deterministic_fraction <= 0.0:
+        deterministic_move_fraction = float(
+            getattr(args, "deterministic_move_rollout_fraction", 0.0)
+        )
+        if deterministic_fraction <= 0.0 and deterministic_move_fraction <= 0.0:
             actions, logprobs, _, values = get_action_and_value(
                 params,
                 actor_obs,
@@ -149,13 +156,38 @@ def collect_rollout(
                 action_key,
                 deterministic=True,
             )
+            actions = sampled_actions
+            if deterministic_move_fraction > 0.0:
+                if deterministic_move_fraction >= 1.0:
+                    move_greedy_mask = jnp.ones(sampled_actions.shape[:-1], dtype=jnp.bool_)
+                else:
+                    move_greedy_mask = jax.random.bernoulli(
+                        move_mix_key,
+                        p=deterministic_move_fraction,
+                        shape=sampled_actions.shape[:-1],
+                    )
+                actions = actions.at[..., 0].set(
+                    jnp.where(
+                        move_greedy_mask,
+                        greedy_actions[..., 0],
+                        sampled_actions[..., 0],
+                    )
+                )
             greedy_mask = jax.random.bernoulli(
-                mix_key,
+                both_mix_key,
                 p=deterministic_fraction,
                 shape=sampled_actions.shape[:-1],
             )
-            actions = jnp.where(greedy_mask[..., None], greedy_actions, sampled_actions)
-            logprobs = jnp.where(greedy_mask, greedy_logprobs, sampled_logprobs)
+            actions = jnp.where(greedy_mask[..., None], greedy_actions, actions)
+            if deterministic_move_fraction > 0.0:
+                logprobs, _, values = evaluate_actions(
+                    params,
+                    actor_obs,
+                    central_obs,
+                    actions,
+                )
+            else:
+                logprobs = jnp.where(greedy_mask, greedy_logprobs, sampled_logprobs)
         actions_for_env = _executed_actions(args, actions)
         next_states, next_obs, env_rewards, terminated, truncated, infos = jax.vmap(env.step)(
             current_states,

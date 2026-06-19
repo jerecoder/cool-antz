@@ -1567,6 +1567,69 @@ def test_jax_rollout_can_mix_sampled_and_deterministic_actions(
     assert True in observed_determinism
 
 
+def test_jax_rollout_can_force_only_movement_head_to_greedy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = _rollout_args(["--deterministic-move-rollout-fraction", "1.0"])
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        write_bits=args.write_bits,
+    )
+    params, states, obs = _params_for_args(args, env)
+
+    import ant_byte_env.training.jax_mappo.rollout as rollout_module
+
+    def fixed_get_action_and_value(
+        _params,
+        actor_obs,
+        central_obs,
+        _key,
+        *,
+        deterministic: bool,
+    ):
+        action_shape = actor_obs.shape[:-1]
+        value_shape = central_obs.shape[:-1]
+        move_value = 2 if deterministic else 1
+        write_value = 0 if deterministic else 1
+        actions = jnp.stack(
+            [
+                jnp.full(action_shape, move_value, dtype=jnp.int32),
+                jnp.full(action_shape, write_value, dtype=jnp.int32),
+            ],
+            axis=-1,
+        )
+        return (
+            actions,
+            jnp.zeros(action_shape, dtype=jnp.float32),
+            jnp.zeros(action_shape, dtype=jnp.float32),
+            jnp.zeros(value_shape, dtype=jnp.float32),
+        )
+
+    monkeypatch.setattr(
+        rollout_module,
+        "get_action_and_value",
+        fixed_get_action_and_value,
+    )
+
+    _, _, rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(31),
+    )
+
+    assert bool(jnp.all(rollout.actions[..., 0] == 2))
+    assert bool(jnp.all(rollout.actions[..., 1] == 1))
+
+
 def test_jax_rollout_can_ablate_write_actions_for_memory_probe() -> None:
     args = _rollout_args(["--write-while-moving"])
     args.write_action_ablation = True
@@ -2161,6 +2224,12 @@ def test_jax_parse_args_accepts_deterministic_rollout_fraction() -> None:
     assert args.deterministic_rollout_fraction == 0.25
 
 
+def test_jax_parse_args_accepts_deterministic_move_rollout_fraction() -> None:
+    args = parse_args(["--deterministic-move-rollout-fraction", "0.25"])
+
+    assert args.deterministic_move_rollout_fraction == 0.25
+
+
 def test_jax_parse_args_accepts_write_action_ablation() -> None:
     args = parse_args(["--write-action-ablation"])
 
@@ -2171,6 +2240,14 @@ def test_jax_parse_args_accepts_write_action_ablation() -> None:
 def test_jax_parse_args_rejects_invalid_deterministic_rollout_fraction(value: str) -> None:
     with pytest.raises(ValueError, match="deterministic-rollout-fraction"):
         parse_args(["--deterministic-rollout-fraction", value])
+
+
+@pytest.mark.parametrize("value", ["-0.01", "1.01"])
+def test_jax_parse_args_rejects_invalid_deterministic_move_rollout_fraction(
+    value: str,
+) -> None:
+    with pytest.raises(ValueError, match="deterministic-move-rollout-fraction"):
+        parse_args(["--deterministic-move-rollout-fraction", value])
 
 
 @pytest.mark.parametrize(

@@ -49,6 +49,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Use 0 for sampled PPO and 1 for fully deterministic rollouts."
         ),
     )
+    parser.add_argument(
+        "--deterministic-move-rollout-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "Fraction of rollout action slots where only the movement head is forced "
+            "to greedy argmax while write actions stay sampled."
+        ),
+    )
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-size", type=int, default=128)
@@ -220,6 +229,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         or args.deterministic_rollout_fraction > 1.0
     ):
         raise ValueError("--deterministic-rollout-fraction must be between 0 and 1.")
+    if (
+        args.deterministic_move_rollout_fraction < 0.0
+        or args.deterministic_move_rollout_fraction > 1.0
+    ):
+        raise ValueError(
+            "--deterministic-move-rollout-fraction must be between 0 and 1."
+        )
     if args.hidden_size <= 0:
         raise ValueError("--hidden-size must be positive.")
     if args.log_interval <= 0:

@@ -527,6 +527,38 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_MOVE_ALIGN",
+      "priority": 17,
+      "mode": "forage_curriculum",
+      "family": "movement_mode_alignment",
+      "title": "Fine-tune SHARP by aligning only the movement head",
+      "hypothesis": "Hybrid action evaluation shows sampled movement with greedy writing clears 25x25 near perfectly, while greedy movement with sampled writing remains much weaker. The deterministic bottleneck is therefore the movement head, not the write head. A small amount of movement-only greedy rollout pressure should align route movement choices with argmax while preserving the sampled/greedy write behavior that already works.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint and train only the standard 25x25 distribution for 1000 updates. Keep distance_bonus 0.02, four ants, radius-1 actor vision, hidden size 192, moving writes, ent_coef 0.001, clip_coef 0.10, update_epochs 6, and learning_rate 0.00005. Set deterministic_move_rollout_fraction to 0.15 so only selected movement actions are greedy while write actions remain sampled.",
+      "success_signal": "The strengthened 8+8 held-out gate should improve deterministic delivery beyond DISTANCE_CAP4_SHARP while sampled delivery stays above 22/23.",
+      "report_notes": "Tests a targeted movement-head alignment mechanism motivated by the hybrid action diagnostic. This deliberately avoids full greedy rollout pressure because earlier both-head greedy and mixed-rollout fine-tunes damaged robust argmax performance.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_MOVE_ALIGN",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1000,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1000, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "deterministic_move_rollout_fraction": 0.15,
+        "ent_coef": 0.001,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-MOVE-ALIGN",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "movement-head", "mode-alignment"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
