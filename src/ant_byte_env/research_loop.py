@@ -912,18 +912,20 @@ def _research_evaluation_config(
         action_mode = str(raw_mode.get("action_mode", ""))
         if not action_mode:
             raise ValueError("evaluation action_modes entries require action_mode.")
-        action_modes.append(
-            {
-                "name": str(raw_mode.get("name", action_mode)),
-                "action_mode": action_mode,
-                "episodes": int(raw_mode.get("episodes", raw_mode.get("num_episodes", 0))),
-                **(
-                    {"seed_offset": int(raw_mode["seed_offset"])}
-                    if raw_mode.get("seed_offset") is not None
-                    else {}
-                ),
-            }
-        )
+        mode_payload = {
+            "name": str(raw_mode.get("name", action_mode)),
+            "action_mode": action_mode,
+            "episodes": int(raw_mode.get("episodes", raw_mode.get("num_episodes", 0))),
+            **(
+                {"seed_offset": int(raw_mode["seed_offset"])}
+                if raw_mode.get("seed_offset") is not None
+                else {}
+            ),
+        }
+        for key in ("move_temperature", "write_temperature"):
+            if raw_mode.get(key) is not None:
+                mode_payload[key] = float(raw_mode[key])
+        action_modes.append(mode_payload)
     return {
         "deterministic_episodes": int(payload.get("deterministic_episodes", 0)),
         "sampled_episodes": int(payload.get("sampled_episodes", 0)),
@@ -1052,12 +1054,18 @@ def _evaluate_research_plan_checkpoint(
         )
     for index, mode in enumerate(action_modes):
         mode_name = str(mode.get("name", mode["action_mode"]))
+        eval_kwargs: dict[str, Any] = {
+            "num_episodes": int(mode["episodes"]),
+            "seed_offset": int(mode.get("seed_offset", seed_offset + 200_000 + index * 100_000)),
+            "action_mode": str(mode["action_mode"]),
+            "shuffle_positions": shuffle_positions,
+        }
+        for key in ("move_temperature", "write_temperature"):
+            if mode.get(key) is not None:
+                eval_kwargs[key] = float(mode[key])
         payload[mode_name] = evaluate_checkpoint(
             checkpoint_path,
-            num_episodes=int(mode["episodes"]),
-            seed_offset=int(mode.get("seed_offset", seed_offset + 200_000 + index * 100_000)),
-            action_mode=str(mode["action_mode"]),
-            shuffle_positions=shuffle_positions,
+            **eval_kwargs,
         )
     return payload
 

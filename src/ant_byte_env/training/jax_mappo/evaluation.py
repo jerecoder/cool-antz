@@ -46,6 +46,8 @@ def evaluate_params(
     seed_offset: int = 1_000_000,
     deterministic: bool | None = None,
     action_mode: str | None = None,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     if num_episodes <= 0:
@@ -62,6 +64,14 @@ def evaluate_params(
         deterministic=deterministic,
         action_mode=action_mode,
     )
+    move_temperature = _validate_evaluation_temperature(
+        move_temperature,
+        name="move_temperature",
+    )
+    write_temperature = _validate_evaluation_temperature(
+        write_temperature,
+        name="write_temperature",
+    )
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
     step_fn = jax.jit(
         lambda current_state, current_obs, action_key: _evaluation_step(
@@ -72,6 +82,8 @@ def evaluate_params(
             obs=current_obs,
             key=action_key,
             action_mode=resolved_action_mode,
+            move_temperature=move_temperature,
+            write_temperature=write_temperature,
         )
     )
 
@@ -122,6 +134,8 @@ def _evaluation_step(
     obs: Any,
     key: Any,
     action_mode: str,
+    move_temperature: float,
+    write_temperature: float,
 ) -> tuple[Any, Any, Any, Any, Any]:
     central_obs = build_central_observations(
         obs,
@@ -144,6 +158,8 @@ def _evaluation_step(
         central_obs,
         key,
         action_mode=action_mode,
+        move_temperature=move_temperature,
+        write_temperature=write_temperature,
     )
     if bool(getattr(args, "write_action_ablation", False)):
         actions = actions.at[..., 1].set(0)
@@ -161,6 +177,8 @@ def evaluate_checkpoint(
     seed_offset: int = 1_000_000,
     deterministic: bool | None = None,
     action_mode: str | None = None,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     raw_checkpoint = read_checkpoint(checkpoint_path)
@@ -180,6 +198,8 @@ def evaluate_checkpoint(
         seed_offset=seed_offset,
         deterministic=deterministic,
         action_mode=action_mode,
+        move_temperature=move_temperature,
+        write_temperature=write_temperature,
         shuffle_positions=shuffle_positions,
     )
 
@@ -191,6 +211,8 @@ def _evaluation_actions_for_mode(
     key: jax.Array,
     *,
     action_mode: str,
+    move_temperature: float = 1.0,
+    write_temperature: float = 1.0,
 ) -> jax.Array:
     if action_mode in {"deterministic", "sampled"}:
         actions, _, _, _ = get_action_and_value(
@@ -205,16 +227,32 @@ def _evaluation_actions_for_mode(
     move_mode, write_mode = _split_hybrid_action_mode(action_mode)
     move_logits, write_logits = get_action_logits(params, actor_obs)
     move_key, write_key = jax.random.split(key)
-    move_actions = _head_actions_for_mode(move_logits, move_key, mode=move_mode)
-    write_actions = _head_actions_for_mode(write_logits, write_key, mode=write_mode)
+    move_actions = _head_actions_for_mode(
+        move_logits,
+        move_key,
+        mode=move_mode,
+        temperature=move_temperature,
+    )
+    write_actions = _head_actions_for_mode(
+        write_logits,
+        write_key,
+        mode=write_mode,
+        temperature=write_temperature,
+    )
     return jnp.stack([move_actions, write_actions], axis=-1).astype(jnp.int32)
 
 
-def _head_actions_for_mode(logits: jax.Array, key: jax.Array, *, mode: str) -> jax.Array:
+def _head_actions_for_mode(
+    logits: jax.Array,
+    key: jax.Array,
+    *,
+    mode: str,
+    temperature: float,
+) -> jax.Array:
     if mode == "greedy":
         return jnp.argmax(logits, axis=-1)
     if mode == "sampled":
-        return jax.random.categorical(key, logits, axis=-1)
+        return jax.random.categorical(key, logits / float(temperature), axis=-1)
     if mode == "zero":
         return jnp.zeros(logits.shape[:-1], dtype=jnp.int32)
     raise ValueError(f"unknown evaluation action head mode {mode!r}.")
@@ -241,6 +279,13 @@ def validate_evaluation_action_mode(action_mode: str) -> str:
         choices = ", ".join(sorted(EVALUATION_ACTION_MODES))
         raise ValueError(f"unknown evaluation action mode {action_mode!r}; choices: {choices}")
     return action_mode
+
+
+def _validate_evaluation_temperature(value: float, *, name: str) -> float:
+    temperature = float(value)
+    if temperature <= 0.0:
+        raise ValueError(f"{name} must be positive.")
+    return temperature
 
 
 def _evaluation_action_mode_default(

@@ -2155,6 +2155,30 @@ def test_jax_evaluation_can_mix_action_head_modes(monkeypatch: pytest.MonkeyPatc
     np.testing.assert_array_equal(np.asarray(zero_write_actions[..., 1]), np.array([[0, 0]]))
 
 
+def test_jax_evaluate_params_rejects_nonpositive_action_temperature() -> None:
+    args = _rollout_args()
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        write_bits=args.write_bits,
+    )
+    params, _, _ = _params_for_args(args, env)
+
+    with pytest.raises(ValueError, match="move_temperature"):
+        evaluate_params(
+            params=params,
+            args=args,
+            num_episodes=1,
+            action_mode="sampled_move_greedy_write",
+            move_temperature=0.0,
+        )
+
+
 def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
     params = init_agent_params(
         jax.random.PRNGKey(0),

@@ -104,6 +104,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_SHARP_MOVE_ALIGN",
         "DISTANCE_CAP4_SHARP_SEED2",
         "DISTANCE_CAP4_SHARP_HYBRID_POLICY",
+        "DISTANCE_CAP4_SHARP_TEMP_POLICY",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -471,6 +472,16 @@ def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> N
     ]
     assert calls[0]["num_episodes"] == 32
     assert summary["evaluation"]["sampled_move_greedy_write"]["eval_mean_delivered_food"] == 23.0
+
+    temp_plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_SHARP_TEMP_POLICY",
+        run_root=tmp_path / "loop",
+        wandb_mode="disabled",
+    )
+
+    assert temp_plan["mode"] == "checkpoint_evaluation"
+    assert temp_plan["evaluation"]["action_modes"][0]["move_temperature"] == 0.5
+    assert temp_plan["evaluation"]["action_modes"][-1]["move_temperature"] == 1.25
 
 
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:

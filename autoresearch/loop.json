@@ -645,6 +645,66 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_TEMP_POLICY",
+      "priority": 20,
+      "mode": "checkpoint_evaluation",
+      "family": "deployment_policy",
+      "title": "Tune movement sampling temperature for SHARP deployment",
+      "hypothesis": "The 32-episode hybrid gate confirmed that sampled movement with greedy writing clears almost all 25x25 cookies, while greedy movement loses route diversity. A lower movement temperature may keep enough stochastic routing to escape brittle argmax traps while reducing random dithering and improving completion speed/success.",
+      "intervention": "Do not retrain. Load the best DISTANCE_CAP4_SHARP checkpoint, keep write decisions greedy, and evaluate sampled movement at temperatures 0.50, 0.75, 1.00, and 1.25 on shuffled held-out 25x25 layouts.",
+      "success_signal": "A temperature should beat the untuned sampled-move/greedy-write policy by raising success rate above 75% or delivered food above 22.31/23 without falling back to brittle greedy movement.",
+      "report_notes": "Tests deployment-time policy temperature as a control parameter. If a lower temperature wins, report it as improving policy use rather than changing the learned reward, curriculum, or environment.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_TEMP_POLICY",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 1900000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t050_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 32,
+            "seed_offset": 1900000,
+            "move_temperature": 0.5
+          },
+          {
+            "name": "sampled_move_t075_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 32,
+            "seed_offset": 2000000,
+            "move_temperature": 0.75
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 32,
+            "seed_offset": 2100000,
+            "move_temperature": 1.0
+          },
+          {
+            "name": "sampled_move_t125_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 32,
+            "seed_offset": 2200000,
+            "move_temperature": 1.25
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-TEMP-POLICY",
+        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "deployment-policy"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
