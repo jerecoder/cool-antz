@@ -131,6 +131,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_REMAINING_SELECT_430",
         "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430",
         "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_CONFIRM_GRID",
+        "DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -549,6 +550,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    completion3_select = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -711,6 +719,20 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     )
     assert seed2_select_parsed.seed == 2
     assert seed2_select_parsed.num_ants == 24
+
+    completion3_select_parsed = parse_args(completion3_select["common_args"])
+    assert completion3_select["family"] == "reward_shaping"
+    assert completion3_select["stages"][0]["select_best_checkpoint"] is True
+    assert completion3_select["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430/checkpoints/"
+        "jax_mappo_forage_stage1_25x25_best.pkl"
+    )
+    assert completion3_select_parsed.completion_bonus == 3.0
+    assert completion3_select_parsed.step_penalty == 0.000035
+    assert [mode["move_temperature"] for mode in completion3_select["evaluation"]["action_modes"]] == [
+        0.95,
+        1.05,
+    ]
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"

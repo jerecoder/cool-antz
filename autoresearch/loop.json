@@ -2397,8 +2397,78 @@
       }
     },
     {
-      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "id": "DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430",
       "priority": 47,
+      "mode": "forage_curriculum",
+      "family": "reward_shaping",
+      "title": "Stronger completion bonus with best-checkpoint selection",
+      "hypothesis": "Both selected speed checkpoints hover just below robust 22/23 delivery, suggesting the colony often misses only the final cleanup. A stronger all-food completion bonus may make complete clears more valuable during the fast 430-step fine-tune, while best-checkpoint selection avoids terminal drift.",
+      "intervention": "Load the strongest 24-ant, 12-source, 430-step parent checkpoint and fine-tune for 700 updates with completion_bonus 3.0, low step penalty 0.000035, and best checkpoint selection by episode_return. Evaluate sampled-movement, greedy-write deployment at move temperatures 0.95 and 1.05.",
+      "success_signal": "A win should exceed 22/23 delivered over 128 held-out shuffled episodes while keeping mean episode length below 430.",
+      "report_notes": "This tests whether the near-miss is an incentive problem around final clearance rather than a distribution or seed issue. It combines the best-checkpoint control that helped with a stronger explicit completion incentive.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 700,
+      "custom_stages": [
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 12,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 700,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "save_best_checkpoint": true,
+          "select_best_checkpoint": true,
+          "best_checkpoint_metric": "episode_return",
+          "best_checkpoint_mode": "max"
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.000035,
+        "completion_bonus": 3.0,
+        "ent_coef": 0.00025,
+        "clip_coef": 0.08,
+        "learning_rate": 0.000025,
+        "update_epochs": 6,
+        "log_interval": 10
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 5300000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t095_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 5300000,
+            "move_temperature": 0.95
+          },
+          {
+            "name": "sampled_move_t105_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 5300000,
+            "move_temperature": 1.05
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-COMPLETION3-BEST-SELECT-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "completion-bonus", "checkpoint-selection", "cleanup", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "priority": 48,
       "mode": "forage_curriculum",
       "family": "food_distribution",
       "title": "Thirty-two-ant final throughput push at 430 steps",
@@ -2462,7 +2532,7 @@
     },
     {
       "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
-      "priority": 48,
+      "priority": 49,
       "mode": "forage_curriculum",
       "family": "efficiency_finetune",
       "title": "Eight-ant horizon ramp from 900 to 550 steps",
