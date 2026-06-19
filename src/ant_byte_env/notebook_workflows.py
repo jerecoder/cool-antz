@@ -628,6 +628,9 @@ def run_forage_curriculum(
     wandb_run_name: str | None = None,
     wandb_mode: str = "online",
     wandb_tags: Sequence[str] | None = None,
+    wandb_notes: str | None = None,
+    wandb_artifact_paths: Sequence[Path] | None = None,
+    wandb_artifact_prefix: str = "forage-curriculum",
     wandb_video_max_frames: int | None = 600,
     wandb_video_stage_names: Sequence[str] | None = FORAGE_WANDB_PREVIEW_STAGE_NAMES,
 ) -> dict[str, Any]:
@@ -645,6 +648,7 @@ def run_forage_curriculum(
         tags=wandb_tags,
         mode=wandb_mode,
         run_dir=checkpoint_dir.parent,
+        notes=wandb_notes,
         config={
             "common_args": list(common_args),
             "global_update_cap": int(global_update_cap),
@@ -664,6 +668,15 @@ def run_forage_curriculum(
             ),
         },
     )
+    if tracker.enabled:
+        for artifact_path in wandb_artifact_paths or ():
+            if artifact_path.exists():
+                tracker.log_artifact(
+                    f"{wandb_artifact_prefix}-{artifact_path.stem}",
+                    artifact_path,
+                    artifact_type="research-plan",
+                    aliases=["latest"],
+                )
 
     try:
         for stage_index, stage in enumerate(stages, start=1):

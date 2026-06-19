@@ -1,34 +1,31 @@
-# Autoresearch
+# Forage Improvement Autoresearch
 
-Autoresearch is a small, legible loop for turning AntByte hunches into checked
-experiments. The goal is not to build a giant agent framework. The goal is to
-make it easy to ask a concrete research question, run the smallest useful
-experiment, inspect the evidence, and decide what to try next.
+This folder contains the active autoresearch loop. Older communication and no-cheat 50x50 sweep files were intentionally removed so new runs do not mix stale assumptions with the current goal.
 
-The Karpathy-inspired part is the taste: plain files, simple commands, visible
-state, and very little magic. Prefer one hackable script or notebook cell over a
-deep abstraction. Prefer a tiny table of numbers over a dashboard nobody reads.
+## Commands
 
-## Loop
+Plan an experiment:
 
-1. Write the hypothesis before running anything.
-2. Pick the smallest config change that could falsify it.
-3. Run one bounded experiment.
-4. Save the exact command, checkpoint path, metrics, and rollout artifact.
-5. Decide: keep, revert, or mutate the idea.
+```bash
+PYTHONPATH=src ant-byte autoresearch loop-plan --id CAPACITY4 --wandb-mode disabled
+```
 
-## Folder Map
+Run an experiment:
 
-- `ideas/` contains research notes. Each note should name the problem, the
-  current evidence, candidate interventions, and the next experiment.
-- `templates/experiment.md` is the copy-paste template for a single run.
-- `protocol.md` is the operating checklist for manual or agent-assisted runs.
+```bash
+PYTHONPATH=src ant-byte autoresearch loop-run --id CAPACITY4 --wandb-mode online
+```
 
-Generated checkpoints, videos, metrics, and large logs should stay under
-`runs/`, `results/`, or `vault/`, not in this folder.
+Rank completed runs:
 
-## Current North Star
+```bash
+PYTHONPATH=src ant-byte autoresearch loop-rank
+```
 
-Make communication in AntByte measurable and useful. A communication method is
-interesting only if it improves forage behavior, survives deterministic rollout,
-and uses the available writable bits for a reason we can explain.
+Each run writes:
+
+- `experiment.md`: conceptual hypothesis, intervention, baseline, and report notes
+- `plan.json`: resolved executable settings
+- `summary.json`: training result and artifact pointers
+
+For forage-curriculum experiments, `experiment.md` and `plan.json` are also attached to the same W&B run as research-plan artifacts.

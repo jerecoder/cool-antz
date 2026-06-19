@@ -1,47 +1,21 @@
-# Experiment: <short name>
+# <id>: <title>
 
 ## Hypothesis
 
-<One causal claim.>
+What failure mode this run targets.
 
-## Change
+## Intervention
 
-<The smallest code/config/notebook mutation being tested.>
+The actual parameter or algorithm change.
 
-## Command
+## Baseline To Beat
 
-```bash
-<exact command or notebook cell entry point>
-```
+The current 25x25-level behavior is below 1.0 return with very few deliveries.
 
-## Inputs
+## Success Signal
 
-- Branch:
-- Commit:
-- Dirty files:
-- Config:
-- Source checkpoint:
+How the run should improve 25x25 return, deliveries, pickups, or remaining food.
 
-## Outputs
+## Report Notes
 
-- Run directory:
-- Checkpoint:
-- Metrics:
-- Deterministic rollout:
-- Sampled rollout:
-
-## Communication Probe
-
-```text
-write_action_counts:
-final_grid_byte_counts:
-mean_write_entropy:
-```
-
-## Verdict
-
-`keep | mutate | drop | blocked`
-
-## Next Move
-
-<The next single experiment this result suggests.>
+Plain-language notes for later writeups.

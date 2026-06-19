@@ -1,0 +1,194 @@
+{
+  "name": "forage_25x25_improvement_loop",
+  "base_config": "experiments/forage_curriculum.json",
+  "run_root": "runs/autoresearch/forage_loop",
+  "default_global_update_cap": 900,
+  "default_stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 22, 25],
+  "food_source_divisor": 4,
+  "target": {
+    "stage_name": "25x25",
+    "baseline": "The interrupted scaled-budget curriculum was still below 1.0 return at 25x25 and the latest saved 24x24 checkpoint had only 6 deliveries with 17.5 food remaining.",
+    "minimum_promotion_episode_return": 3.0,
+    "strong_promotion_episode_return": 5.0
+  },
+  "default_args": {
+    "num_envs": 8,
+    "num_steps": 256,
+    "num_minibatches": 4,
+    "update_epochs": 4,
+    "gamma": 0.997,
+    "gae_lambda": 0.97,
+    "learning_rate": 0.00025,
+    "ent_coef": 0.01,
+    "hidden_size": 128,
+    "actor_vision_radius": 1,
+    "num_ants": 1,
+    "write_bits": 1,
+    "write_while_moving": true,
+    "pickup_bonus": 0.25,
+    "distance_bonus": 0.0,
+    "random_food": true,
+    "random_hub": true,
+    "quiet": true,
+    "log_interval": 25
+  },
+  "stage_training_profile": [
+    {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
+    {"max_size": 15, "global_update_cap": 900, "num_steps": 192, "gamma": 0.995},
+    {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+  ],
+  "wandb": {
+    "project": "cool-antz",
+    "group": "forage_25x25_improvement_loop",
+    "mode": "online",
+    "tags": ["jax", "mappo", "forage-loop", "25x25-gate"]
+  },
+  "wandb_video": {
+    "stage_names": ["15x15", "20x20", "25x25"],
+    "max_frames": 500
+  },
+  "experiments": [
+    {
+      "id": "CAPACITY4",
+      "priority": 1,
+      "mode": "forage_curriculum",
+      "family": "exploration_capacity",
+      "title": "Four ants with the same local policy",
+      "hypothesis": "The sharp scale cliff is partly exploration throughput: one ant rarely sees enough food-hub transitions on 20x20-25x25 maps. Four ants should produce more pickups and deliveries without giving the actor oracle coordinates.",
+      "intervention": "Increase num_ants from 1 to 4 while keeping radius-1 local observations, moving writes, concentrated food, and the long-horizon gamma profile.",
+      "success_signal": "At 25x25, deliveries and episode_return should be several times the single-ant baseline; remaining food should fall sharply.",
+      "report_notes": "If this wins, the report can say the bottleneck was not only optimizer budget; parallel embodied exploration changed the data distribution.",
+      "run_dir": "runs/autoresearch/forage_loop/CAPACITY4",
+      "global_update_cap": 900,
+      "args": {
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.008
+      },
+      "wandb": {
+        "name": "loop-CAPACITY4-four-ants",
+        "tags": ["capacity", "multi-ant"]
+      }
+    },
+    {
+      "id": "VISION2",
+      "priority": 2,
+      "mode": "forage_curriculum",
+      "family": "observation",
+      "title": "Single ant with radius-2 local vision",
+      "hypothesis": "Radius-1 vision may be too myopic once the map grows; the policy cannot stabilize trajectories because landmarks vanish immediately. Radius-2 vision gives a larger local context without direct food or hub coordinates.",
+      "intervention": "Increase actor_vision_radius from 1 to 2, keep one ant, keep the same staged 25x25 gate, and use the long-horizon gamma profile.",
+      "success_signal": "25x25 pickups should rise first; if delivery also rises, local observability was a core bottleneck.",
+      "report_notes": "This is the cleanest observation-capacity test because it changes only what the actor can locally see.",
+      "run_dir": "runs/autoresearch/forage_loop/VISION2",
+      "global_update_cap": 900,
+      "args": {
+        "actor_vision_radius": 2,
+        "hidden_size": 192
+      },
+      "wandb": {
+        "name": "loop-VISION2-radius2",
+        "tags": ["vision", "radius2"]
+      }
+    },
+    {
+      "id": "DENSE8",
+      "priority": 3,
+      "mode": "forage_curriculum",
+      "family": "food_distribution",
+      "title": "Denser food sources for easier route consolidation",
+      "hypothesis": "The ant may not get enough repeated local evidence for the same route when food is spread over many sources. Fewer, richer sources should make the pickup-delivery behavior easier to consolidate before 25x25.",
+      "intervention": "Keep total food per stage but set food_source_divisor to 8, so larger maps have fewer source tiles with more bites per source.",
+      "success_signal": "25x25 delivery_events should improve more than pickup_events; that would mean the agent is exploiting repeated source-hub trips.",
+      "report_notes": "This tests distribution design rather than policy architecture.",
+      "run_dir": "runs/autoresearch/forage_loop/DENSE8",
+      "global_update_cap": 900,
+      "food_source_divisor": 8,
+      "args": {
+        "ent_coef": 0.008
+      },
+      "wandb": {
+        "name": "loop-DENSE8-fewer-sources",
+        "tags": ["food-density"]
+      }
+    },
+    {
+      "id": "GAMMA999",
+      "priority": 4,
+      "mode": "forage_curriculum",
+      "family": "credit_assignment",
+      "title": "Higher gamma with longer rollouts",
+      "hypothesis": "The large-map failure may be credit assignment after pickup: delivery reward is too delayed relative to the rollout/value target. Higher gamma and longer rollouts should make carrying-to-hub behavior less brittle.",
+      "intervention": "Use gamma 0.999, gae_lambda 0.98, num_steps 320, lower entropy, and fewer environments to keep the batch manageable.",
+      "success_signal": "If pickups stay similar but deliveries rise at 20x20-25x25, delayed delivery credit was limiting learning.",
+      "report_notes": "This is the pure trainer-budget/credit-assignment run.",
+      "run_dir": "runs/autoresearch/forage_loop/GAMMA999",
+      "global_update_cap": 800,
+      "stage_training_profile": [
+        {"max_size": 8, "global_update_cap": 500, "num_steps": 160, "gamma": 0.995},
+        {"max_size": 15, "global_update_cap": 800, "num_steps": 256, "gamma": 0.997},
+        {"max_size": 25, "global_update_cap": 1000, "num_steps": 320, "gamma": 0.999}
+      ],
+      "args": {
+        "num_envs": 6,
+        "num_steps": 320,
+        "gamma": 0.999,
+        "gae_lambda": 0.98,
+        "ent_coef": 0.004
+      },
+      "wandb": {
+        "name": "loop-GAMMA999-long-credit",
+        "tags": ["gamma", "long-rollout"]
+      }
+    },
+    {
+      "id": "VISION2_CAP4",
+      "priority": 5,
+      "mode": "forage_curriculum",
+      "family": "combined_capacity",
+      "title": "Four ants plus radius-2 vision",
+      "hypothesis": "If CAPACITY4 and VISION2 each help, the combination may pass the 25x25 gate decisively by improving both exploration throughput and local route stability.",
+      "intervention": "Use four ants, radius-2 actor vision, hidden size 256, and the standard long-horizon profile.",
+      "success_signal": "This should be the first candidate expected to exceed 5.0 return at 25x25 if the scale cliff is mostly data and observability.",
+      "report_notes": "This is deliberately less ablated but higher upside.",
+      "run_dir": "runs/autoresearch/forage_loop/VISION2_CAP4",
+      "global_update_cap": 900,
+      "args": {
+        "num_ants": 4,
+        "actor_vision_radius": 2,
+        "hidden_size": 256,
+        "ent_coef": 0.006
+      },
+      "wandb": {
+        "name": "loop-VISION2-CAP4",
+        "tags": ["combined", "multi-ant", "radius2"]
+      }
+    },
+    {
+      "id": "AUTO_STAGE",
+      "priority": 6,
+      "mode": "autocurriculum",
+      "base_config": "experiments/autocurriculum.json",
+      "family": "autocurriculum",
+      "title": "Autocurriculum with active-size progress bonus",
+      "hypothesis": "The fixed curriculum may overfit each size handoff. Autocurriculum can expose continuous active-size growth if we directly reward stage advancement and use a sane update budget.",
+      "intervention": "Train one 50x50 autocurriculum run with stage_completion_bonus, gamma 0.997, radius-2 vision, and a proper but bounded update cap.",
+      "success_signal": "The checkpoint should show higher autocurriculum active-size progress and more deliveries than the old single-ant baseline.",
+      "report_notes": "This tests whether the curriculum schedule itself is the issue.",
+      "run_dir": "runs/autoresearch/forage_loop/AUTO_STAGE",
+      "global_update_cap": 35000,
+      "args": {
+        "actor_vision_radius": 2,
+        "stage_completion_bonus": 3.0,
+        "gamma": 0.997,
+        "gae_lambda": 0.97,
+        "ent_coef": 0.006,
+        "log_interval": 100
+      },
+      "wandb": {
+        "name": "loop-AUTO-STAGE",
+        "tags": ["autocurriculum", "stage-bonus"]
+      }
+    }
+  ]
+}

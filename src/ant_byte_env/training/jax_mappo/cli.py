@@ -6,7 +6,8 @@ import argparse
 from pathlib import Path
 
 from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
-from ant_byte_env.training.jax_mappo.transfer import WRITE_HEAD_TRANSFER_MODES
+
+WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

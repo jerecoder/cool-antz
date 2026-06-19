@@ -233,6 +233,52 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "loop-plan":
+        from ant_byte_env.research_loop import build_research_experiment_plan
+
+        payload = build_research_experiment_plan(
+            matrix_path=args.matrix,
+            run_id=args.run_id,
+            run_root=args.run_root,
+            global_update_cap=args.global_update_cap,
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            wandb_project=args.wandb_project,
+            wandb_mode=args.wandb_mode,
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "loop-run":
+        from ant_byte_env.autoresearch import AutoresearchResourceError
+        from ant_byte_env.research_loop import run_research_experiment
+
+        try:
+            payload = run_research_experiment(
+                matrix_path=args.matrix,
+                run_id=args.run_id,
+                run_root=args.run_root,
+                global_update_cap=args.global_update_cap,
+                num_envs=args.num_envs,
+                num_steps=args.num_steps,
+                wandb_project=args.wandb_project,
+                wandb_mode=args.wandb_mode,
+                check_resources=not args.skip_resource_check,
+                resume_completed=not args.rerun_completed,
+            )
+        except AutoresearchResourceError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "autoresearch" and args.autoresearch_command == "loop-rank":
+        from ant_byte_env.research_loop import rank_research_loop_runs
+
+        payload = rank_research_loop_runs(
+            matrix_path=args.matrix,
+            run_ids=args.ids,
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     parser.print_help()
     return 1
 
@@ -426,6 +472,28 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_autocurriculum_autoresearch_args(autocurriculum_run)
     autocurriculum_run.add_argument("--rerun-completed", action="store_true")
     autocurriculum_run.add_argument("--skip-resource-check", action="store_true")
+    loop_plan = autoresearch_subparsers.add_parser(
+        "loop-plan",
+        help="Print a self-contained active research-loop experiment plan.",
+    )
+    _add_research_loop_args(loop_plan)
+    loop_run = autoresearch_subparsers.add_parser(
+        "loop-run",
+        help="Execute one active research-loop experiment.",
+    )
+    _add_research_loop_args(loop_run)
+    loop_run.add_argument("--rerun-completed", action="store_true")
+    loop_run.add_argument("--skip-resource-check", action="store_true")
+    loop_rank = autoresearch_subparsers.add_parser(
+        "loop-rank",
+        help="Rank completed active research-loop experiments.",
+    )
+    loop_rank.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/loop.json"),
+    )
+    loop_rank.add_argument("--ids", nargs="+", default=None)
     communication_rank = autoresearch_subparsers.add_parser(
         "communication-rank",
         help="Rank completed communication probe artifacts by balanced delivery.",
@@ -476,6 +544,25 @@ def _add_autocurriculum_autoresearch_args(parser: argparse.ArgumentParser) -> No
     )
     parser.add_argument("--no-render", dest="render_rollout", action="store_false")
     parser.add_argument("--max-render-frames", type=int, default=None)
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument(
+        "--wandb-mode",
+        choices=["online", "offline", "disabled"],
+        default=None,
+    )
+
+
+def _add_research_loop_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--matrix",
+        type=Path,
+        default=Path("autoresearch/loop.json"),
+    )
+    parser.add_argument("--id", dest="run_id", required=True)
+    parser.add_argument("--run-root", type=Path, default=None)
+    parser.add_argument("--global-update-cap", type=int, default=None)
+    parser.add_argument("--num-envs", type=int, default=None)
+    parser.add_argument("--num-steps", type=int, default=None)
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument(
         "--wandb-mode",
