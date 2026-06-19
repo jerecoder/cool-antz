@@ -952,6 +952,59 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_TEMP_TOP3_CONFIRM",
+      "priority": 25,
+      "mode": "checkpoint_evaluation",
+      "family": "deployment_policy",
+      "title": "Final top-three movement temperature confirmation",
+      "hypothesis": "Aggregating all deployment-temperature sweeps suggests temperature 1.10 has the best delivery/success/speed tradeoff, while 1.25 and 1.40 sometimes win delivered food on individual seed streams. A final same-seed head-to-head should choose the reportable deployment temperature.",
+      "intervention": "Do not retrain. Load the best DISTANCE_CAP4_SHARP checkpoint, keep write decisions greedy, and evaluate movement temperatures 1.10, 1.25, and 1.40 over 128 shuffled 25x25 episodes each using the same seed stream.",
+      "success_signal": "Select the temperature with the best combination of delivered food, success, and episode length. A reportable winner should stay above 22.5/23 delivered food and above 85% success over 128 episodes.",
+      "report_notes": "This is the final head-to-head among the strongest deployment temperatures identified by prior sweeps. It should decide the default policy-temperature recommendation.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_TEMP_TOP3_CONFIRM",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 2700000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 2700000,
+            "move_temperature": 1.1
+          },
+          {
+            "name": "sampled_move_t125_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 2700000,
+            "move_temperature": 1.25
+          },
+          {
+            "name": "sampled_move_t140_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 2700000,
+            "move_temperature": 1.4
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-TEMP-TOP3-CONFIRM",
+        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "top3-confirmation", "deployment-policy"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
