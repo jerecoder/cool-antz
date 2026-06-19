@@ -103,6 +103,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_VISION2_CAP4_SHARP",
         "DISTANCE_CAP4_SHARP_MOVE_ALIGN",
         "DISTANCE_CAP4_SHARP_SEED2",
+        "DISTANCE_CAP4_SHARP_HYBRID_POLICY",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -132,6 +133,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "vision_sharpening",
         "movement_mode_alignment",
         "seed_robustness",
+        "deployment_policy",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -413,6 +415,62 @@ def test_research_loop_plan_can_change_cookie_distance_and_stage_sizes() -> None
 
     assert near["stages"][-1]["cookie_distance"] < 12
     assert fine["stage_sizes"][-4:] == [22, 23, 24, 25]
+
+
+def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> None:
+    plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_SHARP_HYBRID_POLICY",
+        run_root=tmp_path / "loop",
+        wandb_mode="disabled",
+    )
+    checkpoint = tmp_path / "checkpoint.pkl"
+    checkpoint.write_bytes(b"checkpoint")
+    plan["checkpoint"] = str(checkpoint)
+    plan["final_checkpoint"] = str(checkpoint)
+    plan["source_checkpoint"] = str(checkpoint)
+    calls: list[dict[str, object]] = []
+
+    def fake_evaluate_checkpoint(
+        checkpoint_path: Path,
+        *,
+        num_episodes: int,
+        seed_offset: int,
+        action_mode: str,
+        shuffle_positions: bool,
+    ) -> dict[str, float]:
+        calls.append(
+            {
+                "checkpoint_path": checkpoint_path,
+                "num_episodes": num_episodes,
+                "seed_offset": seed_offset,
+                "action_mode": action_mode,
+                "shuffle_positions": shuffle_positions,
+            }
+        )
+        return {
+            "eval_success_rate": 1.0,
+            "eval_mean_delivered_food": 23.0,
+            "eval_mean_delivered_fraction": 1.0,
+            "eval_mean_episode_return": 23.0,
+            "eval_mean_episode_length": 800.0,
+        }
+
+    summary = execute_research_experiment_plan(
+        plan,
+        evaluate_checkpoint=fake_evaluate_checkpoint,
+        check_resources=False,
+    )
+
+    assert summary["mode"] == "checkpoint_evaluation"
+    assert plan["total_train_env_steps"] == 0
+    assert [call["action_mode"] for call in calls] == [
+        "greedy_move_greedy_write",
+        "greedy_move_sampled_write",
+        "sampled_move_greedy_write",
+        "sampled_move_sampled_write",
+    ]
+    assert calls[0]["num_episodes"] == 32
+    assert summary["evaluation"]["sampled_move_greedy_write"]["eval_mean_delivered_food"] == 23.0
 
 
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:

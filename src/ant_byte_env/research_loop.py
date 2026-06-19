@@ -91,8 +91,11 @@ def build_research_experiment_plan(
     matrix = load_research_loop_matrix(matrix_path)
     entry = research_loop_entry(matrix, run_id=run_id)
     mode = str(entry.get("mode", "forage_curriculum"))
-    if mode not in {"forage_curriculum", "autocurriculum"}:
-        raise ValueError("research loop mode must be forage_curriculum or autocurriculum.")
+    if mode not in {"forage_curriculum", "autocurriculum", "checkpoint_evaluation"}:
+        raise ValueError(
+            "research loop mode must be forage_curriculum, autocurriculum, "
+            "or checkpoint_evaluation."
+        )
 
     base_config = Path(str(entry.get("base_config", matrix["base_config"])))
     base_spec = load_experiment_config(base_config)
@@ -133,7 +136,7 @@ def build_research_experiment_plan(
             wandb_mode=wandb_mode,
             update_cap_overridden=update_cap_overridden,
         )
-    else:
+    elif mode == "autocurriculum":
         plan = _build_autocurriculum_research_plan(
             matrix=matrix,
             entry=entry,
@@ -142,6 +145,17 @@ def build_research_experiment_plan(
             run_dir=run_dir,
             merged_args=merged_args,
             global_update_cap=update_cap,
+            wandb_project=wandb_project,
+            wandb_mode=wandb_mode,
+        )
+    else:
+        plan = _build_checkpoint_evaluation_research_plan(
+            matrix=matrix,
+            entry=entry,
+            matrix_path=matrix_path,
+            base_config=base_config,
+            run_dir=run_dir,
+            merged_args=merged_args,
             wandb_project=wandb_project,
             wandb_mode=wandb_mode,
         )
@@ -166,7 +180,7 @@ def execute_research_experiment_plan(
             min_disk_free_gb=min_disk_free_gb,
             context=f"research loop {plan['id']}",
         )
-    if train_main is None:
+    if train_main is None and plan["mode"] != "checkpoint_evaluation":
         from ant_byte_env.training.jax_mappo.runner import main as train_main
 
     run_dir = Path(str(plan["run_dir"]))
@@ -186,7 +200,7 @@ def execute_research_experiment_plan(
             plan_path=plan_path,
             note_path=note_path,
         )
-    else:
+    elif plan["mode"] == "autocurriculum":
         summary = _execute_autocurriculum_plan(
             plan,
             train_main=train_main,
@@ -194,6 +208,8 @@ def execute_research_experiment_plan(
             plan_path=plan_path,
             note_path=note_path,
         )
+    else:
+        summary = _execute_checkpoint_evaluation_plan(plan)
 
     payload: dict[str, Any] = {
         **summary,
@@ -368,6 +384,7 @@ def rank_research_loop_runs(
         score = eval_score if eval_score is not None else _promotion_score(target_metrics)
         deterministic = evaluation.get("deterministic", {}) if isinstance(evaluation, Mapping) else {}
         sampled = evaluation.get("sampled", {}) if isinstance(evaluation, Mapping) else {}
+        extra_evaluation = _extra_evaluation_summary(evaluation) if isinstance(evaluation, Mapping) else {}
         rows.append(
             {
                 "id": run_id,
@@ -395,6 +412,7 @@ def rank_research_loop_runs(
                     if isinstance(sampled, Mapping)
                     else 0.0
                 ),
+                "extra_evaluation": extra_evaluation,
                 "episode_return": float(target_metrics.get("episode_return", 0.0)),
                 "delivery_events": float(target_metrics.get("delivery_events", 0.0)),
                 "pickup_events": float(target_metrics.get("pickup_events", 0.0)),
@@ -617,6 +635,56 @@ def _build_autocurriculum_research_plan(
     }
 
 
+def _build_checkpoint_evaluation_research_plan(
+    *,
+    matrix: Mapping[str, Any],
+    entry: Mapping[str, Any],
+    matrix_path: Path,
+    base_config: Path,
+    run_dir: Path,
+    merged_args: dict[str, Any],
+    wandb_project: str | None,
+    wandb_mode: str | None,
+) -> dict[str, Any]:
+    source_checkpoint = entry.get("source_checkpoint")
+    if source_checkpoint is None:
+        raise ValueError("checkpoint_evaluation experiments require source_checkpoint.")
+    checkpoint = Path(str(source_checkpoint))
+    return {
+        "matrix_path": str(matrix_path),
+        "id": str(entry["id"]),
+        "title": str(entry.get("title", "")),
+        "family": str(entry.get("family", "")),
+        "mode": "checkpoint_evaluation",
+        "priority": int(entry.get("priority", 100)),
+        "hypothesis": str(entry.get("hypothesis", "")),
+        "intervention": str(entry.get("intervention", "")),
+        "success_signal": str(entry.get("success_signal", "")),
+        "report_notes": str(entry.get("report_notes", "")),
+        "target": dict(matrix.get("target", {})),
+        "base_config": str(base_config),
+        "run_dir": str(run_dir),
+        "source_checkpoint": str(checkpoint),
+        "checkpoint": str(checkpoint),
+        "final_checkpoint": str(checkpoint),
+        "total_train_env_steps": 0,
+        "common_args": [],
+        "resolved_args": {
+            key: value
+            for key, value in merged_args.items()
+            if key not in RESEARCH_LOOP_ARG_EXCLUDES
+        },
+        "evaluation": _research_evaluation_config(matrix=matrix, entry=entry),
+        "wandb": _research_wandb_config(
+            matrix=matrix,
+            entry=entry,
+            run_id=str(entry["id"]),
+            project_override=wandb_project,
+            mode_override=wandb_mode,
+        ),
+    }
+
+
 def _execute_forage_plan(
     plan: Mapping[str, Any],
     *,
@@ -702,6 +770,20 @@ def _execute_autocurriculum_plan(
         "checkpoint": str(checkpoint),
         "wandb": plan["wandb"],
         "train_metrics": _jsonable(train_metrics),
+    }
+
+
+def _execute_checkpoint_evaluation_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
+    checkpoint = Path(str(plan["checkpoint"]))
+    return {
+        "id": plan["id"],
+        "mode": plan["mode"],
+        "run_dir": plan["run_dir"],
+        "resumed": False,
+        "checkpoint": str(checkpoint),
+        "final_checkpoint": str(checkpoint),
+        "wandb": plan["wandb"],
+        "train_metrics": {},
     }
 
 
@@ -814,11 +896,40 @@ def _research_evaluation_config(
     }
     payload.update(dict(matrix.get("evaluation", {})))
     payload.update(dict(entry.get("evaluation", {})))
+    action_modes: list[dict[str, Any]] = []
+    for raw_mode in payload.get("action_modes", []):
+        if isinstance(raw_mode, str):
+            action_modes.append(
+                {
+                    "name": raw_mode,
+                    "action_mode": raw_mode,
+                    "episodes": int(payload.get("sampled_episodes", 0)),
+                }
+            )
+            continue
+        if not isinstance(raw_mode, Mapping):
+            raise ValueError("evaluation action_modes entries must be strings or objects.")
+        action_mode = str(raw_mode.get("action_mode", ""))
+        if not action_mode:
+            raise ValueError("evaluation action_modes entries require action_mode.")
+        action_modes.append(
+            {
+                "name": str(raw_mode.get("name", action_mode)),
+                "action_mode": action_mode,
+                "episodes": int(raw_mode.get("episodes", raw_mode.get("num_episodes", 0))),
+                **(
+                    {"seed_offset": int(raw_mode["seed_offset"])}
+                    if raw_mode.get("seed_offset") is not None
+                    else {}
+                ),
+            }
+        )
     return {
         "deterministic_episodes": int(payload.get("deterministic_episodes", 0)),
         "sampled_episodes": int(payload.get("sampled_episodes", 0)),
         "seed_offset": int(payload.get("seed_offset", 1_000_000)),
         "shuffle_positions": bool(payload.get("shuffle_positions", True)),
+        "action_modes": action_modes,
     }
 
 
@@ -887,7 +998,12 @@ def _evaluate_research_plan_checkpoint(
     evaluation = dict(plan.get("evaluation", {}))
     deterministic_episodes = int(evaluation.get("deterministic_episodes", 0))
     sampled_episodes = int(evaluation.get("sampled_episodes", 0))
-    if deterministic_episodes <= 0 and sampled_episodes <= 0:
+    action_modes = [
+        dict(row)
+        for row in evaluation.get("action_modes", [])
+        if isinstance(row, Mapping) and int(row.get("episodes", 0)) > 0
+    ]
+    if deterministic_episodes <= 0 and sampled_episodes <= 0 and not action_modes:
         return {}
 
     checkpoint_value = summary.get("final_checkpoint") or summary.get("checkpoint")
@@ -896,6 +1012,7 @@ def _evaluate_research_plan_checkpoint(
             "error": "missing_checkpoint",
             "deterministic_episodes": deterministic_episodes,
             "sampled_episodes": sampled_episodes,
+            "action_modes": action_modes,
         }
     checkpoint_path = Path(str(checkpoint_value))
     if not checkpoint_path.exists():
@@ -904,6 +1021,7 @@ def _evaluate_research_plan_checkpoint(
             "checkpoint": str(checkpoint_path),
             "deterministic_episodes": deterministic_episodes,
             "sampled_episodes": sampled_episodes,
+            "action_modes": action_modes,
         }
 
     if evaluate_checkpoint is None:
@@ -930,6 +1048,15 @@ def _evaluate_research_plan_checkpoint(
             num_episodes=sampled_episodes,
             seed_offset=seed_offset + 100_000,
             deterministic=False,
+            shuffle_positions=shuffle_positions,
+        )
+    for index, mode in enumerate(action_modes):
+        mode_name = str(mode.get("name", mode["action_mode"]))
+        payload[mode_name] = evaluate_checkpoint(
+            checkpoint_path,
+            num_episodes=int(mode["episodes"]),
+            seed_offset=int(mode.get("seed_offset", seed_offset + 200_000 + index * 100_000)),
+            action_mode=str(mode["action_mode"]),
             shuffle_positions=shuffle_positions,
         )
     return payload
@@ -980,8 +1107,7 @@ def _log_sidecar_research_artifacts(
 
 def _flatten_evaluation_metrics(evaluation: Mapping[str, Any]) -> dict[str, float]:
     flat: dict[str, float] = {}
-    for mode in ("deterministic", "sampled"):
-        metrics = evaluation.get(mode)
+    for mode, metrics in evaluation.items():
         if not isinstance(metrics, Mapping):
             continue
         for key, value in metrics.items():
@@ -1015,8 +1141,8 @@ def _summary_score(summary: Mapping[str, Any]) -> float:
 def _evaluation_score(evaluation: Mapping[str, Any]) -> float | None:
     rows = [
         metrics
-        for mode in ("deterministic", "sampled")
-        if isinstance((metrics := evaluation.get(mode)), Mapping)
+        for metrics in evaluation.values()
+        if isinstance(metrics, Mapping) and "eval_mean_episode_return" in metrics
     ]
     if not rows:
         return None
@@ -1024,6 +1150,23 @@ def _evaluation_score(evaluation: Mapping[str, Any]) -> float | None:
     mean_delivery = sum(float(row.get("eval_mean_delivered_food", 0.0)) for row in rows) / len(rows)
     mean_fraction = sum(float(row.get("eval_mean_delivered_fraction", 0.0)) for row in rows) / len(rows)
     return mean_return + 0.02 * mean_delivery + 0.5 * mean_fraction
+
+
+def _extra_evaluation_summary(evaluation: Mapping[str, Any]) -> dict[str, dict[str, float]]:
+    extras: dict[str, dict[str, float]] = {}
+    for mode, metrics in evaluation.items():
+        if mode in {"deterministic", "sampled"} or not isinstance(metrics, Mapping):
+            continue
+        if "eval_mean_episode_return" not in metrics:
+            continue
+        extras[str(mode)] = {
+            "return": float(metrics.get("eval_mean_episode_return", 0.0)),
+            "delivered": float(metrics.get("eval_mean_delivered_food", 0.0)),
+            "fraction": float(metrics.get("eval_mean_delivered_fraction", 0.0)),
+            "success_rate": float(metrics.get("eval_success_rate", 0.0)),
+            "episode_length": float(metrics.get("eval_mean_episode_length", 0.0)),
+        }
+    return extras
 
 
 def _utc_now() -> str:

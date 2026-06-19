@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
@@ -18,10 +19,23 @@ from ant_byte_env.training.jax_mappo.core import (
     build_actor_observations,
     build_central_observations,
     flatten_agent_actions,
+    get_action_logits,
     get_action_and_value,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
+
+
+EVALUATION_ACTION_MODES = {
+    "deterministic",
+    "sampled",
+    "greedy_move_greedy_write",
+    "greedy_move_sampled_write",
+    "sampled_move_greedy_write",
+    "sampled_move_sampled_write",
+    "greedy_move_zero_write",
+    "sampled_move_zero_write",
+}
 
 
 def evaluate_params(
@@ -31,6 +45,7 @@ def evaluate_params(
     num_episodes: int,
     seed_offset: int = 1_000_000,
     deterministic: bool | None = None,
+    action_mode: str | None = None,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     if num_episodes <= 0:
@@ -42,9 +57,10 @@ def evaluate_params(
     )
     env = _make_eval_env(eval_source_args)
     eval_args = argparse.Namespace(**{**vars(eval_source_args), "num_envs": 1})
-    use_deterministic_actions = _evaluation_deterministic_default(
+    resolved_action_mode = _evaluation_action_mode_default(
         eval_args,
         deterministic=deterministic,
+        action_mode=action_mode,
     )
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
     step_fn = jax.jit(
@@ -55,7 +71,7 @@ def evaluate_params(
             state=current_state,
             obs=current_obs,
             key=action_key,
-            deterministic=use_deterministic_actions,
+            action_mode=resolved_action_mode,
         )
     )
 
@@ -105,7 +121,7 @@ def _evaluation_step(
     state: Any,
     obs: Any,
     key: Any,
-    deterministic: bool,
+    action_mode: str,
 ) -> tuple[Any, Any, Any, Any, Any]:
     central_obs = build_central_observations(
         obs,
@@ -122,12 +138,12 @@ def _evaluation_step(
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
-    actions, _, _, _ = get_action_and_value(
+    actions = _evaluation_actions_for_mode(
         params,
         actor_obs,
         central_obs,
         key,
-        deterministic=deterministic,
+        action_mode=action_mode,
     )
     if bool(getattr(args, "write_action_ablation", False)):
         actions = actions.at[..., 1].set(0)
@@ -144,6 +160,7 @@ def evaluate_checkpoint(
     num_episodes: int,
     seed_offset: int = 1_000_000,
     deterministic: bool | None = None,
+    action_mode: str | None = None,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     raw_checkpoint = read_checkpoint(checkpoint_path)
@@ -162,18 +179,83 @@ def evaluate_checkpoint(
         num_episodes=num_episodes,
         seed_offset=seed_offset,
         deterministic=deterministic,
+        action_mode=action_mode,
         shuffle_positions=shuffle_positions,
     )
 
 
-def _evaluation_deterministic_default(
+def _evaluation_actions_for_mode(
+    params: JaxMAPPOParams,
+    actor_obs: jax.Array,
+    central_obs: jax.Array,
+    key: jax.Array,
+    *,
+    action_mode: str,
+) -> jax.Array:
+    if action_mode in {"deterministic", "sampled"}:
+        actions, _, _, _ = get_action_and_value(
+            params,
+            actor_obs,
+            central_obs,
+            key,
+            deterministic=action_mode == "deterministic",
+        )
+        return actions
+
+    move_mode, write_mode = _split_hybrid_action_mode(action_mode)
+    move_logits, write_logits = get_action_logits(params, actor_obs)
+    move_key, write_key = jax.random.split(key)
+    move_actions = _head_actions_for_mode(move_logits, move_key, mode=move_mode)
+    write_actions = _head_actions_for_mode(write_logits, write_key, mode=write_mode)
+    return jnp.stack([move_actions, write_actions], axis=-1).astype(jnp.int32)
+
+
+def _head_actions_for_mode(logits: jax.Array, key: jax.Array, *, mode: str) -> jax.Array:
+    if mode == "greedy":
+        return jnp.argmax(logits, axis=-1)
+    if mode == "sampled":
+        return jax.random.categorical(key, logits, axis=-1)
+    if mode == "zero":
+        return jnp.zeros(logits.shape[:-1], dtype=jnp.int32)
+    raise ValueError(f"unknown evaluation action head mode {mode!r}.")
+
+
+def _split_hybrid_action_mode(action_mode: str) -> tuple[str, str]:
+    if action_mode == "greedy_move_greedy_write":
+        return "greedy", "greedy"
+    if action_mode == "greedy_move_sampled_write":
+        return "greedy", "sampled"
+    if action_mode == "sampled_move_greedy_write":
+        return "sampled", "greedy"
+    if action_mode == "sampled_move_sampled_write":
+        return "sampled", "sampled"
+    if action_mode == "greedy_move_zero_write":
+        return "greedy", "zero"
+    if action_mode == "sampled_move_zero_write":
+        return "sampled", "zero"
+    raise ValueError(f"unknown evaluation action mode {action_mode!r}.")
+
+
+def validate_evaluation_action_mode(action_mode: str) -> str:
+    if action_mode not in EVALUATION_ACTION_MODES:
+        choices = ", ".join(sorted(EVALUATION_ACTION_MODES))
+        raise ValueError(f"unknown evaluation action mode {action_mode!r}; choices: {choices}")
+    return action_mode
+
+
+def _evaluation_action_mode_default(
     args: argparse.Namespace,
     *,
     deterministic: bool | None,
-) -> bool:
+    action_mode: str | None,
+) -> str:
+    if action_mode is not None:
+        if deterministic is not None:
+            raise ValueError("Pass either deterministic or action_mode, not both.")
+        return validate_evaluation_action_mode(action_mode)
     if deterministic is not None:
-        return bool(deterministic)
-    return not bool(getattr(args, "autocurriculum", False))
+        return "deterministic" if bool(deterministic) else "sampled"
+    return "sampled" if bool(getattr(args, "autocurriculum", False)) else "deterministic"
 
 
 def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:

@@ -589,6 +589,62 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_HYBRID_POLICY",
+      "priority": 19,
+      "mode": "checkpoint_evaluation",
+      "family": "deployment_policy",
+      "title": "Evaluate SHARP with sampled movement and greedy writing",
+      "hypothesis": "The hybrid action diagnostic showed the bottleneck is the movement head: sampled movement with greedy writing nearly cleared 25x25, while greedy movement stayed brittle even when writing was sampled. The smartest near-term improvement may therefore be a deployment policy that samples route movement while taking the write head greedily, rather than forcing both heads through argmax.",
+      "intervention": "Do not retrain. Load the best DISTANCE_CAP4_SHARP 25x25 checkpoint and run a larger held-out shuffled-layout gate with four explicit action protocols: fully greedy, greedy movement with sampled writing, sampled movement with greedy writing, and fully sampled. This isolates policy-use semantics from learning dynamics.",
+      "success_signal": "Sampled movement with greedy writing should deliver at least 22 of 23 cookies on average across 32 held-out 25x25 episodes, with success rate near the fully sampled policy and far above fully greedy movement.",
+      "report_notes": "This is a deployment-policy experiment, not an easier environment. A win means the trained distribution already contains a strong 25x25 solver, and the report should distinguish stochastic movement deployment from deterministic argmax deployment.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_HYBRID_POLICY",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 1500000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "greedy_move_greedy_write",
+            "action_mode": "greedy_move_greedy_write",
+            "episodes": 32,
+            "seed_offset": 1500000
+          },
+          {
+            "name": "greedy_move_sampled_write",
+            "action_mode": "greedy_move_sampled_write",
+            "episodes": 32,
+            "seed_offset": 1600000
+          },
+          {
+            "name": "sampled_move_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 32,
+            "seed_offset": 1700000
+          },
+          {
+            "name": "sampled_move_sampled_write",
+            "action_mode": "sampled_move_sampled_write",
+            "episodes": 32,
+            "seed_offset": 1800000
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-HYBRID-POLICY",
+        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "deployment-policy"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",

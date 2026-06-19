@@ -2123,6 +2123,38 @@ def test_jax_autocurriculum_evaluation_samples_by_default(
     assert observed_determinism == [False]
 
 
+def test_jax_evaluation_can_mix_action_head_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+    import ant_byte_env.training.jax_mappo.evaluation as jax_evaluation
+
+    move_logits = jnp.array([[[0.0, 4.0, 1.0, 0.0, 0.0], [3.0, 0.0, 1.0, 0.0, 0.0]]])
+    write_logits = jnp.array([[[0.0, 5.0], [6.0, 0.0]]])
+
+    def fake_get_action_logits(params, actor_obs):
+        del params, actor_obs
+        return move_logits, write_logits
+
+    monkeypatch.setattr(jax_evaluation, "get_action_logits", fake_get_action_logits)
+
+    actions = jax_evaluation._evaluation_actions_for_mode(
+        None,
+        jnp.zeros((1, 2, 3), dtype=jnp.float32),
+        jnp.zeros((1, 4), dtype=jnp.float32),
+        jax.random.PRNGKey(0),
+        action_mode="sampled_move_greedy_write",
+    )
+    zero_write_actions = jax_evaluation._evaluation_actions_for_mode(
+        None,
+        jnp.zeros((1, 2, 3), dtype=jnp.float32),
+        jnp.zeros((1, 4), dtype=jnp.float32),
+        jax.random.PRNGKey(0),
+        action_mode="greedy_move_zero_write",
+    )
+
+    np.testing.assert_array_equal(np.asarray(actions[..., 1]), np.array([[1, 0]]))
+    np.testing.assert_array_equal(np.asarray(zero_write_actions[..., 0]), np.array([[1, 0]]))
+    np.testing.assert_array_equal(np.asarray(zero_write_actions[..., 1]), np.array([[0, 0]]))
+
+
 def _scripted_delivery_params(*, central_obs_dim: int, actor_obs_dim: int):
     params = init_agent_params(
         jax.random.PRNGKey(0),
