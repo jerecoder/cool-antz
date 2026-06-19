@@ -121,6 +121,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430",
         "DISTANCE_CAP24_SPEED_POLISH_FINE_TEMP",
         "DISTANCE_CAP24_SPEED_SOURCES12_FINAL_430",
+        "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
@@ -488,6 +489,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    cap32 = build_research_experiment_plan(
+        run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
 
     four_parsed = parse_args(four_ant["common_args"])
     eight_parsed = parse_args(eight_ant["common_args"])
@@ -571,6 +579,17 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
     )
     assert final_parsed.step_penalty == 0.000035
+
+    cap32_parsed = parse_args(cap32["common_args"])
+    assert cap32["family"] == "food_distribution"
+    assert cap32["stages"][0]["food_sources"] == 12
+    assert cap32["stages"][0]["max_steps"] == 430
+    assert cap32["stages"][0]["global_update_cap"] == 600
+    assert cap32["source_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert cap32_parsed.num_ants == 32
+    assert cap32_parsed.step_penalty == 0.00003
 
 
 def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> None:
