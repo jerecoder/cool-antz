@@ -226,6 +226,8 @@ def main(
         food_scale=args.food_count,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        actor_hub_vector=args.actor_hub_vector,
+        actor_nearest_food_vector=args.actor_nearest_food_vector,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -246,6 +248,8 @@ def main(
             actor_obs_dim=actor_obs_dim,
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
+            actor_hub_vector=args.actor_hub_vector,
+            actor_nearest_food_vector=args.actor_nearest_food_vector,
             write_head_transfer=args.write_head_transfer,
         )
         params = checkpoint["params"]

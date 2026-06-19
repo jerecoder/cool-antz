@@ -166,6 +166,8 @@ def _evaluation_step(
         food_scale=args.food_count,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -207,6 +209,8 @@ def evaluate_checkpoint(
         actor_obs_dim=actor_obs_dim,
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
     )
     return evaluate_params(
         params=checkpoint["params"],
@@ -336,6 +340,8 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
         food_scale=args.food_count,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )

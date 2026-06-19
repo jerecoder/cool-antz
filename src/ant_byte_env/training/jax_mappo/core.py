@@ -275,6 +275,8 @@ def build_actor_observations(
     food_scale: int = 1,
     actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     write_bits: int = DEFAULT_WRITE_BITS,
+    actor_hub_vector: bool = False,
+    actor_nearest_food_vector: bool = False,
     obs_width: int | None = None,
     obs_height: int | None = None,
 ) -> jax.Array:
@@ -329,18 +331,72 @@ def build_actor_observations(
         grid_width=active_grid_size[:, 0],
         radius=actor_vision_radius,
     )
-    return jnp.concatenate(
-        [
-            local_food,
-            local_ants_count,
-            local_byte_bits,
-            local_hub,
-            local_border,
-            own_carrying,
-            own_facing,
-        ],
-        axis=-1,
+    features = [
+        local_food,
+        local_ants_count,
+        local_byte_bits,
+        local_hub,
+        local_border,
+        own_carrying,
+        own_facing,
+    ]
+    if actor_hub_vector:
+        features.append(
+            _normalized_relative_vector(
+                target_pos=obs["hub_pos"][:, None, :],
+                ants_pos=obs["ants_pos"],
+                active_grid_size=active_grid_size,
+            )
+        )
+    if actor_nearest_food_vector:
+        features.append(
+            _nearest_food_vector(
+                food,
+                obs["ants_pos"],
+                active_grid_size=active_grid_size,
+            )
+        )
+    return jnp.concatenate(features, axis=-1)
+
+
+def _normalized_relative_vector(
+    *,
+    target_pos: jax.Array,
+    ants_pos: jax.Array,
+    active_grid_size: jax.Array,
+) -> jax.Array:
+    scale = jnp.maximum(active_grid_size[:, None, :] - 1.0, 1.0)
+    delta = target_pos.astype(jnp.float32) - ants_pos.astype(jnp.float32)
+    return jnp.clip(delta / scale, -1.0, 1.0)
+
+
+def _nearest_food_vector(
+    food: jax.Array,
+    ants_pos: jax.Array,
+    *,
+    active_grid_size: jax.Array,
+) -> jax.Array:
+    batch_size, grid_height, grid_width = food.shape
+    flat_x = jnp.tile(jnp.arange(grid_width, dtype=jnp.float32), grid_height)
+    flat_y = jnp.repeat(jnp.arange(grid_height, dtype=jnp.float32), grid_width)
+    flat_food = food.reshape((batch_size, grid_height * grid_width))
+    ants_x = ants_pos[..., 0:1].astype(jnp.float32)
+    ants_y = ants_pos[..., 1:2].astype(jnp.float32)
+    distances = jnp.abs(flat_x[None, None, :] - ants_x)
+    distances += jnp.abs(flat_y[None, None, :] - ants_y)
+    food_present = flat_food > 0
+    masked_distances = jnp.where(food_present[:, None, :], distances, jnp.inf)
+    nearest_index = jnp.argmin(masked_distances, axis=-1)
+    nearest_x = jnp.take(flat_x, nearest_index)
+    nearest_y = jnp.take(flat_y, nearest_index)
+    target_pos = jnp.stack([nearest_x, nearest_y], axis=-1)
+    vector = _normalized_relative_vector(
+        target_pos=target_pos,
+        ants_pos=ants_pos,
+        active_grid_size=active_grid_size,
     )
+    has_food = jnp.any(food_present, axis=-1)[:, None, None]
+    return jnp.where(has_food, vector, 0.0)
 
 
 def build_local_byte_bit_patches(

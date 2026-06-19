@@ -135,6 +135,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
         "DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN",
         "DISTANCE_CAP12_BIGMAP_RARE_VISION2_RANDOM_SPAWN",
+        "DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -169,6 +170,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "deployment_policy",
         "efficiency_finetune",
         "checkpoint_selection",
+        "observation_ablation",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -581,6 +583,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    rare_hubvector = build_research_experiment_plan(
+        run_id="DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -813,6 +822,23 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     assert rare_vision2_parsed.random_ant_spawn is True
     assert rare_vision2_parsed.byte_follow_bonus == 0.01
     assert rare_vision2_parsed.carrying_byte_write_bonus == 0.005
+
+    rare_hubvector_parsed = parse_args(rare_hubvector["common_args"])
+    assert rare_hubvector["family"] == "observation_ablation"
+    assert [stage["width"] for stage in rare_hubvector["stages"]] == [40, 50]
+    assert [stage["food_sources"] for stage in rare_hubvector["stages"]] == [4, 2]
+    assert rare_hubvector["source_checkpoint"].endswith(
+        "DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN/checkpoints/"
+        "jax_mappo_forage_stage1_50x50.pkl"
+    )
+    assert rare_hubvector_parsed.num_ants == 8
+    assert rare_hubvector_parsed.actor_hub_vector is True
+    assert rare_hubvector_parsed.actor_nearest_food_vector is False
+    assert rare_hubvector_parsed.random_food is True
+    assert rare_hubvector_parsed.random_hub is True
+    assert rare_hubvector_parsed.random_ant_spawn is True
+    assert rare_hubvector_parsed.delivery_byte_trail_bonus == 0.3
+    assert "nearest-food vectors" in rare_hubvector["notes_markdown"]
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"

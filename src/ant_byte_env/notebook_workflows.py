@@ -1516,6 +1516,8 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
         food_scale=args.food_count,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -1545,6 +1547,10 @@ def prepare_ant_count_checkpoint(
             actor_obs_dim=target_actor_obs_dim,
             target_write_bits=expected_write_bits,
             actor_vision_radius=target_args.actor_vision_radius,
+            actor_hub_vector=bool(getattr(target_args, "actor_hub_vector", False)),
+            actor_nearest_food_vector=bool(
+                getattr(target_args, "actor_nearest_food_vector", False)
+            ),
         )
     source_args = checkpoint.get("args", {})
     source_num_ants = int(source_args.get("num_ants", fallback_source_num_ants))

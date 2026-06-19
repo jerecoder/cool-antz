@@ -34,6 +34,8 @@ def load_checkpoint_for_training(
     actor_obs_dim: int,
     target_write_bits: int,
     actor_vision_radius: int,
+    actor_hub_vector: bool = False,
+    actor_nearest_food_vector: bool = False,
     write_head_transfer: str = "repeat",
 ) -> dict[str, Any]:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
@@ -66,10 +68,14 @@ def load_checkpoint_for_training(
 
     source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
     source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
+    source_actor_hub_vector = bool(source_args.get("actor_hub_vector", False))
+    source_actor_nearest_food_vector = bool(source_args.get("actor_nearest_food_vector", False))
     source_shape = _actor_obs_source_shape(
         actor_obs_dim=source_actor_obs_dim,
         write_bits=source_write_bits,
         actor_vision_radius=source_actor_vision_radius,
+        include_hub_vector=source_actor_hub_vector,
+        include_nearest_food_vector=source_actor_nearest_food_vector,
     )
     if source_shape is None:
         raise ValueError("Checkpoint actor observation dimension does not match its write-bit config.")
@@ -89,10 +95,16 @@ def load_checkpoint_for_training(
         write_bits=target_write_bits,
         source_actor_vision_radius=source_actor_vision_radius,
         target_actor_vision_radius=actor_vision_radius,
+        source_actor_hub_vector=source_actor_hub_vector,
+        source_actor_nearest_food_vector=source_actor_nearest_food_vector,
+        target_actor_hub_vector=actor_hub_vector,
+        target_actor_nearest_food_vector=actor_nearest_food_vector,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_write_bits,
         actor_vision_radius=actor_vision_radius,
+        include_hub_vector=actor_hub_vector,
+        include_nearest_food_vector=actor_nearest_food_vector,
     )
     if target_dim != actor_obs_dim:
         raise ValueError("Transferred actor observation dimension does not match this run.")
@@ -107,6 +119,8 @@ def load_checkpoint_for_training(
             **source_args,
             "write_bits": target_write_bits,
             "actor_vision_radius": actor_vision_radius,
+            "actor_hub_vector": actor_hub_vector,
+            "actor_nearest_food_vector": actor_nearest_food_vector,
             "transfer_source_checkpoint": str(path),
             "write_head_transfer": write_head_transfer,
         },
@@ -127,6 +141,8 @@ def actor_obs_dim_for_bits(
     include_ants_count: bool = True,
     include_orientation: bool = True,
     include_current_row: bool = True,
+    include_hub_vector: bool = False,
+    include_nearest_food_vector: bool = False,
 ) -> int:
     if actor_vision_radius < 0:
         raise ValueError("actor_vision_radius must be non-negative.")
@@ -137,7 +153,9 @@ def actor_obs_dim_for_bits(
         patch_size = DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius
     grid_channels = write_bits + (4 if include_ants_count else 3)
     orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-    return patch_size * grid_channels + 1 + orientation_features
+    hub_features = 2 if include_hub_vector else 0
+    food_features = 2 if include_nearest_food_vector else 0
+    return patch_size * grid_channels + 1 + orientation_features + hub_features + food_features
 
 
 def source_actor_patch_size(*, actor_vision_radius: int, source_layout: str) -> int:
@@ -157,6 +175,8 @@ def source_actor_obs_dim(
     include_ants_count: bool,
     include_orientation: bool,
     source_layout: str,
+    include_hub_vector: bool = False,
+    include_nearest_food_vector: bool = False,
 ) -> int:
     patch_size = source_actor_patch_size(
         actor_vision_radius=actor_vision_radius,
@@ -164,7 +184,9 @@ def source_actor_obs_dim(
     )
     grid_channels = write_bits + (4 if include_ants_count else 3)
     orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-    return patch_size * grid_channels + 1 + orientation_features
+    hub_features = 2 if include_hub_vector else 0
+    food_features = 2 if include_nearest_food_vector else 0
+    return patch_size * grid_channels + 1 + orientation_features + hub_features + food_features
 
 
 def _actor_obs_source_shape(
@@ -172,6 +194,8 @@ def _actor_obs_source_shape(
     actor_obs_dim: int,
     write_bits: int,
     actor_vision_radius: int,
+    include_hub_vector: bool = False,
+    include_nearest_food_vector: bool = False,
 ) -> dict[str, bool | str] | None:
     source_layouts = (
         ("centered", actor_vision_patch_size(actor_vision_radius), True),
@@ -187,13 +211,23 @@ def _actor_obs_source_shape(
             for layout, patch_size, include_current_row in source_layouts:
                 grid_channels = write_bits + (4 if include_ants_count else 3)
                 orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-                expected_dim = patch_size * grid_channels + 1 + orientation_features
+                hub_features = 2 if include_hub_vector else 0
+                food_features = 2 if include_nearest_food_vector else 0
+                expected_dim = (
+                    patch_size * grid_channels
+                    + 1
+                    + orientation_features
+                    + hub_features
+                    + food_features
+                )
                 if actor_obs_dim == expected_dim:
                     return {
                         "include_ants_count": include_ants_count,
                         "include_orientation": include_orientation,
                         "include_current_row": include_current_row,
                         "layout": layout,
+                        "include_hub_vector": include_hub_vector,
+                        "include_nearest_food_vector": include_nearest_food_vector,
                     }
     return None
 
@@ -506,8 +540,16 @@ def resize_params_for_actor_vision_radius(
     write_bits: int,
     source_actor_vision_radius: int,
     target_actor_vision_radius: int,
+    source_actor_hub_vector: bool = False,
+    source_actor_nearest_food_vector: bool = False,
+    target_actor_hub_vector: bool = False,
+    target_actor_nearest_food_vector: bool = False,
 ) -> JaxMAPPOParams:
-    if source_actor_vision_radius == target_actor_vision_radius:
+    if (
+        source_actor_vision_radius == target_actor_vision_radius
+        and source_actor_hub_vector == target_actor_hub_vector
+        and source_actor_nearest_food_vector == target_actor_nearest_food_vector
+    ):
         return params
     return JaxMAPPOParams(
         actor_body=(
@@ -516,6 +558,10 @@ def resize_params_for_actor_vision_radius(
                 write_bits=write_bits,
                 source_actor_vision_radius=source_actor_vision_radius,
                 target_actor_vision_radius=target_actor_vision_radius,
+                source_actor_hub_vector=source_actor_hub_vector,
+                source_actor_nearest_food_vector=source_actor_nearest_food_vector,
+                target_actor_hub_vector=target_actor_hub_vector,
+                target_actor_nearest_food_vector=target_actor_nearest_food_vector,
             ),
             params.actor_body[1],
         ),
@@ -702,15 +748,23 @@ def resize_actor_input_layer_for_vision_radius(
     write_bits: int,
     source_actor_vision_radius: int,
     target_actor_vision_radius: int,
+    source_actor_hub_vector: bool = False,
+    source_actor_nearest_food_vector: bool = False,
+    target_actor_hub_vector: bool = False,
+    target_actor_nearest_food_vector: bool = False,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     source_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
         actor_vision_radius=source_actor_vision_radius,
+        include_hub_vector=source_actor_hub_vector,
+        include_nearest_food_vector=source_actor_nearest_food_vector,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
         actor_vision_radius=target_actor_vision_radius,
+        include_hub_vector=target_actor_hub_vector,
+        include_nearest_food_vector=target_actor_nearest_food_vector,
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected actor input dim {source_dim}, got {old_weight.shape[0]}.")
@@ -749,6 +803,26 @@ def resize_actor_input_layer_for_vision_radius(
             :,
         ]
     )
+    source_extra_start = source_tail_start + tail_width
+    target_extra_start = target_tail_start + tail_width
+    source_hub = None
+    if source_actor_hub_vector:
+        source_hub = slice(source_extra_start, source_extra_start + 2)
+        source_extra_start += 2
+    source_nearest_food = None
+    if source_actor_nearest_food_vector:
+        source_nearest_food = slice(source_extra_start, source_extra_start + 2)
+
+    if target_actor_hub_vector:
+        if source_hub is not None:
+            new_weight = new_weight.at[target_extra_start : target_extra_start + 2, :].set(
+                old_weight[source_hub, :]
+            )
+        target_extra_start += 2
+    if target_actor_nearest_food_vector and source_nearest_food is not None:
+        new_weight = new_weight.at[target_extra_start : target_extra_start + 2, :].set(
+            old_weight[source_nearest_food, :]
+        )
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 

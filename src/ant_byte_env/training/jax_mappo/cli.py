@@ -162,6 +162,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "placing every ant on the colony hub."
         ),
     )
+    parser.add_argument(
+        "--actor-hub-vector",
+        action="store_true",
+        help=(
+            "Append each ant's normalized relative vector to the colony hub to "
+            "the actor observation. Useful when hubs and ant spawns are randomized."
+        ),
+    )
+    parser.add_argument(
+        "--actor-nearest-food-vector",
+        action="store_true",
+        help=(
+            "Append each ant's normalized relative vector to the nearest current "
+            "food tile to the actor observation."
+        ),
+    )
     parser.add_argument("--pickup-bonus", type=float, default=0.25)
     parser.add_argument(
         "--distance-bonus",

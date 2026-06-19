@@ -264,6 +264,8 @@ def render_jax_checkpoint(
             food_scale=args.food_count,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+            actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -273,6 +275,8 @@ def render_jax_checkpoint(
             actor_obs_dim=int(actor_obs.shape[-1]),
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
+            actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+            actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         )
         params = jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
         select_action = _compile_jax_action_selector(
@@ -339,7 +343,9 @@ def _deterministic_from_temperature(policy_temperature: float) -> bool:
 
 def _actor_obs_dim_from_args(args: argparse.Namespace) -> int:
     patch_size = actor_vision_patch_size(int(args.actor_vision_radius))
-    return patch_size * (int(args.write_bits) + 4) + MOVEMENT_ACTION_COUNT
+    hub_features = 2 if bool(getattr(args, "actor_hub_vector", False)) else 0
+    food_features = 2 if bool(getattr(args, "actor_nearest_food_vector", False)) else 0
+    return patch_size * (int(args.write_bits) + 4) + MOVEMENT_ACTION_COUNT + hub_features + food_features
 
 
 def _compile_jax_action_selector(
@@ -370,6 +376,8 @@ def _compile_jax_action_selector(
             food_scale=args.food_count,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+            actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )

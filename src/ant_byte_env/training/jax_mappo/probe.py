@@ -162,6 +162,8 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
         food_scale=args.food_count,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -171,6 +173,8 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
         actor_obs_dim=int(actor_obs.shape[-1]),
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
     )
     return jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
 
@@ -347,6 +351,8 @@ def _select_actions_from_batch(
         food_scale=args.food_count,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
+        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )

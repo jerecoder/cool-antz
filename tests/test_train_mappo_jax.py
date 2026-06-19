@@ -398,6 +398,49 @@ def test_jax_actor_vision_patch_rotates_with_facing() -> None:
     )
 
 
+def test_jax_actor_navigation_vectors_are_normalized() -> None:
+    env = JaxAntByteForagingEnv(
+        width=4,
+        height=3,
+        num_ants=2,
+        food_count=2,
+        random_food=False,
+    )
+    _, obs, _ = env.reset(
+        jax.random.PRNGKey(123),
+        hub_pos=jnp.array([3, 2], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 1]], dtype=jnp.int32),
+    )
+    obs = {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
+    obs["ants_pos"] = jnp.asarray([[[0, 0], [2, 1]]], dtype=jnp.int32)
+
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=2,
+        actor_vision_radius=0,
+        write_bits=1,
+        actor_hub_vector=True,
+        actor_nearest_food_vector=True,
+    )
+
+    expected_hub = np.asarray(
+        [
+            [1.0, 1.0],
+            [1.0 / 3.0, 0.5],
+        ],
+        dtype=np.float32,
+    )
+    expected_food = np.asarray(
+        [
+            [1.0 / 3.0, 0.5],
+            [-1.0 / 3.0, 0.0],
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(np.asarray(actor_obs[0, :, -4:-2]), expected_hub)
+    np.testing.assert_allclose(np.asarray(actor_obs[0, :, -2:]), expected_food)
+
+
 def test_jax_forage_curriculum_rewards_add_pickup_without_target_progress() -> None:
     env = JaxAntByteForagingEnv(width=4, height=3, num_ants=1, food_count=1)
     state, previous_obs, _ = env.reset(
@@ -904,6 +947,67 @@ def test_jax_checkpoint_transfer_expands_actor_vision_radius(tmp_path) -> None:
         source_weight[source_tail_start : source_tail_start + MOVEMENT_ACTION_COUNT],
     )
     assert checkpoint["opt_state"].count.shape == ()
+
+
+def test_jax_checkpoint_transfer_adds_actor_hub_vector_features(tmp_path) -> None:
+    write_bits = 2
+    radius = 1
+    hidden_size = 8
+    central_obs_dim = 12
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+        include_hub_vector=True,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+    )
+    source_path = tmp_path / "without_hub_vector.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="without_hub_vector",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=write_bits,
+        actor_vision_radius=radius,
+        actor_hub_vector=True,
+    )
+
+    transferred = checkpoint["params"]
+    target_weight = np.asarray(transferred.actor_body[0].weight)
+    assert transferred.actor_body[0].weight.shape == (target_actor_obs_dim, hidden_size)
+    np.testing.assert_allclose(
+        target_weight[:source_actor_obs_dim],
+        np.asarray(source_params.actor_body[0].weight),
+    )
+    np.testing.assert_allclose(
+        target_weight[source_actor_obs_dim:],
+        np.zeros((2, hidden_size), dtype=np.float32),
+    )
+    assert checkpoint["args"]["actor_hub_vector"] is True
+    assert checkpoint["args"]["actor_nearest_food_vector"] is False
 
 
 def test_jax_checkpoint_transfer_can_reset_expanded_write_head(tmp_path) -> None:
@@ -2455,6 +2559,13 @@ def test_jax_parse_args_accepts_random_ant_spawn() -> None:
     args = parse_args(["--random-ant-spawn"])
 
     assert args.random_ant_spawn is True
+
+
+def test_jax_parse_args_accepts_actor_navigation_features() -> None:
+    args = parse_args(["--actor-hub-vector", "--actor-nearest-food-vector"])
+
+    assert args.actor_hub_vector is True
+    assert args.actor_nearest_food_vector is True
 
 
 def test_jax_parse_args_accepts_best_model_options(tmp_path: Path) -> None:
