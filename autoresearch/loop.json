@@ -2830,6 +2830,95 @@
       }
     },
     {
+      "id": "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
+      "priority": 52,
+      "mode": "forage_curriculum",
+      "family": "observation_ablation",
+      "title": "Eight rare-map ants with colony and food scent vectors",
+      "hypothesis": "The hub-vector run improved delivery and efficiency but still only reached 12.33/23 on randomized 50x50 two-source layouts. That points to food discovery, not just return-to-colony navigation, as the remaining bottleneck. A nearest-food scent vector is an upper-bound observation test: if it jumps sharply, sparse discovery is the wall; if it does not, the problem is policy optimization or multi-ant coordination.",
+      "intervention": "Warm-start from the hub-vector rare-map checkpoint, keep eight ants, 23 total food, rare source counts, random_food, random_hub, and random_ant_spawn. Keep actor_hub_vector and add actor_nearest_food_vector. This deliberately provides food-direction information, so it is logged as an observation ablation rather than a communication-only result.",
+      "success_signal": "The final 50x50 two-source randomized gate should clearly beat the hub-vector result of 12.33/23 delivered and should reduce steps per delivered food. A strong diagnostic win would exceed 16/23, proving rare-food discovery is the dominant bottleneck for the smaller colony.",
+      "report_notes": "Use this as a food-discovery upper bound. It preserves the requested randomized rare-source distribution and smaller ant count, but it adds a direct scent-like food vector, so it should not be reported as pure emergent communication.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN/checkpoints/jax_mappo_forage_stage1_50x50.pkl",
+      "global_update_cap": 250,
+      "custom_stages": [
+        {
+          "name": "40x40_rare4",
+          "width": 40,
+          "height": 40,
+          "food_count": 23,
+          "food_sources": 4,
+          "cookie_distance": 18,
+          "max_steps": 1300,
+          "global_update_cap": 250,
+          "num_steps": 320,
+          "gamma": 0.998
+        },
+        {
+          "name": "50x50",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 650,
+          "num_steps": 384,
+          "gamma": 0.999
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 8,
+        "actor_hub_vector": true,
+        "actor_nearest_food_vector": true,
+        "hidden_size": 192,
+        "random_food": true,
+        "random_hub": true,
+        "random_ant_spawn": true,
+        "write_bits": 2,
+        "write_head_transfer": "neutral-new",
+        "step_penalty": 0.00005,
+        "completion_bonus": 1.0,
+        "delivery_byte_trail_bonus": 0.2,
+        "byte_follow_bonus": 0.004,
+        "carrying_byte_write_bonus": 0.003,
+        "write_bit_entropy_bonus": 0.0005,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00003,
+        "update_epochs": 6,
+        "log_interval": 20
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 6100000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 6100000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 64,
+            "seed_offset": 6100000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-NAVVECTOR-RANDOM-SPAWN",
+        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "hub-vector", "food-vector", "scent", "observation-ablation"]
+      }
+    },
+    {
       "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
       "priority": 48,
       "mode": "forage_curriculum",
