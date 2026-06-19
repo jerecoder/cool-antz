@@ -116,6 +116,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP12_SPEED_12A_550",
         "DISTANCE_CAP16_SPEED_16A_550",
         "DISTANCE_CAP16_SPEED_TEMP_GRID",
+        "DISTANCE_CAP24_SPEED_RAMP_24A_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
@@ -455,10 +456,18 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    true_4x = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_RAMP_24A_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
 
     four_parsed = parse_args(four_ant["common_args"])
     eight_parsed = parse_args(eight_ant["common_args"])
     ramp_parsed = parse_args(ramp["common_args"])
+    true_4x_parsed = parse_args(true_4x["common_args"])
 
     assert four_ant["family"] == "efficiency_finetune"
     assert four_ant["stage_sizes"] == [25]
@@ -495,6 +504,21 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     )
     assert ramp_parsed.num_ants == 8
     assert ramp_parsed.step_penalty == 0.00012
+
+    assert true_4x["family"] == "efficiency_finetune"
+    assert true_4x["stage_sizes"] == [25, 25, 25]
+    assert [stage["max_steps"] for stage in true_4x["stages"]] == [700, 550, 430]
+    assert [stage["global_update_cap"] for stage in true_4x["stages"]] == [300, 300, 400]
+    assert true_4x["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_RAMP_24A_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert true_4x_parsed.num_ants == 24
+    assert true_4x_parsed.step_penalty == 0.000045
+    assert [mode["move_temperature"] for mode in true_4x["evaluation"]["action_modes"]] == [
+        0.9,
+        1.1,
+        1.3,
+    ]
 
 
 def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> None:

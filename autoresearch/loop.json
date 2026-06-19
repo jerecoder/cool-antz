@@ -1323,8 +1323,103 @@
       }
     },
     {
-      "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
+      "id": "DISTANCE_CAP24_SPEED_RAMP_24A_430",
       "priority": 32,
+      "mode": "forage_curriculum",
+      "family": "efficiency_finetune",
+      "title": "Twenty-four-ant horizon ramp to the true 4x target",
+      "hypothesis": "The sixteen-ant policy gets close to full delivery around 490 steps, but the actual 4x target from the current 1715-step behavior is about 430 steps. Reaching that target likely requires both more parallel workers and a gradual horizon curriculum so the colony learns to finish routes before the cap instead of merely collecting partial food.",
+      "intervention": "Load the four-ant DISTANCE_CAP4_SHARP checkpoint into a twenty-four-ant critic and train three explicit 25x25 stages with max_steps 700, then 550, then 430. Keep the standard food distribution, distance_bonus 0.02, low entropy, gamma 0.995, and a per-ant-scaled step_penalty 0.000045.",
+      "success_signal": "A reportable win must deliver at least 22/23 food with mean episode length at or below 430. That would satisfy the requested 4x speedup while preserving near-complete 25x25 clearing.",
+      "report_notes": "This is the first experiment aimed squarely at the true 4x threshold. It combines the observed benefit of ant-count scaling with a horizon ramp to avoid the direct-short-horizon under-delivery seen in the 4-, 8-, 12-, and 16-ant tests.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_RAMP_24A_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 300,
+      "custom_stages": [
+        {
+          "name": "25x25_700",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 11,
+          "max_steps": 700,
+          "global_update_cap": 300,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "25x25_550",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 11,
+          "max_steps": 550,
+          "global_update_cap": 300,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 400,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.000045,
+        "ent_coef": 0.0006,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 3500000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 3500000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 3500000,
+            "move_temperature": 1.1
+          },
+          {
+            "name": "sampled_move_t130_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 3500000,
+            "move_temperature": 1.3
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-RAMP-24A-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "horizon-ramp", "step-penalty", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
+      "priority": 33,
       "mode": "forage_curriculum",
       "family": "efficiency_finetune",
       "title": "Eight-ant horizon ramp from 900 to 550 steps",
