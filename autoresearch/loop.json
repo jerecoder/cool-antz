@@ -400,6 +400,40 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_LONG_CREDIT_GENTLE_GREEDY",
+      "priority": 13,
+      "mode": "forage_curriculum",
+      "family": "mode_alignment",
+      "title": "Gently align the long-credit sampled solver with greedy deployment",
+      "hypothesis": "The extended evaluation shows the long-credit policy nearly solves shuffled 25x25 when actions are sampled, but the argmax path delivers far less. This suggests the policy distribution contains good return routes whose probability mass has not moved onto the mode. A small amount of greedy rollout pressure from the robust long-credit checkpoint should sharpen the useful route choices without repeating the earlier 25% greedy-pressure collapse from DISTANCE_CAP4_SHARP.",
+      "intervention": "Load the DISTANCE_CAP4_LONG_CREDIT_TUNE 25x25 checkpoint, train only the standard 25x25 distribution for 800 updates, keep gamma 0.999, gae_lambda 0.98, and num_steps 384, use deterministic_rollout_fraction 0.10, lower ent_coef to 0.0003, lower learning_rate to 0.00004, use clip_coef 0.10, and keep four ants with distance_bonus 0.02.",
+      "success_signal": "Extended held-out deterministic delivery should move back toward or above DISTANCE_CAP4_SHARP's 16/23 while sampled delivery remains above 22/23.",
+      "report_notes": "Tests mode alignment after long-credit training. This is not a new distribution or broader curriculum; it is a targeted fine-tune to convert an already-good sampled solver into a stronger greedy policy.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_GENTLE_GREEDY",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_TUNE/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 800,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 800, "num_steps": 384, "gamma": 0.999}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "gamma": 0.999,
+        "gae_lambda": 0.98,
+        "deterministic_rollout_fraction": 0.1,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00004,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-LONG-CREDIT-GENTLE-GREEDY",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "gamma999", "mode-alignment", "mixed-rollout"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
