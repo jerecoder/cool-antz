@@ -122,6 +122,9 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_POLISH_FINE_TEMP",
         "DISTANCE_CAP24_SPEED_SOURCES12_FINAL_430",
         "DISTANCE_CAP24_SPEED_COMPLETION_BONUS_430",
+        "DISTANCE_CAP24_SPEED_COMPLETION_SHORT_430",
+        "DISTANCE_CAP24_SPEED_DENSE2_430",
+        "DISTANCE_CAP24_SPEED_DENSE2_TRAIL_430",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -497,6 +500,20 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    dense2 = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_DENSE2_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    dense2_trail = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_DENSE2_TRAIL_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -596,6 +613,22 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
     )
     assert completion_parsed.completion_bonus == 2.0
+
+    dense2_parsed = parse_args(dense2["common_args"])
+    assert dense2["family"] == "food_distribution"
+    assert [stage["food_count"] for stage in dense2["stages"]] == [23, 23]
+    assert [stage["food_sources"] for stage in dense2["stages"]] == [2, 2]
+    assert [stage["max_steps"] for stage in dense2["stages"]] == [550, 430]
+    assert dense2_parsed.num_ants == 24
+    assert dense2_parsed.completion_bonus == 1.5
+
+    dense2_trail_parsed = parse_args(dense2_trail["common_args"])
+    assert dense2_trail["family"] == "memory_shaping"
+    assert [stage["food_sources"] for stage in dense2_trail["stages"]] == [2, 2]
+    assert dense2_trail_parsed.write_bits == 2
+    assert dense2_trail_parsed.write_head_transfer == "neutral-new"
+    assert dense2_trail_parsed.delivery_byte_trail_bonus == 0.2
+    assert dense2_trail_parsed.byte_follow_bonus == 0.004
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"

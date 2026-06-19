@@ -1767,8 +1767,233 @@
       }
     },
     {
-      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "id": "DISTANCE_CAP24_SPEED_COMPLETION_SHORT_430",
       "priority": 38,
+      "mode": "forage_curriculum",
+      "family": "reward_shaping",
+      "title": "Short completion-bonus polish before over-training drift",
+      "hypothesis": "The 500-update completion-bonus polish showed very strong early training updates but the final saved checkpoint regressed below the best near-miss delivery. The useful effect may be a brief final-clear nudge that over-trains if run too long.",
+      "intervention": "Load the DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430 checkpoint and train the same 25x25, 12-source, max_steps-430 completion-bonus stage for only 75 updates. Keep completion_bonus 2.0 and conservative optimizer settings, then evaluate the saved short-polish checkpoint at temperatures 0.95 and 1.00.",
+      "success_signal": "A win should cross 22/23 delivered while keeping mean episode length below 430. It should beat both the parent checkpoint and the 500-update completion-bonus final checkpoint.",
+      "report_notes": "This tests early stopping as a training-control parameter for completion shaping. It is motivated by the observed high early returns in the longer completion-bonus run.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_COMPLETION_SHORT_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 75,
+      "custom_stages": [
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 12,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 75,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.000045,
+        "completion_bonus": 2.0,
+        "ent_coef": 0.0002,
+        "clip_coef": 0.06,
+        "learning_rate": 0.00002,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 4200000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t095_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4200000,
+            "move_temperature": 0.95
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4200000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-COMPLETION-SHORT-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "completion-bonus", "early-stop", "reward-shaping", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP24_SPEED_DENSE2_430",
+      "priority": 39,
+      "mode": "forage_curriculum",
+      "family": "food_distribution",
+      "title": "Twenty-four ants with two dense food sources at the 430-step target",
+      "hypothesis": "The fast 24-ant policies may be losing the final foods because the colony spreads over too many weak source routes and does not communicate well enough to coordinate cleanup. Concentrating the same 23 food units into only two source positions should create repeated high-value routes that many ants can exploit without needing broad exploration.",
+      "intervention": "Keep total food at 23 and the 25x25 map fixed, but reduce food_sources from 12 to 2. Warm-start from the best 24-ant speed checkpoint, adapt for 250 updates at max_steps 550, then consolidate for 500 updates at the true 430-step cap with completion_bonus 1.5.",
+      "success_signal": "A win should exceed 22/23 delivered while keeping mean episode length below 430. If it beats the 12-source near miss, condensed food was the right distribution shift.",
+      "report_notes": "This directly tests the user's condensed-food hypothesis: same total food, far fewer source positions, same ant count, and same hard 430-step speed target.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_DENSE2_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 250,
+      "custom_stages": [
+        {
+          "name": "25x25_550",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 11,
+          "max_steps": 550,
+          "global_update_cap": 250,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 500,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.00004,
+        "completion_bonus": 1.5,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00003,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 4300000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4300000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4300000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-DENSE2-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "dense-food", "two-sources", "completion-bonus", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP24_SPEED_DENSE2_TRAIL_430",
+      "priority": 40,
+      "mode": "forage_curriculum",
+      "family": "memory_shaping",
+      "title": "Dense two-source speed policy with stronger byte-trail incentives",
+      "hypothesis": "The visual behavior suggests ants are not communicating much. With only two dense food sources, route markings should be useful: carrying ants can write trails, empty ants can follow byte-marked routes toward food, and the shared policy may coordinate cleanup faster than pure movement sampling.",
+      "intervention": "Use the same 24-ant, two-source, 430-step target as DENSE2, but increase write_bits to 2 and enable byte-trail shaping: delivery_byte_trail_bonus 0.20, byte_follow_bonus 0.004, carrying_byte_write_bonus 0.002. Warm-start from the best 24-ant speed checkpoint and transfer the extra write bit with neutral-new initialization.",
+      "success_signal": "A win should exceed the non-trail dense run on delivered food and success rate while staying below 430 mean steps. Increased byte usage should appear in W&B diagnostics rather than being a no-op.",
+      "report_notes": "This tests communication explicitly rather than assuming more ants will solve coordination. It changes memory capacity and byte incentives while keeping the condensed food distribution fixed.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_DENSE2_TRAIL_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 250,
+      "custom_stages": [
+        {
+          "name": "25x25_550",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 11,
+          "max_steps": 550,
+          "global_update_cap": 250,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 500,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "write_bits": 2,
+        "write_head_transfer": "neutral-new",
+        "step_penalty": 0.00004,
+        "completion_bonus": 1.5,
+        "delivery_byte_trail_bonus": 0.2,
+        "byte_follow_bonus": 0.004,
+        "carrying_byte_write_bonus": 0.002,
+        "write_bit_entropy_bonus": 0.0005,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00003,
+        "update_epochs": 6
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 4400000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4400000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 4400000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-DENSE2-TRAIL-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "dense-food", "two-sources", "byte-trail", "communication", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "priority": 41,
       "mode": "forage_curriculum",
       "family": "food_distribution",
       "title": "Thirty-two-ant final throughput push at 430 steps",
@@ -1832,7 +2057,7 @@
     },
     {
       "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
-      "priority": 39,
+      "priority": 42,
       "mode": "forage_curriculum",
       "family": "efficiency_finetune",
       "title": "Eight-ant horizon ramp from 900 to 550 steps",
