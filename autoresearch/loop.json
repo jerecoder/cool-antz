@@ -2654,6 +2654,94 @@
       }
     },
     {
+      "id": "DISTANCE_CAP12_BIGMAP_RARE_VISION2_RANDOM_SPAWN",
+      "priority": 50,
+      "mode": "forage_curriculum",
+      "family": "food_distribution",
+      "title": "Twelve ants with radius-2 vision on rare randomized 50x50 sources",
+      "hypothesis": "The eight-ant rarity curriculum implemented the requested random food, random colony, random ant spawn, bigger map, and rarer source distribution, but final 50x50 delivery stalled around 11/23. That suggests the distribution is now hard enough that eight radius-1 ants lack search coverage and local route context. Twelve ants is still half the 24-ant speed colony, and radius-2 vision should improve rare-source reacquisition without returning to brute-force 24-ant parallelism.",
+      "intervention": "Warm-start from the completed eight-ant rare-source 50x50 checkpoint, expand to twelve shared-policy ants, increase actor_vision_radius to 2, and continue the rare-source curriculum through 40x40 with four source positions and 50x50 with two source positions. Keep total food fixed at 23 and keep random_food, random_hub, and random_ant_spawn enabled on every reset. Strengthen byte-trail shaping so random-spawned ants have more incentive to leave and follow route marks.",
+      "success_signal": "The final 50x50 two-source randomized gate should materially beat the eight-ant result of 10.96/23 delivered, with better success rate or shorter episodes. A strong result would approach 16+ delivered while retaining the smaller-than-24-ant constraint.",
+      "report_notes": "This is the direct correction after the eight-ant rare-source negative result. It preserves the requested rarity/randomization/bigger-map setup, but tests whether modestly more embodied coverage and radius-2 local context are necessary before communication can help.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP12_BIGMAP_RARE_VISION2_RANDOM_SPAWN",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN/checkpoints/jax_mappo_forage_stage1_50x50.pkl",
+      "global_update_cap": 250,
+      "custom_stages": [
+        {
+          "name": "40x40_rare4",
+          "width": 40,
+          "height": 40,
+          "food_count": 23,
+          "food_sources": 4,
+          "cookie_distance": 18,
+          "max_steps": 1300,
+          "global_update_cap": 250,
+          "num_steps": 320,
+          "gamma": 0.998
+        },
+        {
+          "name": "50x50",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 650,
+          "num_steps": 384,
+          "gamma": 0.999
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 12,
+        "actor_vision_radius": 2,
+        "hidden_size": 192,
+        "random_food": true,
+        "random_hub": true,
+        "random_ant_spawn": true,
+        "write_bits": 2,
+        "write_head_transfer": "neutral-new",
+        "step_penalty": 0.00005,
+        "completion_bonus": 1.0,
+        "delivery_byte_trail_bonus": 0.35,
+        "byte_follow_bonus": 0.01,
+        "carrying_byte_write_bonus": 0.005,
+        "write_bit_entropy_bonus": 0.001,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.000035,
+        "update_epochs": 6,
+        "log_interval": 20
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 5900000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 5900000,
+            "move_temperature": 1.0
+          },
+          {
+            "name": "sampled_move_t120_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 5900000,
+            "move_temperature": 1.2
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP12-BIGMAP-RARE-VISION2-RANDOM-SPAWN",
+        "tags": ["distance-bonus", "multi-ant", "twelve-ants", "radius2", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "byte-trail", "communication"]
+      }
+    },
+    {
       "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
       "priority": 48,
       "mode": "forage_curriculum",
