@@ -143,6 +143,33 @@ def test_mappo_exploration_curriculum_uses_visit_reward_without_memory() -> None
     assert spec["metadata"]["wandb_video_stage_names"] is None
 
 
+def test_exploration_to_forage_notebook_uses_50x50_warm_start_and_decay() -> None:
+    source = notebook_source(Path("notebooks/train_mappo_exploration_to_forage_50x50.ipynb"))
+
+    assert "exploration_to_forage_50x50.json" in source
+    assert "workflows.run_jax_checkpoint_training" in source
+    assert "workflows.render_jax_checkpoint_rollout" in source
+    assert "SOURCE_CHECKPOINT = workflows.resolve_project_path" in source
+    assert "jax_mappo_explore_50x50.pkl" in source
+    assert "WANDB_GROUP = \"exploration_to_forage_50x50\"" in source
+
+    spec = json.loads(
+        Path("experiments/exploration_to_forage_50x50.json").read_text(encoding="utf-8")
+    )
+    assert spec["args"]["load_model"] == (
+        "runs/notebooks/exploration_curriculum/checkpoints/jax_mappo_explore_50x50.pkl"
+    )
+    assert spec["args"]["reward_mode"] == "forage"
+    assert spec["args"]["width"] == 50
+    assert spec["args"]["height"] == 50
+    assert spec["args"]["pickup_bonus"] == 0.05
+    assert spec["args"]["visit_reward_scale"] == 0.005
+    assert spec["args"]["visit_reward_decay"] == 1.0
+    assert "write_action_ablation" not in spec["args"]
+    assert spec["metadata"]["source"] == "exploration_curriculum_50x50"
+    assert spec["metadata"]["global_update_cap"] == 4000
+
+
 def test_autocurriculum_notebook_uses_single_env_curriculum_config() -> None:
     source = notebook_source(Path("notebooks/train_mappo_autocurriculum.ipynb"))
 

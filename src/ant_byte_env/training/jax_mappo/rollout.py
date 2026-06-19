@@ -225,6 +225,10 @@ def collect_rollout(
                 actions=actions_for_env,
                 pickup_bonus=args.pickup_bonus,
                 distance_bonus=args.distance_bonus,
+                newly_visited_cells=newly_visited_cells,
+                visited_cell_fraction=visited_cell_fraction,
+                visit_reward_scale=args.visit_reward_scale,
+                visit_reward_decay=args.visit_reward_decay,
                 stage_completion_events=getattr(
                     infos,
                     "advanced_stage",

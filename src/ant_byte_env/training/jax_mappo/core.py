@@ -679,6 +679,10 @@ def compute_forage_curriculum_rewards(
     actions: jax.Array | None = None,
     pickup_bonus: float,
     distance_bonus: float = 0.0,
+    newly_visited_cells: jax.Array | None = None,
+    visited_cell_fraction: jax.Array | None = None,
+    visit_reward_scale: float = 0.0,
+    visit_reward_decay: float = 1.0,
     stage_completion_events: jax.Array | None = None,
     stage_completion_bonus: float = 0.0,
     delivery_byte_trail_bonus: float = 0.0,
@@ -795,6 +799,23 @@ def compute_forage_curriculum_rewards(
     if stage_completion_bonus > 0.0 and stage_completion_events is not None:
         shaped_rewards += float(stage_completion_bonus) * stage_completion_events.astype(
             jnp.float32
+        )
+    if visit_reward_scale > 0.0:
+        visits = (
+            jnp.zeros_like(shaped_rewards)
+            if newly_visited_cells is None
+            else newly_visited_cells.astype(jnp.float32)
+        )
+        coverage = (
+            jnp.zeros_like(shaped_rewards)
+            if visited_cell_fraction is None
+            else visited_cell_fraction.astype(jnp.float32)
+        )
+        remaining_fraction = jnp.maximum(1.0 - coverage, 0.0)
+        shaped_rewards += (
+            float(visit_reward_scale)
+            * visits
+            * jnp.power(remaining_fraction, float(visit_reward_decay))
         )
     if distance_bonus <= 0.0:
         return shaped_rewards

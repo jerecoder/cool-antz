@@ -215,6 +215,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--visit-reward-scale",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side bonus for newly visited cells. The bonus is multiplied by "
+            "(1 - visited_fraction) ** visit_reward_decay so it fades as coverage grows."
+        ),
+    )
+    parser.add_argument(
+        "--visit-reward-decay",
+        type=float,
+        default=1.0,
+        help="Decay exponent for --visit-reward-scale as more of the map is visited.",
+    )
+    parser.add_argument(
         "--stage-completion-bonus",
         type=float,
         default=0.0,
@@ -441,6 +456,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-bit-entropy-bonus must be non-negative.")
     if args.distance_bonus < 0.0:
         raise ValueError("--distance-bonus must be non-negative.")
+    if args.visit_reward_scale < 0.0:
+        raise ValueError("--visit-reward-scale must be non-negative.")
+    if args.visit_reward_decay < 0.0:
+        raise ValueError("--visit-reward-decay must be non-negative.")
     if args.completion_bonus < 0.0:
         raise ValueError("--completion-bonus must be non-negative.")
     if args.stage_completion_bonus < 0.0:

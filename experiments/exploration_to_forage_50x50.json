@@ -1,0 +1,48 @@
+{
+  "name": "exploration_to_forage_50x50",
+  "backend": "jax",
+  "description": "Continue the 50x50 exploration policy into forage training with a small decaying visit bonus.",
+  "args": {
+    "exp_name": "jax_mappo_exploration_to_forage_50x50",
+    "total_timesteps": 5120000,
+    "num_envs": 16,
+    "num_steps": 80,
+    "num_minibatches": 4,
+    "update_epochs": 4,
+    "gamma": 0.99,
+    "width": 50,
+    "height": 50,
+    "obs_width": 50,
+    "obs_height": 50,
+    "actor_vision_radius": 1,
+    "num_ants": 1,
+    "food_count": 48,
+    "food_sources": 12,
+    "cookie_distance": 24,
+    "max_steps": 10000,
+    "reward_mode": "forage",
+    "pickup_bonus": 0.05,
+    "visit_reward_scale": 0.005,
+    "visit_reward_decay": 1.0,
+    "distance_bonus": 0.0,
+    "hidden_size": 128,
+    "write_bits": 1,
+    "write_while_moving": true,
+    "load_model": "runs/notebooks/exploration_curriculum/checkpoints/jax_mappo_explore_50x50.pkl",
+    "seed": 1,
+    "quiet": true,
+    "random_food": true,
+    "random_hub": true
+  },
+  "metadata": {
+    "source": "exploration_curriculum_50x50",
+    "source_checkpoint": "runs/notebooks/exploration_curriculum/checkpoints/jax_mappo_explore_50x50.pkl",
+    "global_update_cap": 4000,
+    "reward_scales": {
+      "delivery_at_colony": 1.0,
+      "pickup": 0.05,
+      "max_new_cell_visit": 0.005
+    },
+    "notes": "Warm-start from the 50x50 exploration curriculum checkpoint, then train the regular forage objective. The new-cell bonus decays as map coverage rises and is much smaller than pickup or colony delivery reward."
+  }
+}

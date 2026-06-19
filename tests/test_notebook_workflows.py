@@ -399,6 +399,59 @@ def test_autocurriculum_training_helper_passes_single_env_curriculum_args(tmp_pa
     assert result["checkpoint_path"] == tmp_path / "autocurriculum" / "checkpoints" / "model.pkl"
 
 
+def test_jax_checkpoint_training_helper_passes_common_and_checkpoint_args(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            del kwargs
+
+        def close(self) -> None:
+            pass
+
+    calls: list[list[str]] = []
+
+    def fake_train_main(argv: list[str], *, progress_callback):
+        calls.append(argv)
+        progress_callback(
+            2,
+            4,
+            {
+                "loss": 0.25,
+                "episode_return": 3.0,
+                "global_step": 160.0,
+            },
+        )
+        return {"loss": 0.25, "episode_return": 3.0, "global_step": 160.0}
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+
+    result = workflows.run_jax_checkpoint_training(
+        run_dir=tmp_path / "continuation",
+        common_args=["--load-model", "source.pkl", "--reward-mode", "forage"],
+        update_timesteps=80,
+        global_update_cap=4,
+        train_main=fake_train_main,
+        progress_label="continue",
+    )
+
+    assert calls
+    train_args = calls[0]
+    assert train_args[train_args.index("--load-model") + 1] == "source.pkl"
+    assert train_args[train_args.index("--total-timesteps") + 1] == "320"
+    assert train_args[train_args.index("--run-dir") + 1] == str(tmp_path / "continuation")
+    assert train_args[train_args.index("--save-model") + 1] == str(result["checkpoint_path"])
+    assert result["stage_metrics"][0]["stage_update"] == 2
+
+
 def test_autocurriculum_progress_advances_by_reported_update_delta(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

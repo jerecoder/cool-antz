@@ -551,6 +551,33 @@ def test_jax_forage_curriculum_distance_bonus_ignores_pickup_target_switch() -> 
     np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.25], dtype=np.float32))
 
 
+def test_jax_forage_curriculum_visit_bonus_decays_with_coverage() -> None:
+    previous_obs = {
+        "food": jnp.zeros((2, 4, 4), dtype=jnp.int32),
+        "ants_pos": jnp.array([[[0, 0]], [[0, 0]]], dtype=jnp.int32),
+        "ants_carrying": jnp.array([[False], [False]]),
+        "hub_pos": jnp.array([[0, 0], [0, 0]], dtype=jnp.int32),
+    }
+    next_obs = previous_obs
+
+    shaped_rewards = compute_forage_curriculum_rewards(
+        previous_obs=previous_obs,
+        next_obs=next_obs,
+        env_rewards=jnp.asarray([1.0, 0.0], dtype=jnp.float32),
+        pickup_bonus=0.0,
+        newly_visited_cells=jnp.asarray([2.0, 1.0], dtype=jnp.float32),
+        visited_cell_fraction=jnp.asarray([0.25, 0.8], dtype=jnp.float32),
+        visit_reward_scale=0.1,
+        visit_reward_decay=1.0,
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(shaped_rewards),
+        np.array([1.15, 0.02], dtype=np.float32),
+        rtol=1e-6,
+    )
+
+
 def test_jax_forage_curriculum_stage_completion_bonus_adds_only_on_stage_advance() -> None:
     previous_obs = {
         "food": jnp.zeros((2, 3, 4), dtype=jnp.int32),
@@ -2719,6 +2746,13 @@ def test_jax_parse_args_accepts_write_action_ablation() -> None:
     assert args.write_action_ablation is True
 
 
+def test_jax_parse_args_accepts_decaying_visit_reward() -> None:
+    args = parse_args(["--visit-reward-scale", "0.02", "--visit-reward-decay", "1.5"])
+
+    assert args.visit_reward_scale == 0.02
+    assert args.visit_reward_decay == 1.5
+
+
 @pytest.mark.parametrize("value", ["-0.01", "1.01"])
 def test_jax_parse_args_rejects_invalid_deterministic_rollout_fraction(value: str) -> None:
     with pytest.raises(ValueError, match="deterministic-rollout-fraction"):
@@ -2743,6 +2777,8 @@ def test_jax_parse_args_rejects_invalid_deterministic_move_rollout_fraction(
         ("--write-entropy-bonus-cap", "-0.1", "write-entropy-bonus-cap"),
         ("--write-bit-entropy-bonus", "-0.1", "write-bit-entropy-bonus"),
         ("--distance-bonus", "-0.1", "distance-bonus"),
+        ("--visit-reward-scale", "-0.1", "visit-reward-scale"),
+        ("--visit-reward-decay", "-0.1", "visit-reward-decay"),
         ("--stage-completion-bonus", "-0.1", "stage-completion-bonus"),
         ("--delivery-byte-trail-bonus", "-0.1", "delivery-byte-trail-bonus"),
         ("--delivery-byte-trail-target-tiles", "0", "delivery-byte-trail-target-tiles"),
