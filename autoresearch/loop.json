@@ -121,8 +121,37 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_SHARP",
       "priority": 3,
+      "mode": "forage_curriculum",
+      "family": "policy_sharpening",
+      "title": "Distance plus four ants with low-entropy sharpening",
+      "hypothesis": "DISTANCE_CAP4 and DISTANCE_VISION2_CAP4 both fully clear 25x25 when actions are sampled, but greedy argmax is brittle. The useful behavior is in the learned distribution, so lowering entropy pressure and giving late stages more consolidation budget may move the route actions onto the argmax path without removing the exploration benefits of four ants.",
+      "intervention": "Keep the best sampled recipe from DISTANCE_CAP4: distance_bonus 0.02, four ants, radius-1 actor vision, hidden size 192, moving writes, and random layouts. Reduce ent_coef to 0.001, tighten clip_coef to 0.15, and run 1500 updates on high-end stages.",
+      "success_signal": "The sampled 25x25 evaluation should remain near full clearance while deterministic delivered food rises meaningfully above DISTANCE_CAP4's 2.75-delivery greedy result.",
+      "report_notes": "Tests whether the remaining problem is policy-selection sharpness rather than navigation skill; a win would justify reporting sampled and greedy metrics separately.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP",
+      "global_update_cap": 950,
+      "stage_training_profile": [
+        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
+        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
+        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP",
+        "tags": ["distance-bonus", "multi-ant", "low-entropy", "policy-sharpening"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 4,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",

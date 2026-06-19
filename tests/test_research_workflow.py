@@ -88,6 +88,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_SHAPE",
         "CAPACITY4",
         "DISTANCE_CAP4",
+        "DISTANCE_CAP4_SHARP",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -101,6 +102,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
     assert {
         "reward_shaping",
         "combined_reward_capacity",
+        "policy_sharpening",
         "exploration_capacity",
         "observation",
         "cookie_distribution",
@@ -148,6 +150,27 @@ def test_research_loop_plan_builds_forage_curriculum_with_notes() -> None:
     assert parsed.hidden_size == 192
     assert parsed.random_food
     assert parsed.random_hub
+
+
+def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
+    from ant_byte_env.training.jax_mappo.cli import parse_args
+
+    plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_SHARP",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    parsed = parse_args(plan["common_args"])
+
+    assert plan["family"] == "policy_sharpening"
+    assert "argmax" in plan["hypothesis"]
+    assert plan["stages"][-1]["global_update_cap"] == 1500
+    assert parsed.num_ants == 4
+    assert parsed.distance_bonus == 0.02
+    assert parsed.ent_coef == 0.001
+    assert parsed.clip_coef == 0.15
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:
