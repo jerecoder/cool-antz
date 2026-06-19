@@ -130,6 +130,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_BEST_SELECT_CONFIRM_GRID",
         "DISTANCE_CAP24_SPEED_REMAINING_SELECT_430",
         "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430",
+        "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_CONFIRM_GRID",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -894,6 +895,22 @@ def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> N
     assert best_select_confirm_plan["resolved_args"]["completion_bonus"] == 1.5
     assert [mode["move_temperature"] for mode in best_select_modes] == [0.9, 0.95, 1.0]
     assert [mode["episodes"] for mode in best_select_modes] == [256, 256, 256]
+
+    seed2_confirm_plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_CONFIRM_GRID",
+        run_root=tmp_path / "loop",
+        wandb_mode="disabled",
+    )
+
+    seed2_confirm_modes = seed2_confirm_plan["evaluation"]["action_modes"]
+    assert seed2_confirm_plan["mode"] == "checkpoint_evaluation"
+    assert seed2_confirm_plan["source_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430/checkpoints/"
+        "jax_mappo_forage_stage1_25x25_best.pkl"
+    )
+    assert seed2_confirm_plan["resolved_args"]["seed"] == 2
+    assert [mode["move_temperature"] for mode in seed2_confirm_modes] == [0.9, 0.95, 1.0]
+    assert [mode["episodes"] for mode in seed2_confirm_modes] == [256, 256, 256]
 
 
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:
