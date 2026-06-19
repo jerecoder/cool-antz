@@ -94,6 +94,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_DISTILL",
         "DISTANCE_CAP4_GREEDY_TUNE",
         "DISTANCE_CAP4_MIXED_TUNE",
+        "DISTANCE_CAP4_NO_WRITE",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -116,6 +117,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "stage_schedule",
         "policy_distillation",
         "deterministic_policy",
+        "action_ablation",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -277,6 +279,29 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert mixed_parsed.clip_coef == 0.1
     assert mixed_parsed.learning_rate == 0.00005
     assert mixed_parsed.update_epochs == 6
+
+    no_write = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_NO_WRITE",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    no_write_parsed = parse_args(no_write["common_args"])
+
+    assert no_write["family"] == "action_ablation"
+    assert no_write["stage_sizes"] == [25]
+    assert no_write["stages"][0]["global_update_cap"] == 1200
+    assert no_write["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert no_write_parsed.write_action_ablation is True
+    assert no_write_parsed.num_ants == 4
+    assert no_write_parsed.distance_bonus == 0.02
+    assert no_write_parsed.ent_coef == 0.001
+    assert no_write_parsed.clip_coef == 0.1
+    assert no_write_parsed.learning_rate == 0.00005
+    assert no_write_parsed.update_epochs == 6
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:

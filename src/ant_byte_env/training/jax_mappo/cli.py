@@ -121,6 +121,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="repeat",
         help="How to initialize the write head when increasing write bits from a checkpoint.",
     )
+    parser.add_argument(
+        "--write-action-ablation",
+        action="store_true",
+        help="Force executed write actions to zero while keeping the write head present.",
+    )
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
     parser.add_argument("--random-hub", action="store_true")

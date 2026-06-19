@@ -304,8 +304,40 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_NO_WRITE",
       "priority": 9,
+      "mode": "forage_curriculum",
+      "family": "action_ablation",
+      "title": "Warm-start best checkpoint with write actions disabled",
+      "hypothesis": "Sampled policies solve 25x25 but greedy argmax remains brittle. One possible cause is that the deterministic write head chooses a harmful persistent byte action even when movement is adequate. Disabling executed writes tests whether the byte channel is noise for this forage policy rather than useful memory.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint, train only the standard 25x25 distribution for 1200 updates with write_action_ablation enabled, keep distance_bonus 0.02 and four ants, use ent_coef 0.001, clip_coef 0.10, update_epochs 6, and learning_rate 0.00005. Evaluation uses the same no-write execution flag from the saved checkpoint args.",
+      "success_signal": "Held-out deterministic delivery should beat DISTANCE_CAP4_SHARP while sampled delivery stays at or near the full-clear regime.",
+      "report_notes": "Tests whether external byte writes are currently hurting deterministic deployment. A win would support simplifying the action space or adding stronger write regularization.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_NO_WRITE",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1200,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "write_action_ablation": true,
+        "ent_coef": 0.001,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-NO-WRITE",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "write-ablation", "action-ablation"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 10,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",

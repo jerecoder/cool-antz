@@ -129,6 +129,8 @@ def _evaluation_step(
         key,
         deterministic=deterministic,
     )
+    if bool(getattr(args, "write_action_ablation", False)):
+        actions = actions.at[..., 1].set(0)
     state, obs, reward, terminated, truncated, _ = jax.vmap(env.step)(
         state,
         flatten_agent_actions(actions),

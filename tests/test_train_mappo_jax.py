@@ -2161,6 +2161,12 @@ def test_jax_parse_args_accepts_deterministic_rollout_fraction() -> None:
     assert args.deterministic_rollout_fraction == 0.25
 
 
+def test_jax_parse_args_accepts_write_action_ablation() -> None:
+    args = parse_args(["--write-action-ablation"])
+
+    assert args.write_action_ablation is True
+
+
 @pytest.mark.parametrize("value", ["-0.01", "1.01"])
 def test_jax_parse_args_rejects_invalid_deterministic_rollout_fraction(value: str) -> None:
     with pytest.raises(ValueError, match="deterministic-rollout-fraction"):
