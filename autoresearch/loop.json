@@ -2139,8 +2139,66 @@
       }
     },
     {
-      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "id": "DISTANCE_CAP24_SPEED_BEST_SELECT_CONFIRM_GRID",
       "priority": 43,
+      "mode": "checkpoint_evaluation",
+      "family": "checkpoint_selection",
+      "title": "Large held-out confirmation for the selected 24-ant speed checkpoint",
+      "hypothesis": "The best-checkpoint run crossed 22/23 at temperature 0.95 over 128 shuffled episodes, but the margin is narrow. A larger held-out checkpoint evaluation should determine whether the selected checkpoint is genuinely better than the previous 12-source near miss or merely benefited from evaluation noise.",
+      "intervention": "Evaluate the selected DISTANCE_CAP24_SPEED_BEST_SELECT_430 _best checkpoint without additional training. Run sampled-movement, greedy-write deployment at move temperatures 0.90, 0.95, and 1.00 for 256 shuffled episodes each.",
+      "success_signal": "A confirmed win should keep the best temperature at or above 22/23 delivered with mean episode length below 430, while preserving a success rate above the previous 12-source polish.",
+      "report_notes": "This is the confirmation gate for the first run that beats the 4x speed target and crosses 22/23. It should be cited separately from the training run because it uses a larger held-out evaluation budget.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_BEST_SELECT_CONFIRM_GRID",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_BEST_SELECT_430/checkpoints/jax_mappo_forage_stage1_25x25_best.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.00004,
+        "completion_bonus": 1.5,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00003,
+        "update_epochs": 6,
+        "log_interval": 10
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 4700000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 256,
+            "seed_offset": 4700000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t095_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 256,
+            "seed_offset": 4700000,
+            "move_temperature": 0.95
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 256,
+            "seed_offset": 4700000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-BEST-SELECT-CONFIRM-GRID",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "speed", "checkpoint-selection", "best-checkpoint", "temperature-grid", "confirmation", "4x-target"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
+      "priority": 44,
       "mode": "forage_curriculum",
       "family": "food_distribution",
       "title": "Thirty-two-ant final throughput push at 430 steps",
@@ -2204,7 +2262,7 @@
     },
     {
       "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
-      "priority": 44,
+      "priority": 45,
       "mode": "forage_curriculum",
       "family": "efficiency_finetune",
       "title": "Eight-ant horizon ramp from 900 to 550 steps",
