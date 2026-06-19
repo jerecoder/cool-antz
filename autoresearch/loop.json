@@ -772,6 +772,52 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_T125_CONFIRM_POLICY",
+      "priority": 22,
+      "mode": "checkpoint_evaluation",
+      "family": "deployment_policy",
+      "title": "Confirm the temperature-1.25 deployment policy",
+      "hypothesis": "The paired fine sweep selected movement temperature 1.25 with greedy writing as the best 25x25 deployment policy, reaching 22.83/23 delivered food and 93.75% success over 48 paired episodes. A larger held-out gate should confirm whether this is robust enough to report as the recommended policy.",
+      "intervention": "Do not retrain. Load the best DISTANCE_CAP4_SHARP checkpoint and evaluate two same-seed 128-episode protocols: sampled movement at temperature 1.25 with greedy writing, and sampled movement at temperature 1.25 with sampled writing. This confirms both the temperature choice and the greedy-write deployment choice.",
+      "success_signal": "The confirmed policy should keep mean delivery above 22.7/23 and success rate above 90% over 128 shuffled 25x25 episodes, while matching or beating the sampled-write baseline.",
+      "report_notes": "This is the confirmation gate for the recommended deployment policy. Use it as the primary report number if it preserves the paired sweep gains.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_T125_CONFIRM_POLICY",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 2400000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t125_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 2400000,
+            "move_temperature": 1.25
+          },
+          {
+            "name": "sampled_move_t125_sampled_write",
+            "action_mode": "sampled_move_sampled_write",
+            "episodes": 128,
+            "seed_offset": 2400000,
+            "move_temperature": 1.25
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-T125-CONFIRM-POLICY",
+        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "confirmation", "deployment-policy"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
