@@ -83,6 +83,7 @@ class JaxAntByteAutoCurriculumEnv:
         max_steps: int = 500,
         random_food: bool = True,
         random_hub: bool = False,
+        random_ant_spawn: bool = False,
         step_penalty: float = 0.0,
         completion_bonus: float = 0.0,
         write_penalty: float = 0.0,
@@ -115,6 +116,7 @@ class JaxAntByteAutoCurriculumEnv:
         self.max_steps = int(max_steps)
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
+        self.random_ant_spawn = bool(random_ant_spawn)
         self.step_penalty = float(step_penalty)
         self.completion_bonus = float(completion_bonus)
         self.write_penalty = float(write_penalty)
@@ -448,10 +450,15 @@ class JaxAntByteAutoCurriculumEnv:
         hub_pos: jax.Array | None,
         food_positions: jax.Array | None,
     ) -> JaxAntAutoCurriculumState:
-        hub_key, food_key = jax.random.split(stage_key)
+        hub_key, food_key, ant_key = jax.random.split(stage_key, 3)
         actual_hub_pos = self._initial_hub_pos(hub_key, active_size, hub_pos)
         food = self._initial_food_grid(food_key, active_size, actual_hub_pos, food_positions)
-        ants_pos = jnp.repeat(actual_hub_pos.reshape(1, 2), self.num_ants, axis=0)
+        ants_pos = self._initial_ant_positions(
+            ant_key,
+            active_size,
+            actual_hub_pos,
+            food,
+        )
         return JaxAntAutoCurriculumState(
             hub_pos=actual_hub_pos,
             ants_pos=ants_pos.astype(jnp.int32),
@@ -529,6 +536,39 @@ class JaxAntByteAutoCurriculumEnv:
             scores = (self.width * self.height - self._flat_indices).astype(jnp.float32)
         scores = jnp.where(candidate_mask, scores, -jnp.inf)
         _, selected = jax.lax.top_k(scores, self.food_source_count)
+        return jnp.stack([self._flat_x[selected], self._flat_y[selected]], axis=-1).astype(jnp.int32)
+
+    def _initial_ant_positions(
+        self,
+        key: jax.Array,
+        active_size: jax.Array,
+        hub_pos: jax.Array,
+        food: jax.Array,
+    ) -> jax.Array:
+        if not self.random_ant_spawn:
+            return jnp.repeat(hub_pos.reshape(1, 2), self.num_ants, axis=0)
+
+        inside_active = (self._flat_x < active_size) & (self._flat_y < active_size)
+        is_hub = (self._flat_x == hub_pos[0]) & (self._flat_y == hub_pos[1])
+        has_food = food.reshape((-1,)) > 0
+        preferred_mask = inside_active & jnp.logical_not(is_hub | has_food)
+        fallback_mask = inside_active & jnp.logical_not(is_hub)
+        candidate_mask = jnp.where(
+            jnp.any(preferred_mask),
+            preferred_mask,
+            fallback_mask,
+        )
+        candidate_mask = jnp.where(
+            jnp.any(candidate_mask),
+            candidate_mask,
+            inside_active,
+        )
+        scores = jax.random.uniform(
+            key,
+            (self.num_ants, self.width * self.height),
+            dtype=jnp.float32,
+        )
+        selected = jnp.argmax(jnp.where(candidate_mask[None, :], scores, -jnp.inf), axis=1)
         return jnp.stack([self._flat_x[selected], self._flat_y[selected]], axis=-1).astype(jnp.int32)
 
     def _action_facing(self, facing: jax.Array, action: jax.Array) -> jax.Array:

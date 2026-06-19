@@ -2543,6 +2543,117 @@
       }
     },
     {
+      "id": "DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN",
+      "priority": 49,
+      "mode": "forage_curriculum",
+      "family": "food_distribution",
+      "title": "Eight ants on bigger maps with rarer randomized food sources",
+      "hypothesis": "The fast 24-ant policies may be solving through brute-force parallelism on a 25x25 canvas rather than learning efficient communication. A harder rarity curriculum with fewer ants, bigger maps, random colony positions, random food positions, and random ant spawn should force the policy to learn reusable search, return, and trail behavior instead of overfitting fixed starts or dense source access.",
+      "intervention": "Warm-start from the best four-ant 25x25 policy, expand to eight shared-policy ants, and train a staged 25x25 to 50x50 curriculum. Keep total food fixed at 23 but make source positions rarer across stages: 8 sources on 25x25, 6 on 32x32, 4 on 40x40, and 2 on 50x50. Enable random_food, random_hub, and random_ant_spawn on every reset. Use 2 write bits plus byte-trail shaping so carrying ants have an incentive to mark useful routes and empty ants have an incentive to follow them.",
+      "success_signal": "On the final 50x50 two-source randomized reset gate, the run should deliver substantially more food than a naive small-ant baseline while showing non-trivial byte usage diagnostics in W&B. A strong result would keep mean episode length well below the 1800-step cap and show that fewer ants can exploit rare food sources on larger maps.",
+      "report_notes": "This directly implements the requested distribution shift: same total food, progressively fewer food-source positions, fewer ants than the 24-ant speed line, bigger maps, and randomized food, colony, and ant spawn positions each reset. Treat it as a communication-and-generalization experiment, not as a same-25x25 speed comparison.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 250,
+      "custom_stages": [
+        {
+          "name": "25x25_rare8",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 8,
+          "cookie_distance": 11,
+          "max_steps": 700,
+          "global_update_cap": 250,
+          "num_steps": 256,
+          "gamma": 0.995
+        },
+        {
+          "name": "32x32_rare6",
+          "width": 32,
+          "height": 32,
+          "food_count": 23,
+          "food_sources": 6,
+          "cookie_distance": 14,
+          "max_steps": 950,
+          "global_update_cap": 300,
+          "num_steps": 288,
+          "gamma": 0.997
+        },
+        {
+          "name": "40x40_rare4",
+          "width": 40,
+          "height": 40,
+          "food_count": 23,
+          "food_sources": 4,
+          "cookie_distance": 18,
+          "max_steps": 1300,
+          "global_update_cap": 350,
+          "num_steps": 320,
+          "gamma": 0.998
+        },
+        {
+          "name": "50x50",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 450,
+          "num_steps": 384,
+          "gamma": 0.999
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 8,
+        "hidden_size": 192,
+        "random_food": true,
+        "random_hub": true,
+        "random_ant_spawn": true,
+        "write_bits": 2,
+        "write_head_transfer": "neutral-new",
+        "step_penalty": 0.00006,
+        "completion_bonus": 1.0,
+        "delivery_byte_trail_bonus": 0.25,
+        "byte_follow_bonus": 0.006,
+        "carrying_byte_write_bonus": 0.003,
+        "write_bit_entropy_bonus": 0.0005,
+        "ent_coef": 0.0006,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00004,
+        "update_epochs": 6,
+        "log_interval": 20
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 5800000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 5800000,
+            "move_temperature": 1.0
+          },
+          {
+            "name": "sampled_move_t120_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 48,
+            "seed_offset": 5800000,
+            "move_temperature": 1.2
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-RANDOM-SPAWN",
+        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "byte-trail", "communication"]
+      }
+    },
+    {
       "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
       "priority": 48,
       "mode": "forage_curriculum",

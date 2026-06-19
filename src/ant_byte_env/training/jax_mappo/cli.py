@@ -154,6 +154,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
     parser.add_argument("--random-hub", action="store_true")
+    parser.add_argument(
+        "--random-ant-spawn",
+        action="store_true",
+        help=(
+            "Spawn ants at random non-hub, non-food tiles on reset instead of "
+            "placing every ant on the colony hub."
+        ),
+    )
     parser.add_argument("--pickup-bonus", type=float, default=0.25)
     parser.add_argument(
         "--distance-bonus",

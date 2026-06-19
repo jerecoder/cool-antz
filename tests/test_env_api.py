@@ -60,6 +60,34 @@ def test_random_hub_reset_is_seed_reproducible() -> None:
     env.close()
 
 
+def test_random_ant_spawn_is_seed_reproducible_and_avoids_food_and_hub() -> None:
+    env = AntByteForagingEnv(
+        width=6,
+        height=5,
+        num_ants=4,
+        food_count=4,
+        food_source_count=2,
+        random_food=True,
+        random_hub=True,
+        random_ant_spawn=True,
+    )
+
+    obs_a, _ = env.reset(seed=321)
+    obs_b, _ = env.reset(seed=321)
+    obs_c, _ = env.reset(seed=322)
+
+    np.testing.assert_array_equal(obs_a["ants_pos"], obs_b["ants_pos"])
+    assert not np.array_equal(obs_a["ants_pos"], obs_c["ants_pos"])
+    assert not np.all(obs_a["ants_pos"] == obs_a["hub_pos"])
+    hub = tuple(int(value) for value in obs_a["hub_pos"])
+    for ant_pos in obs_a["ants_pos"]:
+        x_pos, y_pos = (int(ant_pos[0]), int(ant_pos[1]))
+        assert (x_pos, y_pos) != hub
+        assert obs_a["food"][y_pos, x_pos] == 0
+    assert int(obs_a["ants_count"].sum()) == 4
+    env.close()
+
+
 def test_action_space_defaults_to_one_write_bit_per_ant() -> None:
     env = AntByteForagingEnv(width=5, height=4, num_ants=2, food_count=3, seed=123)
 

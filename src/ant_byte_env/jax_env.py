@@ -66,6 +66,7 @@ class JaxAntByteForagingEnv:
         max_steps: int = 500,
         random_food: bool = True,
         random_hub: bool = False,
+        random_ant_spawn: bool = False,
         step_penalty: float = 0.0,
         completion_bonus: float = 0.0,
         write_penalty: float = 0.0,
@@ -93,6 +94,7 @@ class JaxAntByteForagingEnv:
         self.max_steps = int(max_steps)
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
+        self.random_ant_spawn = bool(random_ant_spawn)
         self.step_penalty = float(step_penalty)
         self.completion_bonus = float(completion_bonus)
         self.write_penalty = float(write_penalty)
@@ -153,11 +155,11 @@ class JaxAntByteForagingEnv:
     ) -> tuple[JaxAntState, JaxObs, JaxAntInfo]:
         """Return ``(state, obs, info)`` for a new episode."""
 
-        hub_key, food_key = jax.random.split(key)
+        hub_key, food_key, ant_key = jax.random.split(key, 3)
         actual_hub_pos = self._initial_hub_pos(hub_key, hub_pos)
         food_key = food_key if self.random_hub and hub_pos is None else key
         food = self._initial_food_grid(food_key, actual_hub_pos, food_positions)
-        ants_pos = jnp.repeat(actual_hub_pos.reshape(1, 2), self.num_ants, axis=0)
+        ants_pos = self._initial_ant_positions(ant_key, actual_hub_pos, food)
         ants_count = self._build_ants_count_grid(ants_pos)
         state = JaxAntState(
             hub_pos=actual_hub_pos,
@@ -396,6 +398,40 @@ class JaxAntByteForagingEnv:
             positions[:, 1],
             positions[:, 0],
         ].add(amounts)
+
+    def _initial_ant_positions(
+        self,
+        key: jax.Array,
+        hub_pos: jax.Array,
+        food: jax.Array,
+    ) -> jax.Array:
+        if not self.random_ant_spawn:
+            return jnp.repeat(hub_pos.reshape(1, 2), self.num_ants, axis=0)
+
+        flat_indices = jnp.arange(self.width * self.height, dtype=jnp.int32)
+        flat_x = flat_indices % self.width
+        flat_y = flat_indices // self.width
+        is_hub = (flat_x == hub_pos[0]) & (flat_y == hub_pos[1])
+        has_food = food.reshape((-1,)) > 0
+        preferred_mask = jnp.logical_not(is_hub | has_food)
+        fallback_mask = jnp.logical_not(is_hub)
+        candidate_mask = jnp.where(
+            jnp.any(preferred_mask),
+            preferred_mask,
+            fallback_mask,
+        )
+        candidate_mask = jnp.where(
+            jnp.any(candidate_mask),
+            candidate_mask,
+            jnp.ones_like(candidate_mask),
+        )
+        scores = jax.random.uniform(
+            key,
+            (self.num_ants, self.width * self.height),
+            dtype=jnp.float32,
+        )
+        selected = jnp.argmax(jnp.where(candidate_mask[None, :], scores, -jnp.inf), axis=1)
+        return jnp.stack([flat_x[selected], flat_y[selected]], axis=-1).astype(jnp.int32)
 
     def _action_facing(self, facing: jax.Array, action: jax.Array) -> jax.Array:
         valid_facing = (

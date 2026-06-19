@@ -352,6 +352,7 @@ def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntBy
         "max_steps": args.max_steps,
         "random_food": args.random_food,
         "random_hub": args.random_hub,
+        "random_ant_spawn": bool(getattr(args, "random_ant_spawn", False)),
         "step_penalty": args.step_penalty,
         "completion_bonus": getattr(args, "completion_bonus", 0.0),
         "write_penalty": args.write_penalty,
@@ -383,6 +384,7 @@ def _evaluation_args_with_position_shuffle(
     values = {**vars(args)}
     values.setdefault("random_food", False)
     values.setdefault("random_hub", False)
+    values.setdefault("random_ant_spawn", False)
     if shuffle_positions:
         values["random_food"] = True
         values["random_hub"] = True

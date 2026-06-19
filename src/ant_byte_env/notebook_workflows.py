@@ -1487,6 +1487,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
         "max_steps": args.max_steps,
         "random_food": args.random_food,
         "random_hub": args.random_hub,
+        "random_ant_spawn": args.random_ant_spawn,
         "step_penalty": args.step_penalty,
         "completion_bonus": getattr(args, "completion_bonus", 0.0),
         "write_penalty": args.write_penalty,

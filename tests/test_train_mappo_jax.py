@@ -2362,6 +2362,12 @@ def test_jax_parse_args_accepts_log_interval() -> None:
     assert args.log_interval == 10
 
 
+def test_jax_parse_args_accepts_random_ant_spawn() -> None:
+    args = parse_args(["--random-ant-spawn"])
+
+    assert args.random_ant_spawn is True
+
+
 def test_jax_parse_args_accepts_best_model_options(tmp_path: Path) -> None:
     best_path = tmp_path / "best.pkl"
 

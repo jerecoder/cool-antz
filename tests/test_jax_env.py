@@ -237,6 +237,36 @@ def test_jax_random_hub_reset_is_seed_reproducible() -> None:
     assert int(obs_a["food"][hub_y, hub_x]) == 0
 
 
+def test_jax_random_ant_spawn_is_seed_reproducible_and_avoids_food_and_hub() -> None:
+    env = JaxAntByteForagingEnv(
+        width=6,
+        height=5,
+        num_ants=4,
+        food_count=4,
+        food_source_count=2,
+        random_food=True,
+        random_hub=True,
+        random_ant_spawn=True,
+    )
+
+    _, obs_a, _ = env.reset(jax.random.PRNGKey(321))
+    _, obs_b, _ = env.reset(jax.random.PRNGKey(321))
+    _, obs_c, _ = env.reset(jax.random.PRNGKey(322))
+
+    np.testing.assert_array_equal(np.asarray(obs_a["ants_pos"]), np.asarray(obs_b["ants_pos"]))
+    assert not np.array_equal(np.asarray(obs_a["ants_pos"]), np.asarray(obs_c["ants_pos"]))
+    assert not np.all(
+        np.asarray(obs_a["ants_pos"]) == np.asarray(obs_a["hub_pos"])[None, :]
+    )
+    food = np.asarray(obs_a["food"])
+    hub = tuple(int(value) for value in np.asarray(obs_a["hub_pos"]))
+    for ant_pos in np.asarray(obs_a["ants_pos"]):
+        x_pos, y_pos = (int(ant_pos[0]), int(ant_pos[1]))
+        assert (x_pos, y_pos) != hub
+        assert food[y_pos, x_pos] == 0
+    assert int(jnp.sum(obs_a["ants_count"])) == 4
+
+
 def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
     env = JaxAntByteForagingEnv(width=3, height=1, num_ants=1, food_count=1)
     state, _, _ = env.reset(

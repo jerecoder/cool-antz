@@ -133,6 +133,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_CONFIRM_GRID",
         "DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430",
         "DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
+        "DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -565,6 +566,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    rare_bigmap = build_research_experiment_plan(
+        run_id="DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -761,6 +769,26 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     )
     assert heldout_select_parsed.num_ants == 24
     assert "held-out reset seeds" in heldout_select["notes_markdown"]
+
+    rare_bigmap_parsed = parse_args(rare_bigmap["common_args"])
+    assert rare_bigmap["family"] == "food_distribution"
+    assert [stage["width"] for stage in rare_bigmap["stages"]] == [25, 32, 40, 50]
+    assert [stage["food_count"] for stage in rare_bigmap["stages"]] == [23, 23, 23, 23]
+    assert [stage["food_sources"] for stage in rare_bigmap["stages"]] == [8, 6, 4, 2]
+    assert [stage["max_steps"] for stage in rare_bigmap["stages"]] == [
+        700,
+        950,
+        1300,
+        1800,
+    ]
+    assert rare_bigmap["resolved_args"]["obs_width"] == 50
+    assert rare_bigmap["resolved_args"]["obs_height"] == 50
+    assert rare_bigmap_parsed.num_ants == 8
+    assert rare_bigmap_parsed.random_food is True
+    assert rare_bigmap_parsed.random_hub is True
+    assert rare_bigmap_parsed.random_ant_spawn is True
+    assert rare_bigmap_parsed.write_bits == 2
+    assert rare_bigmap_parsed.delivery_byte_trail_bonus == 0.25
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"

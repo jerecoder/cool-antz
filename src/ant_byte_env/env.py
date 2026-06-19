@@ -137,6 +137,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         tile_size: int = 32,
         random_food: bool = True,
         random_hub: bool = False,
+        random_ant_spawn: bool = False,
         step_penalty: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
@@ -167,6 +168,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.tile_size = tile_size
         self.random_food = random_food
         self.random_hub = bool(random_hub)
+        self.random_ant_spawn = bool(random_ant_spawn)
         self.step_penalty = step_penalty
         self.write_penalty = write_penalty
         self.write_bits = int(write_bits)
@@ -257,12 +259,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
 
         reset_options = options or {}
         self.hub_pos = self._resolve_hub_pos(reset_options)
-        self.ants_pos = np.repeat(self.hub_pos.reshape(1, 2), self.num_ants, axis=0)
-        self.ants_count = self._build_ants_count_grid(self.ants_pos)
         self.ants_facing = np.full(self.num_ants, DEFAULT_FACING, dtype=np.int8)
         self.ants_carrying = np.zeros(self.num_ants, dtype=bool)
         self.bytes = np.zeros((self.height, self.width), dtype=np.uint8)
         self.food = self._build_food_grid(reset_options)
+        self.ants_pos = self._initial_ant_positions()
+        self.ants_count = self._build_ants_count_grid(self.ants_pos)
         self.initial_food = self.food.astype(np.int32, copy=True)
         self.delivered_food = 0
         self.step_count = 0
@@ -463,6 +465,34 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             for x_pos in range(self.width)
             if (x_pos, y_pos) != hub_key
         ]
+
+    def _initial_ant_positions(self) -> np.ndarray:
+        if not self.random_ant_spawn:
+            return np.repeat(self.hub_pos.reshape(1, 2), self.num_ants, axis=0)
+
+        hub_key = (int(self.hub_pos[0]), int(self.hub_pos[1]))
+        preferred = [
+            (x_pos, y_pos)
+            for y_pos in range(self.height)
+            for x_pos in range(self.width)
+            if (x_pos, y_pos) != hub_key and int(self.food[y_pos, x_pos]) <= 0
+        ]
+        fallback = [
+            (x_pos, y_pos)
+            for y_pos in range(self.height)
+            for x_pos in range(self.width)
+            if (x_pos, y_pos) != hub_key
+        ]
+        candidates = preferred or fallback or [hub_key]
+        chosen_indices = self.np_random.choice(
+            len(candidates),
+            size=self.num_ants,
+            replace=True,
+        )
+        return np.asarray(
+            [candidates[int(index)] for index in np.atleast_1d(chosen_indices)],
+            dtype=np.int32,
+        )
 
     def _coerce_position(self, raw_pos: Any) -> np.ndarray:
         position = np.asarray(raw_pos, dtype=np.int32)
