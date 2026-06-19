@@ -467,6 +467,36 @@
       }
     },
     {
+      "id": "DISTANCE_CAP4_SHARP_STABLE",
+      "priority": 15,
+      "mode": "forage_curriculum",
+      "family": "stable_sharpening",
+      "title": "Re-run the winning sharp recipe with steadier high-stage optimization",
+      "hypothesis": "The strongest robust policy so far is still the from-scratch low-entropy SHARP run, while every warm-start fine-tune preserved sampled solving but failed to improve argmax reliably. That suggests the useful deterministic route mode emerges during the full curriculum, not during local 25x25 polishing. A steadier SHARP run with lower learning rate, tighter PPO clipping, and more high-stage consolidation may improve deterministic generalization without sacrificing the sampled solver.",
+      "intervention": "Train from scratch on the standard staged 4x4-to-25x25 distribution with distance_bonus 0.02, four ants, radius-1 actor vision, hidden size 192, moving writes, random food, and random hub. Keep ent_coef 0.001, reduce learning_rate to 0.00012, tighten clip_coef to 0.10, and extend the high-size stages to 1800 updates.",
+      "success_signal": "The strengthened 8+8 held-out gate should beat DISTANCE_CAP4_SHARP, with deterministic delivery above 16/23 and sampled delivery still above 22/23.",
+      "report_notes": "Tests whether the winning mechanism is the full low-entropy curriculum plus more stable PPO updates, rather than post-hoc fine-tuning. This is the main from-scratch candidate after the warm-start alignment runs plateaued.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_STABLE",
+      "global_update_cap": 1100,
+      "stage_training_profile": [
+        {"max_size": 8, "global_update_cap": 700, "num_steps": 128, "gamma": 0.99},
+        {"max_size": 15, "global_update_cap": 1100, "num_steps": 192, "gamma": 0.995},
+        {"max_size": 25, "global_update_cap": 1800, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.001,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00012
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-SHARP-STABLE",
+        "tags": ["distance-bonus", "multi-ant", "low-entropy", "policy-sharpening", "stable-ppo"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
