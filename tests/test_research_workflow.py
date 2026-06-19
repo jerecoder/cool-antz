@@ -92,6 +92,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_BALANCED",
         "DISTANCE_CAP4_SHARP_FINE",
         "DISTANCE_CAP4_DISTILL",
+        "DISTANCE_CAP4_GREEDY_TUNE",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -113,6 +114,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "credit_assignment",
         "stage_schedule",
         "policy_distillation",
+        "deterministic_policy",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -228,6 +230,29 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert distill_parsed.clip_coef == 0.1
     assert distill_parsed.learning_rate == 0.00008
     assert distill_parsed.update_epochs == 6
+
+    greedy_tune = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_GREEDY_TUNE",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    greedy_parsed = parse_args(greedy_tune["common_args"])
+
+    assert greedy_tune["family"] == "deterministic_policy"
+    assert greedy_tune["stage_sizes"] == [25]
+    assert greedy_tune["stages"][0]["global_update_cap"] == 1200
+    assert greedy_tune["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert greedy_parsed.deterministic_rollout is True
+    assert greedy_parsed.num_ants == 4
+    assert greedy_parsed.distance_bonus == 0.02
+    assert greedy_parsed.ent_coef == 0.0
+    assert greedy_parsed.clip_coef == 0.1
+    assert greedy_parsed.learning_rate == 0.00005
+    assert greedy_parsed.update_epochs == 6
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:

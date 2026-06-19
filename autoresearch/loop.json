@@ -240,8 +240,40 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_GREEDY_TUNE",
       "priority": 7,
+      "mode": "forage_curriculum",
+      "family": "deterministic_policy",
+      "title": "Warm-start best greedy checkpoint with deterministic rollouts",
+      "hypothesis": "The best sampled policies solve 25x25, but standard sampled PPO rollouts do not reliably improve argmax behavior. DISTANCE_CAP4_SHARP is the best greedy checkpoint so far, so training its greedy action path directly should reinforce successful deterministic routes and reduce the train/eval mismatch.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint, train only the standard 25x25 distribution for 1200 updates, collect rollouts with greedy argmax actions, use distance_bonus 0.02 and four ants, set ent_coef 0, clip_coef 0.10, update_epochs 6, and reduce learning_rate to 0.00005.",
+      "success_signal": "Held-out deterministic delivery should beat the current best extended deterministic result of 16/23 while sampled delivery should not fall below the useful 20/23 range.",
+      "report_notes": "Tests whether deterministic deployment needs its own on-policy consolidation pass. This is not an easier task distribution; it changes how training actions are selected.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_GREEDY_TUNE",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1200,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "deterministic_rollout": true,
+        "ent_coef": 0.0,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-GREEDY-TUNE",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "deterministic-rollout", "policy-sharpening"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 8,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",

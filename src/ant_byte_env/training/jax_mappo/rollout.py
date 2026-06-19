@@ -120,7 +120,7 @@ def collect_rollout(
             actor_obs,
             central_obs,
             action_key,
-            deterministic=False,
+            deterministic=bool(getattr(args, "deterministic_rollout", False)),
         )
         actions_for_env = _executed_actions(args, actions)
         next_states, next_obs, env_rewards, terminated, truncated, infos = jax.vmap(env.step)(

@@ -35,6 +35,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-norm-adv", dest="norm_adv", action="store_false")
     parser.add_argument("--clip-coef", type=float, default=0.2)
     parser.add_argument("--ent-coef", type=float, default=0.01)
+    parser.add_argument(
+        "--deterministic-rollout",
+        action="store_true",
+        help="Collect PPO rollouts with greedy argmax actions instead of sampling.",
+    )
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-size", type=int, default=128)
