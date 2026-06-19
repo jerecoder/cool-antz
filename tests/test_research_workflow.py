@@ -87,6 +87,8 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
     assert ids == [
         "DISTANCE_SHAPE",
         "CAPACITY4",
+        "DISTANCE_CAP4",
+        "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
         "DENSE8",
@@ -98,6 +100,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
     ]
     assert {
         "reward_shaping",
+        "combined_reward_capacity",
         "exploration_capacity",
         "observation",
         "cookie_distribution",

@@ -77,7 +77,7 @@
     },
     {
       "id": "CAPACITY4",
-      "priority": 2,
+      "priority": 4,
       "mode": "forage_curriculum",
       "family": "exploration_capacity",
       "title": "Four ants with the same local policy",
@@ -98,8 +98,55 @@
       }
     },
     {
-      "id": "VISION2",
+      "id": "DISTANCE_CAP4",
+      "priority": 2,
+      "mode": "forage_curriculum",
+      "family": "combined_reward_capacity",
+      "title": "Distance shaping plus four-ant exploration",
+      "hypothesis": "DISTANCE_SHAPE proved dense progress reward can transfer to 25x25, but sampled evaluation still lagged deterministic evaluation. Adding four ants should improve coverage and make the shaped route behavior less brittle under sampled actions.",
+      "intervention": "Keep distance_bonus 0.02 from the winning run and add four ants, hidden size 192, moving writes, concentrated food, and the same 25x25 stage ladder.",
+      "success_signal": "Held-out 25x25 sampled delivery should close the gap with deterministic delivery while deterministic delivery remains above the DISTANCE_SHAPE baseline.",
+      "report_notes": "Second-wave combination after DISTANCE_SHAPE: tests whether the remaining weakness is exploration throughput rather than reward density.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4",
+      "global_update_cap": 900,
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.006
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4",
+        "tags": ["distance-bonus", "multi-ant", "second-wave"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
       "priority": 3,
+      "mode": "forage_curriculum",
+      "family": "combined_reward_capacity",
+      "title": "Distance shaping plus four ants and radius-2 vision",
+      "hypothesis": "If DISTANCE_CAP4 helps but still misses full completion, the remaining bottleneck may be local route stability. Radius-2 vision should help ants preserve useful trajectory context while the distance bonus supplies dense credit.",
+      "intervention": "Combine distance_bonus 0.02, four ants, radius-2 actor vision, hidden size 256, moving writes, and the same 25x25 stage ladder.",
+      "success_signal": "This candidate should push deterministic 25x25 delivery toward full clearance and improve sampled delivery beyond DISTANCE_CAP4.",
+      "report_notes": "Higher-upside combined run; less ablated, but directly targets the two remaining suspected bottlenecks.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_VISION2_CAP4",
+      "global_update_cap": 900,
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "actor_vision_radius": 2,
+        "hidden_size": 256,
+        "ent_coef": 0.005
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-VISION2-CAP4",
+        "tags": ["distance-bonus", "multi-ant", "radius2", "second-wave"]
+      }
+    },
+    {
+      "id": "VISION2",
+      "priority": 5,
       "mode": "forage_curriculum",
       "family": "observation",
       "title": "Single ant with radius-2 local vision",
@@ -120,7 +167,7 @@
     },
     {
       "id": "NEAR_COOKIE",
-      "priority": 4,
+      "priority": 6,
       "mode": "forage_curriculum",
       "family": "cookie_distribution",
       "title": "Shorter source-hub distances during scale-up",
@@ -141,7 +188,7 @@
     },
     {
       "id": "DENSE8",
-      "priority": 5,
+      "priority": 7,
       "mode": "forage_curriculum",
       "family": "food_distribution",
       "title": "Denser food sources for easier route consolidation",
@@ -162,7 +209,7 @@
     },
     {
       "id": "GAMMA999",
-      "priority": 6,
+      "priority": 8,
       "mode": "forage_curriculum",
       "family": "credit_assignment",
       "title": "Higher gamma with longer rollouts",
@@ -191,7 +238,7 @@
     },
     {
       "id": "LADDER_FINE",
-      "priority": 7,
+      "priority": 9,
       "mode": "forage_curriculum",
       "family": "stage_schedule",
       "title": "Finer high-end stage ladder",
@@ -212,7 +259,7 @@
     },
     {
       "id": "VISION2_CAP4",
-      "priority": 8,
+      "priority": 10,
       "mode": "forage_curriculum",
       "family": "combined_capacity",
       "title": "Four ants plus radius-2 vision",
@@ -235,7 +282,7 @@
     },
     {
       "id": "BYTE_TRAIL",
-      "priority": 9,
+      "priority": 11,
       "mode": "forage_curriculum",
       "family": "memory_shaping",
       "title": "Reward byte trails only when they support delivery",
@@ -258,7 +305,7 @@
     },
     {
       "id": "AUTO_STAGE",
-      "priority": 10,
+      "priority": 12,
       "mode": "autocurriculum",
       "base_config": "experiments/autocurriculum.json",
       "family": "autocurriculum",
