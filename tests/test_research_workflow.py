@@ -119,6 +119,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_RAMP_24A_430",
         "DISTANCE_CAP24_SPEED_SOURCES12_430",
         "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430",
+        "DISTANCE_CAP24_SPEED_POLISH_FINE_TEMP",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
@@ -689,6 +690,25 @@ def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> N
         1.8,
     ]
     assert len({mode["seed_offset"] for mode in speed_temp_modes}) == 1
+
+    polish_temp_plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_POLISH_FINE_TEMP",
+        run_root=tmp_path / "loop",
+        wandb_mode="disabled",
+    )
+
+    polish_temp_modes = polish_temp_plan["evaluation"]["action_modes"]
+    assert polish_temp_plan["mode"] == "checkpoint_evaluation"
+    assert polish_temp_plan["source_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert [mode["move_temperature"] for mode in polish_temp_modes] == [
+        0.95,
+        1.0,
+        1.05,
+        1.1,
+    ]
+    assert [mode["episodes"] for mode in polish_temp_modes] == [96, 96, 96, 96]
 
 
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:

@@ -1577,8 +1577,69 @@
       }
     },
     {
-      "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
+      "id": "DISTANCE_CAP24_SPEED_POLISH_FINE_TEMP",
       "priority": 35,
+      "mode": "checkpoint_evaluation",
+      "family": "deployment_policy",
+      "title": "Fine movement-temperature sweep for the polished 4x checkpoint",
+      "hypothesis": "The polished 24-ant, 12-source checkpoint nearly crosses the reportable threshold, with temperature 1.00 delivering 21.984/23 at about 397 steps. A fine sweep around 1.00 may recover the last fraction of a food item without changing training or task distribution.",
+      "intervention": "Do not retrain. Load the DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430 checkpoint and evaluate sampled movement with greedy writes at temperatures 0.95, 1.00, 1.05, and 1.10 over 96 same-seed shuffled 25x25 episodes.",
+      "success_signal": "A winning temperature should deliver at least 22/23 food while keeping mean episode length at or below 430, confirming a reportable 4x-speed deployment policy.",
+      "report_notes": "This is a deployment-only fine sweep on the best near-miss checkpoint. If it wins, report the final policy as the polished 24-ant, 12-source model with the selected movement temperature.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_POLISH_FINE_TEMP",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.000045,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 3800000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t095_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 3800000,
+            "move_temperature": 0.95
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 3800000,
+            "move_temperature": 1.0
+          },
+          {
+            "name": "sampled_move_t105_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 3800000,
+            "move_temperature": 1.05
+          },
+          {
+            "name": "sampled_move_t110_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 3800000,
+            "move_temperature": 1.1
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-POLISH-FINE-TEMP",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "checkpoint-evaluation", "speed", "temperature", "fine-sweep", "4x-target", "deployment-policy"]
+      }
+    },
+    {
+      "id": "DISTANCE_CAP8_SPEED_RAMP_8A",
+      "priority": 36,
       "mode": "forage_curriculum",
       "family": "efficiency_finetune",
       "title": "Eight-ant horizon ramp from 900 to 550 steps",
