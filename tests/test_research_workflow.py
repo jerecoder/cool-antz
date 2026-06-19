@@ -108,6 +108,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_SHARP_TEMP_FINE_POLICY",
         "DISTANCE_CAP4_SHARP_T125_CONFIRM_POLICY",
         "DISTANCE_CAP4_SHARP_TEMP_CONFIRM_GRID",
+        "DISTANCE_CAP4_SHARP_TEMP_HIGH_GRID",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -516,6 +517,16 @@ def test_research_loop_can_evaluate_checkpoint_action_modes(tmp_path: Path) -> N
     grid_modes = confirm_grid_plan["evaluation"]["action_modes"]
     assert [mode["episodes"] for mode in grid_modes] == [96, 96, 96, 96, 96]
     assert len({mode["seed_offset"] for mode in grid_modes}) == 1
+
+    high_grid_plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_SHARP_TEMP_HIGH_GRID",
+        run_root=tmp_path / "loop",
+        wandb_mode="disabled",
+    )
+
+    high_modes = high_grid_plan["evaluation"]["action_modes"]
+    assert [mode["move_temperature"] for mode in high_modes] == [1.25, 1.4, 1.6, 1.8, 2.0]
+    assert [mode["episodes"] for mode in high_modes] == [64, 64, 64, 64, 64]
 
 
 def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path: Path) -> None:
