@@ -622,6 +622,7 @@ def run_forage_curriculum(
     update_timesteps_per_stage: int,
     global_update_cap: int,
     train_main: Callable[..., dict[str, float]],
+    initial_checkpoint: Path | None = None,
     wandb_project: str | None = None,
     wandb_entity: str | None = None,
     wandb_group: str | None = None,
@@ -637,7 +638,9 @@ def run_forage_curriculum(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     stage_metrics: list[dict[str, Any]] = []
     stage_checkpoint_paths: list[Path] = []
-    previous_checkpoint: Path | None = None
+    previous_checkpoint = Path(initial_checkpoint) if initial_checkpoint is not None else None
+    if previous_checkpoint is not None and not previous_checkpoint.exists():
+        raise FileNotFoundError(f"initial forage checkpoint does not exist: {previous_checkpoint}")
     final_train_metrics: dict[str, float] = {}
     curriculum_step_base = 0
     tracker = WandbTracker(
@@ -651,6 +654,7 @@ def run_forage_curriculum(
         notes=wandb_notes,
         config={
             "common_args": list(common_args),
+            "initial_checkpoint": None if previous_checkpoint is None else str(previous_checkpoint),
             "global_update_cap": int(global_update_cap),
             "stages": [str(stage["name"]) for stage in stages],
             "update_timesteps_per_stage": int(update_timesteps_per_stage),

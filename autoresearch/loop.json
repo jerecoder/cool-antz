@@ -209,8 +209,39 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_DISTILL",
       "priority": 6,
+      "mode": "forage_curriculum",
+      "family": "policy_distillation",
+      "title": "Warm-start sampled solver and sharpen on 25x25",
+      "hypothesis": "DISTANCE_CAP4 already solves held-out 25x25 when actions are sampled, but its greedy argmax delivers only 2.75 food. DISTANCE_CAP4_SHARP improved greedy behavior from scratch, while DISTANCE_CAP4_SHARP_FINE showed that extra size stages preserve sampled behavior but can erase argmax quality. The smarter next test is to keep the sampled-solver weights and do a gentle 25x25-only low-entropy fine-tune so existing route probability mass moves onto the argmax path.",
+      "intervention": "Load the completed DISTANCE_CAP4 25x25 checkpoint, train only the standard 25x25 distribution for 1600 updates, keep distance_bonus 0.02 and four ants, lower entropy to 0.0005, tighten clip_coef to 0.10, use update_epochs 6, and reduce learning_rate to 0.00008 to avoid wiping out the sampled solver.",
+      "success_signal": "Deterministic held-out delivery should beat the current best extended deterministic result of 16/23 while sampled delivery should stay near full clearance.",
+      "report_notes": "Tests direct policy sharpening/distillation from a stochastic solver. A win means the algorithm already knows routes and needs final-policy consolidation, not more exploration or more curriculum sizes.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_DISTILL",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1600,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1600, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00008,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-DISTILL",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "low-entropy", "policy-distillation"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 7,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",

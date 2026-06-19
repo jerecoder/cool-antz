@@ -417,6 +417,11 @@ def research_experiment_markdown(plan: Mapping[str, Any]) -> str:
         f"Family: {plan.get('family', '')}",
         f"Mode: {plan.get('mode', '')}",
         f"Run directory: `{plan.get('run_dir', '')}`",
+        *(
+            [f"Source checkpoint: `{plan['source_checkpoint']}`"]
+            if plan.get("source_checkpoint")
+            else []
+        ),
         "",
         "## Hypothesis",
         str(plan.get("hypothesis", "")),
@@ -490,6 +495,7 @@ def _build_forage_research_plan(
     update_timesteps = int(merged_args["num_envs"]) * int(merged_args["num_steps"])
     checkpoint_dir = run_dir / "checkpoints"
     final_checkpoint = checkpoint_dir / f"jax_mappo_forage_stage1_{stages[-1]['name']}.pkl"
+    source_checkpoint = entry.get("source_checkpoint")
     total_env_steps = sum(
         int(stage.get("global_update_cap", global_update_cap))
         * int(stage.get("num_steps", merged_args["num_steps"]))
@@ -512,6 +518,11 @@ def _build_forage_research_plan(
         "run_dir": str(run_dir),
         "checkpoint_dir": str(checkpoint_dir),
         "final_checkpoint": str(final_checkpoint),
+        **(
+            {"source_checkpoint": str(source_checkpoint)}
+            if source_checkpoint is not None
+            else {}
+        ),
         "stage_sizes": [int(stage["width"]) for stage in stages],
         "stages": stages,
         "global_update_cap": int(global_update_cap),
@@ -636,6 +647,11 @@ def _execute_forage_plan(
             update_timesteps_per_stage=int(plan["update_timesteps_per_stage"]),
             global_update_cap=int(plan["global_update_cap"]),
             train_main=train_main,
+            initial_checkpoint=(
+                Path(str(plan["source_checkpoint"]))
+                if plan.get("source_checkpoint") is not None
+                else None
+            ),
             wandb_project=wandb.get("project"),
             wandb_entity=wandb.get("entity"),
             wandb_group=wandb.get("group"),

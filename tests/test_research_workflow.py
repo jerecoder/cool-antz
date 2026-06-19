@@ -91,6 +91,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_SHARP",
         "DISTANCE_CAP4_BALANCED",
         "DISTANCE_CAP4_SHARP_FINE",
+        "DISTANCE_CAP4_DISTILL",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -111,6 +112,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "food_distribution",
         "credit_assignment",
         "stage_schedule",
+        "policy_distillation",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -204,6 +206,28 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert fine_parsed.distance_bonus == 0.02
     assert fine_parsed.ent_coef == 0.001
     assert fine_parsed.clip_coef == 0.15
+
+    distill = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_DISTILL",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    distill_parsed = parse_args(distill["common_args"])
+
+    assert distill["family"] == "policy_distillation"
+    assert distill["stage_sizes"] == [25]
+    assert distill["stages"][0]["global_update_cap"] == 1600
+    assert distill["source_checkpoint"].endswith(
+        "DISTANCE_CAP4/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert distill_parsed.num_ants == 4
+    assert distill_parsed.distance_bonus == 0.02
+    assert distill_parsed.ent_coef == 0.0005
+    assert distill_parsed.clip_coef == 0.1
+    assert distill_parsed.learning_rate == 0.00008
+    assert distill_parsed.update_epochs == 6
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:
@@ -329,6 +353,56 @@ def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path
     assert [path.name for path in calls["wandb_artifact_paths"]] == ["experiment.md", "plan.json"]
     assert summary["curriculum"]["stage_metrics"][0]["episode_return"] == 4.0
     assert summary["evaluation"]["deterministic"]["eval_mean_episode_return"] == 2.5
+
+
+def test_execute_research_loop_plan_passes_source_checkpoint(tmp_path: Path) -> None:
+    expected_source = Path(
+        "runs/autoresearch/forage_loop/DISTANCE_CAP4/checkpoints/"
+        "jax_mappo_forage_stage1_25x25.pkl"
+    )
+    plan = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_DISTILL",
+        run_root=tmp_path / "loop",
+        global_update_cap=1,
+        num_envs=1,
+        num_steps=4,
+        wandb_mode="disabled",
+    )
+    calls: dict[str, object] = {}
+
+    def fake_train_main(args: list[str], progress_callback=None) -> dict[str, float]:
+        del args, progress_callback
+        return {"global_step": 4.0}
+
+    def fake_run_curriculum(**kwargs: object) -> dict[str, object]:
+        calls.update(kwargs)
+        checkpoint_dir = Path(str(kwargs["checkpoint_dir"]))
+        final_checkpoint = checkpoint_dir / "jax_mappo_forage_stage1_25x25.pkl"
+        final_checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        final_checkpoint.write_bytes(b"checkpoint")
+        return {
+            "stage_metrics": [],
+            "stage_checkpoint_paths": [final_checkpoint],
+            "final_checkpoint_path": final_checkpoint,
+            "final_train_metrics": {"global_step": 4.0},
+        }
+
+    summary = execute_research_experiment_plan(
+        plan,
+        train_main=fake_train_main,
+        run_curriculum=fake_run_curriculum,
+        evaluate_checkpoint=lambda *args, **kwargs: {
+            "eval_success_rate": 0.0,
+            "eval_mean_delivered_food": 0.0,
+            "eval_mean_delivered_fraction": 0.0,
+            "eval_mean_episode_return": 0.0,
+            "eval_mean_episode_length": 100.0,
+        },
+        check_resources=False,
+    )
+
+    assert calls["initial_checkpoint"] == expected_source
+    assert "Source checkpoint:" in Path(summary["note_path"]).read_text(encoding="utf-8")
 
 
 def test_research_loop_rank_reads_target_stage(tmp_path: Path) -> None:
