@@ -267,6 +267,33 @@ def test_jax_random_ant_spawn_is_seed_reproducible_and_avoids_food_and_hub() -> 
     assert int(jnp.sum(obs_a["ants_count"])) == 4
 
 
+def test_jax_random_ant_spawn_radius_limits_random_spawn_near_hub() -> None:
+    env = JaxAntByteForagingEnv(
+        width=7,
+        height=7,
+        num_ants=6,
+        food_count=1,
+        food_source_count=1,
+        random_ant_spawn=True,
+        random_ant_spawn_radius=1,
+    )
+
+    _, obs, _ = env.reset(
+        jax.random.PRNGKey(7),
+        hub_pos=jnp.array([3, 3], dtype=jnp.int32),
+        food_positions=jnp.array([[4, 3]], dtype=jnp.int32),
+    )
+
+    food = np.asarray(obs["food"])
+    hub_x, hub_y = (int(value) for value in np.asarray(obs["hub_pos"]))
+    for ant_pos in np.asarray(obs["ants_pos"]):
+        x_pos, y_pos = (int(ant_pos[0]), int(ant_pos[1]))
+        assert max(abs(x_pos - hub_x), abs(y_pos - hub_y)) <= 1
+        assert (x_pos, y_pos) != (hub_x, hub_y)
+        assert food[y_pos, x_pos] == 0
+    assert int(jnp.sum(obs["ants_count"])) == 6
+
+
 def test_jax_step_matches_pickup_delivery_and_write_rules() -> None:
     env = JaxAntByteForagingEnv(width=3, height=1, num_ants=1, food_count=1)
     state, _, _ = env.reset(

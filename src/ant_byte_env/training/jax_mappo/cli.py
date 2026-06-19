@@ -163,6 +163,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--random-ant-spawn-radius",
+        type=int,
+        default=None,
+        help=(
+            "When --random-ant-spawn is enabled, restrict random ant spawn tiles "
+            "to this Chebyshev radius around the colony hub. Omit for full-map spawn."
+        ),
+    )
+    parser.add_argument(
         "--actor-hub-vector",
         action="store_true",
         help=(
@@ -397,6 +406,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--obs-height must be at least --height.")
     if args.actor_vision_radius < 0:
         raise ValueError("--actor-vision-radius must be non-negative.")
+    if args.random_ant_spawn_radius is not None and args.random_ant_spawn_radius < 0:
+        raise ValueError("--random-ant-spawn-radius must be non-negative.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
     if args.write_bit_penalty < 0.0:

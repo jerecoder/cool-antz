@@ -88,6 +88,29 @@ def test_random_ant_spawn_is_seed_reproducible_and_avoids_food_and_hub() -> None
     env.close()
 
 
+def test_random_ant_spawn_radius_limits_random_spawn_near_hub() -> None:
+    env = AntByteForagingEnv(
+        width=7,
+        height=7,
+        num_ants=6,
+        food_count=1,
+        food_source_count=1,
+        random_ant_spawn=True,
+        random_ant_spawn_radius=1,
+    )
+
+    obs, _ = env.reset(seed=7, options={"hub_pos": (3, 3), "food_positions": [(4, 3)]})
+
+    hub_x, hub_y = (int(value) for value in obs["hub_pos"])
+    for ant_pos in obs["ants_pos"]:
+        x_pos, y_pos = (int(ant_pos[0]), int(ant_pos[1]))
+        assert max(abs(x_pos - hub_x), abs(y_pos - hub_y)) <= 1
+        assert (x_pos, y_pos) != (hub_x, hub_y)
+        assert obs["food"][y_pos, x_pos] == 0
+    assert int(obs["ants_count"].sum()) == 6
+    env.close()
+
+
 def test_action_space_defaults_to_one_write_bit_per_ant() -> None:
     env = AntByteForagingEnv(width=5, height=4, num_ants=2, food_count=3, seed=123)
 

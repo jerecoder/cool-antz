@@ -3006,6 +3006,119 @@
       }
     },
     {
+      "id": "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM",
+      "priority": 54,
+      "mode": "forage_curriculum",
+      "family": "reset_distribution",
+      "title": "Spawn-radius curriculum for eight rare-map scent ants",
+      "hypothesis": "The best eight-ant rare-map scent policy improves delivery on randomized 50x50 layouts, but full-map random ant spawn may be too abrupt during fine-tuning: ants begin far from both the randomized colony and rare food sources, causing long early wandering and weak credit assignment. A reset-distribution curriculum that keeps random ant spawn enabled but initially samples ants near the randomized colony should preserve the requested randomization while making the final full-map reset easier to optimize.",
+      "intervention": "Warm-start from the held-out selected 50x50 rare-map scent checkpoint. Keep eight ants, a 50x50 map, 23 total food, only two food-source positions, random_food, random_hub, and random_ant_spawn on every reset. Train three 50x50 stages: random ant spawn within Chebyshev radius 8 of the randomized colony, then radius 16, then unrestricted full-map random ant spawn. Keep hub and nearest-food vectors because this is a reset-distribution optimization test, not a pure communication claim.",
+      "success_signal": "The final unrestricted 50x50 randomized gate should beat the held-out selected parent score of about 16.2/23 delivered. A strong result would exceed 18/23 delivered, improve success rate, and lower steps per delivered food while keeping only eight ants and the rare two-source food distribution.",
+      "report_notes": "This preserves the user's requested setup: fewer ants than the 24-ant line, bigger maps than 25x25, same total food condensed into very few positions, randomized food positions, randomized colony positions, and randomized ant spawns every reset. The first two stages restrict how far random-spawned ants may appear from the randomized colony; the final training and evaluation gate use full-map random ant spawn.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT/checkpoints/jax_mappo_forage_stage1_50x50_best.pkl",
+      "global_update_cap": 500,
+      "custom_stages": [
+        {
+          "name": "50x50_spawn8",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 250,
+          "num_steps": 384,
+          "gamma": 0.999,
+          "random_ant_spawn_radius": 8
+        },
+        {
+          "name": "50x50_spawn16",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 250,
+          "num_steps": 384,
+          "gamma": 0.999,
+          "random_ant_spawn_radius": 16
+        },
+        {
+          "name": "50x50",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 500,
+          "num_steps": 384,
+          "gamma": 0.999,
+          "save_best_checkpoint": true,
+          "select_best_checkpoint": true,
+          "best_checkpoint_selection": "eval",
+          "best_checkpoint_metric": "eval_mean_delivered_food",
+          "best_checkpoint_mode": "max",
+          "best_eval_episodes": 16,
+          "best_eval_interval": 20,
+          "best_eval_seed_offset": 6400000,
+          "best_eval_action_mode": "sampled_move_greedy_write",
+          "best_eval_move_temperature": 0.9
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 8,
+        "actor_hub_vector": true,
+        "actor_nearest_food_vector": true,
+        "hidden_size": 192,
+        "random_food": true,
+        "random_hub": true,
+        "random_ant_spawn": true,
+        "write_bits": 2,
+        "write_head_transfer": "neutral-new",
+        "step_penalty": 0.000035,
+        "completion_bonus": 1.5,
+        "delivery_byte_trail_bonus": 0.2,
+        "byte_follow_bonus": 0.004,
+        "carrying_byte_write_bonus": 0.003,
+        "write_bit_entropy_bonus": 0.0005,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00002,
+        "update_epochs": 6,
+        "log_interval": 10
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 6500000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 6500000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 6500000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-NAVVECTOR-SPAWN-RADIUS-CURRICULUM",
+        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "spawn-radius-curriculum", "random-hub", "random-food", "hub-vector", "food-vector", "reset-distribution"]
+      }
+    },
+    {
       "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
       "priority": 48,
       "mode": "forage_curriculum",

@@ -2561,6 +2561,13 @@ def test_jax_parse_args_accepts_random_ant_spawn() -> None:
     assert args.random_ant_spawn is True
 
 
+def test_jax_parse_args_accepts_random_ant_spawn_radius() -> None:
+    args = parse_args(["--random-ant-spawn", "--random-ant-spawn-radius", "8"])
+
+    assert args.random_ant_spawn is True
+    assert args.random_ant_spawn_radius == 8
+
+
 def test_jax_parse_args_accepts_actor_navigation_features() -> None:
     args = parse_args(["--actor-hub-vector", "--actor-nearest-food-vector"])
 

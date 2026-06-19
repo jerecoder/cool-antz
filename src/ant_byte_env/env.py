@@ -138,6 +138,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         random_food: bool = True,
         random_hub: bool = False,
         random_ant_spawn: bool = False,
+        random_ant_spawn_radius: int | None = None,
         step_penalty: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
@@ -156,6 +157,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             step_penalty=step_penalty,
             write_penalty=write_penalty,
             write_bits=write_bits,
+            random_ant_spawn_radius=random_ant_spawn_radius,
         )
 
         self.width = width
@@ -169,6 +171,9 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.random_food = random_food
         self.random_hub = bool(random_hub)
         self.random_ant_spawn = bool(random_ant_spawn)
+        self.random_ant_spawn_radius = (
+            None if random_ant_spawn_radius is None else int(random_ant_spawn_radius)
+        )
         self.step_penalty = step_penalty
         self.write_penalty = write_penalty
         self.write_bits = int(write_bits)
@@ -375,6 +380,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         step_penalty: float,
         write_penalty: float,
         write_bits: int,
+        random_ant_spawn_radius: int | None,
     ) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("width and height must be positive.")
@@ -392,6 +398,8 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             raise ValueError("step_penalty must be non-negative.")
         if write_penalty < 0:
             raise ValueError("write_penalty must be non-negative.")
+        if random_ant_spawn_radius is not None and int(random_ant_spawn_radius) < 0:
+            raise ValueError("random_ant_spawn_radius must be non-negative.")
         if (
             not isinstance(write_bits, (int, np.integer))
             or write_bits <= 0
@@ -476,12 +484,14 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             for y_pos in range(self.height)
             for x_pos in range(self.width)
             if (x_pos, y_pos) != hub_key and int(self.food[y_pos, x_pos]) <= 0
+            and self._within_ant_spawn_radius(x_pos=x_pos, y_pos=y_pos)
         ]
         fallback = [
             (x_pos, y_pos)
             for y_pos in range(self.height)
             for x_pos in range(self.width)
             if (x_pos, y_pos) != hub_key
+            and self._within_ant_spawn_radius(x_pos=x_pos, y_pos=y_pos)
         ]
         candidates = preferred or fallback or [hub_key]
         chosen_indices = self.np_random.choice(
@@ -492,6 +502,17 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         return np.asarray(
             [candidates[int(index)] for index in np.atleast_1d(chosen_indices)],
             dtype=np.int32,
+        )
+
+    def _within_ant_spawn_radius(self, *, x_pos: int, y_pos: int) -> bool:
+        if self.random_ant_spawn_radius is None:
+            return True
+        return (
+            max(
+                abs(int(x_pos) - int(self.hub_pos[0])),
+                abs(int(y_pos) - int(self.hub_pos[1])),
+            )
+            <= self.random_ant_spawn_radius
         )
 
     def _coerce_position(self, raw_pos: Any) -> np.ndarray:

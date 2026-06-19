@@ -465,6 +465,7 @@ def _env_from_args(
         "random_food": args.random_food,
         "random_hub": bool(getattr(args, "random_hub", False)),
         "random_ant_spawn": bool(getattr(args, "random_ant_spawn", False)),
+        "random_ant_spawn_radius": getattr(args, "random_ant_spawn_radius", None),
         "step_penalty": args.step_penalty,
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,

@@ -67,6 +67,7 @@ class JaxAntByteForagingEnv:
         random_food: bool = True,
         random_hub: bool = False,
         random_ant_spawn: bool = False,
+        random_ant_spawn_radius: int | None = None,
         step_penalty: float = 0.0,
         completion_bonus: float = 0.0,
         write_penalty: float = 0.0,
@@ -84,6 +85,7 @@ class JaxAntByteForagingEnv:
             completion_bonus=completion_bonus,
             write_penalty=write_penalty,
             write_bits=write_bits,
+            random_ant_spawn_radius=random_ant_spawn_radius,
         )
         self.width = int(width)
         self.height = int(height)
@@ -95,6 +97,9 @@ class JaxAntByteForagingEnv:
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
         self.random_ant_spawn = bool(random_ant_spawn)
+        self.random_ant_spawn_radius = (
+            None if random_ant_spawn_radius is None else int(random_ant_spawn_radius)
+        )
         self.step_penalty = float(step_penalty)
         self.completion_bonus = float(completion_bonus)
         self.write_penalty = float(write_penalty)
@@ -120,6 +125,7 @@ class JaxAntByteForagingEnv:
         completion_bonus: float,
         write_penalty: float,
         write_bits: int,
+        random_ant_spawn_radius: int | None,
     ) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("width and height must be positive.")
@@ -139,6 +145,8 @@ class JaxAntByteForagingEnv:
             raise ValueError("completion_bonus must be non-negative.")
         if write_penalty < 0:
             raise ValueError("write_penalty must be non-negative.")
+        if random_ant_spawn_radius is not None and int(random_ant_spawn_radius) < 0:
+            raise ValueError("random_ant_spawn_radius must be non-negative.")
         if (
             not isinstance(write_bits, (int, np.integer))
             or write_bits <= 0
@@ -413,8 +421,18 @@ class JaxAntByteForagingEnv:
         flat_y = flat_indices // self.width
         is_hub = (flat_x == hub_pos[0]) & (flat_y == hub_pos[1])
         has_food = food.reshape((-1,)) > 0
-        preferred_mask = jnp.logical_not(is_hub | has_food)
-        fallback_mask = jnp.logical_not(is_hub)
+        if self.random_ant_spawn_radius is None:
+            within_spawn_radius = jnp.ones_like(is_hub, dtype=bool)
+        else:
+            within_spawn_radius = (
+                jnp.maximum(
+                    jnp.abs(flat_x - hub_pos[0]),
+                    jnp.abs(flat_y - hub_pos[1]),
+                )
+                <= self.random_ant_spawn_radius
+            )
+        preferred_mask = within_spawn_radius & jnp.logical_not(is_hub | has_food)
+        fallback_mask = within_spawn_radius & jnp.logical_not(is_hub)
         candidate_mask = jnp.where(
             jnp.any(preferred_mask),
             preferred_mask,
