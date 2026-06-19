@@ -128,6 +128,8 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_SOURCES16_430",
         "DISTANCE_CAP24_SPEED_BEST_SELECT_430",
         "DISTANCE_CAP24_SPEED_BEST_SELECT_CONFIRM_GRID",
+        "DISTANCE_CAP24_SPEED_REMAINING_SELECT_430",
+        "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -532,6 +534,20 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    remaining_select = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_REMAINING_SELECT_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    seed2_select = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -672,6 +688,28 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     assert best_select_parsed.num_ants == 24
     assert best_select_parsed.completion_bonus == 1.5
     assert best_select_parsed.log_interval == 10
+
+    remaining_select_parsed = parse_args(remaining_select["common_args"])
+    assert remaining_select["family"] == "checkpoint_selection"
+    assert remaining_select["stages"][0]["best_checkpoint_metric"] == (
+        "final_mean_remaining_food"
+    )
+    assert remaining_select["stages"][0]["best_checkpoint_mode"] == "min"
+    assert remaining_select["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_REMAINING_SELECT_430/checkpoints/"
+        "jax_mappo_forage_stage1_25x25_best.pkl"
+    )
+    assert remaining_select_parsed.num_ants == 24
+
+    seed2_select_parsed = parse_args(seed2_select["common_args"])
+    assert seed2_select["family"] == "seed_robustness"
+    assert seed2_select["stages"][0]["best_checkpoint_metric"] == "episode_return"
+    assert seed2_select["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430/checkpoints/"
+        "jax_mappo_forage_stage1_25x25_best.pkl"
+    )
+    assert seed2_select_parsed.seed == 2
+    assert seed2_select_parsed.num_ants == 24
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"
