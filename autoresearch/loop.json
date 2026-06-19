@@ -2467,6 +2467,82 @@
       }
     },
     {
+      "id": "DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
+      "priority": 48,
+      "mode": "forage_curriculum",
+      "family": "checkpoint_selection",
+      "title": "Select the fast 24-ant checkpoint by held-out shuffled resets",
+      "hypothesis": "The training-best checkpoints crossed 22/23 on 128-episode gates but failed larger confirmations, which is exactly the pattern expected when checkpoint choice overfits noisy training batches. Selecting the rolling best checkpoint by a small held-out shuffled evaluation stream should choose policies that generalize across reset layouts instead of merely spiking training return.",
+      "intervention": "Load the strongest 24-ant, 12-source, 430-step parent checkpoint and fine-tune the same task for 500 updates. At reported updates, run a 16-episode held-out shuffled evaluation using sampled movement at temperature 0.95 with greedy writing, save the checkpoint that maximizes eval_mean_delivered_food, and evaluate that selected checkpoint on a separate seed stream.",
+      "success_signal": "A win should exceed 22/23 delivered on the separate 128-episode held-out gate while keeping mean episode length below 430. If it wins, the report should say checkpoint selection needed held-out reset seeds, not just training-return spikes.",
+      "report_notes": "This directly tests the overfitting/reset concern. The environment still resets during rollouts; the change is that model selection now uses unseen reset seeds before final confirmation, so the chosen checkpoint should be less tuned to transient training batches.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP24_SPEED_SOURCES12_POLISH_430/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 500,
+      "custom_stages": [
+        {
+          "name": "25x25",
+          "width": 25,
+          "height": 25,
+          "food_count": 23,
+          "food_sources": 12,
+          "cookie_distance": 11,
+          "max_steps": 430,
+          "global_update_cap": 500,
+          "num_steps": 256,
+          "gamma": 0.995,
+          "save_best_checkpoint": true,
+          "select_best_checkpoint": true,
+          "best_checkpoint_selection": "eval",
+          "best_checkpoint_metric": "eval_mean_delivered_food",
+          "best_checkpoint_mode": "max",
+          "best_eval_episodes": 16,
+          "best_eval_interval": 20,
+          "best_eval_seed_offset": 5400000,
+          "best_eval_action_mode": "sampled_move_greedy_write",
+          "best_eval_move_temperature": 0.95
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 24,
+        "hidden_size": 192,
+        "step_penalty": 0.00004,
+        "completion_bonus": 1.5,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00003,
+        "update_epochs": 6,
+        "log_interval": 10
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 5600000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t095_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 5600000,
+            "move_temperature": 0.95
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 128,
+            "seed_offset": 5600000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP24-SPEED-HELDOUT-SELECT-430",
+        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "heldout-selection", "checkpoint-selection", "overfit-control", "4x-target"]
+      }
+    },
+    {
       "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
       "priority": 48,
       "mode": "forage_curriculum",

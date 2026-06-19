@@ -2381,6 +2381,44 @@ def test_jax_parse_args_accepts_best_model_options(tmp_path: Path) -> None:
     assert args.best_model_mode == "max"
 
 
+def test_jax_parse_args_accepts_best_eval_selection_options(tmp_path: Path) -> None:
+    best_path = tmp_path / "best.pkl"
+
+    args = parse_args(
+        [
+            "--save-best-model",
+            str(best_path),
+            "--best-model-selection",
+            "eval",
+            "--best-model-metric",
+            "eval_mean_delivered_food",
+            "--best-eval-episodes",
+            "3",
+            "--best-eval-interval",
+            "5",
+            "--best-eval-seed-offset",
+            "12345",
+            "--best-eval-action-mode",
+            "sampled_move_greedy_write",
+            "--best-eval-move-temperature",
+            "0.95",
+            "--best-eval-write-temperature",
+            "1.1",
+            "--no-best-eval-shuffle-positions",
+        ]
+    )
+
+    assert args.best_model_selection == "eval"
+    assert args.best_model_metric == "eval_mean_delivered_food"
+    assert args.best_eval_episodes == 3
+    assert args.best_eval_interval == 5
+    assert args.best_eval_seed_offset == 12345
+    assert args.best_eval_action_mode == "sampled_move_greedy_write"
+    assert args.best_eval_move_temperature == 0.95
+    assert args.best_eval_write_temperature == 1.1
+    assert args.best_eval_shuffle_positions is False
+
+
 def test_jax_parse_args_accepts_deterministic_rollout_fraction() -> None:
     args = parse_args(["--deterministic-rollout-fraction", "0.25"])
 
@@ -2428,6 +2466,11 @@ def test_jax_parse_args_rejects_invalid_deterministic_move_rollout_fraction(
         ("--delivery-byte-trail-target-tiles", "0", "delivery-byte-trail-target-tiles"),
         ("--byte-follow-bonus", "-0.1", "byte-follow-bonus"),
         ("--carrying-byte-write-bonus", "-0.1", "carrying-byte-write-bonus"),
+        ("--best-eval-episodes", "0", "best-eval-episodes"),
+        ("--best-eval-interval", "-1", "best-eval-interval"),
+        ("--best-eval-seed-offset", "-1", "best-eval-seed-offset"),
+        ("--best-eval-move-temperature", "0", "best-eval-move-temperature"),
+        ("--best-eval-write-temperature", "0", "best-eval-write-temperature"),
     ],
 )
 def test_jax_parse_args_rejects_invalid_write_bit_penalty_options(
@@ -2675,6 +2718,71 @@ def test_tiny_jax_mappo_training_saves_best_checkpoint(tmp_path: Path) -> None:
         "episode_return"
     ]
     assert checkpoint["metrics"]["best_model_update"] in {1.0, 2.0}
+
+
+def test_tiny_jax_mappo_training_can_select_best_checkpoint_by_heldout_eval(
+    tmp_path: Path,
+) -> None:
+    final_path = tmp_path / "model.pkl"
+    best_path = tmp_path / "model_best.pkl"
+
+    metrics = main(
+        [
+            "--total-timesteps",
+            "8",
+            "--num-envs",
+            "1",
+            "--num-steps",
+            "4",
+            "--num-minibatches",
+            "1",
+            "--update-epochs",
+            "1",
+            "--width",
+            "4",
+            "--height",
+            "4",
+            "--num-ants",
+            "1",
+            "--food-count",
+            "1",
+            "--food-sources",
+            "1",
+            "--max-steps",
+            "8",
+            "--hidden-size",
+            "16",
+            "--seed",
+            "7",
+            "--save-model",
+            str(final_path),
+            "--save-best-model",
+            str(best_path),
+            "--best-model-selection",
+            "eval",
+            "--best-model-metric",
+            "eval_mean_delivered_food",
+            "--best-eval-episodes",
+            "1",
+            "--best-eval-interval",
+            "1",
+            "--best-eval-action-mode",
+            "sampled_move_greedy_write",
+            "--best-eval-move-temperature",
+            "0.95",
+            "--quiet",
+        ],
+    )
+
+    assert metrics["global_step"] == 8
+    assert final_path.exists()
+    assert best_path.exists()
+    checkpoint = read_checkpoint(best_path)
+    assert checkpoint["metrics"]["best_model_selection"] == "eval"
+    assert checkpoint["metrics"]["best_model_metric_value"] == checkpoint["metrics"][
+        "eval_mean_delivered_food"
+    ]
+    assert "eval_mean_episode_length" in checkpoint["metrics"]
 
 
 def test_jax_training_carries_episode_state_across_updates() -> None:

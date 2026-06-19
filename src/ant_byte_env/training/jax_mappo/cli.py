@@ -8,6 +8,16 @@ from pathlib import Path
 from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
 
 WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
+EVALUATION_ACTION_MODES = (
+    "deterministic",
+    "sampled",
+    "greedy_move_greedy_write",
+    "greedy_move_sampled_write",
+    "sampled_move_greedy_write",
+    "sampled_move_sampled_write",
+    "greedy_move_zero_write",
+    "sampled_move_zero_write",
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -218,6 +228,61 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="max",
         help="Whether larger or smaller --best-model-metric values are better.",
     )
+    parser.add_argument(
+        "--best-model-selection",
+        choices=["train", "eval"],
+        default="train",
+        help=(
+            "Choose --save-best-model from logged training metrics or from a "
+            "small held-out evaluation run at reported updates."
+        ),
+    )
+    parser.add_argument(
+        "--best-eval-episodes",
+        type=int,
+        default=8,
+        help="Held-out episodes per evaluation when --best-model-selection=eval.",
+    )
+    parser.add_argument(
+        "--best-eval-interval",
+        type=int,
+        default=0,
+        help=(
+            "Run held-out best-checkpoint evaluation every N updates. "
+            "0 reuses --log-interval. The first and final updates are always evaluated."
+        ),
+    )
+    parser.add_argument(
+        "--best-eval-seed-offset",
+        type=int,
+        default=1_000_000,
+        help="Reset seed offset for held-out best-checkpoint evaluation.",
+    )
+    parser.add_argument(
+        "--best-eval-action-mode",
+        choices=EVALUATION_ACTION_MODES,
+        default="sampled_move_greedy_write",
+        help="Deployment action mode used by held-out best-checkpoint evaluation.",
+    )
+    parser.add_argument(
+        "--best-eval-move-temperature",
+        type=float,
+        default=1.0,
+        help="Movement-head temperature for held-out best-checkpoint evaluation.",
+    )
+    parser.add_argument(
+        "--best-eval-write-temperature",
+        type=float,
+        default=1.0,
+        help="Write-head temperature for held-out best-checkpoint evaluation.",
+    )
+    parser.add_argument(
+        "--no-best-eval-shuffle-positions",
+        dest="best_eval_shuffle_positions",
+        action="store_false",
+        help="Disable random food/hub layouts during held-out best-checkpoint evaluation.",
+    )
+    parser.set_defaults(best_eval_shuffle_positions=True)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
         "--run-dir",
@@ -271,6 +336,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError(
             "--best-model-metric must be non-empty when --save-best-model is set."
         )
+    if args.best_model_selection == "eval" and args.save_best_model is None:
+        raise ValueError("--best-model-selection eval requires --save-best-model.")
+    if args.best_eval_episodes <= 0:
+        raise ValueError("--best-eval-episodes must be positive.")
+    if args.best_eval_interval < 0:
+        raise ValueError("--best-eval-interval must be non-negative.")
+    if args.best_eval_seed_offset < 0:
+        raise ValueError("--best-eval-seed-offset must be non-negative.")
+    if args.best_eval_move_temperature <= 0.0:
+        raise ValueError("--best-eval-move-temperature must be positive.")
+    if args.best_eval_write_temperature <= 0.0:
+        raise ValueError("--best-eval-write-temperature must be positive.")
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:

@@ -562,8 +562,17 @@ def test_forage_curriculum_can_select_best_stage_checkpoint(
         captured_args.append(args)
         checkpoint_path = Path(args[args.index("--save-model") + 1])
         best_checkpoint_path = Path(args[args.index("--save-best-model") + 1])
-        assert args[args.index("--best-model-metric") + 1] == "episode_return"
+        assert args[args.index("--best-model-metric") + 1] == "eval_mean_delivered_food"
         assert args[args.index("--best-model-mode") + 1] == "max"
+        assert args[args.index("--best-model-selection") + 1] == "eval"
+        assert args[args.index("--best-eval-episodes") + 1] == "16"
+        assert args[args.index("--best-eval-interval") + 1] == "10"
+        assert args[args.index("--best-eval-seed-offset") + 1] == "123000"
+        assert args[args.index("--best-eval-action-mode") + 1] == (
+            "sampled_move_greedy_write"
+        )
+        assert args[args.index("--best-eval-move-temperature") + 1] == "0.95"
+        assert "--no-best-eval-shuffle-positions" in args
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         checkpoint_path.write_bytes(b"terminal")
         best_checkpoint_path.write_bytes(b"best")
@@ -589,8 +598,15 @@ def test_forage_curriculum_can_select_best_stage_checkpoint(
         **workflows.build_forage_curriculum_stages((4,))[0],
         "save_best_checkpoint": True,
         "select_best_checkpoint": True,
-        "best_checkpoint_metric": "episode_return",
+        "best_checkpoint_selection": "eval",
+        "best_checkpoint_metric": "eval_mean_delivered_food",
         "best_checkpoint_mode": "max",
+        "best_eval_episodes": 16,
+        "best_eval_interval": 10,
+        "best_eval_seed_offset": 123000,
+        "best_eval_action_mode": "sampled_move_greedy_write",
+        "best_eval_move_temperature": 0.95,
+        "best_eval_shuffle_positions": False,
     }
     result = workflows.run_forage_curriculum(
         stages=[stage],

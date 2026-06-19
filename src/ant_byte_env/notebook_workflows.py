@@ -775,8 +775,45 @@ def run_forage_curriculum(
                         str(stage.get("best_checkpoint_metric", "episode_return")),
                         "--best-model-mode",
                         str(stage.get("best_checkpoint_mode", "max")),
+                        "--best-model-selection",
+                        str(stage.get("best_checkpoint_selection", "train")),
                     ]
                 )
+                if "best_eval_episodes" in stage:
+                    train_args.extend(
+                        ["--best-eval-episodes", str(int(stage["best_eval_episodes"]))]
+                    )
+                if "best_eval_interval" in stage:
+                    train_args.extend(
+                        ["--best-eval-interval", str(int(stage["best_eval_interval"]))]
+                    )
+                if "best_eval_seed_offset" in stage:
+                    train_args.extend(
+                        [
+                            "--best-eval-seed-offset",
+                            str(int(stage["best_eval_seed_offset"])),
+                        ]
+                    )
+                if "best_eval_action_mode" in stage:
+                    train_args.extend(
+                        ["--best-eval-action-mode", str(stage["best_eval_action_mode"])]
+                    )
+                if "best_eval_move_temperature" in stage:
+                    train_args.extend(
+                        [
+                            "--best-eval-move-temperature",
+                            str(float(stage["best_eval_move_temperature"])),
+                        ]
+                    )
+                if "best_eval_write_temperature" in stage:
+                    train_args.extend(
+                        [
+                            "--best-eval-write-temperature",
+                            str(float(stage["best_eval_write_temperature"])),
+                        ]
+                    )
+                if stage.get("best_eval_shuffle_positions") is False:
+                    train_args.append("--no-best-eval-shuffle-positions")
             if previous_checkpoint is not None:
                 train_args.extend(["--load-model", str(previous_checkpoint)])
 

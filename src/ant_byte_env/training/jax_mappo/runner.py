@@ -28,6 +28,7 @@ from ant_byte_env.training.jax_mappo.core import (
     update_agent,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
+from ant_byte_env.training.jax_mappo.evaluation import evaluate_params
 from ant_byte_env.training.jax_mappo.rollout import collect_rollout
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
@@ -161,6 +162,24 @@ def _metric_is_better(
     if mode == "min":
         return value < best_value
     return value > best_value
+
+
+def _should_run_best_eval(*, args: Any, update: int, num_updates: int) -> bool:
+    interval = int(args.best_eval_interval or args.log_interval)
+    return update == 1 or update == num_updates or update % interval == 0
+
+
+def _best_eval_metrics(*, args: Any, params: Any) -> dict[str, float]:
+    return evaluate_params(
+        params=params,
+        args=args,
+        num_episodes=int(args.best_eval_episodes),
+        seed_offset=int(args.best_eval_seed_offset),
+        action_mode=str(args.best_eval_action_mode),
+        move_temperature=float(args.best_eval_move_temperature),
+        write_temperature=float(args.best_eval_write_temperature),
+        shuffle_positions=bool(args.best_eval_shuffle_positions),
+    )
 
 
 def main(
@@ -309,42 +328,64 @@ def main(
                     "num_updates": num_updates,
                     **final_metrics,
                 }
+                reported_metrics = dict(final_metrics)
                 if args.save_best_model is not None:
-                    if args.best_model_metric not in final_metrics:
-                        raise ValueError(
-                            f"best model metric {args.best_model_metric!r} "
-                            "was not reported by this training loop."
-                        )
-                    metric_value = float(final_metrics[args.best_model_metric])
-                    if _metric_is_better(
-                        value=metric_value,
-                        best_value=best_model_metric_value,
-                        mode=args.best_model_mode,
-                    ):
-                        best_model_metric_value = metric_value
-                        best_model_metrics = {
-                            **final_metrics,
-                            "best_model_metric_value": metric_value,
-                            "best_model_update": float(update),
-                            "best_model_global_step": float(global_step),
-                        }
-                        save_checkpoint(
-                            args.save_best_model,
-                            params=params,
-                            opt_state=opt_state,
+                    should_score_checkpoint = True
+                    selection_metrics = dict(final_metrics)
+                    if args.best_model_selection == "eval":
+                        should_score_checkpoint = _should_run_best_eval(
                             args=args,
-                            central_obs_dim=central_obs_dim,
-                            actor_obs_dim=actor_obs_dim,
-                            run_name=run_name,
-                            metrics=best_model_metrics,
+                            update=update,
+                            num_updates=num_updates,
                         )
+                        if should_score_checkpoint:
+                            eval_metrics = _best_eval_metrics(args=args, params=params)
+                            selection_metrics.update(eval_metrics)
+                            reported_metrics.update(eval_metrics)
+                            logged_metrics.update(eval_metrics)
+                            logged_metrics.update(
+                                {
+                                    "best_eval_episodes": float(args.best_eval_episodes),
+                                    "best_eval_seed_offset": float(args.best_eval_seed_offset),
+                                }
+                            )
+                    if should_score_checkpoint:
+                        if args.best_model_metric not in selection_metrics:
+                            raise ValueError(
+                                f"best model metric {args.best_model_metric!r} "
+                                "was not reported by this training loop."
+                            )
+                        metric_value = float(selection_metrics[args.best_model_metric])
+                        if _metric_is_better(
+                            value=metric_value,
+                            best_value=best_model_metric_value,
+                            mode=args.best_model_mode,
+                        ):
+                            best_model_metric_value = metric_value
+                            best_model_metrics = {
+                                **selection_metrics,
+                                "best_model_metric_value": metric_value,
+                                "best_model_update": float(update),
+                                "best_model_global_step": float(global_step),
+                                "best_model_selection": str(args.best_model_selection),
+                            }
+                            save_checkpoint(
+                                args.save_best_model,
+                                params=params,
+                                opt_state=opt_state,
+                                args=args,
+                                central_obs_dim=central_obs_dim,
+                                actor_obs_dim=actor_obs_dim,
+                                run_name=run_name,
+                                metrics=best_model_metrics,
+                            )
                     logged_metrics.update(
                         {
                             "best_model_metric_value": float(best_model_metric_value),
                         }
                     )
                 if progress_callback is not None:
-                    progress_callback(update, num_updates, final_metrics)
+                    progress_callback(update, num_updates, reported_metrics)
                 tracker.log_metrics(logged_metrics, step=global_step)
                 if not args.quiet:
                     print(
@@ -395,6 +436,7 @@ def main(
                     {
                         "best_checkpoint_path": args.save_best_model,
                         "best_checkpoint_metric": args.best_model_metric,
+                        "best_checkpoint_selection": args.best_model_selection,
                         "best_checkpoint_metrics": best_model_metrics,
                     }
                 )

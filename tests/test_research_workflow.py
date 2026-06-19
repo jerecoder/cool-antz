@@ -132,6 +132,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_430",
         "DISTANCE_CAP24_SPEED_BEST_SELECT_SEED2_CONFIRM_GRID",
         "DISTANCE_CAP24_SPEED_COMPLETION3_BEST_SELECT_430",
+        "DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -557,6 +558,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    heldout_select = build_research_experiment_plan(
+        run_id="DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -733,6 +741,26 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         0.95,
         1.05,
     ]
+
+    heldout_select_parsed = parse_args(heldout_select["common_args"])
+    assert heldout_select["family"] == "checkpoint_selection"
+    assert heldout_select["stages"][0]["best_checkpoint_selection"] == "eval"
+    assert heldout_select["stages"][0]["best_checkpoint_metric"] == (
+        "eval_mean_delivered_food"
+    )
+    assert heldout_select["stages"][0]["best_eval_episodes"] == 16
+    assert heldout_select["stages"][0]["best_eval_interval"] == 20
+    assert heldout_select["stages"][0]["best_eval_seed_offset"] == 5400000
+    assert heldout_select["stages"][0]["best_eval_action_mode"] == (
+        "sampled_move_greedy_write"
+    )
+    assert heldout_select["stages"][0]["best_eval_move_temperature"] == 0.95
+    assert heldout_select["final_checkpoint"].endswith(
+        "DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430/checkpoints/"
+        "jax_mappo_forage_stage1_25x25_best.pkl"
+    )
+    assert heldout_select_parsed.num_ants == 24
+    assert "held-out reset seeds" in heldout_select["notes_markdown"]
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"
