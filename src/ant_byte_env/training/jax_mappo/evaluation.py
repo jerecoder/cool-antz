@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 import jax
 import numpy as np
@@ -46,6 +47,17 @@ def evaluate_params(
         deterministic=deterministic,
     )
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
+    step_fn = jax.jit(
+        lambda current_state, current_obs, action_key: _evaluation_step(
+            env=env,
+            args=eval_args,
+            params=params,
+            state=current_state,
+            obs=current_obs,
+            key=action_key,
+            deterministic=use_deterministic_actions,
+        )
+    )
 
     episode_returns: list[float] = []
     episode_lengths: list[int] = []
@@ -62,32 +74,7 @@ def evaluate_params(
 
         for step_index in range(int(eval_args.max_steps)):
             key, action_key = jax.random.split(key)
-            central_obs = build_central_observations(
-                obs,
-                food_scale=eval_args.food_count,
-                write_bits=eval_args.write_bits,
-                obs_width=eval_args.obs_width,
-                obs_height=eval_args.obs_height,
-            )
-            actor_obs = build_actor_observations(
-                obs,
-                food_scale=eval_args.food_count,
-                actor_vision_radius=eval_args.actor_vision_radius,
-                write_bits=eval_args.write_bits,
-                obs_width=eval_args.obs_width,
-                obs_height=eval_args.obs_height,
-            )
-            actions, _, _, _ = get_action_and_value(
-                params,
-                actor_obs,
-                central_obs,
-                action_key,
-                deterministic=use_deterministic_actions,
-            )
-            state, obs, reward, terminated, truncated, _ = jax.vmap(env.step)(
-                state,
-                flatten_agent_actions(actions),
-            )
+            state, obs, reward, terminated, truncated = step_fn(state, obs, action_key)
             episode_return += float(np.asarray(reward)[0])
             episode_terminated = bool(np.asarray(terminated)[0])
             if episode_terminated or bool(np.asarray(truncated)[0]):
@@ -108,6 +95,45 @@ def evaluate_params(
         "eval_mean_episode_return": float(np.mean(episode_returns)),
         "eval_mean_episode_length": float(np.mean(episode_lengths)),
     }
+
+
+def _evaluation_step(
+    *,
+    env: JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv,
+    args: argparse.Namespace,
+    params: JaxMAPPOParams,
+    state: Any,
+    obs: Any,
+    key: Any,
+    deterministic: bool,
+) -> tuple[Any, Any, Any, Any, Any]:
+    central_obs = build_central_observations(
+        obs,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actions, _, _, _ = get_action_and_value(
+        params,
+        actor_obs,
+        central_obs,
+        key,
+        deterministic=deterministic,
+    )
+    state, obs, reward, terminated, truncated, _ = jax.vmap(env.step)(
+        state,
+        flatten_agent_actions(actions),
+    )
+    return state, obs, reward, terminated, truncated
 
 
 def evaluate_checkpoint(
