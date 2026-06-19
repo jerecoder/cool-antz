@@ -497,6 +497,36 @@
       }
     },
     {
+      "id": "DISTANCE_VISION2_CAP4_SHARP",
+      "priority": 16,
+      "mode": "forage_curriculum",
+      "family": "vision_sharpening",
+      "title": "Combine radius-2 local vision with the winning sharp optimizer",
+      "hypothesis": "Radius-2 actor vision plus four ants already produced a strong sampled 25x25 solver, but it had zero deterministic delivery when trained with higher entropy. The original SHARP recipe is the only robust argmax-improving family so far. Combining radius-2 local context with the same low-entropy SHARP optimizer may improve route stability and greedy delivery without losing sampled clearance.",
+      "intervention": "Train from scratch on the standard staged 4x4-to-25x25 distribution with distance_bonus 0.02, four ants, actor_vision_radius 2, hidden size 256, moving writes, random food, and random hub. Keep the original SHARP optimizer profile: ent_coef 0.001, clip_coef 0.15, default learning_rate 0.00025, and 1500 updates on high-end stages.",
+      "success_signal": "The strengthened 8+8 held-out gate should beat DISTANCE_CAP4_SHARP, with deterministic delivery above 16/23 and sampled delivery near or above 23/23.",
+      "report_notes": "Tests whether the local observability improvement that helped sampled policies can also help greedy deployment when paired with low-entropy sharpening. This preserves the successful SHARP optimizer instead of the failed conservative optimizer.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_VISION2_CAP4_SHARP",
+      "global_update_cap": 950,
+      "stage_training_profile": [
+        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
+        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
+        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "actor_vision_radius": 2,
+        "hidden_size": 256,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-VISION2-CAP4-SHARP",
+        "tags": ["distance-bonus", "multi-ant", "radius2", "low-entropy", "policy-sharpening"]
+      }
+    },
+    {
       "id": "DISTANCE_VISION2_CAP4",
       "priority": 12,
       "mode": "forage_curriculum",
