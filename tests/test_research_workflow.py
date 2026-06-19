@@ -96,6 +96,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_MIXED_TUNE",
         "DISTANCE_CAP4_NO_WRITE",
         "DISTANCE_CAP4_SHARP_NEAR",
+        "DISTANCE_CAP4_LONG_CREDIT_TUNE",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -325,6 +326,31 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert near_parsed.clip_coef == 0.1
     assert near_parsed.learning_rate == 0.00005
     assert near_parsed.update_epochs == 6
+
+    long_credit = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_LONG_CREDIT_TUNE",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    long_credit_parsed = parse_args(long_credit["common_args"])
+
+    assert long_credit["family"] == "credit_assignment"
+    assert long_credit["stage_sizes"] == [25]
+    assert long_credit["stages"][0]["global_update_cap"] == 900
+    assert long_credit["stages"][0]["num_steps"] == 384
+    assert long_credit["stages"][0]["gamma"] == 0.999
+    assert long_credit["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert long_credit_parsed.num_ants == 4
+    assert long_credit_parsed.distance_bonus == 0.02
+    assert long_credit_parsed.gamma == 0.999
+    assert long_credit_parsed.gae_lambda == 0.98
+    assert long_credit_parsed.ent_coef == 0.001
+    assert long_credit_parsed.clip_coef == 0.15
+    assert long_credit_parsed.learning_rate == 0.00008
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:

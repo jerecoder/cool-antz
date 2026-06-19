@@ -368,8 +368,40 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_LONG_CREDIT_TUNE",
       "priority": 11,
+      "mode": "forage_curriculum",
+      "family": "credit_assignment",
+      "title": "Warm-start best checkpoint with longer credit horizon",
+      "hypothesis": "The policy often picks up food but greedy deployment fails to finish enough long return trips. Higher gamma, higher GAE lambda, and longer rollouts may give PPO a cleaner value target for carrying food back to the hub without changing task geometry or observations.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint, train only the standard 25x25 distribution for 900 longer-rollout updates, set gamma 0.999, gae_lambda 0.98, num_steps 384, keep distance_bonus 0.02 and four ants, use ent_coef 0.001, clip_coef 0.15, and learning_rate 0.00008.",
+      "success_signal": "Held-out deterministic delivery should beat DISTANCE_CAP4_SHARP while sampled delivery stays above 20/23.",
+      "report_notes": "Tests delayed delivery credit assignment while keeping the standard 25x25 distribution fixed.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_TUNE",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 900,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 900, "num_steps": 384, "gamma": 0.999}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "gamma": 0.999,
+        "gae_lambda": 0.98,
+        "ent_coef": 0.001,
+        "clip_coef": 0.15,
+        "learning_rate": 0.00008
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-LONG-CREDIT-TUNE",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "gamma999", "long-rollout"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 12,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",
