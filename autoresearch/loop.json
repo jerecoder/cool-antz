@@ -2919,6 +2919,93 @@
       }
     },
     {
+      "id": "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
+      "priority": 53,
+      "mode": "forage_curriculum",
+      "family": "checkpoint_selection",
+      "title": "Held-out best selection for the eight-ant rare-map scent policy",
+      "hypothesis": "The nav-vector rare-map run reached 17 deliveries in the final training batch but only 15.20/23 on the final held-out gate. The final checkpoint may be a noisy late snapshot rather than the best policy. Held-out checkpoint selection should recover a better 50x50 scent-policy checkpoint without changing the task or adding ants.",
+      "intervention": "Warm-start from the completed nav-vector 50x50 checkpoint and train only the randomized 50x50 two-source stage. Save a best checkpoint using eval_mean_delivered_food from 16 shuffled held-out episodes every 20 updates at movement temperature 0.90, then use that selected checkpoint for final evaluation.",
+      "success_signal": "The selected checkpoint should beat the parent nav-vector result of 15.20/23 delivered on the final 50x50 randomized gate. A strong result should exceed 16/23 and improve success rate while keeping eight ants.",
+      "report_notes": "This tests checkpoint-selection noise, not a new observation space. It keeps the same rare food, random food, random colony, random ant spawn, hub-vector, and food-scent setup as the parent run.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN/checkpoints/jax_mappo_forage_stage1_50x50.pkl",
+      "global_update_cap": 500,
+      "custom_stages": [
+        {
+          "name": "50x50",
+          "width": 50,
+          "height": 50,
+          "food_count": 23,
+          "food_sources": 2,
+          "cookie_distance": 24,
+          "max_steps": 1800,
+          "global_update_cap": 500,
+          "num_steps": 384,
+          "gamma": 0.999,
+          "save_best_checkpoint": true,
+          "select_best_checkpoint": true,
+          "best_checkpoint_selection": "eval",
+          "best_checkpoint_metric": "eval_mean_delivered_food",
+          "best_checkpoint_mode": "max",
+          "best_eval_episodes": 16,
+          "best_eval_interval": 20,
+          "best_eval_seed_offset": 6200000,
+          "best_eval_action_mode": "sampled_move_greedy_write",
+          "best_eval_move_temperature": 0.9
+        }
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 8,
+        "actor_hub_vector": true,
+        "actor_nearest_food_vector": true,
+        "hidden_size": 192,
+        "random_food": true,
+        "random_hub": true,
+        "random_ant_spawn": true,
+        "write_bits": 2,
+        "write_head_transfer": "neutral-new",
+        "step_penalty": 0.00004,
+        "completion_bonus": 1.3,
+        "delivery_byte_trail_bonus": 0.2,
+        "byte_follow_bonus": 0.004,
+        "carrying_byte_write_bonus": 0.003,
+        "write_bit_entropy_bonus": 0.0005,
+        "ent_coef": 0.0003,
+        "clip_coef": 0.08,
+        "learning_rate": 0.00002,
+        "update_epochs": 6,
+        "log_interval": 10
+      },
+      "evaluation": {
+        "deterministic_episodes": 0,
+        "sampled_episodes": 0,
+        "seed_offset": 6300000,
+        "shuffle_positions": true,
+        "action_modes": [
+          {
+            "name": "sampled_move_t090_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 6300000,
+            "move_temperature": 0.9
+          },
+          {
+            "name": "sampled_move_t100_greedy_write",
+            "action_mode": "sampled_move_greedy_write",
+            "episodes": 96,
+            "seed_offset": 6300000,
+            "move_temperature": 1.0
+          }
+        ]
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-NAVVECTOR-HELDOUT-SELECT",
+        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "hub-vector", "food-vector", "heldout-selection", "checkpoint-selection"]
+      }
+    },
+    {
       "id": "DISTANCE_CAP32_SPEED_SOURCES12_430",
       "priority": 48,
       "mode": "forage_curriculum",

@@ -137,6 +137,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP12_BIGMAP_RARE_VISION2_RANDOM_SPAWN",
         "DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
         "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
+        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -598,6 +599,13 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
+    rare_navvector_select = build_research_experiment_plan(
+        run_id="DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -864,6 +872,26 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     assert rare_navvector_parsed.random_ant_spawn is True
     assert "upper-bound observation test" in rare_navvector["notes_markdown"]
     assert "pure emergent communication" in rare_navvector["notes_markdown"]
+
+    rare_navvector_select_parsed = parse_args(rare_navvector_select["common_args"])
+    assert rare_navvector_select["family"] == "checkpoint_selection"
+    assert rare_navvector_select["stages"][0]["select_best_checkpoint"] is True
+    assert rare_navvector_select["stages"][0]["best_checkpoint_selection"] == "eval"
+    assert rare_navvector_select["stages"][0]["best_checkpoint_metric"] == (
+        "eval_mean_delivered_food"
+    )
+    assert rare_navvector_select["stages"][0]["best_eval_episodes"] == 16
+    assert rare_navvector_select["stages"][0]["best_eval_interval"] == 20
+    assert rare_navvector_select["stages"][0]["best_eval_seed_offset"] == 6200000
+    assert rare_navvector_select["stages"][0]["best_eval_move_temperature"] == 0.9
+    assert rare_navvector_select["final_checkpoint"].endswith(
+        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT/checkpoints/"
+        "jax_mappo_forage_stage1_50x50_best.pkl"
+    )
+    assert rare_navvector_select_parsed.num_ants == 8
+    assert rare_navvector_select_parsed.actor_hub_vector is True
+    assert rare_navvector_select_parsed.actor_nearest_food_vector is True
+    assert rare_navvector_select_parsed.random_ant_spawn is True
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"
