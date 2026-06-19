@@ -272,8 +272,40 @@
       }
     },
     {
-      "id": "DISTANCE_VISION2_CAP4",
+      "id": "DISTANCE_CAP4_MIXED_TUNE",
       "priority": 8,
+      "mode": "forage_curriculum",
+      "family": "deterministic_policy",
+      "title": "Warm-start best checkpoint with mixed sampled and greedy rollouts",
+      "hypothesis": "Pure greedy rollouts improved deterministic delivery less than hoped and weakened training return, while sampled warm-starts preserve full 25x25 solving. A mixed rollout should retain stochastic recovery from bad partial routes while still giving PPO direct experience with argmax actions.",
+      "intervention": "Load the DISTANCE_CAP4_SHARP 25x25 checkpoint, train only the standard 25x25 distribution for 1200 updates, force 25% of rollout action slots to greedy argmax and leave 75% sampled, use distance_bonus 0.02 and four ants, ent_coef 0.0005, clip_coef 0.10, update_epochs 6, and learning_rate 0.00005.",
+      "success_signal": "Beat DISTANCE_CAP4_SHARP's held-out deterministic delivery while recovering sampled delivery toward the full 23/23 solver regime.",
+      "report_notes": "Tests whether the deterministic gap is best treated as an action-selection distribution mismatch. This keeps the task distribution fixed and only changes rollout action selection during fine-tuning.",
+      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_MIXED_TUNE",
+      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
+      "global_update_cap": 1200,
+      "stage_sizes": [25],
+      "stage_training_profile": [
+        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+      ],
+      "args": {
+        "distance_bonus": 0.02,
+        "num_ants": 4,
+        "hidden_size": 192,
+        "deterministic_rollout_fraction": 0.25,
+        "ent_coef": 0.0005,
+        "clip_coef": 0.1,
+        "learning_rate": 0.00005,
+        "update_epochs": 6
+      },
+      "wandb": {
+        "name": "loop-DISTANCE-CAP4-MIXED-TUNE",
+        "tags": ["distance-bonus", "multi-ant", "warm-start", "mixed-rollout", "policy-sharpening"]
+      }
+    },
+    {
+      "id": "DISTANCE_VISION2_CAP4",
+      "priority": 9,
       "mode": "forage_curriculum",
       "family": "combined_reward_capacity",
       "title": "Distance shaping plus four ants and radius-2 vision",

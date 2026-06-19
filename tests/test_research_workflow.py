@@ -93,6 +93,7 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP4_SHARP_FINE",
         "DISTANCE_CAP4_DISTILL",
         "DISTANCE_CAP4_GREEDY_TUNE",
+        "DISTANCE_CAP4_MIXED_TUNE",
         "DISTANCE_VISION2_CAP4",
         "VISION2",
         "NEAR_COOKIE",
@@ -253,6 +254,29 @@ def test_research_loop_plan_can_sharpen_best_sampled_policy() -> None:
     assert greedy_parsed.clip_coef == 0.1
     assert greedy_parsed.learning_rate == 0.00005
     assert greedy_parsed.update_epochs == 6
+
+    mixed_tune = build_research_experiment_plan(
+        run_id="DISTANCE_CAP4_MIXED_TUNE",
+        global_update_cap=None,
+        num_envs=1,
+        num_steps=None,
+        wandb_mode="disabled",
+    )
+    mixed_parsed = parse_args(mixed_tune["common_args"])
+
+    assert mixed_tune["family"] == "deterministic_policy"
+    assert mixed_tune["stage_sizes"] == [25]
+    assert mixed_tune["stages"][0]["global_update_cap"] == 1200
+    assert mixed_tune["source_checkpoint"].endswith(
+        "DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl"
+    )
+    assert mixed_parsed.deterministic_rollout_fraction == 0.25
+    assert mixed_parsed.num_ants == 4
+    assert mixed_parsed.distance_bonus == 0.02
+    assert mixed_parsed.ent_coef == 0.0005
+    assert mixed_parsed.clip_coef == 0.1
+    assert mixed_parsed.learning_rate == 0.00005
+    assert mixed_parsed.update_epochs == 6
 
 
 def test_research_loop_plan_can_change_density_and_autocurriculum() -> None:

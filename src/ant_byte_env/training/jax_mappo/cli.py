@@ -40,6 +40,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Collect PPO rollouts with greedy argmax actions instead of sampling.",
     )
+    parser.add_argument(
+        "--deterministic-rollout-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "Fraction of rollout action slots forced to greedy argmax actions. "
+            "Use 0 for sampled PPO and 1 for fully deterministic rollouts."
+        ),
+    )
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-size", type=int, default=128)
@@ -201,6 +210,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--num-minibatches must evenly divide rollout batch size.")
     if args.update_epochs <= 0:
         raise ValueError("--update-epochs must be positive.")
+    if (
+        args.deterministic_rollout_fraction < 0.0
+        or args.deterministic_rollout_fraction > 1.0
+    ):
+        raise ValueError("--deterministic-rollout-fraction must be between 0 and 1.")
     if args.hidden_size <= 0:
         raise ValueError("--hidden-size must be positive.")
     if args.log_interval <= 0:

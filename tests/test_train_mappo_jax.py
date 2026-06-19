@@ -1519,6 +1519,54 @@ def test_jax_rollout_carries_unfinished_state_between_calls() -> None:
     assert int(np.asarray(states.step_count)[0]) == 2
 
 
+def test_jax_rollout_can_mix_sampled_and_deterministic_actions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = _rollout_args(["--deterministic-rollout-fraction", "0.5"])
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        write_bits=args.write_bits,
+    )
+    params, states, obs = _params_for_args(args, env)
+    observed_determinism: list[bool] = []
+
+    import ant_byte_env.training.jax_mappo.rollout as rollout_module
+
+    original_get_action_and_value = rollout_module.get_action_and_value
+
+    def recording_get_action_and_value(*call_args, deterministic: bool, **kwargs):
+        observed_determinism.append(bool(deterministic))
+        return original_get_action_and_value(
+            *call_args,
+            deterministic=deterministic,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        rollout_module,
+        "get_action_and_value",
+        recording_get_action_and_value,
+    )
+
+    collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(3),
+    )
+
+    assert False in observed_determinism
+    assert True in observed_determinism
+
+
 def test_jax_rollout_can_ablate_write_actions_for_memory_probe() -> None:
     args = _rollout_args(["--write-while-moving"])
     args.write_action_ablation = True
@@ -2105,6 +2153,18 @@ def test_jax_parse_args_accepts_log_interval() -> None:
     args = parse_args(["--log-interval", "10"])
 
     assert args.log_interval == 10
+
+
+def test_jax_parse_args_accepts_deterministic_rollout_fraction() -> None:
+    args = parse_args(["--deterministic-rollout-fraction", "0.25"])
+
+    assert args.deterministic_rollout_fraction == 0.25
+
+
+@pytest.mark.parametrize("value", ["-0.01", "1.01"])
+def test_jax_parse_args_rejects_invalid_deterministic_rollout_fraction(value: str) -> None:
+    with pytest.raises(ValueError, match="deterministic-rollout-fraction"):
+        parse_args(["--deterministic-rollout-fraction", value])
 
 
 @pytest.mark.parametrize(

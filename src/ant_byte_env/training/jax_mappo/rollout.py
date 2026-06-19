@@ -98,7 +98,7 @@ def collect_rollout(
         _: Any,
     ) -> tuple[tuple[JaxAntState, JaxObs, jax.Array], Transition]:
         current_states, current_obs, current_key = carry
-        action_key, reset_key, next_key = jax.random.split(current_key, 3)
+        action_key, mix_key, reset_key, next_key = jax.random.split(current_key, 4)
         central_obs = build_central_observations(
             current_obs,
             food_scale=args.food_count,
@@ -115,13 +115,47 @@ def collect_rollout(
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
-        actions, logprobs, _, values = get_action_and_value(
-            params,
-            actor_obs,
-            central_obs,
-            action_key,
-            deterministic=bool(getattr(args, "deterministic_rollout", False)),
-        )
+        deterministic_fraction = float(getattr(args, "deterministic_rollout_fraction", 0.0))
+        if bool(getattr(args, "deterministic_rollout", False)):
+            deterministic_fraction = 1.0
+        if deterministic_fraction <= 0.0:
+            actions, logprobs, _, values = get_action_and_value(
+                params,
+                actor_obs,
+                central_obs,
+                action_key,
+                deterministic=False,
+            )
+        elif deterministic_fraction >= 1.0:
+            actions, logprobs, _, values = get_action_and_value(
+                params,
+                actor_obs,
+                central_obs,
+                action_key,
+                deterministic=True,
+            )
+        else:
+            sampled_actions, sampled_logprobs, _, values = get_action_and_value(
+                params,
+                actor_obs,
+                central_obs,
+                action_key,
+                deterministic=False,
+            )
+            greedy_actions, greedy_logprobs, _, _ = get_action_and_value(
+                params,
+                actor_obs,
+                central_obs,
+                action_key,
+                deterministic=True,
+            )
+            greedy_mask = jax.random.bernoulli(
+                mix_key,
+                p=deterministic_fraction,
+                shape=sampled_actions.shape[:-1],
+            )
+            actions = jnp.where(greedy_mask[..., None], greedy_actions, sampled_actions)
+            logprobs = jnp.where(greedy_mask, greedy_logprobs, sampled_logprobs)
         actions_for_env = _executed_actions(args, actions)
         next_states, next_obs, env_rewards, terminated, truncated, infos = jax.vmap(env.step)(
             current_states,
