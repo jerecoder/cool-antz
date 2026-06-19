@@ -380,6 +380,43 @@ def test_jax_movement_step_does_not_write_tile() -> None:
     assert int(info.num_writes) == 1
 
 
+def test_jax_env_tracks_distinct_visited_cells_without_observation_memory() -> None:
+    env = JaxAntByteForagingEnv(
+        width=3,
+        height=3,
+        num_ants=1,
+        food_count=0,
+        terminate_on_food_delivery=False,
+    )
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(8),
+        hub_pos=jnp.array([1, 1], dtype=jnp.int32),
+    )
+
+    assert "visited_cells" not in obs
+    assert int(info.visited_cell_count) == 1
+    assert int(info.newly_visited_cells) == 0
+
+    state, _, reward, terminated, _, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    assert float(reward) == 0.0
+    assert not bool(terminated)
+    assert int(info.newly_visited_cells) == 1
+    assert int(info.visited_cell_count) == 2
+
+    _, _, _, terminated, _, info = env.step(
+        state,
+        jnp.array([ACTION_LEFT, 0], dtype=jnp.int32),
+    )
+
+    assert not bool(terminated)
+    assert int(info.newly_visited_cells) == 0
+    assert int(info.visited_cell_count) == 2
+
+
 def test_jax_write_while_moving_writes_landing_tile() -> None:
     env = JaxAntByteForagingEnv(
         width=4,

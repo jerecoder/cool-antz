@@ -711,6 +711,9 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
         active_size=jnp.array([[12.0, 15.0], [4.0, 4.0]], dtype=jnp.float32),
         stage_advances=jnp.array([[1.0, 2.0], [0.0, 0.0]], dtype=jnp.float32),
         stage_delivered_food=jnp.array([[2.0, 4.0], [0.0, 0.0]], dtype=jnp.float32),
+        newly_visited_cells=jnp.array([[1.0, 2.0], [0.0, 3.0]], dtype=jnp.float32),
+        visited_cell_count=jnp.array([[3.0, 4.0], [3.0, 7.0]], dtype=jnp.float32),
+        visited_cell_fraction=jnp.array([[0.1875, 0.25], [0.1875, 0.4375]], dtype=jnp.float32),
         nonzero_byte_tiles=jnp.array([[0.0, 2.0], [4.0, 6.0]], dtype=jnp.float32),
         nonzero_byte_fraction=jnp.array([[0.0, 0.125], [0.25, 0.375]], dtype=jnp.float32),
         applied_nonzero_write_actions=jnp.array(
@@ -739,6 +742,11 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     assert stats["delivery_events"] == 2.0
     assert stats["mean_carrying_ants"] == 0.75
     assert stats["final_mean_remaining_food"] == 5.0
+    assert stats["visited_cell_events"] == 6.0
+    assert stats["mean_visited_cell_count"] == 4.25
+    assert stats["final_mean_visited_cell_count"] == 5.0
+    assert stats["mean_visited_cell_fraction"] == 0.265625
+    assert stats["final_mean_visited_cell_fraction"] == 0.3125
     assert stats["write_action_nonzero_rate"] == 0.5
     assert stats["mean_write_action_value"] == 0.75
     assert stats["applied_write_action_nonzero_rate"] == 0.5
@@ -756,6 +764,67 @@ def test_jax_rollout_stats_include_forage_diagnostics() -> None:
     assert stats["autocurriculum_final_mean_active_size"] == 4.0
     assert stats["autocurriculum_completed_stages"] == 3.0
     assert stats["autocurriculum_mean_stage_delivered_food"] == 1.5
+
+
+def test_jax_collect_rollout_explore_reward_uses_newly_visited_cells() -> None:
+    args = _rollout_args(
+        [
+            "--width",
+            "3",
+            "--height",
+            "3",
+            "--food-count",
+            "0",
+            "--num-steps",
+            "2",
+            "--reward-mode",
+            "explore",
+            "--no-food-termination",
+            "--deterministic-rollout",
+            "--write-action-ablation",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        terminate_on_food_delivery=False,
+    )
+    params, states, obs = _params_for_args(args, env)
+    move_bias = jnp.full_like(params.move_head.bias, -10.0).at[ACTION_RIGHT].set(10.0)
+    params = params._replace(
+        move_head=params.move_head._replace(
+            weight=jnp.zeros_like(params.move_head.weight),
+            bias=move_bias,
+        ),
+        write_head=params.write_head._replace(
+            weight=jnp.zeros_like(params.write_head.weight),
+            bias=jnp.zeros_like(params.write_head.bias),
+        ),
+    )
+
+    _, _, rollout = collect_rollout(
+        args=args,
+        env=env,
+        params=params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(123),
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(rollout.rewards[:, 0]),
+        np.array([1.0, 0.0], dtype=np.float32),
+    )
+    np.testing.assert_allclose(np.asarray(rollout.env_rewards[:, 0]), np.array([0.0, 0.0]))
+    np.testing.assert_allclose(
+        np.asarray(rollout.newly_visited_cells[:, 0]),
+        np.array([1.0, 0.0], dtype=np.float32),
+    )
+    assert float(rollout.visited_cell_count[-1, 0]) == 2.0
 
 
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:

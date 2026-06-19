@@ -39,6 +39,7 @@ class JaxAntState(NamedTuple):
     delivered_food: jax.Array
     step_count: jax.Array
     initial_food_total: jax.Array
+    visited_cells: jax.Array
 
 
 class JaxAntInfo(NamedTuple):
@@ -47,6 +48,8 @@ class JaxAntInfo(NamedTuple):
     step_count: jax.Array
     num_writes: jax.Array
     num_overwrites: jax.Array
+    visited_cell_count: jax.Array
+    newly_visited_cells: jax.Array
 
 
 JaxObs = dict[str, jax.Array]
@@ -73,6 +76,7 @@ class JaxAntByteForagingEnv:
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
+        terminate_on_food_delivery: bool = True,
     ) -> None:
         self._validate_args(
             width=width,
@@ -105,6 +109,7 @@ class JaxAntByteForagingEnv:
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
+        self.terminate_on_food_delivery = bool(terminate_on_food_delivery)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self.action_nvec = jnp.asarray(
@@ -169,6 +174,10 @@ class JaxAntByteForagingEnv:
         food = self._initial_food_grid(food_key, actual_hub_pos, food_positions)
         ants_pos = self._initial_ant_positions(ant_key, actual_hub_pos, food)
         ants_count = self._build_ants_count_grid(ants_pos)
+        visited_cells = self._mark_visited(
+            jnp.zeros((self.height, self.width), dtype=jnp.bool_),
+            ants_pos,
+        )
         state = JaxAntState(
             hub_pos=actual_hub_pos,
             ants_pos=ants_pos.astype(jnp.int32),
@@ -181,8 +190,14 @@ class JaxAntByteForagingEnv:
             delivered_food=jnp.asarray(0, dtype=jnp.int32),
             step_count=jnp.asarray(0, dtype=jnp.int32),
             initial_food_total=jnp.sum(food).astype(jnp.int32),
+            visited_cells=visited_cells,
         )
-        return state, self.observe(state), self.info(state, num_writes=0, num_overwrites=0)
+        return state, self.observe(state), self.info(
+            state,
+            num_writes=0,
+            num_overwrites=0,
+            newly_visited_cells=0,
+        )
 
     def step(
         self,
@@ -294,6 +309,14 @@ class JaxAntByteForagingEnv:
 
         step_count = state.step_count + jnp.asarray(1, dtype=jnp.int32)
         ants_count = self._build_ants_count_grid(ants_pos)
+        step_visited_cells = self._mark_visited(
+            jnp.zeros((self.height, self.width), dtype=jnp.bool_),
+            ants_pos,
+        )
+        newly_visited_cells = jnp.sum(
+            jnp.logical_and(step_visited_cells, jnp.logical_not(state.visited_cells))
+        ).astype(jnp.int32)
+        visited_cells = jnp.logical_or(state.visited_cells, step_visited_cells)
         next_state = JaxAntState(
             hub_pos=state.hub_pos,
             ants_pos=ants_pos,
@@ -306,17 +329,28 @@ class JaxAntByteForagingEnv:
             delivered_food=delivered_food,
             step_count=step_count,
             initial_food_total=state.initial_food_total,
+            visited_cells=visited_cells,
         )
-        terminated = delivered_food >= state.initial_food_total
+        completed_food = delivered_food >= state.initial_food_total
+        terminated = jnp.logical_and(
+            jnp.asarray(self.terminate_on_food_delivery, dtype=jnp.bool_),
+            completed_food,
+        )
         reward = (
             delivery_count.astype(jnp.float32)
             - jnp.asarray(self.step_penalty * self.num_ants, dtype=jnp.float32)
             - num_writes.astype(jnp.float32) * jnp.asarray(self.write_penalty, dtype=jnp.float32)
-            + terminated.astype(jnp.float32)
+            + completed_food.astype(jnp.float32)
+            * jnp.asarray(self.terminate_on_food_delivery, dtype=jnp.float32)
             * jnp.asarray(self.completion_bonus, dtype=jnp.float32)
         )
         truncated = step_count >= self.max_steps
-        info = self.info(next_state, num_writes=num_writes, num_overwrites=num_overwrites)
+        info = self.info(
+            next_state,
+            num_writes=num_writes,
+            num_overwrites=num_overwrites,
+            newly_visited_cells=newly_visited_cells,
+        )
         return next_state, self.observe(next_state), reward, terminated, truncated, info
 
     def observe(self, state: JaxAntState) -> JaxObs:
@@ -336,6 +370,7 @@ class JaxAntByteForagingEnv:
         *,
         num_writes: int | jax.Array,
         num_overwrites: int | jax.Array,
+        newly_visited_cells: int | jax.Array,
     ) -> JaxAntInfo:
         return JaxAntInfo(
             delivered_food=state.delivered_food.astype(jnp.int32),
@@ -343,7 +378,13 @@ class JaxAntByteForagingEnv:
             step_count=state.step_count.astype(jnp.int32),
             num_writes=jnp.asarray(num_writes, dtype=jnp.int32),
             num_overwrites=jnp.asarray(num_overwrites, dtype=jnp.int32),
+            visited_cell_count=jnp.sum(state.visited_cells).astype(jnp.int32),
+            newly_visited_cells=jnp.asarray(newly_visited_cells, dtype=jnp.int32),
         )
+
+    def _mark_visited(self, visited_cells: jax.Array, ants_pos: jax.Array) -> jax.Array:
+        ants_pos = ants_pos.astype(jnp.int32)
+        return visited_cells.at[ants_pos[:, 1], ants_pos[:, 0]].set(True)
 
     def _initial_hub_pos(self, key: jax.Array, hub_pos: jax.Array | None) -> jax.Array:
         if hub_pos is not None:

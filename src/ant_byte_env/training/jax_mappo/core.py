@@ -65,6 +65,9 @@ class Transition(NamedTuple):
     active_size: jax.Array
     stage_advances: jax.Array
     stage_delivered_food: jax.Array
+    newly_visited_cells: jax.Array
+    visited_cell_count: jax.Array
+    visited_cell_fraction: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
     applied_nonzero_write_actions: jax.Array
@@ -95,6 +98,9 @@ class Rollout(NamedTuple):
     active_size: jax.Array
     stage_advances: jax.Array
     stage_delivered_food: jax.Array
+    newly_visited_cells: jax.Array
+    visited_cell_count: jax.Array
+    visited_cell_fraction: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
     applied_nonzero_write_actions: jax.Array

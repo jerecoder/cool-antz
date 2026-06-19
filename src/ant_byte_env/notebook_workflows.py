@@ -34,6 +34,9 @@ FORAGE_WANDB_PREVIEW_STAGE_NAMES = (
     "40x40",
     "50x50",
 )
+EXPLORATION_STAGE_SIZES = tuple(range(4, 51))
+EXPLORATION_STAGE_TRAINING_PROFILE = FORAGE_STAGE_TRAINING_PROFILE
+EXPLORATION_WANDB_PREVIEW_STAGE_NAMES = FORAGE_WANDB_PREVIEW_STAGE_NAMES
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
@@ -531,6 +534,40 @@ def build_forage_curriculum_stages(
     ]
 
 
+def build_exploration_curriculum_stages(
+    stage_sizes: Sequence[int] = EXPLORATION_STAGE_SIZES,
+) -> list[dict[str, int | float | str]]:
+    return [
+        {
+            "name": f"{size}x{size}",
+            "width": int(size),
+            "height": int(size),
+            "food_count": curriculum_food_count(int(size)),
+            "food_sources": curriculum_food_sources(int(size)),
+            "cookie_distance": min(1 + (int(size) - 4) // 2, int(size) // 2),
+            "max_steps": max(48, 4 * int(size) * int(size)),
+            **exploration_training_profile(int(size)),
+        }
+        for size in stage_sizes
+    ]
+
+
+def exploration_training_profile(size: int) -> dict[str, int | float]:
+    for profile in EXPLORATION_STAGE_TRAINING_PROFILE:
+        if int(size) <= int(profile["max_size"]):
+            return {
+                "global_update_cap": int(profile["global_update_cap"]),
+                "num_steps": int(profile["num_steps"]),
+                "gamma": float(profile["gamma"]),
+            }
+    last_profile = EXPLORATION_STAGE_TRAINING_PROFILE[-1]
+    return {
+        "global_update_cap": int(last_profile["global_update_cap"]),
+        "num_steps": int(last_profile["num_steps"]),
+        "gamma": float(last_profile["gamma"]),
+    }
+
+
 def build_forage_common_args(
     stages: Sequence[Mapping[str, Any]],
     *,
@@ -578,6 +615,55 @@ def build_forage_common_args(
     if write_while_moving:
         args.append("--write-while-moving")
     return args
+
+
+def build_exploration_common_args(
+    stages: Sequence[Mapping[str, Any]],
+    *,
+    num_envs: int,
+    num_steps: int,
+    actor_vision_radius: int,
+    write_bits: int,
+    gamma: float = 0.99,
+    seed: int = 1,
+) -> list[str]:
+    max_width = max(int(stage["width"]) for stage in stages)
+    max_height = max(int(stage["height"]) for stage in stages)
+    return [
+        "--num-envs",
+        str(num_envs),
+        "--num-steps",
+        str(num_steps),
+        "--num-minibatches",
+        "4",
+        "--update-epochs",
+        "4",
+        "--gamma",
+        str(float(gamma)),
+        "--obs-width",
+        str(max_width),
+        "--obs-height",
+        str(max_height),
+        "--actor-vision-radius",
+        str(actor_vision_radius),
+        "--write-bits",
+        str(write_bits),
+        "--num-ants",
+        "1",
+        "--reward-mode",
+        "explore",
+        "--no-food-termination",
+        "--write-action-ablation",
+        "--random-food",
+        "--random-hub",
+        "--pickup-bonus",
+        "0.0",
+        "--hidden-size",
+        "128",
+        "--seed",
+        str(seed),
+        "--quiet",
+    ]
 
 
 def run_jax_smoke(train_main: Callable[..., dict[str, float]]) -> dict[str, float]:
@@ -632,6 +718,8 @@ def run_forage_curriculum(
     wandb_notes: str | None = None,
     wandb_artifact_paths: Sequence[Path] | None = None,
     wandb_artifact_prefix: str = "forage-curriculum",
+    checkpoint_name_prefix: str = "jax_mappo_forage_stage1",
+    wandb_video_key_prefix: str = "videos/forage",
     wandb_video_max_frames: int | None = 600,
     wandb_video_stage_names: Sequence[str] | None = FORAGE_WANDB_PREVIEW_STAGE_NAMES,
 ) -> dict[str, Any]:
@@ -658,6 +746,7 @@ def run_forage_curriculum(
             "common_args": list(common_args),
             "initial_checkpoint": None if previous_checkpoint is None else str(previous_checkpoint),
             "global_update_cap": int(global_update_cap),
+            "checkpoint_name_prefix": str(checkpoint_name_prefix),
             "stages": [str(stage["name"]) for stage in stages],
             "update_timesteps_per_stage": int(update_timesteps_per_stage),
             "stage_training_profiles": _forage_stage_training_profiles(
@@ -694,9 +783,9 @@ def run_forage_curriculum(
             )
             print(f"Training stage {stage_index}/{len(stages)}: {stage['name']}")
             print("First update for this shape may compile; progress starts after it returns.")
-            checkpoint_path = checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl"
+            checkpoint_path = checkpoint_dir / f"{checkpoint_name_prefix}_{stage['name']}.pkl"
             best_checkpoint_path = (
-                checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}_best.pkl"
+                checkpoint_dir / f"{checkpoint_name_prefix}_{stage['name']}_best.pkl"
                 if bool(
                     stage.get(
                         "save_best_checkpoint",
@@ -856,7 +945,7 @@ def run_forage_curriculum(
                     max_frames=wandb_video_max_frames,
                 )
                 tracker.log_video(
-                    f"videos/forage/{stage['name']}",
+                    f"{wandb_video_key_prefix}/{stage['name']}",
                     preview_path,
                     step=curriculum_step_base
                     + int(float(final_train_metrics.get("global_step", 0.0))),
@@ -874,6 +963,50 @@ def run_forage_curriculum(
         "final_checkpoint_path": previous_checkpoint,
         "final_train_metrics": final_train_metrics,
     }
+
+
+def run_exploration_curriculum(
+    *,
+    stages: Sequence[Mapping[str, Any]],
+    checkpoint_dir: Path,
+    common_args: Sequence[str],
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    train_main: Callable[..., dict[str, float]],
+    initial_checkpoint: Path | None = None,
+    wandb_project: str | None = None,
+    wandb_entity: str | None = None,
+    wandb_group: str | None = None,
+    wandb_run_name: str | None = None,
+    wandb_mode: str = "online",
+    wandb_tags: Sequence[str] | None = None,
+    wandb_notes: str | None = None,
+    wandb_artifact_paths: Sequence[Path] | None = None,
+    wandb_video_max_frames: int | None = 600,
+    wandb_video_stage_names: Sequence[str] | None = EXPLORATION_WANDB_PREVIEW_STAGE_NAMES,
+) -> dict[str, Any]:
+    return run_forage_curriculum(
+        stages=stages,
+        checkpoint_dir=checkpoint_dir,
+        common_args=common_args,
+        update_timesteps_per_stage=update_timesteps_per_stage,
+        global_update_cap=global_update_cap,
+        train_main=train_main,
+        initial_checkpoint=initial_checkpoint,
+        wandb_project=wandb_project,
+        wandb_entity=wandb_entity,
+        wandb_group=wandb_group,
+        wandb_run_name=wandb_run_name,
+        wandb_mode=wandb_mode,
+        wandb_tags=wandb_tags,
+        wandb_notes=wandb_notes,
+        wandb_artifact_paths=wandb_artifact_paths,
+        wandb_artifact_prefix="exploration-curriculum",
+        checkpoint_name_prefix="jax_mappo_explore",
+        wandb_video_key_prefix="videos/exploration",
+        wandb_video_max_frames=wandb_video_max_frames,
+        wandb_video_stage_names=wandb_video_stage_names,
+    )
 
 
 def run_autocurriculum_training(
@@ -1510,7 +1643,10 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
             actor_vision_radius=args.actor_vision_radius,
         )
     else:
-        env = JaxAntByteForagingEnv(**env_kwargs)
+        env = JaxAntByteForagingEnv(
+            **env_kwargs,
+            terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
+        )
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
     central_obs = build_central_observations(
         obs,
@@ -1620,6 +1756,13 @@ def forage_checkpoint_paths(
     return [checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl" for stage in stages]
 
 
+def exploration_checkpoint_paths(
+    checkpoint_dir: Path,
+    stages: Sequence[Mapping[str, Any]],
+) -> list[Path]:
+    return [checkpoint_dir / f"jax_mappo_explore_{stage['name']}.pkl" for stage in stages]
+
+
 def communication_checkpoint_paths(run_dir: Path, bit_stages: Sequence[int]) -> list[Path]:
     return [run_dir / f"{bits}_bits" / "checkpoints" / "model.pkl" for bits in bit_stages]
 
@@ -1660,6 +1803,42 @@ def render_forage_rollouts(
             "actor_vision_radius": actor_vision_radius,
             "write_bits": write_bits,
             "global_update_cap": global_update_cap,
+        },
+        max_frames=max_frames,
+        tile_size=tile_size,
+    )
+
+
+def render_exploration_rollouts(
+    *,
+    run_dir: Path,
+    checkpoint_dir: Path,
+    media_dir: Path,
+    stages: Sequence[Mapping[str, Any]],
+    actor_vision_radius: int,
+    write_bits: int,
+    global_update_cap: int,
+    max_frames: int | None = None,
+    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    stage_names: Sequence[str] | None = EXPLORATION_WANDB_PREVIEW_STAGE_NAMES,
+) -> dict[str, Any]:
+    selected_stages = _filter_stages_by_name(stages, stage_names)
+    return render_rollout_suite(
+        checkpoint_paths=exploration_checkpoint_paths(checkpoint_dir, selected_stages),
+        media_dir=media_dir,
+        rollout_path_for_checkpoint=lambda checkpoint, media: (
+            media / f"{checkpoint.stem}_rollout.mp4"
+        ),
+        progress_desc="rendering exploration policies",
+        vault_dir=run_dir / "vault",
+        title="JAX MAPPO exploration curriculum policy rollouts",
+        description="Rollout MP4 videos for each saved JAX MAPPO exploration stage policy.",
+        metadata={
+            "stages": [stage["name"] for stage in selected_stages],
+            "actor_vision_radius": actor_vision_radius,
+            "write_bits": write_bits,
+            "global_update_cap": global_update_cap,
+            "reward_mode": "explore",
         },
         max_frames=max_frames,
         tile_size=tile_size,

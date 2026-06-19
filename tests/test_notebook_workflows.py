@@ -210,6 +210,44 @@ def test_forage_common_args_use_largest_stage_padding_and_moving_writes() -> Non
     assert "--write-while-moving" not in stay_only_args
 
 
+def test_exploration_stage_generation_uses_full_grid_visit_objective() -> None:
+    stages = workflows.build_exploration_curriculum_stages((4, 50))
+
+    assert stages[0]["name"] == "4x4"
+    assert stages[0]["food_count"] == 2
+    assert stages[0]["food_sources"] == 1
+    assert stages[0]["max_steps"] == 64
+    assert stages[-1]["name"] == "50x50"
+    assert stages[-1]["food_count"] == 48
+    assert stages[-1]["food_sources"] == 12
+    assert stages[-1]["max_steps"] == 10000
+
+
+def test_exploration_common_args_disable_memory_and_cookie_objective() -> None:
+    stages = workflows.build_exploration_curriculum_stages((4, 50))
+
+    args = workflows.build_exploration_common_args(
+        stages,
+        num_envs=16,
+        num_steps=80,
+        actor_vision_radius=1,
+        write_bits=1,
+        gamma=0.97,
+    )
+
+    assert args[args.index("--obs-width") + 1] == "50"
+    assert args[args.index("--obs-height") + 1] == "50"
+    assert args[args.index("--actor-vision-radius") + 1] == "1"
+    assert args[args.index("--write-bits") + 1] == "1"
+    assert args[args.index("--reward-mode") + 1] == "explore"
+    assert "--no-food-termination" in args
+    assert "--write-action-ablation" in args
+    assert "--random-food" in args
+    assert "--actor-nearest-food-vector" not in args
+    assert "--pickup-bonus" in args
+    assert args[args.index("--pickup-bonus") + 1] == "0.0"
+
+
 def test_config_common_args_excludes_stage_specific_keys() -> None:
     args = workflows.config_common_args(
         {

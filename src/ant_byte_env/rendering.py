@@ -470,6 +470,7 @@ def _env_from_args(
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": bool(getattr(args, "write_while_moving", False)),
+        "terminate_on_food_delivery": bool(getattr(args, "food_termination", True)),
         "render_mode": render_mode,
     }
     if tile_size is not None:

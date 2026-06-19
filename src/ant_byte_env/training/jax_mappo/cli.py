@@ -18,6 +18,7 @@ EVALUATION_ACTION_MODES = (
     "greedy_move_zero_write",
     "sampled_move_zero_write",
 )
+REWARD_MODES = ("forage", "explore")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -141,6 +142,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--write-bits", type=int, default=DEFAULT_WRITE_BITS)
     parser.add_argument(
+        "--reward-mode",
+        choices=REWARD_MODES,
+        default="forage",
+        help=(
+            "Training reward objective. 'forage' uses delivery/pickup shaping; "
+            "'explore' rewards newly visited distinct cells and ignores cookies."
+        ),
+    )
+    parser.add_argument(
         "--write-head-transfer",
         choices=WRITE_HEAD_TRANSFER_MODES,
         default="repeat",
@@ -154,6 +164,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
     parser.add_argument("--random-hub", action="store_true")
+    parser.add_argument(
+        "--no-food-termination",
+        dest="food_termination",
+        action="store_false",
+        help="Do not terminate episodes when all cookies have been delivered.",
+    )
+    parser.set_defaults(food_termination=True)
     parser.add_argument(
         "--random-ant-spawn",
         action="store_true",
@@ -410,6 +427,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--random-ant-spawn-radius must be non-negative.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
+    if args.autocurriculum and not args.food_termination:
+        raise ValueError("--no-food-termination is only supported for non-autocurriculum runs.")
     if args.write_bit_penalty < 0.0:
         raise ValueError("--write-bit-penalty must be non-negative.")
     if not 0.0 <= args.write_bit_penalty_decay <= 1.0:

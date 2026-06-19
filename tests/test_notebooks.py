@@ -91,6 +91,29 @@ def test_mappo_curriculum_keeps_stage_count_and_reaches_50x50() -> None:
     ]
 
 
+def test_mappo_exploration_curriculum_uses_visit_reward_without_memory() -> None:
+    source = notebook_source(Path("notebooks/train_mappo_exploration_curriculum.ipynb"))
+
+    assert "workflows.build_exploration_curriculum_stages(STAGE_SIZES)" in source
+    assert "workflows.build_exploration_common_args" in source
+    assert "workflows.run_exploration_curriculum" in source
+    assert "workflows.render_exploration_rollouts" in source
+    assert "STAGE_SIZES = range(4, 51)" in source
+    assert "ACTOR_VISION_RADIUS = 1" in source
+    assert "WRITE_BITS = 1" in source
+    assert 'WANDB_GROUP = "exploration_curriculum_50x50"' in source
+    assert "WANDB_VIDEO_STAGE_NAMES = workflows.EXPLORATION_WANDB_PREVIEW_STAGE_NAMES" in source
+
+    helper_source = Path("src/ant_byte_env/notebook_workflows.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"--reward-mode",\n        "explore"' in helper_source
+    assert '"--no-food-termination"' in helper_source
+    assert '"--write-action-ablation"' in helper_source
+    assert '"food_count": curriculum_food_count(int(size))' in helper_source
+    assert '"food_sources": curriculum_food_sources(int(size))' in helper_source
+
+
 def test_autocurriculum_notebook_uses_single_env_curriculum_config() -> None:
     source = notebook_source(Path("notebooks/train_mappo_autocurriculum.ipynb"))
 

@@ -182,10 +182,16 @@ def _evaluation_step(
     )
     if bool(getattr(args, "write_action_ablation", False)):
         actions = actions.at[..., 1].set(0)
-    state, obs, reward, terminated, truncated, _ = jax.vmap(env.step)(
+    state, obs, reward, terminated, truncated, infos = jax.vmap(env.step)(
         state,
         flatten_agent_actions(actions),
     )
+    if str(getattr(args, "reward_mode", "forage")) == "explore":
+        reward = getattr(
+            infos,
+            "newly_visited_cells",
+            jnp.zeros_like(reward, dtype=jnp.int32),
+        ).astype(jnp.float32)
     return state, obs, reward, terminated, truncated
 
 
@@ -373,7 +379,10 @@ def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntBy
             success_cookies=int(getattr(args, "autocurriculum_success_cookies", 6)),
             actor_vision_radius=int(getattr(args, "actor_vision_radius", 1)),
         )
-    return JaxAntByteForagingEnv(**common_kwargs)
+    return JaxAntByteForagingEnv(
+        **common_kwargs,
+        terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
+    )
 
 
 def _checkpoint_args_with_defaults(saved_args: dict[str, object]) -> argparse.Namespace:

@@ -66,6 +66,13 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
         "delivery_events": float(delivery_events),
         "mean_carrying_ants": float(jnp.mean(rollout.carrying_ants)),
         "final_mean_remaining_food": float(jnp.mean(rollout.remaining_food[-1])),
+        "visited_cell_events": float(jnp.sum(rollout.newly_visited_cells)),
+        "mean_visited_cell_count": float(jnp.mean(rollout.visited_cell_count)),
+        "final_mean_visited_cell_count": float(jnp.mean(rollout.visited_cell_count[-1])),
+        "mean_visited_cell_fraction": float(jnp.mean(rollout.visited_cell_fraction)),
+        "final_mean_visited_cell_fraction": float(
+            jnp.mean(rollout.visited_cell_fraction[-1])
+        ),
         "write_action_nonzero_rate": float(jnp.mean(nonzero_write_actions)),
         "mean_write_action_value": float(jnp.mean(write_values)),
         "applied_write_action_nonzero_rate": float(
@@ -133,7 +140,10 @@ def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
             success_cookies=args.autocurriculum_success_cookies,
             actor_vision_radius=args.actor_vision_radius,
         )
-    return JaxAntByteForagingEnv(**common_kwargs)
+    return JaxAntByteForagingEnv(
+        **common_kwargs,
+        terminate_on_food_delivery=bool(args.food_termination),
+    )
 
 
 def _autocurriculum_state_stats(states: Any) -> dict[str, float]:

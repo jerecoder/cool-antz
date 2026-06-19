@@ -143,6 +143,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
+        terminate_on_food_delivery: bool = True,
         seed: int | None = None,
     ) -> None:
         self._validate_constructor_args(
@@ -178,6 +179,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.write_penalty = write_penalty
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
+        self.terminate_on_food_delivery = bool(terminate_on_food_delivery)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self._constructor_seed = seed
@@ -326,7 +328,8 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         reward -= self.write_penalty * num_writes
         self.step_count += 1
         self.ants_count = self._build_ants_count_grid(self.ants_pos)
-        terminated = self.delivered_food >= self._initial_food_total
+        completed_food = self.delivered_food >= self._initial_food_total
+        terminated = self.terminate_on_food_delivery and completed_food
         truncated = self.step_count >= self.max_steps
 
         if self.render_mode == "human":

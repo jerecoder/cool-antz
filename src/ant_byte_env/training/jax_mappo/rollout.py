@@ -204,39 +204,53 @@ def collect_rollout(
             obs_height=args.obs_height,
         )
         next_values = get_value(params, next_central_obs)
-        rewards = compute_forage_curriculum_rewards(
-            previous_obs=current_obs,
-            next_obs=next_obs,
-            env_rewards=env_rewards,
-            actions=actions_for_env,
-            pickup_bonus=args.pickup_bonus,
-            distance_bonus=args.distance_bonus,
-            stage_completion_events=getattr(
-                infos,
-                "advanced_stage",
-                jnp.zeros_like(env_rewards, dtype=jnp.float32),
-            ),
-            stage_completion_bonus=args.stage_completion_bonus,
-            delivery_byte_trail_bonus=args.delivery_byte_trail_bonus,
-            delivery_byte_trail_target_tiles=args.delivery_byte_trail_target_tiles,
-            byte_follow_bonus=args.byte_follow_bonus,
-            carrying_byte_write_bonus=args.carrying_byte_write_bonus,
-            write_while_moving=args.write_while_moving,
-        )
-        rewards -= compute_write_bit_penalties(
-            actions_for_env,
-            write_bits=args.write_bits,
-            base_penalty=args.write_bit_penalty,
-            decay=args.write_bit_penalty_decay,
-            write_while_moving=args.write_while_moving,
-        )
-        rewards += compute_terminal_write_entropy_bonus(
-            next_obs,
-            dones,
-            write_bits=args.write_bits,
-            entropy_scale=args.write_entropy_bonus,
-            max_bonus=args.write_entropy_bonus_cap,
-        )
+        newly_visited_cells = getattr(
+            infos,
+            "newly_visited_cells",
+            jnp.zeros_like(env_rewards, dtype=jnp.int32),
+        ).astype(jnp.float32)
+        visited_cell_count = getattr(
+            infos,
+            "visited_cell_count",
+            jnp.zeros_like(env_rewards, dtype=jnp.int32),
+        ).astype(jnp.float32)
+        visited_cell_fraction = visited_cell_count / float(env.height * env.width)
+        if str(getattr(args, "reward_mode", "forage")) == "explore":
+            rewards = newly_visited_cells
+        else:
+            rewards = compute_forage_curriculum_rewards(
+                previous_obs=current_obs,
+                next_obs=next_obs,
+                env_rewards=env_rewards,
+                actions=actions_for_env,
+                pickup_bonus=args.pickup_bonus,
+                distance_bonus=args.distance_bonus,
+                stage_completion_events=getattr(
+                    infos,
+                    "advanced_stage",
+                    jnp.zeros_like(env_rewards, dtype=jnp.float32),
+                ),
+                stage_completion_bonus=args.stage_completion_bonus,
+                delivery_byte_trail_bonus=args.delivery_byte_trail_bonus,
+                delivery_byte_trail_target_tiles=args.delivery_byte_trail_target_tiles,
+                byte_follow_bonus=args.byte_follow_bonus,
+                carrying_byte_write_bonus=args.carrying_byte_write_bonus,
+                write_while_moving=args.write_while_moving,
+            )
+            rewards -= compute_write_bit_penalties(
+                actions_for_env,
+                write_bits=args.write_bits,
+                base_penalty=args.write_bit_penalty,
+                decay=args.write_bit_penalty_decay,
+                write_while_moving=args.write_while_moving,
+            )
+            rewards += compute_terminal_write_entropy_bonus(
+                next_obs,
+                dones,
+                write_bits=args.write_bits,
+                entropy_scale=args.write_entropy_bonus,
+                max_bonus=args.write_entropy_bonus_cap,
+            )
         previous_carrying = current_obs["ants_carrying"].astype(jnp.bool_)
         next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
         pickup_events = jnp.sum(
@@ -316,6 +330,9 @@ def collect_rollout(
             active_size=active_size,
             stage_advances=stage_advances,
             stage_delivered_food=stage_delivered_food,
+            newly_visited_cells=newly_visited_cells,
+            visited_cell_count=visited_cell_count,
+            visited_cell_fraction=visited_cell_fraction,
             nonzero_byte_tiles=nonzero_byte_tiles,
             nonzero_byte_fraction=nonzero_byte_fraction,
             **write_diagnostics,
@@ -334,11 +351,15 @@ def collect_rollout(
         actions=transitions.actions,
         logprobs=transitions.logprobs,
         rewards=transitions.rewards
-        + compute_write_bit_entropy_bonus(
-            transitions.actions,
-            write_bits=args.write_bits,
-            entropy_scale=args.write_bit_entropy_bonus,
-            write_while_moving=args.write_while_moving,
+        + (
+            jnp.zeros_like(transitions.rewards)
+            if str(getattr(args, "reward_mode", "forage")) == "explore"
+            else compute_write_bit_entropy_bonus(
+                transitions.actions,
+                write_bits=args.write_bits,
+                entropy_scale=args.write_bit_entropy_bonus,
+                write_while_moving=args.write_while_moving,
+            )
         ),
         dones=transitions.dones,
         terminations=transitions.terminations,
@@ -353,6 +374,9 @@ def collect_rollout(
         active_size=transitions.active_size,
         stage_advances=transitions.stage_advances,
         stage_delivered_food=transitions.stage_delivered_food,
+        newly_visited_cells=transitions.newly_visited_cells,
+        visited_cell_count=transitions.visited_cell_count,
+        visited_cell_fraction=transitions.visited_cell_fraction,
         nonzero_byte_tiles=transitions.nonzero_byte_tiles,
         nonzero_byte_fraction=transitions.nonzero_byte_fraction,
         applied_nonzero_write_actions=transitions.applied_nonzero_write_actions,
