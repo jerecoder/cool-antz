@@ -156,7 +156,7 @@ def test_research_loop_plan_builds_forage_curriculum_with_notes() -> None:
     assert "## Evaluation Gate" in plan["notes_markdown"]
     assert "Four ants" in plan["notes_markdown"]
     assert plan["wandb"]["mode"] == "disabled"
-    assert plan["evaluation"]["sampled_episodes"] == 2
+    assert plan["evaluation"]["sampled_episodes"] == 8
     assert parsed.num_envs == 1
     assert parsed.num_steps == 4
     assert parsed.num_ants == 4
@@ -450,7 +450,7 @@ def test_execute_research_loop_plan_runs_forage_and_writes_report_files(tmp_path
         shuffle_positions: bool,
     ) -> dict[str, float]:
         assert checkpoint_path.name == "jax_mappo_forage_stage1_25x25.pkl"
-        assert num_episodes in {2, 4}
+        assert num_episodes == 8
         assert seed_offset >= 1_000_000
         assert shuffle_positions is True
         return {

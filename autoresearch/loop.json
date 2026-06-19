@@ -12,8 +12,8 @@
     "strong_promotion_episode_return": 5.0
   },
   "evaluation": {
-    "deterministic_episodes": 4,
-    "sampled_episodes": 2,
+    "deterministic_episodes": 8,
+    "sampled_episodes": 8,
     "seed_offset": 1000000,
     "shuffle_positions": true
   },
