@@ -356,6 +356,13 @@ def _select_actions_from_batch(
         central_obs,
         key,
         deterministic=deterministic,
+        activation=getattr(args, "activation", "tanh"),
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        actor_conv_stride=getattr(args, "actor_conv_stride", 2),
+        critic_obs_height=args.obs_height or args.height,
+        critic_obs_width=args.obs_width or args.width,
+        critic_conv_stride=getattr(args, "critic_conv_stride", 2),
     )
     return actions
 

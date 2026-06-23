@@ -11,6 +11,7 @@ from typing import Any
 
 _EXPORTS = {
     "AdamState": ("core", "AdamState"),
+    "ConvParams": ("core", "ConvParams"),
     "JaxMAPPOParams": ("core", "JaxMAPPOParams"),
     "LinearParams": ("core", "LinearParams"),
     "Rollout": ("core", "Rollout"),

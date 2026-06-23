@@ -34,6 +34,7 @@ from ant_byte_env.training.jax_mappo import (
     evaluate_params,
     flatten_agent_actions,
     get_action_and_value,
+    get_value,
     init_adam_state,
     init_agent_params,
     load_checkpoint_for_training,
@@ -51,11 +52,12 @@ from ant_byte_env.training.jax_mappo.transfer import (
     central_obs_dim_with_ants_count,
     legacy_central_obs_dim,
 )
-from ant_byte_env.training.jax_mappo.core import TrainingBatch, _shuffle_batch
+from ant_byte_env.training.jax_mappo.core import Rollout, TrainingBatch, _shuffle_batch
 from ant_byte_env.training.jax_mappo.probe import (
     _applied_probe_write_values,
     write_action_bit_summary,
 )
+from ant_byte_env.training.jax_mappo.runner import _completed_episode_returns
 
 
 def _batched_reset_obs() -> dict[str, jax.Array]:
@@ -72,6 +74,41 @@ def _batched_reset_obs() -> dict[str, jax.Array]:
         food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
     )
     return {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
+
+
+def test_jax_runner_extracts_completed_episode_returns() -> None:
+    rewards = jnp.array(
+        [
+            [1.0, 0.5],
+            [2.0, 1.0],
+            [3.0, 1.5],
+            [4.0, 2.0],
+        ],
+        dtype=jnp.float32,
+    )
+    dones = jnp.array(
+        [
+            [False, False],
+            [True, False],
+            [False, True],
+            [True, False],
+        ]
+    )
+    rollout = Rollout(
+        actor_obs=jnp.empty((4, 2, 0)),
+        central_obs=jnp.empty((4, 2, 0)),
+        actions=jnp.empty((4, 2, 2), dtype=jnp.int32),
+        logprobs=jnp.empty((4, 2)),
+        rewards=rewards,
+        dones=dones,
+        terminations=dones,
+        truncations=dones,
+        values=jnp.empty((4, 2)),
+        next_values=jnp.empty((4, 2)),
+        env_rewards=rewards,
+    )
+
+    np.testing.assert_allclose(_completed_episode_returns(rollout), [3.0, 3.0, 7.0])
 
 
 def _rollout_args(extra: list[str] | None = None) -> argparse.Namespace:
@@ -373,6 +410,137 @@ def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     assert bool(jnp.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7)))
 
 
+def test_jax_agent_allows_separate_critic_hidden_sizes() -> None:
+    args = _rollout_args(
+        [
+            "--hidden-sizes",
+            "16,8",
+            "--critic-hidden-sizes",
+            "32",
+            "--critic-hidden-sizes",
+            "4",
+        ]
+    )
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=11,
+        actor_obs_dim=13,
+        hidden_size=args.hidden_size,
+        hidden_sizes=args.hidden_sizes,
+        critic_hidden_sizes=args.critic_hidden_sizes,
+        write_value_count=write_value_count(args.write_bits),
+    )
+
+    assert args.hidden_sizes == (16, 8)
+    assert args.critic_hidden_sizes == (32, 4)
+    assert params.actor_body[0].weight.shape == (13, 16)
+    assert params.actor_body[1].weight.shape == (16, 8)
+    assert params.move_head.weight.shape == (8, MOVEMENT_ACTION_COUNT)
+    assert params.critic_body[0].weight.shape == (11, 32)
+    assert params.critic_body[1].weight.shape == (32, 4)
+    assert params.value_head.weight.shape == (4, 1)
+
+
+def test_jax_agent_allows_critic_conv_before_hidden_layers() -> None:
+    args = _rollout_args(
+        [
+            "--critic-hidden-sizes",
+            "7",
+            "--critic-conv-channels",
+            "4",
+            "--critic-conv-kernel-size",
+            "3",
+            "--critic-conv-stride",
+            "2",
+        ]
+    )
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=29,
+        actor_obs_dim=13,
+        hidden_size=args.hidden_size,
+        hidden_sizes=args.hidden_sizes,
+        critic_hidden_sizes=args.critic_hidden_sizes,
+        critic_conv_channels=args.critic_conv_channels,
+        critic_conv_kernel_size=args.critic_conv_kernel_size,
+        critic_conv_stride=args.critic_conv_stride,
+        critic_obs_height=2,
+        critic_obs_width=3,
+        write_value_count=write_value_count(args.write_bits),
+    )
+
+    values = get_value(
+        params,
+        jnp.ones((2, 29), dtype=jnp.float32),
+        critic_obs_height=2,
+        critic_obs_width=3,
+        critic_conv_stride=args.critic_conv_stride,
+    )
+
+    assert args.critic_conv_channels == (4,)
+    assert params.critic_conv[0].weight.shape == (3, 3, 3, 4)
+    assert params.critic_body[0].weight.shape == (19, 7)
+    assert params.value_head.weight.shape == (7, 1)
+    assert values.shape == (2,)
+
+
+def test_jax_agent_allows_per_layer_conv_kernel_sizes() -> None:
+    args = _rollout_args(
+        [
+            "--actor-conv-channels",
+            "4,5",
+            "--actor-conv-kernel-size",
+            "5,3",
+            "--critic-conv-channels",
+            "6",
+            "--critic-conv-channels",
+            "7",
+            "--critic-conv-kernel-size",
+            "5",
+            "--critic-conv-kernel-size",
+            "3",
+        ]
+    )
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=29,
+        actor_obs_dim=50,
+        hidden_size=args.hidden_size,
+        actor_conv_channels=args.actor_conv_channels,
+        actor_conv_kernel_size=args.actor_conv_kernel_size,
+        actor_conv_stride=args.actor_conv_stride,
+        critic_conv_channels=args.critic_conv_channels,
+        critic_conv_kernel_size=args.critic_conv_kernel_size,
+        critic_conv_stride=args.critic_conv_stride,
+        critic_obs_height=2,
+        critic_obs_width=3,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        write_value_count=write_value_count(args.write_bits),
+    )
+    actions, _, _, values = get_action_and_value(
+        params,
+        jnp.ones((2, 1, 50), dtype=jnp.float32),
+        jnp.ones((2, 29), dtype=jnp.float32),
+        jax.random.PRNGKey(1),
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        actor_conv_stride=args.actor_conv_stride,
+        critic_obs_height=2,
+        critic_obs_width=3,
+        critic_conv_stride=args.critic_conv_stride,
+    )
+
+    assert args.actor_conv_kernel_size == (5, 3)
+    assert args.critic_conv_kernel_size == (5, 3)
+    assert params.actor_conv[0].weight.shape == (5, 5, 5, 4)
+    assert params.actor_conv[1].weight.shape == (3, 3, 4, 5)
+    assert params.critic_conv[0].weight.shape == (5, 5, 3, 6)
+    assert params.critic_conv[1].weight.shape == (3, 3, 6, 7)
+    assert actions.shape == (2, 1, 2)
+    assert values.shape == (2,)
+
+
 def test_jax_checkpoint_transfer_expands_write_bits(tmp_path) -> None:
     source_bits = 1
     target_bits = 3
@@ -443,6 +611,175 @@ def test_jax_checkpoint_transfer_expands_write_bits(tmp_path) -> None:
         ),
     )
     assert checkpoint["opt_state"].count.shape == ()
+
+
+def test_jax_checkpoint_transfer_shrinks_actor_vision_radius(tmp_path) -> None:
+    write_bits = 1
+    source_radius = 2
+    target_radius = 1
+    hidden_size = 8
+    central_obs_dim = 12
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=source_radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=target_radius,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+    )
+    first_weight = jnp.arange(
+        source_actor_obs_dim * hidden_size,
+        dtype=jnp.float32,
+    ).reshape(source_actor_obs_dim, hidden_size)
+    first_bias = jnp.arange(hidden_size, dtype=jnp.float32)
+    source_params = source_params._replace(
+        actor_body=(
+            LinearParams(weight=first_weight, bias=first_bias),
+            source_params.actor_body[1],
+        )
+    )
+    source_path = tmp_path / "radius_5x5.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=source_radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="radius_5x5",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=write_bits,
+        actor_vision_radius=target_radius,
+    )
+
+    transferred = checkpoint["params"]
+    source_patch_size = actor_vision_patch_size(source_radius)
+    target_patch_size = actor_vision_patch_size(target_radius)
+    source_width = 2 * source_radius + 1
+    target_width = 2 * target_radius + 1
+    grid_channel_count = write_bits + 4
+    assert transferred.actor_body[0].weight.shape == (target_actor_obs_dim, hidden_size)
+    for channel_index in range(grid_channel_count):
+        source_start = channel_index * source_patch_size
+        target_start = channel_index * target_patch_size
+        for y_offset in range(-target_radius, target_radius + 1):
+            for x_offset in range(-target_radius, target_radius + 1):
+                source_row = source_start + (y_offset + source_radius) * source_width
+                source_row += x_offset + source_radius
+                target_row = target_start + (y_offset + target_radius) * target_width
+                target_row += x_offset + target_radius
+                np.testing.assert_allclose(
+                    np.asarray(transferred.actor_body[0].weight[target_row]),
+                    np.asarray(source_params.actor_body[0].weight[source_row]),
+                )
+
+    source_tail = slice(
+        grid_channel_count * source_patch_size,
+        grid_channel_count * source_patch_size + 1 + 4,
+    )
+    target_tail = slice(
+        grid_channel_count * target_patch_size,
+        grid_channel_count * target_patch_size + 1 + 4,
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.actor_body[0].weight[target_tail]),
+        np.asarray(source_params.actor_body[0].weight[source_tail]),
+    )
+    np.testing.assert_allclose(
+        np.asarray(transferred.actor_body[0].bias),
+        np.asarray(source_params.actor_body[0].bias),
+    )
+    for transferred_layer, source_layer in (
+        (transferred.actor_body[1], source_params.actor_body[1]),
+        (transferred.move_head, source_params.move_head),
+        (transferred.write_head, source_params.write_head),
+        (transferred.critic_body[0], source_params.critic_body[0]),
+        (transferred.critic_body[1], source_params.critic_body[1]),
+        (transferred.value_head, source_params.value_head),
+    ):
+        np.testing.assert_allclose(
+            np.asarray(transferred_layer.weight),
+            np.asarray(source_layer.weight),
+        )
+        np.testing.assert_allclose(
+            np.asarray(transferred_layer.bias),
+            np.asarray(source_layer.bias),
+        )
+    assert checkpoint["actor_obs_dim"] == target_actor_obs_dim
+    assert checkpoint["args"]["actor_vision_radius"] == target_radius
+    assert checkpoint["args"]["source_actor_vision_radius"] == source_radius
+    assert checkpoint["opt_state"].m.actor_body[0].weight.shape == (
+        target_actor_obs_dim,
+        hidden_size,
+    )
+    np.testing.assert_allclose(
+        np.asarray(checkpoint["opt_state"].m.actor_body[0].weight),
+        np.zeros((target_actor_obs_dim, hidden_size), dtype=np.float32),
+    )
+
+
+def test_jax_checkpoint_transfer_rejects_growing_actor_vision_radius(tmp_path) -> None:
+    write_bits = 1
+    source_radius = 1
+    target_radius = 2
+    hidden_size = 8
+    central_obs_dim = 12
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=source_radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=target_radius,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+    )
+    source_path = tmp_path / "radius_3x3.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=source_radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="radius_3x3",
+        metrics={},
+    )
+
+    with pytest.raises(ValueError, match="only supports shrinking"):
+        load_checkpoint_for_training(
+            source_path,
+            central_obs_dim=central_obs_dim,
+            actor_obs_dim=target_actor_obs_dim,
+            target_write_bits=write_bits,
+            actor_vision_radius=target_radius,
+        )
 
 
 def test_jax_checkpoint_transfer_can_reset_expanded_write_head(tmp_path) -> None:

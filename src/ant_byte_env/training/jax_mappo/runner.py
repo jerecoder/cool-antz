@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections import deque
 import time
 from typing import Any
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ant_byte_env import write_value_count
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
@@ -40,6 +42,25 @@ def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
         "clipfrac": float(metrics.clipfrac),
         "grad_norm": float(metrics.grad_norm),
     }
+
+
+def _completed_episode_returns(rollout: Rollout) -> list[float]:
+    rewards = np.asarray(rollout.rewards)
+    dones = np.asarray(rollout.dones).astype(bool)
+    running_returns = np.zeros(rewards.shape[1], dtype=np.float32)
+    episode_returns: list[float] = []
+
+    for step_rewards, step_dones in zip(rewards, dones):
+        running_returns += step_rewards
+        for env_index in np.flatnonzero(step_dones):
+            episode_returns.append(float(running_returns[env_index]))
+            running_returns[env_index] = 0.0
+
+    return episode_returns
+
+
+def _mean_return(returns: list[float] | deque[float]) -> float:
+    return float(np.mean(list(returns))) if returns else 0.0
 
 
 def _rollout_stats(rollout: Rollout) -> dict[str, float]:
@@ -118,6 +139,18 @@ def main(
         central_obs_dim=central_obs_dim,
         actor_obs_dim=actor_obs_dim,
         hidden_size=args.hidden_size,
+        hidden_sizes=args.hidden_sizes,
+        critic_hidden_sizes=args.critic_hidden_sizes,
+        actor_conv_channels=args.actor_conv_channels,
+        actor_conv_kernel_size=args.actor_conv_kernel_size,
+        actor_conv_stride=args.actor_conv_stride,
+        critic_conv_channels=args.critic_conv_channels,
+        critic_conv_kernel_size=args.critic_conv_kernel_size,
+        critic_conv_stride=args.critic_conv_stride,
+        critic_obs_height=args.obs_height or args.height,
+        critic_obs_width=args.obs_width or args.width,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
         write_value_count=write_value_count(args.write_bits),
     )
     opt_state = init_adam_state(params)
@@ -164,6 +197,9 @@ def main(
         "value_loss": 0.0,
         "episode_return": 0.0,
     }
+    recent_episode_returns: deque[float] = deque(maxlen=args.return_window_episodes)
+    best_return = float("-inf")
+    best_metrics: dict[str, float] | None = None
 
     for update in range(1, num_updates + 1):
         key, rollout_key, update_key = jax.random.split(key, 3)
@@ -180,18 +216,43 @@ def main(
             update_key,
         )
         global_step += steps_per_update
+        completed_episode_returns = _completed_episode_returns(rollout)
+        recent_episode_returns.extend(completed_episode_returns)
         final_metrics = {
             **_metrics_to_float(update_metrics),
             **_rollout_stats(rollout),
+            "completed_episode_return": _mean_return(completed_episode_returns),
+            "recent_episode_return": _mean_return(recent_episode_returns),
+            "recent_episode_count": float(len(recent_episode_returns)),
+            "recent_episode_window": float(args.return_window_episodes),
             "global_step": float(global_step),
             "learning_rate": float(learning_rate),
         }
+        if final_metrics["episode_return"] >= best_return:
+            best_return = final_metrics["episode_return"]
+            best_metrics = {
+                **final_metrics,
+                "best_return": best_return,
+                "best_update": float(update),
+            }
+            if args.save_model is not None:
+                save_checkpoint(
+                    args.save_model,
+                    params=params,
+                    opt_state=opt_state,
+                    args=args,
+                    central_obs_dim=central_obs_dim,
+                    actor_obs_dim=actor_obs_dim,
+                    run_name=run_name,
+                    metrics=best_metrics,
+                )
         if progress_callback is not None:
             progress_callback(update, num_updates, final_metrics)
         if not args.quiet:
             print(
                 "update={update}/{num_updates} step={step} loss={loss:.4f} "
-                "return={episode_return:.3f} entropy={entropy:.3f}".format(
+                "return={episode_return:.3f} recent_return={recent_episode_return:.3f} "
+                "entropy={entropy:.3f}".format(
                     update=update,
                     num_updates=num_updates,
                     step=global_step,
@@ -208,7 +269,8 @@ def main(
                 },
             )
 
-    if args.save_model is not None:
+    summary_metrics = best_metrics or final_metrics
+    if args.save_model is not None and best_metrics is None:
         save_checkpoint(
             args.save_model,
             params=params,
@@ -225,11 +287,13 @@ def main(
             {
                 "backend": "jax",
                 "run_name": run_name,
-                "metrics": final_metrics,
+                "metrics": summary_metrics,
+                "final_metrics": final_metrics,
+                "best_metrics": summary_metrics,
                 "checkpoint_path": args.save_model,
             },
         )
-    return final_metrics
+    return summary_metrics
 
 
 

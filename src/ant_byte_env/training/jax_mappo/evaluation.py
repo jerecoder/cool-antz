@@ -91,6 +91,13 @@ def evaluate_params(
                 central_obs,
                 action_key,
                 deterministic=deterministic,
+                activation=getattr(eval_args, "activation", "tanh"),
+                actor_vision_radius=eval_args.actor_vision_radius,
+                write_bits=eval_args.write_bits,
+                actor_conv_stride=getattr(eval_args, "actor_conv_stride", 2),
+                critic_obs_height=eval_args.obs_height or eval_args.height,
+                critic_obs_width=eval_args.obs_width or eval_args.width,
+                critic_conv_stride=getattr(eval_args, "critic_conv_stride", 2),
             )
             state, obs, reward, terminated, truncated, _ = jax.vmap(env.step)(
                 state,

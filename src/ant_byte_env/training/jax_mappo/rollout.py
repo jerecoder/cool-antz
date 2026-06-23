@@ -71,6 +71,13 @@ def collect_rollout(
             actor_obs,
             central_obs,
             action_key,
+            activation=getattr(args, "activation", "tanh"),
+            actor_vision_radius=args.actor_vision_radius,
+            write_bits=args.write_bits,
+            actor_conv_stride=getattr(args, "actor_conv_stride", 2),
+            critic_obs_height=args.obs_height or args.height,
+            critic_obs_width=args.obs_width or args.width,
+            critic_conv_stride=getattr(args, "critic_conv_stride", 2),
         )
         next_states, next_obs, env_rewards, terminated, truncated, _ = jax.vmap(env.step)(
             current_states,
@@ -84,7 +91,14 @@ def collect_rollout(
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
-        next_values = get_value(params, next_central_obs)
+        next_values = get_value(
+            params,
+            next_central_obs,
+            activation=getattr(args, "activation", "tanh"),
+            critic_obs_height=args.obs_height or args.height,
+            critic_obs_width=args.obs_width or args.width,
+            critic_conv_stride=getattr(args, "critic_conv_stride", 2),
+        )
         rewards = compute_forage_curriculum_rewards(
             previous_obs=current_obs,
             next_obs=next_obs,

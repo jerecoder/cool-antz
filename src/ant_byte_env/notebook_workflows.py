@@ -20,7 +20,7 @@ FORAGE_STAGE_SIZES = tuple(range(4, 51))
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
-NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 1.0
+NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 0.0
 DEFAULT_JAX_MEMORY_FRACTION = "0.35"
 NOTEBOOK_SAFE_CLEANUP_DIR_NAMES = frozenset(
     {
@@ -39,6 +39,14 @@ COMMUNICATION_ARG_EXCLUDES = {
     "run_dir",
 }
 ANT_COUNT_ARG_EXCLUDES = COMMUNICATION_ARG_EXCLUDES | {"num_ants"}
+VISION_RANGE_ARG_EXCLUDES = {
+    "exp_name",
+    "actor_vision_radius",
+    "total_timesteps",
+    "save_model",
+    "load_model",
+    "run_dir",
+}
 
 
 def configure_jax_notebook_runtime(
@@ -603,10 +611,13 @@ def run_forage_curriculum(
         ) -> None:
             del total_updates
             progress.update(1)
-            progress.set_postfix(
-                loss=f"{metrics['loss']:.3f}",
-                ret=f"{metrics['episode_return']:.3f}",
-            )
+            postfix = {
+                "loss": f"{metrics['loss']:.3f}",
+                "ret": f"{metrics['episode_return']:.3f}",
+            }
+            if "recent_episode_return" in metrics:
+                postfix["ret_avg"] = f"{metrics['recent_episode_return']:.3f}"
+            progress.set_postfix(**postfix)
             stage_metrics.append(
                 {
                     **stage,
@@ -653,6 +664,125 @@ def run_forage_curriculum(
         "stage_checkpoint_paths": stage_checkpoint_paths,
         "final_checkpoint_path": previous_checkpoint,
         "final_train_metrics": final_train_metrics,
+    }
+
+
+def validate_vision_range_stages(vision_radii: Sequence[int]) -> None:
+    if any(radius <= 0 for radius in vision_radii):
+        raise ValueError("vision radii must be positive.")
+    if not all(left > right for left, right in zip(vision_radii, vision_radii[1:])):
+        raise ValueError("vision radii must be strictly decreasing.")
+
+
+def vision_side(radius: int) -> int:
+    return 2 * int(radius) + 1
+
+
+def run_vision_range_curriculum(
+    *,
+    vision_radii: Sequence[int],
+    run_dir: Path,
+    common_args: Sequence[str],
+    experiment_name: str,
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    train_main: Callable[..., dict[str, float]],
+    render_rollouts: bool = True,
+    max_render_frames: int | None = 300,
+    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+) -> dict[str, Any]:
+    validate_vision_range_stages(vision_radii)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    media_dir = run_dir / "media"
+    media_dir.mkdir(exist_ok=True)
+    stage_metrics: list[dict[str, Any]] = []
+    stage_checkpoint_paths: list[Path] = []
+    rollout_paths: list[Path] = []
+    previous_checkpoint: Path | None = None
+    final_train_metrics: dict[str, float] = {}
+
+    for stage_index, radius in enumerate(vision_radii):
+        side = vision_side(int(radius))
+        stage_name = f"{side}x{side}"
+        stage_run_dir = run_dir / stage_name
+        checkpoint_path = stage_run_dir / "checkpoints" / "model.pkl"
+        print(f"Training vision stage {stage_index + 1}/{len(vision_radii)}: {stage_name}")
+        if previous_checkpoint is not None:
+            print(f"Starting from: {previous_checkpoint}")
+        progress = stage_update_progress(stage_name, global_update_cap)
+
+        def record_progress(
+            update_index: int,
+            total_updates: int,
+            metrics: dict[str, float],
+        ) -> None:
+            del total_updates
+            progress.update(1)
+            postfix = {
+                "loss": f"{metrics['loss']:.3f}",
+                "ret": f"{metrics['episode_return']:.3f}",
+            }
+            if "recent_episode_return" in metrics:
+                postfix["ret_avg"] = f"{metrics['recent_episode_return']:.3f}"
+            progress.set_postfix(**postfix)
+            stage_metrics.append(
+                {
+                    "actor_vision_radius": int(radius),
+                    "vision_side": side,
+                    **metrics,
+                    "stage_update": update_index,
+                    "global_update_cap": global_update_cap,
+                    "checkpoint": str(checkpoint_path),
+                    "source_checkpoint": str(previous_checkpoint)
+                    if previous_checkpoint is not None
+                    else None,
+                    "run_dir": str(stage_run_dir),
+                }
+            )
+
+        train_args = [
+            *common_args,
+            "--exp-name",
+            f"{experiment_name}_{stage_name}",
+            "--actor-vision-radius",
+            str(int(radius)),
+            "--total-timesteps",
+            str(update_timesteps_per_stage * global_update_cap),
+            "--run-dir",
+            str(stage_run_dir),
+        ]
+        if previous_checkpoint is not None:
+            train_args.extend(["--load-model", str(previous_checkpoint)])
+
+        try:
+            final_train_metrics = train_main(train_args, progress_callback=record_progress)
+        finally:
+            progress.close()
+
+        stage_checkpoint_paths.append(checkpoint_path)
+        if render_rollouts:
+            rollout_path = media_dir / f"vision_{stage_name}.gif"
+            rollout_paths.append(
+                render_checkpoint(
+                    checkpoint_path,
+                    rollout_path,
+                    backend="jax",
+                    seed_offset=NOTEBOOK_ROLLOUT_SEED_OFFSET + stage_index,
+                    reuse_existing=False,
+                    max_frames=max_render_frames,
+                    tile_size=tile_size,
+                    policy_temperature=policy_temperature,
+                )
+            )
+        previous_checkpoint = checkpoint_path
+
+    return {
+        "stage_metrics": stage_metrics,
+        "stage_checkpoint_paths": stage_checkpoint_paths,
+        "final_checkpoint": previous_checkpoint,
+        "final_train_metrics": final_train_metrics,
+        "rollout_paths": rollout_paths,
     }
 
 
@@ -1043,6 +1173,8 @@ def expand_critic_input_for_ant_count(
     target_num_ants = int(target_num_ants)
     if source_num_ants <= 0 or target_num_ants <= 0:
         raise ValueError("ant counts must be positive.")
+    if params.critic_conv:
+        raise ValueError("Ant-count transfer is not supported with critic conv layers.")
 
     first_layer = params.critic_body[0]
     old_weight = jnp.asarray(first_layer.weight)
@@ -1075,8 +1207,10 @@ def expand_critic_input_for_ant_count(
         actor_body=params.actor_body,
         move_head=params.move_head,
         write_head=params.write_head,
-        critic_body=(LinearParams(weight=new_weight, bias=old_bias), params.critic_body[1]),
+        critic_body=(LinearParams(weight=new_weight, bias=old_bias), *params.critic_body[1:]),
         value_head=params.value_head,
+        actor_conv=params.actor_conv,
+        critic_conv=params.critic_conv,
     )
 
 

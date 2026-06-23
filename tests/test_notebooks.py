@@ -148,3 +148,20 @@ def test_direct_goal_notebook_uses_direct_goal_config_and_evaluation() -> None:
     assert "3x3" in source
     assert "5` writable bits" in source
     assert "10` ants" in source
+
+
+def test_vision_range_curriculum_keeps_fixed_map_and_shrinks_vision() -> None:
+    source = notebook_source(Path("notebooks/train_jax_vision_range_curriculum.ipynb"))
+    spec = json.loads(Path("experiments/vision_range_curriculum.json").read_text(encoding="utf-8"))
+
+    assert "workflows.run_vision_range_curriculum" in source
+    assert "vision_range_curriculum.json" in source
+    assert spec["args"]["width"] == 50
+    assert spec["args"]["height"] == 50
+    assert spec["args"]["obs_width"] == 50
+    assert spec["args"]["obs_height"] == 50
+    assert spec["args"]["actor_vision_radius"] == 25
+    assert spec["args"]["random_food"] is True
+    assert spec["args"]["random_hub"] is False
+    assert spec["metadata"]["vision_radii"] == [25, 20, 15, 10, 6, 3, 2, 1]
+    assert spec["metadata"]["vision_sides"] == [51, 41, 31, 21, 13, 7, 5, 3]

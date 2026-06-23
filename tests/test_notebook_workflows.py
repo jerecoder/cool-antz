@@ -311,6 +311,82 @@ def test_communication_consolidation_runs_single_stage_with_overrides(
     assert captured_args[bit_bonus_index + 1] == "0.05"
 
 
+def test_vision_range_curriculum_trains_and_renders_each_stage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured_postfixes: list[dict[str, str]] = []
+
+    class FakeProgress:
+        def update(self, value: int) -> None:
+            del value
+
+        def set_postfix(self, **kwargs: str) -> None:
+            captured_postfixes.append(kwargs)
+
+        def close(self) -> None:
+            pass
+
+    captured_train_args: list[list[str]] = []
+    captured_renders: list[tuple[Path, Path, dict[str, object]]] = []
+
+    def fake_train_main(args: list[str], progress_callback):
+        captured_train_args.append(args)
+        progress_callback(
+            1,
+            1,
+            {
+                "loss": 0.1,
+                "policy_loss": 0.2,
+                "value_loss": 0.3,
+                "episode_return": 2.0,
+                "recent_episode_return": 1.5,
+                "env_return": 1.0,
+            },
+        )
+        return {"loss": 0.1, "episode_return": 2.0}
+
+    def fake_render_checkpoint(checkpoint: Path, output_path: Path, **kwargs: object) -> Path:
+        captured_renders.append((checkpoint, output_path, kwargs))
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"gif")
+        return output_path
+
+    monkeypatch.setattr(
+        workflows,
+        "stage_update_progress",
+        lambda label, total_updates: FakeProgress(),
+    )
+    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+
+    result = workflows.run_vision_range_curriculum(
+        vision_radii=(2, 1),
+        run_dir=tmp_path / "run",
+        common_args=["--width", "50", "--write-bits", "1"],
+        experiment_name="vision_range",
+        update_timesteps_per_stage=10,
+        global_update_cap=3,
+        train_main=fake_train_main,
+        max_render_frames=7,
+        tile_size=8,
+    )
+
+    first_checkpoint = tmp_path / "run" / "5x5" / "checkpoints" / "model.pkl"
+    second_checkpoint = tmp_path / "run" / "3x3" / "checkpoints" / "model.pkl"
+    assert result["stage_checkpoint_paths"] == [first_checkpoint, second_checkpoint]
+    assert "--load-model" not in captured_train_args[0]
+    assert captured_train_args[1][captured_train_args[1].index("--load-model") + 1] == str(
+        first_checkpoint
+    )
+    assert [path.name for _, path, _ in captured_renders] == ["vision_5x5.gif", "vision_3x3.gif"]
+    assert captured_renders[0][2]["max_frames"] == 7
+    assert captured_renders[0][2]["tile_size"] == 8
+    assert captured_postfixes[0]["ret"] == "2.000"
+    assert captured_postfixes[0]["ret_avg"] == "1.500"
+    assert result["stage_metrics"][0]["vision_side"] == 5
+    assert result["stage_metrics"][1]["source_checkpoint"] == str(first_checkpoint)
+
+
 def test_communication_post_stage_sequence_runs_enabled_stages_in_order(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

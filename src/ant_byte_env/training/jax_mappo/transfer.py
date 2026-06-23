@@ -64,11 +64,56 @@ def load_checkpoint_for_training(
             "actor_obs_dim": actor_obs_dim,
         }
 
+    source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
     source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
     if source_actor_vision_radius != actor_vision_radius:
-        raise ValueError("Checkpoint actor vision radius does not match this run.")
+        if target_write_bits != source_write_bits:
+            raise ValueError(
+                "Cannot change write bits and actor vision radius in one checkpoint transfer."
+            )
+        source_shape = _actor_obs_source_shape(
+            actor_obs_dim=source_actor_obs_dim,
+            write_bits=source_write_bits,
+            actor_vision_radius=source_actor_vision_radius,
+        )
+        if source_shape is None:
+            raise ValueError(
+                "Checkpoint actor observation dimension does not match its vision config."
+            )
+        if (
+            source_shape["layout"] != "centered"
+            or not source_shape["include_ants_count"]
+            or not source_shape["include_orientation"]
+        ):
+            raise ValueError(
+                "Vision-radius transfer requires the current centered actor observation layout."
+            )
+        params = shrink_params_for_actor_vision_radius(
+            params,
+            write_bits=source_write_bits,
+            source_actor_vision_radius=source_actor_vision_radius,
+            target_actor_vision_radius=actor_vision_radius,
+        )
+        target_dim = actor_obs_dim_for_bits(
+            write_bits=target_write_bits,
+            actor_vision_radius=actor_vision_radius,
+        )
+        if target_dim != actor_obs_dim:
+            raise ValueError("Transferred actor observation dimension does not match this run.")
+        return {
+            **checkpoint,
+            "params": params,
+            "opt_state": init_adam_state(params),
+            "central_obs_dim": central_obs_dim,
+            "actor_obs_dim": actor_obs_dim,
+            "args": {
+                **source_args,
+                "actor_vision_radius": actor_vision_radius,
+                "transfer_source_checkpoint": str(path),
+                "source_actor_vision_radius": source_actor_vision_radius,
+            },
+        }
 
-    source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
     source_shape = _actor_obs_source_shape(
         actor_obs_dim=source_actor_obs_dim,
         write_bits=source_write_bits,
@@ -217,6 +262,8 @@ def expand_critic_input_for_ants_count(
     source_args: dict[str, Any],
     target_central_obs_dim: int,
 ) -> JaxMAPPOParams:
+    if params.critic_conv:
+        raise ValueError("Ant-count checkpoint transfer is not supported with critic conv layers.")
     source_num_ants = int(source_args.get("num_ants", 1))
     source_width = _source_grid_size(source_args, "width")
     source_height = _source_grid_size(source_args, "height")
@@ -262,8 +309,10 @@ def expand_critic_input_for_ants_count(
         actor_body=params.actor_body,
         move_head=adapt_movement_head_layer(params.move_head),
         write_head=params.write_head,
-        critic_body=(new_first_layer, params.critic_body[1]),
+        critic_body=(new_first_layer, *params.critic_body[1:]),
         value_head=params.value_head,
+        actor_conv=params.actor_conv,
+        critic_conv=params.critic_conv,
     )
 
 
@@ -371,6 +420,8 @@ def expand_params_for_write_bits(
         return params
     if target_bits < old_bits:
         raise ValueError("target_bits must be at least old_bits.")
+    if params.actor_conv:
+        raise ValueError("Write-bit checkpoint transfer is not supported with actor conv layers.")
     return JaxMAPPOParams(
         actor_body=(
             expand_actor_input_layer(
@@ -382,7 +433,7 @@ def expand_params_for_write_bits(
                 source_includes_orientation=source_includes_orientation,
                 source_layout=source_layout,
             ),
-            params.actor_body[1],
+            *params.actor_body[1:],
         ),
         move_head=adapt_movement_head_layer(params.move_head),
         write_head=params.write_head
@@ -395,6 +446,8 @@ def expand_params_for_write_bits(
         ),
         critic_body=params.critic_body,
         value_head=params.value_head,
+        actor_conv=params.actor_conv,
+        critic_conv=params.critic_conv,
     )
 
 
@@ -409,6 +462,8 @@ def adapt_movement_head(params: JaxMAPPOParams) -> tuple[JaxMAPPOParams, bool]:
             write_head=params.write_head,
             critic_body=params.critic_body,
             value_head=params.value_head,
+            actor_conv=params.actor_conv,
+            critic_conv=params.critic_conv,
         ),
         True,
     )
@@ -427,6 +482,111 @@ def adapt_movement_head_layer(layer: LinearParams) -> LinearParams:
             "onto the current cardinal movement action space."
         )
     raise ValueError(f"Checkpoint movement action count {old_count} does not match this run.")
+
+
+def shrink_params_for_actor_vision_radius(
+    params: JaxMAPPOParams,
+    *,
+    write_bits: int,
+    source_actor_vision_radius: int,
+    target_actor_vision_radius: int,
+) -> JaxMAPPOParams:
+    if params.actor_conv:
+        raise ValueError("Vision-radius checkpoint transfer is not supported with actor conv layers.")
+    return JaxMAPPOParams(
+        actor_body=(
+            shrink_actor_input_layer_for_vision_radius(
+                params.actor_body[0],
+                write_bits=write_bits,
+                source_actor_vision_radius=source_actor_vision_radius,
+                target_actor_vision_radius=target_actor_vision_radius,
+            ),
+            *params.actor_body[1:],
+        ),
+        move_head=params.move_head,
+        write_head=params.write_head,
+        critic_body=params.critic_body,
+        value_head=params.value_head,
+        actor_conv=params.actor_conv,
+        critic_conv=params.critic_conv,
+    )
+
+
+def shrink_actor_input_layer_for_vision_radius(
+    layer: LinearParams,
+    *,
+    write_bits: int,
+    source_actor_vision_radius: int,
+    target_actor_vision_radius: int,
+) -> LinearParams:
+    if target_actor_vision_radius >= source_actor_vision_radius:
+        raise ValueError("Vision-radius transfer only supports shrinking actor vision.")
+
+    old_weight = jnp.asarray(layer.weight)
+    source_patch_size = actor_vision_patch_size(source_actor_vision_radius)
+    target_patch_size = actor_vision_patch_size(target_actor_vision_radius)
+    expected_old_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=source_actor_vision_radius,
+    )
+    target_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=target_actor_vision_radius,
+    )
+    if old_weight.shape[0] != expected_old_dim:
+        raise ValueError(f"Expected actor input dim {expected_old_dim}, got {old_weight.shape[0]}.")
+
+    new_weight = jnp.zeros((target_dim, old_weight.shape[1]), dtype=old_weight.dtype)
+    grid_channel_count = write_bits + 4
+    for channel_index in range(grid_channel_count):
+        new_weight = copy_centered_actor_patch_crop(
+            new_weight,
+            old_weight,
+            source=slice(
+                channel_index * source_patch_size,
+                (channel_index + 1) * source_patch_size,
+            ),
+            target=slice(
+                channel_index * target_patch_size,
+                (channel_index + 1) * target_patch_size,
+            ),
+            source_actor_vision_radius=source_actor_vision_radius,
+            target_actor_vision_radius=target_actor_vision_radius,
+        )
+
+    source_tail = slice(
+        grid_channel_count * source_patch_size,
+        grid_channel_count * source_patch_size + 1 + FACING_FEATURE_COUNT,
+    )
+    target_tail = slice(
+        grid_channel_count * target_patch_size,
+        grid_channel_count * target_patch_size + 1 + FACING_FEATURE_COUNT,
+    )
+    new_weight = new_weight.at[target_tail, :].set(old_weight[source_tail, :])
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
+def copy_centered_actor_patch_crop(
+    new_weight: jnp.ndarray,
+    old_weight: jnp.ndarray,
+    *,
+    source: slice,
+    target: slice,
+    source_actor_vision_radius: int,
+    target_actor_vision_radius: int,
+) -> jnp.ndarray:
+    source_width = 2 * source_actor_vision_radius + 1
+    target_width = 2 * target_actor_vision_radius + 1
+    for y_offset in range(-target_actor_vision_radius, target_actor_vision_radius + 1):
+        for x_offset in range(-target_actor_vision_radius, target_actor_vision_radius + 1):
+            source_index = (y_offset + source_actor_vision_radius) * source_width
+            source_index += x_offset + source_actor_vision_radius
+            target_index = (y_offset + target_actor_vision_radius) * target_width
+            target_index += x_offset + target_actor_vision_radius
+            new_weight = new_weight.at[target.start + target_index, :].set(
+                old_weight[source.start + source_index, :]
+            )
+    return new_weight
 
 
 def expand_actor_input_layer(

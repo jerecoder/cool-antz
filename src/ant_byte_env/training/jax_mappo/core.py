@@ -32,12 +32,19 @@ class LinearParams(NamedTuple):
     bias: jax.Array
 
 
+class ConvParams(NamedTuple):
+    weight: jax.Array
+    bias: jax.Array
+
+
 class JaxMAPPOParams(NamedTuple):
-    actor_body: tuple[LinearParams, LinearParams]
+    actor_body: tuple[LinearParams, ...]
     move_head: LinearParams
     write_head: LinearParams
-    critic_body: tuple[LinearParams, LinearParams]
+    critic_body: tuple[LinearParams, ...]
     value_head: LinearParams
+    actor_conv: tuple[ConvParams, ...] = ()
+    critic_conv: tuple[ConvParams, ...] = ()
 
 
 class AdamState(NamedTuple):
@@ -442,29 +449,241 @@ def init_layer(
     )
 
 
+def init_conv_layer(
+    key: jax.Array,
+    in_channels: int,
+    out_channels: int,
+    *,
+    kernel_size: int,
+    scale: float = np.sqrt(2.0),
+) -> ConvParams:
+    fan_in = max(float(kernel_size * kernel_size * in_channels), 1.0)
+    std = float(scale) / np.sqrt(fan_in)
+    return ConvParams(
+        weight=jax.random.normal(
+            key,
+            (kernel_size, kernel_size, in_channels, out_channels),
+            dtype=jnp.float32,
+        )
+        * std,
+        bias=jnp.zeros((out_channels,), dtype=jnp.float32),
+    )
+
+
+def _actor_grid_shape(*, actor_vision_radius: int, write_bits: int) -> tuple[int, int]:
+    side = 2 * int(actor_vision_radius) + 1
+    grid_channels = int(write_bits) + 4
+    return side, grid_channels
+
+
+def _conv_side_after_layers(side: int, *, layer_count: int, stride: int) -> int:
+    for _ in range(layer_count):
+        side = (side + int(stride) - 1) // int(stride)
+    return side
+
+
+def _conv_kernel_sizes(
+    kernel_size: int | tuple[int, ...],
+    *,
+    layer_count: int,
+    option_name: str,
+) -> tuple[int, ...]:
+    if isinstance(kernel_size, int):
+        kernel_sizes = (kernel_size,)
+    else:
+        kernel_sizes = tuple(int(size) for size in kernel_size)
+    if not kernel_sizes:
+        raise ValueError(f"{option_name} must include at least one value.")
+    if any(size <= 0 for size in kernel_sizes):
+        raise ValueError(f"{option_name} values must be positive.")
+    if layer_count == 0:
+        return ()
+    if len(kernel_sizes) == 1:
+        return kernel_sizes * layer_count
+    if len(kernel_sizes) != layer_count:
+        raise ValueError(f"{option_name} must have one value or match the conv layer count.")
+    return kernel_sizes
+
+
+def _critic_grid_shape(*, obs_height: int | None, obs_width: int | None) -> tuple[int, int, int]:
+    if obs_height is None or obs_width is None:
+        raise ValueError("Critic conv layers require obs_height and obs_width.")
+    return int(obs_height), int(obs_width), 3
+
+
 def init_agent_params(
     key: jax.Array,
     *,
     central_obs_dim: int,
     actor_obs_dim: int,
     hidden_size: int = 128,
+    hidden_sizes: tuple[int, ...] | None = None,
+    critic_hidden_sizes: tuple[int, ...] | None = None,
+    actor_conv_channels: tuple[int, ...] | None = None,
+    actor_conv_kernel_size: int | tuple[int, ...] = 3,
+    actor_conv_stride: int = 2,
+    critic_conv_channels: tuple[int, ...] | None = None,
+    critic_conv_kernel_size: int | tuple[int, ...] = 3,
+    critic_conv_stride: int = 2,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
+    actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
+    write_bits: int = DEFAULT_WRITE_BITS,
     write_value_count: int = 2,
 ) -> JaxMAPPOParams:
     if write_value_count <= 0:
         raise ValueError("write_value_count must be positive.")
-    keys = jax.random.split(key, 7)
+    actor_layer_sizes = hidden_sizes if hidden_sizes is not None else (hidden_size, hidden_size)
+    critic_layer_sizes = (
+        critic_hidden_sizes if critic_hidden_sizes is not None else actor_layer_sizes
+    )
+    if not actor_layer_sizes:
+        raise ValueError("At least one actor hidden layer is required.")
+    if not critic_layer_sizes:
+        raise ValueError("At least one critic hidden layer is required.")
+    if any(size <= 0 for size in actor_layer_sizes):
+        raise ValueError("Actor hidden layer sizes must be positive.")
+    if any(size <= 0 for size in critic_layer_sizes):
+        raise ValueError("Critic hidden layer sizes must be positive.")
+    actor_conv_channels = actor_conv_channels or ()
+    if any(channel_count <= 0 for channel_count in actor_conv_channels):
+        raise ValueError("Actor conv channel counts must be positive.")
+    if actor_conv_stride <= 0:
+        raise ValueError("Actor conv stride must be positive.")
+    actor_conv_kernel_sizes = _conv_kernel_sizes(
+        actor_conv_kernel_size,
+        layer_count=len(actor_conv_channels),
+        option_name="Actor conv kernel size",
+    )
+    critic_conv_channels = critic_conv_channels or ()
+    if any(channel_count <= 0 for channel_count in critic_conv_channels):
+        raise ValueError("Critic conv channel counts must be positive.")
+    if critic_conv_stride <= 0:
+        raise ValueError("Critic conv stride must be positive.")
+    critic_conv_kernel_sizes = _conv_kernel_sizes(
+        critic_conv_kernel_size,
+        layer_count=len(critic_conv_channels),
+        option_name="Critic conv kernel size",
+    )
+
+    side, grid_channels = _actor_grid_shape(
+        actor_vision_radius=actor_vision_radius,
+        write_bits=write_bits,
+    )
+    grid_dim = side * side * grid_channels
+    tail_dim = actor_obs_dim - grid_dim
+    if actor_conv_channels and tail_dim < 0:
+        raise ValueError("Actor observation is too small for the requested conv encoder.")
+    conv_output_side = _conv_side_after_layers(
+        side,
+        layer_count=len(actor_conv_channels),
+        stride=actor_conv_stride,
+    )
+    actor_input_dim = (
+        conv_output_side * conv_output_side * actor_conv_channels[-1] + tail_dim
+        if actor_conv_channels
+        else actor_obs_dim
+    )
+    if critic_conv_channels:
+        critic_obs_height, critic_obs_width, critic_grid_channels = _critic_grid_shape(
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
+        critic_grid_dim = critic_obs_height * critic_obs_width * critic_grid_channels
+        critic_tail_dim = central_obs_dim - critic_grid_dim
+        if critic_tail_dim < 0:
+            raise ValueError("Central observation is too small for the requested critic conv.")
+        critic_conv_height = _conv_side_after_layers(
+            critic_obs_height,
+            layer_count=len(critic_conv_channels),
+            stride=critic_conv_stride,
+        )
+        critic_conv_width = _conv_side_after_layers(
+            critic_obs_width,
+            layer_count=len(critic_conv_channels),
+            stride=critic_conv_stride,
+        )
+        critic_input_dim = (
+            critic_conv_height * critic_conv_width * critic_conv_channels[-1]
+            + critic_tail_dim
+        )
+    else:
+        critic_input_dim = central_obs_dim
+
+    keys = jax.random.split(
+        key,
+        len(actor_conv_channels)
+        + len(critic_conv_channels)
+        + len(actor_layer_sizes)
+        + len(critic_layer_sizes)
+        + 3,
+    )
+    actor_conv_keys = keys[: len(actor_conv_channels)]
+    critic_conv_start = len(actor_conv_channels)
+    critic_conv_keys = keys[critic_conv_start : critic_conv_start + len(critic_conv_channels)]
+    actor_start = critic_conv_start + len(critic_conv_channels)
+    actor_keys = keys[actor_start : actor_start + len(actor_layer_sizes)]
+    move_key = keys[actor_start + len(actor_layer_sizes)]
+    write_key = keys[actor_start + len(actor_layer_sizes) + 1]
+    critic_start = actor_start + len(actor_layer_sizes) + 2
+    critic_keys = keys[critic_start : critic_start + len(critic_layer_sizes)]
+    value_key = keys[-1]
+    actor_conv_input_channels = (grid_channels, *actor_conv_channels[:-1])
+    critic_conv_input_channels = (3, *critic_conv_channels[:-1])
+    actor_dims = (actor_input_dim, *actor_layer_sizes)
+    critic_dims = (critic_input_dim, *critic_layer_sizes)
+    actor_last_hidden_size = actor_layer_sizes[-1]
+    critic_last_hidden_size = critic_layer_sizes[-1]
     return JaxMAPPOParams(
-        actor_body=(
-            init_layer(keys[0], actor_obs_dim, hidden_size),
-            init_layer(keys[1], hidden_size, hidden_size),
+        actor_body=tuple(
+            init_layer(layer_key, in_dim, out_dim)
+            for layer_key, in_dim, out_dim in zip(actor_keys, actor_dims, actor_dims[1:])
         ),
-        move_head=init_layer(keys[2], hidden_size, MOVEMENT_ACTION_COUNT, scale=0.01),
-        write_head=init_layer(keys[3], hidden_size, write_value_count, scale=0.01),
-        critic_body=(
-            init_layer(keys[4], central_obs_dim, hidden_size),
-            init_layer(keys[5], hidden_size, hidden_size),
+        move_head=init_layer(
+            move_key,
+            actor_last_hidden_size,
+            MOVEMENT_ACTION_COUNT,
+            scale=0.01,
         ),
-        value_head=init_layer(keys[6], hidden_size, 1, scale=1.0),
+        write_head=init_layer(
+            write_key,
+            actor_last_hidden_size,
+            write_value_count,
+            scale=0.01,
+        ),
+        critic_body=tuple(
+            init_layer(layer_key, in_dim, out_dim)
+            for layer_key, in_dim, out_dim in zip(critic_keys, critic_dims, critic_dims[1:])
+        ),
+        value_head=init_layer(value_key, critic_last_hidden_size, 1, scale=1.0),
+        actor_conv=tuple(
+            init_conv_layer(
+                layer_key,
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+            )
+            for layer_key, in_channels, out_channels, kernel_size in zip(
+                actor_conv_keys,
+                actor_conv_input_channels,
+                actor_conv_channels,
+                actor_conv_kernel_sizes,
+            )
+        ),
+        critic_conv=tuple(
+            init_conv_layer(
+                layer_key,
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+            )
+            for layer_key, in_channels, out_channels, kernel_size in zip(
+                critic_conv_keys,
+                critic_conv_input_channels,
+                critic_conv_channels,
+                critic_conv_kernel_sizes,
+            )
+        ),
     )
 
 
@@ -472,21 +691,142 @@ def _linear(params: LinearParams, x: jax.Array) -> jax.Array:
     return x @ params.weight + params.bias
 
 
-def _forward_body(layers: tuple[LinearParams, LinearParams], x: jax.Array) -> jax.Array:
-    hidden = jnp.tanh(_linear(layers[0], x))
-    return jnp.tanh(_linear(layers[1], hidden))
+def _conv2d(params: ConvParams, x: jax.Array, *, stride: int) -> jax.Array:
+    output = jax.lax.conv_general_dilated(
+        x,
+        params.weight,
+        window_strides=(int(stride), int(stride)),
+        padding="SAME",
+        dimension_numbers=("NHWC", "HWIO", "NHWC"),
+    )
+    return output + params.bias
+
+
+def _activate(x: jax.Array, activation: str) -> jax.Array:
+    if activation == "tanh":
+        return jnp.tanh(x)
+    if activation == "relu":
+        return jax.nn.relu(x)
+    if activation == "silu":
+        return jax.nn.silu(x)
+    raise ValueError(f"Unsupported activation: {activation}.")
+
+
+def _forward_body(
+    layers: tuple[LinearParams, ...],
+    x: jax.Array,
+    *,
+    activation: str = "tanh",
+) -> jax.Array:
+    hidden = x
+    for layer in layers:
+        hidden = _activate(_linear(layer, hidden), activation)
+    return hidden
+
+
+def _actor_network_input(
+    params: JaxMAPPOParams,
+    actor_obs: jax.Array,
+    *,
+    activation: str,
+    actor_vision_radius: int,
+    write_bits: int,
+    actor_conv_stride: int,
+) -> jax.Array:
+    if not params.actor_conv:
+        return actor_obs
+
+    side, grid_channels = _actor_grid_shape(
+        actor_vision_radius=actor_vision_radius,
+        write_bits=write_bits,
+    )
+    grid_dim = side * side * grid_channels
+    grid = actor_obs[..., :grid_dim].reshape((-1, side, side, grid_channels))
+    tail = actor_obs[..., grid_dim:]
+    hidden = grid
+    for conv_layer in params.actor_conv:
+        hidden = _activate(_conv2d(conv_layer, hidden, stride=actor_conv_stride), activation)
+    conv_features = hidden.reshape((*actor_obs.shape[:-1], -1))
+    return jnp.concatenate([conv_features, tail], axis=-1)
+
+
+def _critic_network_input(
+    params: JaxMAPPOParams,
+    central_obs: jax.Array,
+    *,
+    activation: str,
+    critic_obs_height: int | None,
+    critic_obs_width: int | None,
+    critic_conv_stride: int,
+) -> jax.Array:
+    if not params.critic_conv:
+        return central_obs
+
+    obs_height, obs_width, grid_channels = _critic_grid_shape(
+        obs_height=critic_obs_height,
+        obs_width=critic_obs_width,
+    )
+    grid_area = obs_height * obs_width
+    grid_dim = grid_area * grid_channels
+    tail_dim = central_obs.shape[-1] - grid_dim
+    suffix_dim = 4
+    prefix_dim = tail_dim - suffix_dim
+    if prefix_dim < 0:
+        raise ValueError("Central observation is too small for the requested critic conv.")
+
+    grid_start = prefix_dim
+    grid_end = grid_start + grid_dim
+    prefix = central_obs[..., :grid_start]
+    suffix = central_obs[..., grid_end:]
+    grid = central_obs[..., grid_start:grid_end].reshape(
+        (-1, grid_channels, obs_height, obs_width)
+    )
+    hidden = jnp.moveaxis(grid, 1, -1)
+    for conv_layer in params.critic_conv:
+        hidden = _activate(_conv2d(conv_layer, hidden, stride=critic_conv_stride), activation)
+    conv_features = hidden.reshape((*central_obs.shape[:-1], -1))
+    return jnp.concatenate([prefix, conv_features, suffix], axis=-1)
 
 
 def get_action_logits(
     params: JaxMAPPOParams,
     actor_obs: jax.Array,
+    *,
+    activation: str = "tanh",
+    actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
+    write_bits: int = DEFAULT_WRITE_BITS,
+    actor_conv_stride: int = 2,
 ) -> tuple[jax.Array, jax.Array]:
-    hidden = _forward_body(params.actor_body, actor_obs)
+    actor_input = _actor_network_input(
+        params,
+        actor_obs,
+        activation=activation,
+        actor_vision_radius=actor_vision_radius,
+        write_bits=write_bits,
+        actor_conv_stride=actor_conv_stride,
+    )
+    hidden = _forward_body(params.actor_body, actor_input, activation=activation)
     return _linear(params.move_head, hidden), _linear(params.write_head, hidden)
 
 
-def get_value(params: JaxMAPPOParams, central_obs: jax.Array) -> jax.Array:
-    hidden = _forward_body(params.critic_body, central_obs)
+def get_value(
+    params: JaxMAPPOParams,
+    central_obs: jax.Array,
+    *,
+    activation: str = "tanh",
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
+    critic_conv_stride: int = 2,
+) -> jax.Array:
+    critic_input = _critic_network_input(
+        params,
+        central_obs,
+        activation=activation,
+        critic_obs_height=critic_obs_height,
+        critic_obs_width=critic_obs_width,
+        critic_conv_stride=critic_conv_stride,
+    )
+    hidden = _forward_body(params.critic_body, critic_input, activation=activation)
     return jnp.squeeze(_linear(params.value_head, hidden), axis=-1)
 
 
@@ -506,12 +846,34 @@ def evaluate_actions(
     actor_obs: jax.Array,
     central_obs: jax.Array,
     actions: jax.Array,
+    *,
+    activation: str = "tanh",
+    actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
+    write_bits: int = DEFAULT_WRITE_BITS,
+    actor_conv_stride: int = 2,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
+    critic_conv_stride: int = 2,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    move_logits, write_logits = get_action_logits(params, actor_obs)
+    move_logits, write_logits = get_action_logits(
+        params,
+        actor_obs,
+        activation=activation,
+        actor_vision_radius=actor_vision_radius,
+        write_bits=write_bits,
+        actor_conv_stride=actor_conv_stride,
+    )
     logprob = _categorical_log_prob(move_logits, actions[..., 0])
     logprob += _categorical_log_prob(write_logits, actions[..., 1])
     entropy = _categorical_entropy(move_logits) + _categorical_entropy(write_logits)
-    value = get_value(params, central_obs)
+    value = get_value(
+        params,
+        central_obs,
+        activation=activation,
+        critic_obs_height=critic_obs_height,
+        critic_obs_width=critic_obs_width,
+        critic_conv_stride=critic_conv_stride,
+    )
     return logprob, entropy, value
 
 
@@ -522,8 +884,22 @@ def get_action_and_value(
     key: jax.Array,
     *,
     deterministic: bool = False,
+    activation: str = "tanh",
+    actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
+    write_bits: int = DEFAULT_WRITE_BITS,
+    actor_conv_stride: int = 2,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
+    critic_conv_stride: int = 2,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-    move_logits, write_logits = get_action_logits(params, actor_obs)
+    move_logits, write_logits = get_action_logits(
+        params,
+        actor_obs,
+        activation=activation,
+        actor_vision_radius=actor_vision_radius,
+        write_bits=write_bits,
+        actor_conv_stride=actor_conv_stride,
+    )
     if deterministic:
         move_actions = jnp.argmax(move_logits, axis=-1)
         write_actions = jnp.argmax(write_logits, axis=-1)
@@ -535,7 +911,14 @@ def get_action_and_value(
     logprob = _categorical_log_prob(move_logits, move_actions)
     logprob += _categorical_log_prob(write_logits, write_actions)
     entropy = _categorical_entropy(move_logits) + _categorical_entropy(write_logits)
-    value = get_value(params, central_obs)
+    value = get_value(
+        params,
+        central_obs,
+        activation=activation,
+        critic_obs_height=critic_obs_height,
+        critic_obs_width=critic_obs_width,
+        critic_conv_stride=critic_conv_stride,
+    )
     return actions, logprob, entropy, value
 
 
@@ -808,6 +1191,13 @@ def _ppo_loss(
         batch.actor_obs,
         batch.central_obs,
         batch.actions,
+        activation=getattr(args, "activation", "tanh"),
+        actor_vision_radius=getattr(args, "actor_vision_radius", DEFAULT_ACTOR_VISION_DEPTH),
+        write_bits=getattr(args, "write_bits", DEFAULT_WRITE_BITS),
+        actor_conv_stride=getattr(args, "actor_conv_stride", 2),
+        critic_obs_height=getattr(args, "obs_height", None) or getattr(args, "height", None),
+        critic_obs_width=getattr(args, "obs_width", None) or getattr(args, "width", None),
+        critic_conv_stride=getattr(args, "critic_conv_stride", 2),
     )
     advantages = batch.advantages
     if args.norm_adv:

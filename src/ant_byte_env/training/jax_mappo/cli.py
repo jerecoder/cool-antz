@@ -8,6 +8,45 @@ from pathlib import Path
 from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
 from ant_byte_env.training.jax_mappo.transfer import WRITE_HEAD_TRANSFER_MODES
 
+ACTIVATION_CHOICES = ("tanh", "relu", "silu")
+
+
+def parse_hidden_sizes(values: list[str] | None) -> tuple[int, ...] | None:
+    return parse_positive_int_list(values, "--hidden-sizes")
+
+
+def parse_critic_hidden_sizes(values: list[str] | None) -> tuple[int, ...] | None:
+    return parse_positive_int_list(values, "--critic-hidden-sizes")
+
+
+def parse_actor_conv_channels(values: list[str] | None) -> tuple[int, ...] | None:
+    return parse_positive_int_list(values, "--actor-conv-channels")
+
+
+def parse_critic_conv_channels(values: list[str] | None) -> tuple[int, ...] | None:
+    return parse_positive_int_list(values, "--critic-conv-channels")
+
+
+def parse_actor_conv_kernel_sizes(values: list[str] | None) -> tuple[int, ...]:
+    return parse_positive_int_list(values, "--actor-conv-kernel-size") or (3,)
+
+
+def parse_critic_conv_kernel_sizes(values: list[str] | None) -> tuple[int, ...]:
+    return parse_positive_int_list(values, "--critic-conv-kernel-size") or (3,)
+
+
+def parse_positive_int_list(values: list[str] | None, option_name: str) -> tuple[int, ...] | None:
+    if values is None:
+        return None
+    numbers: list[int] = []
+    for value in values:
+        numbers.extend(int(item.strip()) for item in str(value).split(",") if item.strip())
+    if not numbers:
+        raise ValueError(f"{option_name} must include at least one value.")
+    if any(number <= 0 for number in numbers):
+        raise ValueError(f"{option_name} values must be positive.")
+    return tuple(numbers)
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train JAX MAPPO on AntByte forage.")
@@ -30,7 +69,47 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ent-coef", type=float, default=0.01)
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
+    parser.add_argument("--return-window-episodes", type=int, default=10)
     parser.add_argument("--hidden-size", type=int, default=128)
+    parser.add_argument(
+        "--hidden-sizes",
+        action="append",
+        default=None,
+        help="Comma-separated or repeated hidden layer sizes. Overrides --hidden-size.",
+    )
+    parser.add_argument(
+        "--critic-hidden-sizes",
+        action="append",
+        default=None,
+        help="Comma-separated or repeated critic hidden layer sizes. Defaults to --hidden-sizes.",
+    )
+    parser.add_argument("--activation", choices=ACTIVATION_CHOICES, default="tanh")
+    parser.add_argument(
+        "--actor-conv-channels",
+        action="append",
+        default=None,
+        help="Comma-separated or repeated actor vision convolution channel counts.",
+    )
+    parser.add_argument(
+        "--actor-conv-kernel-size",
+        action="append",
+        default=None,
+        help="One actor conv kernel size, or one per actor conv layer.",
+    )
+    parser.add_argument("--actor-conv-stride", type=int, default=2)
+    parser.add_argument(
+        "--critic-conv-channels",
+        action="append",
+        default=None,
+        help="Comma-separated or repeated critic map convolution channel counts.",
+    )
+    parser.add_argument(
+        "--critic-conv-kernel-size",
+        action="append",
+        default=None,
+        help="One critic conv kernel size, or one per critic conv layer.",
+    )
+    parser.add_argument("--critic-conv-stride", type=int, default=2)
 
     parser.add_argument("--width", type=int, default=5)
     parser.add_argument("--height", type=int, default=5)
@@ -113,6 +192,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     args = parser.parse_args(argv)
+    args.hidden_sizes = parse_hidden_sizes(args.hidden_sizes)
+    args.critic_hidden_sizes = parse_critic_hidden_sizes(args.critic_hidden_sizes)
+    args.actor_conv_channels = parse_actor_conv_channels(args.actor_conv_channels)
+    args.critic_conv_channels = parse_critic_conv_channels(args.critic_conv_channels)
+    args.actor_conv_kernel_size = parse_actor_conv_kernel_sizes(args.actor_conv_kernel_size)
+    args.critic_conv_kernel_size = parse_critic_conv_kernel_sizes(args.critic_conv_kernel_size)
     rollout_batch_size = args.num_envs * args.num_steps
     if args.num_envs <= 0:
         raise ValueError("--num-envs must be positive.")
@@ -126,8 +211,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--num-minibatches must evenly divide rollout batch size.")
     if args.update_epochs <= 0:
         raise ValueError("--update-epochs must be positive.")
+    if args.return_window_episodes <= 0:
+        raise ValueError("--return-window-episodes must be positive.")
     if args.hidden_size <= 0:
         raise ValueError("--hidden-size must be positive.")
+    if args.actor_conv_stride <= 0:
+        raise ValueError("--actor-conv-stride must be positive.")
+    if args.critic_conv_stride <= 0:
+        raise ValueError("--critic-conv-stride must be positive.")
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:
