@@ -24,6 +24,8 @@
     "cookie_distance": 24,
     "max_steps": 10000,
     "pickup_bonus": 0.25,
+    "return_progress_bonus": 0.01,
+    "carrying_step_penalty": 0.001,
     "distance_bonus": 0.0,
     "ent_coef": 0.0,
     "hidden_size": 64,
@@ -44,9 +46,9 @@
     "random_hub": true
   },
   "metadata": {
-    "global_update_cap": 300,
-    "vision_radii": [25],
-    "vision_sides": [51],
+    "global_update_cap": 5,
+    "vision_radii": [20],
+    "vision_sides": [41],
     "render_max_frames": 300,
     "notes": "The map stays fixed at 50x50. The curriculum changes only actor_vision_radius and warm-starts each smaller-vision stage from the previous checkpoint."
   }

@@ -928,10 +928,15 @@ def compute_forage_curriculum_rewards(
     next_obs: JaxObs,
     env_rewards: jax.Array,
     pickup_bonus: float,
+    return_progress_bonus: float = 0.0,
+    carrying_step_penalty: float = 0.0,
 ) -> jax.Array:
-    """Add pickup shaping while leaving movement progress unshaped."""
+    """Add simple forage shaping on top of the delivery reward."""
 
     def one_env(
+        previous_pos: jax.Array,
+        next_pos: jax.Array,
+        hub_pos: jax.Array,
         previous_carrying: jax.Array,
         next_carrying: jax.Array,
         env_reward: jax.Array,
@@ -939,11 +944,20 @@ def compute_forage_curriculum_rewards(
         was_carrying = previous_carrying.astype(jnp.bool_)
         is_carrying = next_carrying.astype(jnp.bool_)
         pickups = jnp.logical_and(jnp.logical_not(was_carrying), is_carrying).astype(jnp.float32)
+        carrying_mask = was_carrying.astype(jnp.float32)
+        previous_dist = jnp.sum(jnp.abs(previous_pos - hub_pos), axis=-1).astype(jnp.float32)
+        next_dist = jnp.sum(jnp.abs(next_pos - hub_pos), axis=-1).astype(jnp.float32)
+        return_progress = jnp.sum(carrying_mask * (previous_dist - next_dist))
         shaped = env_reward.astype(jnp.float32)
         shaped += float(pickup_bonus) * jnp.sum(pickups)
+        shaped += float(return_progress_bonus) * return_progress
+        shaped -= float(carrying_step_penalty) * jnp.sum(carrying_mask)
         return shaped
 
     return jax.vmap(one_env)(
+        previous_obs["ants_pos"],
+        next_obs["ants_pos"],
+        previous_obs["hub_pos"],
         previous_obs["ants_carrying"],
         next_obs["ants_carrying"],
         env_rewards,

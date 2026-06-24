@@ -380,6 +380,51 @@ def test_jax_forage_curriculum_rewards_add_pickup_without_target_progress() -> N
     np.testing.assert_allclose(np.asarray(shaped_rewards), np.array([0.0], dtype=np.float32))
 
 
+def test_jax_forage_curriculum_rewards_shape_return_to_hub() -> None:
+    def batch(obs):
+        return {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
+
+    env = JaxAntByteForagingEnv(width=4, height=3, num_ants=1, food_count=1)
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(5),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+    state, carrying_obs, _, _, _, _ = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    _, returned_obs, env_reward, _, _, _ = env.step(
+        state,
+        jnp.array([ACTION_LEFT, 0], dtype=jnp.int32),
+    )
+    return_reward = compute_forage_curriculum_rewards(
+        previous_obs=batch(carrying_obs),
+        next_obs=batch(returned_obs),
+        env_rewards=jnp.asarray([env_reward], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        return_progress_bonus=0.1,
+        carrying_step_penalty=0.01,
+    )
+
+    _, farther_obs, env_reward, _, _, _ = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+    away_reward = compute_forage_curriculum_rewards(
+        previous_obs=batch(carrying_obs),
+        next_obs=batch(farther_obs),
+        env_rewards=jnp.asarray([env_reward], dtype=jnp.float32),
+        pickup_bonus=0.25,
+        return_progress_bonus=0.1,
+        carrying_step_penalty=0.01,
+    )
+
+    np.testing.assert_allclose(np.asarray(return_reward), np.array([1.09], dtype=np.float32))
+    np.testing.assert_allclose(np.asarray(away_reward), np.array([-0.11], dtype=np.float32))
+
+
 def test_jax_agent_samples_joint_actions_for_configured_write_bits() -> None:
     obs = _batched_reset_obs()
     central_obs = build_central_observations(obs, food_scale=3, write_bits=3)

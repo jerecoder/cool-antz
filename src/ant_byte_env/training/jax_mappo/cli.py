@@ -177,6 +177,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--random-hub", action="store_true")
     parser.add_argument("--pickup-bonus", type=float, default=0.25)
     parser.add_argument(
+        "--return-progress-bonus",
+        type=float,
+        default=0.0,
+        help="Reward each carried step by the Manhattan-distance progress back to the hub.",
+    )
+    parser.add_argument(
+        "--carrying-step-penalty",
+        type=float,
+        default=0.0,
+        help="Small per-step penalty for each ant that starts the step carrying food.",
+    )
+    parser.add_argument(
         "--distance-bonus",
         type=float,
         default=0.0,
@@ -221,6 +233,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--critic-conv-stride must be positive.")
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
+    if args.return_progress_bonus < 0:
+        raise ValueError("--return-progress-bonus must be non-negative.")
+    if args.carrying_step_penalty < 0:
+        raise ValueError("--carrying-step-penalty must be non-negative.")
     if args.food_count > 0 and args.width * args.height <= 1:
         raise ValueError("food_count requires at least one non-hub tile.")
     if args.obs_width is not None and args.obs_width < args.width:
