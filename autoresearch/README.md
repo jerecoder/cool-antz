@@ -1,8 +1,25 @@
-# Forage Improvement Autoresearch
+# Archived Forage Autoresearch
 
-This folder contains the active autoresearch loop for improving JAX MAPPO forage performance at the 25x25 gate. Older communication, no-cheat 50x50, and one-off sweep matrices have been removed from the active interface so new runs use one comparable experiment ledger.
+This folder preserves the autoresearch evidence trail. It is not the main
+presentation surface for the MIT course version of this project.
 
-## Commands
+The durable takeaway lives in `autoresearch/REPORT.md`: the original single-ant
+curriculum did not scale cleanly, distance-shaped multi-ant policies solved the
+25x25 gate under sampled movement, and rare-source 50x50 remains unsolved. Most
+of the experiment machinery and generated payloads can be treated as archival
+after those claims are copied into the presentation path.
+
+For the course repo, prefer:
+
+- thin notebooks that run one clear experiment or visualization;
+- stable source modules under `src/ant_byte_env/`;
+- curated results and short claims;
+- `autoresearch/REPORT.md` as the historical summary.
+
+Do not treat the live loop matrix as required course infrastructure unless new
+experiments are explicitly needed.
+
+## Historical Commands
 
 Plan one experiment:
 
@@ -28,7 +45,7 @@ Rank completed runs:
 PYTHONPATH=src ant-byte autoresearch loop-rank
 ```
 
-## Artifacts
+## Artifacts To Keep
 
 Each run writes under `runs/autoresearch/forage_loop/<experiment-id>/`:
 
@@ -37,4 +54,11 @@ Each run writes under `runs/autoresearch/forage_loop/<experiment-id>/`:
 - `evaluation.json`: deterministic and sampled held-out checkpoint evaluation
 - `summary.json`: training result, evaluation result, and artifact pointers
 
-The autonomous controller also writes `ledger.json` and append-only `ledger.jsonl` under the loop root. W&B receives the training metrics plus research-plan artifacts; the sidecar ledger run logs the summary/evaluation files and flattened evaluation metrics.
+The autonomous controller also writes `ledger.json` and append-only
+`ledger.jsonl` under the loop root. W&B receives the training metrics plus
+research-plan artifacts; the sidecar ledger run logs the summary/evaluation
+files and flattened evaluation metrics.
+
+The generated directories under `runs/autoresearch/**/checkpoints`,
+`runs/autoresearch/**/wandb`, and `runs/autoresearch/**/media` are disposable
+once the small JSON/Markdown records and `REPORT.md` have been preserved.
