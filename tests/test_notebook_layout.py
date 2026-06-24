@@ -4,17 +4,17 @@ from pathlib import Path
 
 EXPECTED_NOTEBOOKS = {
     Path("baselines/direct_goal.ipynb"),
-    Path("communication/ant_count_curriculum.ipynb"),
     Path("communication/bit_curriculum.ipynb"),
     Path("curriculum/autocurriculum.ipynb"),
     Path("curriculum/exploration.ipynb"),
     Path("curriculum/forage.ipynb"),
     Path("curriculum/maze_exploration.ipynb"),
     Path("exploration_to_forage/base_50x50.ipynb"),
-    Path("exploration_to_forage/full_layout_8ants_half_food_50x50.ipynb"),
-    Path("exploration_to_forage/padded_sources_50x50.ipynb"),
-    Path("exploration_to_forage/proximity_sources_50x50.ipynb"),
-    Path("exploration_to_forage/scratch_smooth_sources_50x50.ipynb"),
+    Path("scaling/ant_count_curriculum.ipynb"),
+    Path("scaling/full_layout_8ants_half_food_50x50.ipynb"),
+    Path("source_layouts/padded_sources_50x50.ipynb"),
+    Path("source_layouts/proximity_sources_50x50.ipynb"),
+    Path("source_layouts/scratch_smooth_sources_50x50.ipynb"),
 }
 
 

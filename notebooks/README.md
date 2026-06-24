@@ -14,15 +14,21 @@ walking up to `pyproject.toml`.
 ## Exploration To Forage
 
 - `exploration_to_forage/base_50x50.ipynb` - base 50x50 transfer workflow.
-- `exploration_to_forage/padded_sources_50x50.ipynb` - padded source layout workflow.
-- `exploration_to_forage/proximity_sources_50x50.ipynb` - proximity source workflow.
-- `exploration_to_forage/scratch_smooth_sources_50x50.ipynb` - scratch smooth-source workflow.
-- `exploration_to_forage/full_layout_8ants_half_food_50x50.ipynb` - larger 8-ant layout experiment.
 
 ## Communication
 
 - `communication/bit_curriculum.ipynb` - communication-bit curriculum.
-- `communication/ant_count_curriculum.ipynb` - ant-count scaling from a communication checkpoint.
+
+## Source Layouts
+
+- `source_layouts/padded_sources_50x50.ipynb` - padded source layout workflow.
+- `source_layouts/proximity_sources_50x50.ipynb` - proximity source workflow.
+- `source_layouts/scratch_smooth_sources_50x50.ipynb` - scratch smooth-source workflow.
+
+## Scaling
+
+- `scaling/ant_count_curriculum.ipynb` - ant-count scaling from a communication checkpoint.
+- `scaling/full_layout_8ants_half_food_50x50.ipynb` - larger 8-ant full-layout experiment.
 
 ## Baselines
 
