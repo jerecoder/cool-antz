@@ -20,6 +20,12 @@ from ant_byte_env.workflows.checkpoints import (
     forage_checkpoint_paths,
     maze_exploration_checkpoint_paths,
 )
+from ant_byte_env.workflows.cli import (
+    WANDB_CLI_VALUE_ARGS,
+    WANDB_CLI_VARARGS,
+    argv_int,
+    strip_wandb_cli_args,
+)
 
 __all__ = [
     "ANT_COUNT_ARG_EXCLUDES",
@@ -38,4 +44,8 @@ __all__ = [
     "exploration_checkpoint_paths",
     "forage_checkpoint_paths",
     "maze_exploration_checkpoint_paths",
+    "WANDB_CLI_VALUE_ARGS",
+    "WANDB_CLI_VARARGS",
+    "argv_int",
+    "strip_wandb_cli_args",
 ]

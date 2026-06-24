@@ -70,23 +70,16 @@ from ant_byte_env.workflows.checkpoints import (
     forage_checkpoint_paths,
     maze_exploration_checkpoint_paths,
 )
+from ant_byte_env.workflows.cli import (
+    WANDB_CLI_VALUE_ARGS as _WANDB_CLI_VALUE_ARGS,
+    WANDB_CLI_VARARGS as _WANDB_CLI_VARARGS,
+    argv_int as _argv_int,
+    strip_wandb_cli_args as _strip_wandb_cli_args,
+)
 
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
 NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 1.0
-_WANDB_CLI_VALUE_ARGS = frozenset(
-    {
-        "--wandb-project",
-        "--wandb-entity",
-        "--wandb-group",
-        "--wandb-run-name",
-        "--wandb-notes",
-        "--wandb-mode",
-    }
-)
-_WANDB_CLI_VARARGS = frozenset({"--wandb-tags"})
-
-
 def notebook_rollout_policy_temperature(
     metadata: Mapping[str, Any],
     *,
@@ -889,43 +882,6 @@ def _forage_stage_update_timesteps(
     if num_envs is None:
         return int(fallback_update_timesteps)
     return update_timesteps(num_envs=num_envs, num_steps=int(stage["num_steps"]))
-
-
-def _argv_int(argv: Sequence[str], option: str) -> int | None:
-    try:
-        index = len(argv) - 1 - list(reversed(argv)).index(option)
-    except ValueError:
-        return None
-    try:
-        return int(argv[index + 1])
-    except (IndexError, ValueError):
-        return None
-
-
-def _strip_wandb_cli_args(argv: Sequence[str]) -> tuple[list[str], list[str]]:
-    stripped: list[str] = []
-    removed: list[str] = []
-    index = 0
-    values = list(argv)
-    while index < len(values):
-        value = str(values[index])
-        if value in _WANDB_CLI_VALUE_ARGS:
-            removed.append(value)
-            index += 1
-            if index < len(values):
-                removed.append(str(values[index]))
-                index += 1
-            continue
-        if value in _WANDB_CLI_VARARGS:
-            removed.append(value)
-            index += 1
-            while index < len(values) and not str(values[index]).startswith("--"):
-                removed.append(str(values[index]))
-                index += 1
-            continue
-        stripped.append(value)
-        index += 1
-    return stripped, removed
 
 
 def _advance_progress_to(
