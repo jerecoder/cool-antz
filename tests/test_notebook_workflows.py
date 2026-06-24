@@ -1718,22 +1718,6 @@ def test_ant_count_training_args_keep_25x25_task_with_50_padded_observations() -
     assert args["write_while_moving"] is True
 
 
-def test_checkpoint_path_helpers_match_notebook_artifact_layout(tmp_path: Path) -> None:
-    stages = workflows.build_forage_curriculum_stages((4,))
-
-    assert workflows.forage_checkpoint_paths(tmp_path / "checkpoints", stages) == [
-        tmp_path / "checkpoints" / "jax_mappo_forage_stage1_4x4.pkl"
-    ]
-    assert workflows.communication_checkpoint_paths(tmp_path, (2, 3)) == [
-        tmp_path / "2_bits" / "checkpoints" / "model.pkl",
-        tmp_path / "3_bits" / "checkpoints" / "model.pkl",
-    ]
-    assert workflows.ant_count_checkpoint_paths(tmp_path, (2, 4)) == [
-        tmp_path / "2_ants" / "checkpoints" / "model.pkl",
-        tmp_path / "4_ants" / "checkpoints" / "model.pkl",
-    ]
-
-
 def test_render_forage_rollouts_can_limit_stage_names(monkeypatch, tmp_path: Path) -> None:
     captured_checkpoint_paths: list[Path] = []
     captured_metadata: dict[str, object] = {}

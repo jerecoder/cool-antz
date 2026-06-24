@@ -63,6 +63,13 @@ from ant_byte_env.workflows.args import (
     config_common_args,
     update_timesteps,
 )
+from ant_byte_env.workflows.checkpoints import (
+    ant_count_checkpoint_paths,
+    communication_checkpoint_paths,
+    exploration_checkpoint_paths,
+    forage_checkpoint_paths,
+    maze_exploration_checkpoint_paths,
+)
 
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
@@ -1635,41 +1642,6 @@ def stage_update_progress(label: str, total_updates: int) -> Any:
         bar_format="{desc}: {n_fmt}/{total_fmt} updates |{bar}| {elapsed}<{remaining} {postfix}",
         leave=True,
     )
-
-
-def forage_checkpoint_paths(
-    checkpoint_dir: Path,
-    stages: Sequence[Mapping[str, Any]],
-) -> list[Path]:
-    return [checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}.pkl" for stage in stages]
-
-
-def exploration_checkpoint_paths(
-    checkpoint_dir: Path,
-    stages: Sequence[Mapping[str, Any]],
-) -> list[Path]:
-    return [checkpoint_dir / f"jax_mappo_explore_{stage['name']}.pkl" for stage in stages]
-
-
-def maze_exploration_checkpoint_paths(
-    checkpoint_dir: Path,
-    stages: Sequence[Mapping[str, Any]],
-) -> list[Path]:
-    return [
-        checkpoint_dir / f"jax_mappo_maze_explore_{stage['name']}.pkl"
-        for stage in stages
-    ]
-
-
-def communication_checkpoint_paths(run_dir: Path, bit_stages: Sequence[int]) -> list[Path]:
-    return [run_dir / f"{bits}_bits" / "checkpoints" / "model.pkl" for bits in bit_stages]
-
-
-def ant_count_checkpoint_paths(run_dir: Path, ant_stages: Sequence[int]) -> list[Path]:
-    return [
-        run_dir / f"{num_ants}_ants" / "checkpoints" / "model.pkl"
-        for num_ants in ant_stages
-    ]
 
 
 def render_forage_rollouts(
