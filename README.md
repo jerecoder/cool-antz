@@ -274,11 +274,11 @@ Use `--random-food --random-hub --food-sources N` to randomize the colony
 location and split cookies across multiple random source tiles on each reset.
 
 For the current curriculum schedule, install the JAX and notebook extras and
-open `notebooks/train_mappo_curriculum.ipynb`:
+open `notebooks/curriculum/forage.ipynb`:
 
 ```bash
 python -m pip install -e ".[jax,rl,notebooks]"
-jupyter notebook notebooks/train_mappo_curriculum.ipynb
+jupyter notebook notebooks/curriculum/forage.ipynb
 ```
 
 To monitor a long JAX curriculum from your phone, install with

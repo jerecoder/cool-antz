@@ -1,0 +1,29 @@
+# Notebooks
+
+Notebook filenames are short and grouped by workflow. Open notebooks from the
+repo root or any notebook subfolder; each notebook resolves the project root by
+walking up to `pyproject.toml`.
+
+## Curriculum
+
+- `curriculum/forage.ipynb` - main staged forage curriculum.
+- `curriculum/exploration.ipynb` - exploration-only curriculum.
+- `curriculum/maze_exploration.ipynb` - maze exploration curriculum.
+- `curriculum/autocurriculum.ipynb` - single-policy autocurriculum.
+
+## Exploration To Forage
+
+- `exploration_to_forage/base_50x50.ipynb` - base 50x50 transfer workflow.
+- `exploration_to_forage/padded_sources_50x50.ipynb` - padded source layout workflow.
+- `exploration_to_forage/proximity_sources_50x50.ipynb` - proximity source workflow.
+- `exploration_to_forage/scratch_smooth_sources_50x50.ipynb` - scratch smooth-source workflow.
+- `exploration_to_forage/full_layout_8ants_half_food_50x50.ipynb` - larger 8-ant layout experiment.
+
+## Communication
+
+- `communication/bit_curriculum.ipynb` - communication-bit curriculum.
+- `communication/ant_count_curriculum.ipynb` - ant-count scaling from a communication checkpoint.
+
+## Baselines
+
+- `baselines/direct_goal.ipynb` - direct-goal baseline.
