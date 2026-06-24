@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ant_byte_env import notebook_workflows as workflows
+from ant_byte_env.workflows import previews as preview_helpers
 from ant_byte_env.workflows import rollouts as rollout_helpers
 
 
@@ -825,7 +826,7 @@ def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
         lambda label, total_updates: FakeProgress(),
     )
     monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
-    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(preview_helpers, "render_checkpoint", fake_render_checkpoint)
 
     stages = workflows.build_forage_curriculum_stages((4,))
     result = workflows.run_forage_curriculum(
@@ -942,14 +943,14 @@ def test_forage_curriculum_logs_two_run_specific_wandb_stage_previews(
         )
         return {"global_step": 64.0, "loss": 0.1, "episode_return": 1.0}
 
-    monkeypatch.setattr(workflows.time, "time_ns", lambda: 123_456_789)
+    monkeypatch.setattr(preview_helpers.time, "time_ns", lambda: 123_456_789)
     monkeypatch.setattr(
         workflows,
         "stage_update_progress",
         lambda label, total_updates: FakeProgress(),
     )
     monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
-    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(preview_helpers, "render_checkpoint", fake_render_checkpoint)
 
     workflows.run_forage_curriculum(
         stages=workflows.build_forage_curriculum_stages((4,)),
@@ -1494,7 +1495,7 @@ def test_forage_curriculum_limits_wandb_previews_to_selected_stages(
         lambda label, total_updates: FakeProgress(),
     )
     monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
-    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(preview_helpers, "render_checkpoint", fake_render_checkpoint)
 
     workflows.run_forage_curriculum(
         stages=workflows.build_forage_curriculum_stages((4, 5)),

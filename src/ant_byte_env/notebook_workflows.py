@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -60,7 +59,6 @@ from ant_byte_env.workflows.args import (
     build_forage_common_args,
     build_maze_exploration_common_args,
     config_common_args,
-    update_timesteps,
 )
 from ant_byte_env.workflows.ant_count import (
     ant_count_train_args,
@@ -78,7 +76,6 @@ from ant_byte_env.workflows.checkpoints import (
 from ant_byte_env.workflows.cli import (
     WANDB_CLI_VALUE_ARGS as _WANDB_CLI_VALUE_ARGS,
     WANDB_CLI_VARARGS as _WANDB_CLI_VARARGS,
-    argv_int as _argv_int,
     strip_wandb_cli_args as _strip_wandb_cli_args,
 )
 from ant_byte_env.workflows.experiments import (
@@ -91,12 +88,17 @@ from ant_byte_env.workflows.progress import (
     stage_update_progress,
 )
 from ant_byte_env.workflows.previews import (
+    render_forage_wandb_previews as _render_forage_wandb_previews,
     validate_wandb_preview_stage_names as _validate_wandb_preview_stage_names,
     validate_wandb_video_rollout_count as _validate_wandb_video_rollout_count,
     wandb_preview_enabled as _wandb_preview_enabled,
     wandb_preview_stage_enabled as _wandb_preview_stage_enabled,
     wandb_preview_video_key as _wandb_preview_video_key,
     wandb_video_seed_offset_base as _wandb_video_seed_offset_base,
+)
+from ant_byte_env.workflows.stage_profiles import (
+    forage_stage_training_profiles as _forage_stage_training_profiles,
+    forage_stage_update_timesteps as _forage_stage_update_timesteps,
 )
 from ant_byte_env.workflows.rollouts import (
     NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
@@ -659,84 +661,6 @@ def run_autocurriculum_training(
         "stage_metrics": stage_metrics,
         "final_train_metrics": final_train_metrics,
     }
-
-
-def _forage_stage_training_profiles(
-    stages: Sequence[Mapping[str, Any]],
-    *,
-    common_args: Sequence[str],
-    fallback_update_timesteps: int,
-    fallback_update_cap: int,
-) -> list[dict[str, Any]]:
-    return [
-        {
-            "stage": str(stage["name"]),
-            "global_update_cap": int(stage.get("global_update_cap", fallback_update_cap)),
-            "num_steps": int(stage["num_steps"]) if "num_steps" in stage else None,
-            "gamma": float(stage["gamma"]) if "gamma" in stage else None,
-            "update_timesteps": _forage_stage_update_timesteps(
-                stage,
-                common_args=common_args,
-                fallback_update_timesteps=fallback_update_timesteps,
-            ),
-        }
-        for stage in stages
-    ]
-
-
-def _forage_stage_update_timesteps(
-    stage: Mapping[str, Any],
-    *,
-    common_args: Sequence[str],
-    fallback_update_timesteps: int,
-) -> int:
-    if "update_timesteps" in stage:
-        return int(stage["update_timesteps"])
-    if "num_steps" not in stage:
-        return int(fallback_update_timesteps)
-    num_envs = _argv_int(common_args, "--num-envs")
-    if num_envs is None:
-        return int(fallback_update_timesteps)
-    return update_timesteps(num_envs=num_envs, num_steps=int(stage["num_steps"]))
-
-
-def _render_forage_wandb_previews(
-    *,
-    checkpoint_path: Path,
-    checkpoint_dir: Path,
-    stage_index: int,
-    max_frames: int | None,
-    policy_temperature: float,
-    rollout_count: int,
-    seed_offset_base: int,
-) -> list[Path]:
-    media_dir = checkpoint_dir.parent / "media" / "wandb_previews"
-    output_paths: list[Path] = []
-    for preview_index in range(int(rollout_count)):
-        suffix = (
-            "_preview.mp4"
-            if int(rollout_count) == 1
-            else f"_preview_{preview_index + 1:02d}.mp4"
-        )
-        output_path = media_dir / f"{checkpoint_path.stem}{suffix}"
-        seed_offset = (
-            int(seed_offset_base)
-            + (int(stage_index) - 1) * int(rollout_count)
-            + preview_index
-        )
-        output_paths.append(
-            render_checkpoint(
-                checkpoint_path,
-                output_path,
-                backend="jax",
-                seed_offset=seed_offset,
-                reuse_existing=False,
-                max_frames=max_frames,
-                tile_size=NOTEBOOK_ROLLOUT_TILE_SIZE,
-                policy_temperature=policy_temperature,
-            )
-        )
-    return output_paths
 
 
 def validate_communication_stages(bit_stages: Sequence[int]) -> None:

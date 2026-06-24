@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
+from ant_byte_env.rendering import render_checkpoint
 from ant_byte_env.workflows.rollouts import NOTEBOOK_ROLLOUT_SEED_OFFSET
+from ant_byte_env.workflows.rollouts import NOTEBOOK_ROLLOUT_TILE_SIZE
 
 
 def wandb_preview_enabled(max_frames: int | None) -> bool:
@@ -80,7 +83,47 @@ def wandb_preview_video_key(
     return f"{stage_key}/rollout_{preview_index + 1:02d}"
 
 
+def render_forage_wandb_previews(
+    *,
+    checkpoint_path: Path,
+    checkpoint_dir: Path,
+    stage_index: int,
+    max_frames: int | None,
+    policy_temperature: float,
+    rollout_count: int,
+    seed_offset_base: int,
+) -> list[Path]:
+    media_dir = checkpoint_dir.parent / "media" / "wandb_previews"
+    output_paths: list[Path] = []
+    for preview_index in range(int(rollout_count)):
+        suffix = (
+            "_preview.mp4"
+            if int(rollout_count) == 1
+            else f"_preview_{preview_index + 1:02d}.mp4"
+        )
+        output_path = media_dir / f"{checkpoint_path.stem}{suffix}"
+        seed_offset = (
+            int(seed_offset_base)
+            + (int(stage_index) - 1) * int(rollout_count)
+            + preview_index
+        )
+        output_paths.append(
+            render_checkpoint(
+                checkpoint_path,
+                output_path,
+                backend="jax",
+                seed_offset=seed_offset,
+                reuse_existing=False,
+                max_frames=max_frames,
+                tile_size=NOTEBOOK_ROLLOUT_TILE_SIZE,
+                policy_temperature=policy_temperature,
+            )
+        )
+    return output_paths
+
+
 __all__ = [
+    "render_forage_wandb_previews",
     "validate_wandb_preview_stage_names",
     "validate_wandb_video_rollout_count",
     "wandb_preview_enabled",
