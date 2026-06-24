@@ -103,6 +103,7 @@ from ant_byte_env.workflows.rollouts import (
     NOTEBOOK_ROLLOUT_SEED_OFFSET,
     NOTEBOOK_ROLLOUT_TILE_SIZE,
     notebook_rollout_policy_temperature,
+    render_jax_checkpoint_rollout,
     render_rollout_suite,
     validate_rollout_policy_temperature as _validate_rollout_policy_temperature,
 )
@@ -1547,76 +1548,6 @@ def _filter_stages_by_name(
         return list(stages)
     enabled_names = {str(stage_name) for stage_name in stage_names}
     return [stage for stage in stages if str(stage["name"]) in enabled_names]
-
-
-def render_jax_checkpoint_rollout(
-    *,
-    run_dir: Path,
-    checkpoint_path: Path,
-    media_dir: Path,
-    rollout_filename: str,
-    title: str,
-    description: str,
-    metadata: Mapping[str, Any],
-    max_frames: int | None = None,
-    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
-    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
-    reuse_existing: bool = True,
-    wandb_project: str | None = None,
-    wandb_entity: str | None = None,
-    wandb_group: str | None = None,
-    wandb_run_name: str | None = None,
-    wandb_mode: str = "online",
-    wandb_tags: Sequence[str] | None = None,
-    wandb_video_key: str | None = None,
-    wandb_step: int | float | None = None,
-) -> dict[str, Any]:
-    policy_temperature = _validate_rollout_policy_temperature(
-        policy_temperature,
-        name="policy_temperature",
-    )
-    media_dir.mkdir(parents=True, exist_ok=True)
-    rollout_path = render_checkpoint(
-        checkpoint_path,
-        media_dir / rollout_filename,
-        backend="jax",
-        reuse_existing=reuse_existing,
-        max_frames=max_frames,
-        tile_size=tile_size,
-        policy_temperature=policy_temperature,
-    )
-    tracker = WandbTracker(
-        project=wandb_project,
-        entity=wandb_entity,
-        group=wandb_group,
-        name=wandb_run_name,
-        mode=wandb_mode,
-        tags=wandb_tags,
-        run_dir=run_dir,
-        config={"checkpoint_path": str(checkpoint_path), **dict(metadata)},
-    )
-    try:
-        if tracker.enabled and wandb_video_key is not None:
-            tracker.log_video(wandb_video_key, rollout_path, step=wandb_step)
-    finally:
-        tracker.finish()
-    vault_entry_path = create_vault_entry(
-        vault_dir=run_dir / "vault",
-        title=title,
-        description=description,
-        assets=[rollout_path],
-        metadata={
-            "checkpoint_path": str(checkpoint_path),
-            "rollout_path": str(rollout_path),
-            "rollout_policy_temperature": policy_temperature,
-            **dict(metadata),
-        },
-    )
-    return {
-        "rollout_path": rollout_path,
-        "vault_entry_path": vault_entry_path,
-        "wandb_video_key": wandb_video_key if tracker.enabled else None,
-    }
 
 
 def render_autocurriculum_rollout(
