@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -82,31 +81,17 @@ from ant_byte_env.workflows.cli import (
     argv_int as _argv_int,
     strip_wandb_cli_args as _strip_wandb_cli_args,
 )
-
-NOTEBOOK_ROLLOUT_TILE_SIZE = 16
-NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
-NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 1.0
-def notebook_rollout_policy_temperature(
-    metadata: Mapping[str, Any],
-    *,
-    key: str = "rollout_policy_temperature",
-    default: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
-) -> float:
-    return _validate_rollout_policy_temperature(
-        metadata.get(key, default),
-        name=key,
-    )
-
-
-def _validate_rollout_policy_temperature(value: object, *, name: str) -> float:
-    try:
-        temperature = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be a non-negative float.") from exc
-    if not math.isfinite(temperature) or temperature < 0.0:
-        raise ValueError(f"{name} must be a non-negative float.")
-    return temperature
-
+from ant_byte_env.workflows.progress import (
+    advance_progress_to as _advance_progress_to,
+    stage_update_progress,
+)
+from ant_byte_env.workflows.rollouts import (
+    NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    NOTEBOOK_ROLLOUT_SEED_OFFSET,
+    NOTEBOOK_ROLLOUT_TILE_SIZE,
+    notebook_rollout_policy_temperature,
+    validate_rollout_policy_temperature as _validate_rollout_policy_temperature,
+)
 
 def load_jax_experiment(config_path: Path) -> Any:
     experiment = load_experiment_config(config_path)
@@ -890,17 +875,6 @@ def _forage_stage_update_timesteps(
     return update_timesteps(num_envs=num_envs, num_steps=int(stage["num_steps"]))
 
 
-def _advance_progress_to(
-    progress: Any,
-    *,
-    update_index: int,
-    previous_update_index: int,
-) -> int:
-    next_update_index = int(update_index)
-    progress.update(max(0, next_update_index - int(previous_update_index)))
-    return next_update_index
-
-
 def _wandb_preview_enabled(max_frames: int | None) -> bool:
     return max_frames is None or int(max_frames) > 0
 
@@ -1533,18 +1507,6 @@ def prepare_ant_count_checkpoint(
         },
     )
     return warm_start_checkpoint
-
-
-def stage_update_progress(label: str, total_updates: int) -> Any:
-    from tqdm.auto import tqdm
-
-    return tqdm(
-        range(1, int(total_updates) + 1),
-        total=int(total_updates),
-        desc=label,
-        bar_format="{desc}: {n_fmt}/{total_fmt} updates |{bar}| {elapsed}<{remaining} {postfix}",
-        leave=True,
-    )
 
 
 def render_forage_rollouts(

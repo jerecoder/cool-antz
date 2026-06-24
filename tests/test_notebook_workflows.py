@@ -106,20 +106,6 @@ def test_notebook_resource_guard_rejects_gpu_reboot_recovery_action() -> None:
     assert "reboot" in str(exc_info.value).lower()
 
 
-def test_notebook_rollout_policy_temperature_comes_from_metadata() -> None:
-    assert workflows.notebook_rollout_policy_temperature({}) == (
-        workflows.NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE
-    )
-    assert workflows.notebook_rollout_policy_temperature(
-        {"rollout_policy_temperature": 0.0}
-    ) == 0.0
-    assert workflows.notebook_rollout_policy_temperature(
-        {"rollout_policy_temperature": "0.75"}
-    ) == 0.75
-    with pytest.raises(ValueError, match="rollout_policy_temperature"):
-        workflows.notebook_rollout_policy_temperature({"rollout_policy_temperature": -0.1})
-
-
 def test_cleanup_notebook_artifacts_dry_run_and_delete(tmp_path: Path) -> None:
     cache_dir = tmp_path / "__pycache__"
     nested_checkpoint = tmp_path / "notebooks" / ".ipynb_checkpoints"
