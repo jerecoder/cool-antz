@@ -1,5 +1,5 @@
 from ant_byte_env import notebook_workflows as workflows
-from ant_byte_env.workflows import progress
+from ant_byte_env.workflows import args, progress
 
 
 class FakeProgress:
@@ -30,3 +30,8 @@ def test_advance_progress_to_updates_only_forward_delta() -> None:
 def test_notebook_workflows_reexports_progress_helpers() -> None:
     assert workflows._advance_progress_to is progress.advance_progress_to
     assert workflows.stage_update_progress is progress.stage_update_progress
+
+
+def test_notebook_workflows_reexports_update_timesteps() -> None:
+    assert workflows.update_timesteps is args.update_timesteps
+    assert workflows.update_timesteps(num_envs=16, num_steps=256) == 4096

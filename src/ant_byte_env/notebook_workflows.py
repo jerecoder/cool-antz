@@ -59,6 +59,7 @@ from ant_byte_env.workflows.args import (
     build_forage_common_args,
     build_maze_exploration_common_args,
     config_common_args,
+    update_timesteps,
 )
 from ant_byte_env.workflows.ant_count import (
     ant_count_train_args,
