@@ -32,6 +32,11 @@ from ant_byte_env.workflows.cli import (
     argv_int,
     strip_wandb_cli_args,
 )
+from ant_byte_env.workflows.experiments import (
+    load_jax_experiment,
+    resolve_project_path,
+    run_jax_smoke,
+)
 from ant_byte_env.workflows.progress import (
     advance_progress_to,
     stage_update_progress,
@@ -69,6 +74,9 @@ __all__ = [
     "WANDB_CLI_VARARGS",
     "argv_int",
     "strip_wandb_cli_args",
+    "load_jax_experiment",
+    "resolve_project_path",
+    "run_jax_smoke",
     "advance_progress_to",
     "stage_update_progress",
     "NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE",

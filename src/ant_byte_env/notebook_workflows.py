@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ant_byte_env import MAX_WRITE_BITS
-from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
+from ant_byte_env.experiments import config_args_to_argv
 from ant_byte_env.curricula.stages import (
     FORAGE_STAGE_SIZES,
     FORAGE_STAGE_TRAINING_PROFILE,
@@ -81,6 +81,11 @@ from ant_byte_env.workflows.cli import (
     argv_int as _argv_int,
     strip_wandb_cli_args as _strip_wandb_cli_args,
 )
+from ant_byte_env.workflows.experiments import (
+    load_jax_experiment,
+    resolve_project_path,
+    run_jax_smoke,
+)
 from ant_byte_env.workflows.progress import (
     advance_progress_to as _advance_progress_to,
     stage_update_progress,
@@ -92,52 +97,6 @@ from ant_byte_env.workflows.rollouts import (
     notebook_rollout_policy_temperature,
     validate_rollout_policy_temperature as _validate_rollout_policy_temperature,
 )
-
-def load_jax_experiment(config_path: Path) -> Any:
-    experiment = load_experiment_config(config_path)
-    if experiment.backend != "jax":
-        raise ValueError(f"Expected a JAX experiment config, got {experiment.backend!r}.")
-    return experiment
-
-
-def resolve_project_path(project_root: Path, path: str | Path) -> Path:
-    resolved = Path(path)
-    return resolved if resolved.is_absolute() else project_root / resolved
-
-
-def run_jax_smoke(train_main: Callable[..., dict[str, float]]) -> dict[str, float]:
-    return train_main(
-        [
-            "--total-timesteps",
-            "8",
-            "--num-envs",
-            "1",
-            "--num-steps",
-            "4",
-            "--num-minibatches",
-            "1",
-            "--update-epochs",
-            "1",
-            "--width",
-            "4",
-            "--height",
-            "4",
-            "--num-ants",
-            "1",
-            "--food-count",
-            "1",
-            "--max-steps",
-            "8",
-            "--write-bits",
-            "1",
-            "--hidden-size",
-            "16",
-            "--seed",
-            "11",
-            "--quiet",
-        ]
-    )
-
 
 def run_forage_curriculum(
     *,
