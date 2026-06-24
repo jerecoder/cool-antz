@@ -7,9 +7,11 @@ jax = pytest.importorskip("jax")
 jnp = pytest.importorskip("jax.numpy")
 
 from ant_byte_env import (
+    ACTION_DOWN,
     ACTION_LEFT,
     ACTION_RIGHT,
     ACTION_STAY,
+    ACTION_UP,
     MOVEMENT_ACTION_COUNT,
     AntByteForagingEnv,
 )
@@ -22,6 +24,27 @@ def _batched(obs: dict[str, jax.Array]) -> dict[str, jax.Array]:
     return {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
 
 
+def _open_cell_next_to_wall(obstacles: np.ndarray) -> tuple[tuple[int, int], int]:
+    directions = (
+        (ACTION_UP, 0, -1),
+        (ACTION_RIGHT, 1, 0),
+        (ACTION_DOWN, 0, 1),
+        (ACTION_LEFT, -1, 0),
+    )
+    height, width = obstacles.shape
+    for y_pos in range(height):
+        for x_pos in range(width):
+            if obstacles[y_pos, x_pos]:
+                continue
+            for action, dx, dy in directions:
+                next_x = x_pos + dx
+                next_y = y_pos + dy
+                if 0 <= next_x < width and 0 <= next_y < height:
+                    if obstacles[next_y, next_x]:
+                        return (x_pos, y_pos), action
+    raise AssertionError("maze should contain an open cell adjacent to a wall")
+
+
 def _deliver_first_jax_source(env: JaxAntByteAutoCurriculumEnv, state, count: int = 6):
     result = None
     for _ in range(count):
@@ -32,6 +55,116 @@ def _deliver_first_jax_source(env: JaxAntByteAutoCurriculumEnv, state, count: in
         state = result[0]
     assert result is not None
     return result
+
+
+def test_jax_layout_margin_restricts_random_hub_and_food_sources() -> None:
+    env = JaxAntByteForagingEnv(
+        width=8,
+        height=8,
+        num_ants=2,
+        food_count=6,
+        food_source_count=3,
+        random_food=True,
+        random_hub=True,
+        layout_margin=2,
+    )
+
+    _, obs, _ = env.reset(jax.random.PRNGKey(17))
+    hub_pos = np.asarray(obs["hub_pos"])
+    food_positions = np.argwhere(np.asarray(obs["food"]) > 0)
+
+    assert np.all((2 <= hub_pos) & (hub_pos < 6))
+    assert food_positions.shape[0] == 3
+    assert np.all((2 <= food_positions) & (food_positions < 6))
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"]), np.tile(hub_pos, (2, 1)))
+
+
+def test_jax_hub_center_window_restricts_random_hub() -> None:
+    env = JaxAntByteForagingEnv(
+        width=50,
+        height=50,
+        num_ants=2,
+        food_count=0,
+        random_hub=True,
+        layout_margin=10,
+        hub_center_window_size=4,
+    )
+
+    for seed in range(10):
+        _, obs, _ = env.reset(jax.random.PRNGKey(seed))
+        hub_x, hub_y = np.asarray(obs["hub_pos"])
+        assert 23 <= int(hub_x) < 27
+        assert 23 <= int(hub_y) < 27
+        np.testing.assert_array_equal(
+            np.asarray(obs["ants_pos"]),
+            np.tile(np.asarray(obs["hub_pos"]), (2, 1)),
+        )
+
+
+def test_jax_info_tracks_newly_viewed_cells() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=5,
+        num_ants=1,
+        food_count=0,
+        actor_vision_radius=1,
+        terminate_on_food_delivery=False,
+    )
+    state, _, info = env.reset(
+        jax.random.PRNGKey(3),
+        hub_pos=jnp.array([2, 2], dtype=jnp.int32),
+    )
+
+    assert int(info.viewed_cell_count) == 9
+    assert int(info.newly_viewed_cells) == 0
+    assert int(info.visible_border_cells) == 0
+
+    _, _, _, _, _, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    assert int(info.newly_visited_cells) == 1
+    assert int(info.newly_viewed_cells) == 3
+    assert int(info.viewed_cell_count) == 12
+    assert int(info.visible_border_cells) == 3
+
+
+def test_jax_maze_obstacles_block_movement_and_are_observed() -> None:
+    env = JaxAntByteForagingEnv(
+        width=10,
+        height=10,
+        num_ants=1,
+        food_count=0,
+        max_steps=250,
+        maze_obstacles=True,
+        maze_corridor_width=3,
+        maze_wall_width=1,
+        maze_seed=17,
+        terminate_on_food_delivery=False,
+        terminate_on_full_coverage=True,
+    )
+    start_pos, wall_action = _open_cell_next_to_wall(np.asarray(env.obstacles))
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(5),
+        hub_pos=jnp.asarray(start_pos, dtype=jnp.int32),
+        obstacles=env.obstacles,
+    )
+
+    assert env.open_cell_count < env.width * env.height
+    assert int(jnp.sum(obs["obstacles"])) > 0
+    assert int(info.visited_cell_count) == 1
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.asarray(start_pos))
+
+    _, obs, _, terminated, truncated, info = env.step(
+        state,
+        jnp.array([wall_action, 0], dtype=jnp.int32),
+    )
+
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.asarray(start_pos))
+    assert not bool(terminated)
+    assert not bool(truncated)
+    assert int(info.visited_cell_count) == 1
 
 
 def test_jax_autocurriculum_reset_uses_fixed_shape_start_stage() -> None:
@@ -417,6 +550,32 @@ def test_jax_env_tracks_distinct_visited_cells_without_observation_memory() -> N
     assert int(info.visited_cell_count) == 2
 
 
+def test_jax_env_can_terminate_when_all_cells_are_visited() -> None:
+    env = JaxAntByteForagingEnv(
+        width=2,
+        height=1,
+        num_ants=1,
+        food_count=0,
+        terminate_on_food_delivery=False,
+        terminate_on_full_coverage=True,
+    )
+    state, _, info = env.reset(
+        jax.random.PRNGKey(8),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+    )
+
+    assert int(info.visited_cell_count) == 1
+
+    _, _, _, terminated, truncated, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    assert bool(terminated)
+    assert not bool(truncated)
+    assert int(info.visited_cell_count) == 2
+
+
 def test_jax_write_while_moving_writes_landing_tile() -> None:
     env = JaxAntByteForagingEnv(
         width=4,
@@ -557,6 +716,114 @@ def test_jax_write_bits_control_action_range_and_overwrites() -> None:
     assert int(obs["bytes"][1, 1]) == 3
     assert int(info.num_writes) == 3
     assert int(info.num_overwrites) == 2
+
+
+def test_jax_per_ant_write_channels_preserve_other_ants_bits() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=5,
+        num_ants=3,
+        food_count=0,
+        write_bits=3,
+        write_while_moving=True,
+        per_ant_write_channels=True,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(4),
+        hub_pos=jnp.array([2, 2], dtype=jnp.int32),
+    )
+
+    state, obs, _, _, _, info = env.step(
+        state,
+        jnp.array(
+            [
+                ACTION_RIGHT,
+                7,
+                ACTION_RIGHT,
+                0,
+                ACTION_RIGHT,
+                7,
+            ],
+            dtype=jnp.int32,
+        ),
+    )
+
+    assert int(obs["bytes"][2, 3]) == 5
+    assert int(info.num_writes) == 3
+    assert int(info.num_overwrites) == 2
+
+    _, obs, _, _, _, _ = env.step(
+        state,
+        jnp.array(
+            [
+                ACTION_STAY,
+                0,
+                ACTION_STAY,
+                7,
+                ACTION_STAY,
+                0,
+            ],
+            dtype=jnp.int32,
+        ),
+    )
+
+    assert int(obs["bytes"][2, 3]) == 2
+
+
+def test_jax_per_ant_write_channels_reuse_bit_types_when_more_ants_than_bits() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=5,
+        num_ants=4,
+        food_count=0,
+        write_bits=2,
+        write_while_moving=True,
+        per_ant_write_channels=True,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(4),
+        hub_pos=jnp.array([2, 2], dtype=jnp.int32),
+    )
+
+    state, obs, _, _, _, info = env.step(
+        state,
+        jnp.array(
+            [
+                ACTION_RIGHT,
+                3,
+                ACTION_RIGHT,
+                2,
+                ACTION_RIGHT,
+                0,
+                ACTION_RIGHT,
+                3,
+            ],
+            dtype=jnp.int32,
+        ),
+    )
+
+    assert int(obs["bytes"][2, 3]) == 2
+    assert int(info.num_writes) == 4
+    assert int(info.num_overwrites) == 3
+
+    _, obs, _, _, _, _ = env.step(
+        state,
+        jnp.array(
+            [
+                ACTION_STAY,
+                3,
+                ACTION_STAY,
+                0,
+                ACTION_STAY,
+                1,
+                ACTION_STAY,
+                0,
+            ],
+            dtype=jnp.int32,
+        ),
+    )
+
+    assert int(obs["bytes"][2, 3]) == 1
 
 
 def test_jax_step_can_be_jitted_and_vmapped() -> None:

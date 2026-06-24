@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 from typing import Any, NamedTuple
 
 import jax
@@ -32,11 +33,50 @@ class LinearParams(NamedTuple):
     bias: jax.Array
 
 
+class ConvParams(NamedTuple):
+    kernel: jax.Array
+    bias: jax.Array
+
+
+class ResidualBlockParams(NamedTuple):
+    first: ConvParams
+    second: ConvParams
+
+
+class ResNetCriticParams(NamedTuple):
+    stem: ConvParams
+    blocks_32: tuple[ResidualBlockParams, ResidualBlockParams]
+    down_64: ConvParams
+    blocks_64: tuple[ResidualBlockParams, ResidualBlockParams]
+    down_96: ConvParams
+    blocks_96: tuple[ResidualBlockParams, ResidualBlockParams]
+    down_128: ConvParams
+    blocks_128: tuple[ResidualBlockParams]
+    spatial_dense: LinearParams
+    entity_body: tuple[LinearParams, LinearParams]
+    fusion_body: tuple[LinearParams, LinearParams]
+
+
+class StridedCNNCriticParams(NamedTuple):
+    conv_5x5: ConvParams
+    conv_3x3_a: ConvParams
+    conv_3x3_b: ConvParams
+    spatial_dense: LinearParams
+    entity_dense: LinearParams
+    fusion_dense: LinearParams
+
+
+class StructuredMLPCriticParams(NamedTuple):
+    grid_body: tuple[LinearParams, LinearParams]
+    entity_body: tuple[LinearParams, LinearParams]
+    fusion_body: tuple[LinearParams, LinearParams]
+
+
 class JaxMAPPOParams(NamedTuple):
     actor_body: tuple[LinearParams, LinearParams]
     move_head: LinearParams
     write_head: LinearParams
-    critic_body: tuple[LinearParams, LinearParams]
+    critic_body: Any
     value_head: LinearParams
 
 
@@ -68,6 +108,11 @@ class Transition(NamedTuple):
     newly_visited_cells: jax.Array
     visited_cell_count: jax.Array
     visited_cell_fraction: jax.Array
+    newly_viewed_cells: jax.Array
+    viewed_cell_count: jax.Array
+    viewed_cell_fraction: jax.Array
+    visible_border_cells: jax.Array
+    border_moat_cost: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
     applied_nonzero_write_actions: jax.Array
@@ -77,6 +122,8 @@ class Transition(NamedTuple):
     carrying_write_action_slots: jax.Array
     write_attempts: jax.Array
     overwrite_events: jax.Array
+    reset_hub_pos: jax.Array
+    reset_food_positions: jax.Array
 
 
 class Rollout(NamedTuple):
@@ -101,6 +148,11 @@ class Rollout(NamedTuple):
     newly_visited_cells: jax.Array
     visited_cell_count: jax.Array
     visited_cell_fraction: jax.Array
+    newly_viewed_cells: jax.Array
+    viewed_cell_count: jax.Array
+    viewed_cell_fraction: jax.Array
+    visible_border_cells: jax.Array
+    border_moat_cost: jax.Array
     nonzero_byte_tiles: jax.Array
     nonzero_byte_fraction: jax.Array
     applied_nonzero_write_actions: jax.Array
@@ -110,6 +162,8 @@ class Rollout(NamedTuple):
     carrying_write_action_slots: jax.Array
     write_attempts: jax.Array
     overwrite_events: jax.Array
+    reset_hub_pos: jax.Array
+    reset_food_positions: jax.Array
 
 
 class TrainingBatch(NamedTuple):
@@ -136,6 +190,12 @@ def _normalize_positions(positions: jax.Array, *, height: int, width: int) -> ja
     return positions.astype(jnp.float32) / scale
 
 
+def food_observation_scale(*, food_count: int | float, food_sources: int | None = None) -> float:
+    if food_sources is None or int(food_sources) <= 0:
+        return max(float(food_count), 1.0)
+    return max(float(math.ceil(float(food_count) / float(food_sources))), 1.0)
+
+
 def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
     facing_index = jnp.clip(
         ants_facing.astype(jnp.int32) - 1,
@@ -147,6 +207,18 @@ def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
         MOVEMENT_ACTION_COUNT - 1,
         dtype=jnp.float32,
     )
+
+
+def _agent_identity_features(ants_pos: jax.Array) -> jax.Array:
+    batch_size, num_agents = ants_pos.shape[:2]
+    if num_agents <= 1:
+        return jnp.zeros((batch_size, num_agents, 0), dtype=jnp.float32)
+    identity = jax.nn.one_hot(
+        jnp.arange(num_agents),
+        num_agents,
+        dtype=jnp.float32,
+    )
+    return jnp.broadcast_to(identity[None, :, :], (batch_size, num_agents, num_agents))
 
 
 def _ants_facing_or_default(obs: JaxObs) -> jax.Array:
@@ -281,8 +353,6 @@ def build_actor_observations(
     food_scale: int = 1,
     actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     write_bits: int = DEFAULT_WRITE_BITS,
-    actor_hub_vector: bool = False,
-    actor_nearest_food_vector: bool = False,
     obs_width: int | None = None,
     obs_height: int | None = None,
 ) -> jax.Array:
@@ -337,72 +407,27 @@ def build_actor_observations(
         grid_width=active_grid_size[:, 0],
         radius=actor_vision_radius,
     )
+    obstacles = obs.get("obstacles")
+    if obstacles is None:
+        obstacles = jnp.zeros_like(food, dtype=jnp.float32)
+    local_obstacles = build_local_grid_patches(
+        obstacles.astype(jnp.float32),
+        obs["ants_pos"],
+        radius=actor_vision_radius,
+        ants_facing=ants_facing,
+    )
+    local_border = jnp.maximum(local_border, local_obstacles)
     features = [
         local_food,
         local_ants_count,
         local_byte_bits,
         local_hub,
         local_border,
+        _agent_identity_features(obs["ants_pos"]),
         own_carrying,
         own_facing,
     ]
-    if actor_hub_vector:
-        features.append(
-            _normalized_relative_vector(
-                target_pos=obs["hub_pos"][:, None, :],
-                ants_pos=obs["ants_pos"],
-                active_grid_size=active_grid_size,
-            )
-        )
-    if actor_nearest_food_vector:
-        features.append(
-            _nearest_food_vector(
-                food,
-                obs["ants_pos"],
-                active_grid_size=active_grid_size,
-            )
-        )
     return jnp.concatenate(features, axis=-1)
-
-
-def _normalized_relative_vector(
-    *,
-    target_pos: jax.Array,
-    ants_pos: jax.Array,
-    active_grid_size: jax.Array,
-) -> jax.Array:
-    scale = jnp.maximum(active_grid_size[:, None, :] - 1.0, 1.0)
-    delta = target_pos.astype(jnp.float32) - ants_pos.astype(jnp.float32)
-    return jnp.clip(delta / scale, -1.0, 1.0)
-
-
-def _nearest_food_vector(
-    food: jax.Array,
-    ants_pos: jax.Array,
-    *,
-    active_grid_size: jax.Array,
-) -> jax.Array:
-    batch_size, grid_height, grid_width = food.shape
-    flat_x = jnp.tile(jnp.arange(grid_width, dtype=jnp.float32), grid_height)
-    flat_y = jnp.repeat(jnp.arange(grid_height, dtype=jnp.float32), grid_width)
-    flat_food = food.reshape((batch_size, grid_height * grid_width))
-    ants_x = ants_pos[..., 0:1].astype(jnp.float32)
-    ants_y = ants_pos[..., 1:2].astype(jnp.float32)
-    distances = jnp.abs(flat_x[None, None, :] - ants_x)
-    distances += jnp.abs(flat_y[None, None, :] - ants_y)
-    food_present = flat_food > 0
-    masked_distances = jnp.where(food_present[:, None, :], distances, jnp.inf)
-    nearest_index = jnp.argmin(masked_distances, axis=-1)
-    nearest_x = jnp.take(flat_x, nearest_index)
-    nearest_y = jnp.take(flat_y, nearest_index)
-    target_pos = jnp.stack([nearest_x, nearest_y], axis=-1)
-    vector = _normalized_relative_vector(
-        target_pos=target_pos,
-        ants_pos=ants_pos,
-        active_grid_size=active_grid_size,
-    )
-    has_food = jnp.any(food_present, axis=-1)[:, None, None]
-    return jnp.where(has_food, vector, 0.0)
 
 
 def build_local_byte_bit_patches(
@@ -567,6 +592,160 @@ def init_layer(
     )
 
 
+def init_conv_layer(
+    key: jax.Array,
+    in_channels: int,
+    out_channels: int,
+    *,
+    kernel_size: int = 3,
+    scale: float = np.sqrt(2.0),
+) -> ConvParams:
+    fan_in = max(float(kernel_size * kernel_size * in_channels), 1.0)
+    std = float(scale) / np.sqrt(fan_in)
+    return ConvParams(
+        kernel=jax.random.normal(
+            key,
+            (kernel_size, kernel_size, in_channels, out_channels),
+            dtype=jnp.float32,
+        )
+        * std,
+        bias=jnp.zeros((out_channels,), dtype=jnp.float32),
+    )
+
+
+def init_residual_block(key: jax.Array, channels: int) -> ResidualBlockParams:
+    first_key, second_key = jax.random.split(key)
+    return ResidualBlockParams(
+        first=init_conv_layer(first_key, channels, channels),
+        second=init_conv_layer(second_key, channels, channels),
+    )
+
+
+def _critic_entity_dim(*, num_ants: int) -> int:
+    return 7 * int(num_ants) + 4
+
+
+def central_obs_dim_with_ants_count(
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> int:
+    grid_area = int(obs_height) * int(obs_width)
+    return 7 * int(num_ants) + 3 * grid_area + 4
+
+
+def _strided_cnn_output_size(size: int) -> int:
+    resolved = int(size)
+    for _ in range(3):
+        resolved = (resolved + 1) // 2
+    return max(resolved, 1)
+
+
+def _strided_cnn_flatten_dim(*, obs_height: int, obs_width: int) -> int:
+    return (
+        _strided_cnn_output_size(obs_height)
+        * _strided_cnn_output_size(obs_width)
+        * 64
+    )
+
+
+def init_resnet_cnn_critic(
+    key: jax.Array,
+    *,
+    num_ants: int,
+    spatial_channels: int = 4,
+) -> tuple[ResNetCriticParams, LinearParams]:
+    if num_ants <= 0:
+        raise ValueError("critic_num_ants must be positive.")
+    keys = jax.random.split(key, 17)
+    critic_body = ResNetCriticParams(
+        stem=init_conv_layer(keys[0], spatial_channels, 32),
+        blocks_32=(
+            init_residual_block(keys[1], 32),
+            init_residual_block(keys[2], 32),
+        ),
+        down_64=init_conv_layer(keys[3], 32, 64),
+        blocks_64=(
+            init_residual_block(keys[4], 64),
+            init_residual_block(keys[5], 64),
+        ),
+        down_96=init_conv_layer(keys[6], 64, 96),
+        blocks_96=(
+            init_residual_block(keys[7], 96),
+            init_residual_block(keys[8], 96),
+        ),
+        down_128=init_conv_layer(keys[9], 96, 128),
+        blocks_128=(init_residual_block(keys[10], 128),),
+        spatial_dense=init_layer(keys[11], 256, 256),
+        entity_body=(
+            init_layer(keys[12], _critic_entity_dim(num_ants=num_ants), 128),
+            init_layer(keys[13], 128, 128),
+        ),
+        fusion_body=(
+            init_layer(keys[14], 384, 256),
+            init_layer(keys[15], 256, 256),
+        ),
+    )
+    return critic_body, init_layer(keys[16], 256, 1, scale=1.0)
+
+
+def init_strided_cnn_critic(
+    key: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+    spatial_channels: int = 4,
+) -> tuple[StridedCNNCriticParams, LinearParams]:
+    if num_ants <= 0:
+        raise ValueError("critic_num_ants must be positive.")
+    if obs_height <= 0 or obs_width <= 0:
+        raise ValueError("critic_obs_height and critic_obs_width must be positive.")
+    keys = jax.random.split(key, 7)
+    critic_body = StridedCNNCriticParams(
+        conv_5x5=init_conv_layer(keys[0], spatial_channels, 32, kernel_size=5),
+        conv_3x3_a=init_conv_layer(keys[1], 32, 64),
+        conv_3x3_b=init_conv_layer(keys[2], 64, 64),
+        spatial_dense=init_layer(
+            keys[3],
+            _strided_cnn_flatten_dim(obs_height=obs_height, obs_width=obs_width),
+            256,
+        ),
+        entity_dense=init_layer(keys[4], _critic_entity_dim(num_ants=num_ants), 128),
+        fusion_dense=init_layer(keys[5], 384, 256),
+    )
+    return critic_body, init_layer(keys[6], 256, 1, scale=1.0)
+
+
+def init_structured_mlp_critic(
+    key: jax.Array,
+    *,
+    grid_feature_dim: int,
+    entity_feature_dim: int,
+) -> tuple[StructuredMLPCriticParams, LinearParams]:
+    if grid_feature_dim <= 0:
+        raise ValueError("grid_feature_dim must be positive.")
+    if entity_feature_dim <= 0:
+        raise ValueError("entity_feature_dim must be positive.")
+    keys = jax.random.split(key, 7)
+    critic_body = StructuredMLPCriticParams(
+        grid_body=(
+            init_layer(keys[0], grid_feature_dim, 512),
+            init_layer(keys[1], 512, 256),
+        ),
+        entity_body=(
+            init_layer(keys[2], entity_feature_dim, 128),
+            init_layer(keys[3], 128, 128),
+        ),
+        fusion_body=(
+            init_layer(keys[4], 384, 256),
+            init_layer(keys[5], 256, 256),
+        ),
+    )
+    return critic_body, init_layer(keys[6], 256, 1, scale=1.0)
+
+
 def init_agent_params(
     key: jax.Array,
     *,
@@ -574,10 +753,93 @@ def init_agent_params(
     actor_obs_dim: int,
     hidden_size: int = 128,
     write_value_count: int = 2,
+    critic_architecture: str = "mlp",
+    critic_num_ants: int | None = None,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
 ) -> JaxMAPPOParams:
     if write_value_count <= 0:
         raise ValueError("write_value_count must be positive.")
-    keys = jax.random.split(key, 7)
+    architecture = str(critic_architecture)
+    if architecture == "mlp":
+        keys = jax.random.split(key, 7)
+        critic_body: Any = (
+            init_layer(keys[4], central_obs_dim, hidden_size),
+            init_layer(keys[5], hidden_size, hidden_size),
+        )
+        value_head = init_layer(keys[6], hidden_size, 1, scale=1.0)
+    elif architecture == "resnet_cnn":
+        if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
+            raise ValueError(
+                "resnet_cnn critic requires critic_num_ants, critic_obs_height, "
+                "and critic_obs_width."
+            )
+        expected_dim = central_obs_dim_with_ants_count(
+            num_ants=critic_num_ants,
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
+        if int(central_obs_dim) != expected_dim:
+            raise ValueError(
+                f"resnet_cnn critic expected central_obs_dim {expected_dim}, "
+                f"got {central_obs_dim}."
+            )
+        keys = jax.random.split(key, 5)
+        critic_body, value_head = init_resnet_cnn_critic(
+            keys[4],
+            num_ants=critic_num_ants,
+        )
+    elif architecture == "strided_cnn":
+        if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
+            raise ValueError(
+                "strided_cnn critic requires critic_num_ants, critic_obs_height, "
+                "and critic_obs_width."
+            )
+        expected_dim = central_obs_dim_with_ants_count(
+            num_ants=critic_num_ants,
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
+        if int(central_obs_dim) != expected_dim:
+            raise ValueError(
+                f"strided_cnn critic expected central_obs_dim {expected_dim}, "
+                f"got {central_obs_dim}."
+            )
+        keys = jax.random.split(key, 5)
+        critic_body, value_head = init_strided_cnn_critic(
+            keys[4],
+            num_ants=critic_num_ants,
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
+    elif architecture == "structured_mlp":
+        if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
+            raise ValueError(
+                "structured_mlp critic requires critic_num_ants, critic_obs_height, "
+                "and critic_obs_width."
+            )
+        expected_dim = central_obs_dim_with_ants_count(
+            num_ants=critic_num_ants,
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
+        if int(central_obs_dim) != expected_dim:
+            raise ValueError(
+                f"structured_mlp critic expected central_obs_dim {expected_dim}, "
+                f"got {central_obs_dim}."
+            )
+        keys = jax.random.split(key, 5)
+        grid_feature_dim = 3 * int(critic_obs_height) * int(critic_obs_width)
+        critic_body, value_head = init_structured_mlp_critic(
+            keys[4],
+            grid_feature_dim=grid_feature_dim,
+            entity_feature_dim=_critic_entity_dim(num_ants=critic_num_ants),
+        )
+    else:
+        raise ValueError(
+            "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
+            "or 'resnet_cnn'."
+        )
     return JaxMAPPOParams(
         actor_body=(
             init_layer(keys[0], actor_obs_dim, hidden_size),
@@ -585,11 +847,8 @@ def init_agent_params(
         ),
         move_head=init_layer(keys[2], hidden_size, MOVEMENT_ACTION_COUNT, scale=0.01),
         write_head=init_layer(keys[3], hidden_size, write_value_count, scale=0.01),
-        critic_body=(
-            init_layer(keys[4], central_obs_dim, hidden_size),
-            init_layer(keys[5], hidden_size, hidden_size),
-        ),
-        value_head=init_layer(keys[6], hidden_size, 1, scale=1.0),
+        critic_body=critic_body,
+        value_head=value_head,
     )
 
 
@@ -602,6 +861,280 @@ def _forward_body(layers: tuple[LinearParams, LinearParams], x: jax.Array) -> ja
     return jnp.tanh(_linear(layers[1], hidden))
 
 
+def _activation(x: jax.Array) -> jax.Array:
+    return jax.nn.silu(x)
+
+
+def _conv2d(params: ConvParams, x: jax.Array, *, stride: int = 1) -> jax.Array:
+    output = jax.lax.conv_general_dilated(
+        x,
+        params.kernel,
+        window_strides=(int(stride), int(stride)),
+        padding="SAME",
+        dimension_numbers=("NHWC", "HWIO", "NHWC"),
+    )
+    return output + params.bias
+
+
+def _residual_block(params: ResidualBlockParams, x: jax.Array) -> jax.Array:
+    residual = x
+    hidden = _activation(_conv2d(params.first, x))
+    hidden = _conv2d(params.second, hidden)
+    return _activation(hidden + residual)
+
+
+def _require_cnn_critic_field(
+    name: str,
+    value: int | None,
+    *,
+    critic_architecture: str = "resnet_cnn",
+) -> int:
+    if value is None:
+        raise ValueError(f"{critic_architecture} critic requires {name}.")
+    resolved = int(value)
+    if resolved <= 0:
+        raise ValueError(f"{name} must be positive.")
+    return resolved
+
+
+def _require_structured_mlp_critic_field(name: str, value: int | None) -> int:
+    if value is None:
+        raise ValueError(f"structured_mlp critic requires {name}.")
+    resolved = int(value)
+    if resolved <= 0:
+        raise ValueError(f"{name} must be positive.")
+    return resolved
+
+
+def _split_central_observation_for_cnn(
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+    critic_architecture: str = "resnet_cnn",
+) -> tuple[jax.Array, jax.Array, tuple[int, ...]]:
+    leading_shape = central_obs.shape[:-1]
+    flat = central_obs.reshape((-1, central_obs.shape[-1]))
+    grid_area = int(obs_height) * int(obs_width)
+    expected_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    if int(central_obs.shape[-1]) != expected_dim:
+        raise ValueError(
+            f"{critic_architecture} critic expected central_obs_dim {expected_dim}, "
+            f"got {central_obs.shape[-1]}."
+        )
+
+    ants_pos_width = 2 * int(num_ants)
+    ants_carrying_width = int(num_ants)
+    ants_facing_width = (MOVEMENT_ACTION_COUNT - 1) * int(num_ants)
+    ants_pos_end = ants_pos_width
+    ants_carrying_end = ants_pos_end + ants_carrying_width
+    ants_facing_end = ants_carrying_end + ants_facing_width
+    ants_count_end = ants_facing_end + grid_area
+    food_end = ants_count_end + grid_area
+    bytes_end = food_end + grid_area
+    hub_end = bytes_end + 2
+
+    ants_count = flat[:, ants_facing_end:ants_count_end].reshape(
+        (-1, int(obs_height), int(obs_width))
+    )
+    food = flat[:, ants_count_end:food_end].reshape((-1, int(obs_height), int(obs_width)))
+    bytes_grid = flat[:, food_end:bytes_end].reshape(
+        (-1, int(obs_height), int(obs_width))
+    )
+    hub_pos = flat[:, bytes_end:hub_end]
+    batch_index = jnp.arange(flat.shape[0])
+    hub_x = jnp.clip(
+        jnp.rint(hub_pos[:, 0] * max(int(obs_width) - 1, 1)).astype(jnp.int32),
+        0,
+        int(obs_width) - 1,
+    )
+    hub_y = jnp.clip(
+        jnp.rint(hub_pos[:, 1] * max(int(obs_height) - 1, 1)).astype(jnp.int32),
+        0,
+        int(obs_height) - 1,
+    )
+    hub_grid = jnp.zeros(
+        (flat.shape[0], int(obs_height), int(obs_width)),
+        dtype=jnp.float32,
+    ).at[batch_index, hub_y, hub_x].set(1.0)
+    spatial = jnp.stack([ants_count, food, bytes_grid, hub_grid], axis=-1)
+    entity = jnp.concatenate(
+        [
+            flat[:, :ants_pos_end],
+            flat[:, ants_pos_end:ants_carrying_end],
+            flat[:, ants_carrying_end:ants_facing_end],
+            flat[:, bytes_end:],
+        ],
+        axis=-1,
+    )
+    return spatial, entity, leading_shape
+
+
+def _split_central_observation_for_structured_mlp(
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> tuple[jax.Array, jax.Array, tuple[int, ...]]:
+    leading_shape = central_obs.shape[:-1]
+    flat = central_obs.reshape((-1, central_obs.shape[-1]))
+    grid_area = int(obs_height) * int(obs_width)
+    expected_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    if int(central_obs.shape[-1]) != expected_dim:
+        raise ValueError(
+            f"structured_mlp critic expected central_obs_dim {expected_dim}, "
+            f"got {central_obs.shape[-1]}."
+        )
+
+    ants_pos_width = 2 * int(num_ants)
+    ants_carrying_width = int(num_ants)
+    ants_facing_width = (MOVEMENT_ACTION_COUNT - 1) * int(num_ants)
+    ants_pos_end = ants_pos_width
+    ants_carrying_end = ants_pos_end + ants_carrying_width
+    ants_facing_end = ants_carrying_end + ants_facing_width
+    ants_count_end = ants_facing_end + grid_area
+    food_end = ants_count_end + grid_area
+    bytes_end = food_end + grid_area
+
+    grid_features = flat[:, ants_facing_end:bytes_end]
+    entity_features = jnp.concatenate(
+        [
+            flat[:, :ants_facing_end],
+            flat[:, bytes_end:],
+        ],
+        axis=-1,
+    )
+    return grid_features, entity_features, leading_shape
+
+
+def _forward_resnet_cnn_critic(
+    critic_body: ResNetCriticParams,
+    value_head: LinearParams,
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> jax.Array:
+    spatial, entity, leading_shape = _split_central_observation_for_cnn(
+        central_obs,
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    hidden = _activation(_conv2d(critic_body.stem, spatial))
+    for block in critic_body.blocks_32:
+        hidden = _residual_block(block, hidden)
+    hidden = _activation(_conv2d(critic_body.down_64, hidden, stride=2))
+    for block in critic_body.blocks_64:
+        hidden = _residual_block(block, hidden)
+    hidden = _activation(_conv2d(critic_body.down_96, hidden, stride=2))
+    for block in critic_body.blocks_96:
+        hidden = _residual_block(block, hidden)
+    hidden = _activation(_conv2d(critic_body.down_128, hidden, stride=2))
+    for block in critic_body.blocks_128:
+        hidden = _residual_block(block, hidden)
+
+    pooled = jnp.concatenate(
+        [
+            jnp.mean(hidden, axis=(1, 2)),
+            jnp.max(hidden, axis=(1, 2)),
+        ],
+        axis=-1,
+    )
+    spatial_embedding = _activation(_linear(critic_body.spatial_dense, pooled))
+    entity_embedding = _activation(_linear(critic_body.entity_body[0], entity))
+    entity_embedding = _activation(_linear(critic_body.entity_body[1], entity_embedding))
+    fused = jnp.concatenate([spatial_embedding, entity_embedding], axis=-1)
+    fused = _activation(_linear(critic_body.fusion_body[0], fused))
+    fused = _activation(_linear(critic_body.fusion_body[1], fused))
+    value = jnp.squeeze(_linear(value_head, fused), axis=-1)
+    return value.reshape(leading_shape)
+
+
+def _forward_strided_cnn_critic(
+    critic_body: StridedCNNCriticParams,
+    value_head: LinearParams,
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> jax.Array:
+    spatial, entity, leading_shape = _split_central_observation_for_cnn(
+        central_obs,
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        critic_architecture="strided_cnn",
+    )
+    hidden = _activation(_conv2d(critic_body.conv_5x5, spatial, stride=2))
+    hidden = _activation(_conv2d(critic_body.conv_3x3_a, hidden, stride=2))
+    hidden = _activation(_conv2d(critic_body.conv_3x3_b, hidden, stride=2))
+
+    spatial_features = hidden.reshape((hidden.shape[0], -1))
+    spatial_embedding = _activation(
+        _linear(critic_body.spatial_dense, spatial_features)
+    )
+    entity_embedding = _activation(_linear(critic_body.entity_dense, entity))
+    fused = jnp.concatenate([spatial_embedding, entity_embedding], axis=-1)
+    fused = _activation(_linear(critic_body.fusion_dense, fused))
+    value = jnp.squeeze(_linear(value_head, fused), axis=-1)
+    return value.reshape(leading_shape)
+
+
+def _forward_structured_mlp_critic(
+    critic_body: StructuredMLPCriticParams,
+    value_head: LinearParams,
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> jax.Array:
+    grid_features, entity_features, leading_shape = (
+        _split_central_observation_for_structured_mlp(
+            central_obs,
+            num_ants=num_ants,
+            obs_height=obs_height,
+            obs_width=obs_width,
+        )
+    )
+    grid_embedding = _forward_body(critic_body.grid_body, grid_features)
+    entity_embedding = _forward_body(critic_body.entity_body, entity_features)
+    fused = jnp.concatenate([grid_embedding, entity_embedding], axis=-1)
+    fused = _forward_body(critic_body.fusion_body, fused)
+    value = jnp.squeeze(_linear(value_head, fused), axis=-1)
+    return value.reshape(leading_shape)
+
+
+def critic_forward_kwargs_from_args(args: argparse.Namespace) -> dict[str, int | str]:
+    architecture = str(getattr(args, "critic_architecture", "mlp"))
+    if architecture == "mlp":
+        return {}
+    if architecture not in {"structured_mlp", "strided_cnn", "resnet_cnn"}:
+        raise ValueError(
+            "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
+            "or 'resnet_cnn'."
+        )
+    return {
+        "critic_architecture": architecture,
+        "critic_num_ants": int(args.num_ants),
+        "critic_obs_height": int(args.obs_height or args.height),
+        "critic_obs_width": int(args.obs_width or args.width),
+    }
+
+
 def get_action_logits(
     params: JaxMAPPOParams,
     actor_obs: jax.Array,
@@ -610,9 +1143,71 @@ def get_action_logits(
     return _linear(params.move_head, hidden), _linear(params.write_head, hidden)
 
 
-def get_value(params: JaxMAPPOParams, central_obs: jax.Array) -> jax.Array:
-    hidden = _forward_body(params.critic_body, central_obs)
-    return jnp.squeeze(_linear(params.value_head, hidden), axis=-1)
+def get_value(
+    params: JaxMAPPOParams,
+    central_obs: jax.Array,
+    *,
+    critic_architecture: str = "mlp",
+    critic_num_ants: int | None = None,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
+) -> jax.Array:
+    architecture = str(critic_architecture)
+    if architecture == "mlp":
+        hidden = _forward_body(params.critic_body, central_obs)
+        return jnp.squeeze(_linear(params.value_head, hidden), axis=-1)
+    if architecture == "resnet_cnn":
+        return _forward_resnet_cnn_critic(
+            params.critic_body,
+            params.value_head,
+            central_obs,
+            num_ants=_require_cnn_critic_field("critic_num_ants", critic_num_ants),
+            obs_height=_require_cnn_critic_field("critic_obs_height", critic_obs_height),
+            obs_width=_require_cnn_critic_field("critic_obs_width", critic_obs_width),
+        )
+    if architecture == "strided_cnn":
+        return _forward_strided_cnn_critic(
+            params.critic_body,
+            params.value_head,
+            central_obs,
+            num_ants=_require_cnn_critic_field(
+                "critic_num_ants",
+                critic_num_ants,
+                critic_architecture="strided_cnn",
+            ),
+            obs_height=_require_cnn_critic_field(
+                "critic_obs_height",
+                critic_obs_height,
+                critic_architecture="strided_cnn",
+            ),
+            obs_width=_require_cnn_critic_field(
+                "critic_obs_width",
+                critic_obs_width,
+                critic_architecture="strided_cnn",
+            ),
+        )
+    if architecture == "structured_mlp":
+        return _forward_structured_mlp_critic(
+            params.critic_body,
+            params.value_head,
+            central_obs,
+            num_ants=_require_structured_mlp_critic_field(
+                "critic_num_ants",
+                critic_num_ants,
+            ),
+            obs_height=_require_structured_mlp_critic_field(
+                "critic_obs_height",
+                critic_obs_height,
+            ),
+            obs_width=_require_structured_mlp_critic_field(
+                "critic_obs_width",
+                critic_obs_width,
+            ),
+        )
+    raise ValueError(
+        "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
+        "or 'resnet_cnn'."
+    )
 
 
 def _categorical_log_prob(logits: jax.Array, actions: jax.Array) -> jax.Array:
@@ -626,17 +1221,49 @@ def _categorical_entropy(logits: jax.Array) -> jax.Array:
     return -jnp.sum(probs * log_probs, axis=-1)
 
 
+def _logits_for_policy_temperature(
+    logits: jax.Array,
+    *,
+    policy_temperature: float,
+) -> jax.Array:
+    temperature = float(policy_temperature)
+    if temperature <= 0.0:
+        raise ValueError("policy_temperature must be positive.")
+    return logits / temperature
+
+
 def evaluate_actions(
     params: JaxMAPPOParams,
     actor_obs: jax.Array,
     central_obs: jax.Array,
     actions: jax.Array,
+    *,
+    policy_temperature: float = 1.0,
+    critic_architecture: str = "mlp",
+    critic_num_ants: int | None = None,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     move_logits, write_logits = get_action_logits(params, actor_obs)
+    move_logits = _logits_for_policy_temperature(
+        move_logits,
+        policy_temperature=policy_temperature,
+    )
+    write_logits = _logits_for_policy_temperature(
+        write_logits,
+        policy_temperature=policy_temperature,
+    )
     logprob = _categorical_log_prob(move_logits, actions[..., 0])
     logprob += _categorical_log_prob(write_logits, actions[..., 1])
     entropy = _categorical_entropy(move_logits) + _categorical_entropy(write_logits)
-    value = get_value(params, central_obs)
+    value = get_value(
+        params,
+        central_obs,
+        critic_architecture=critic_architecture,
+        critic_num_ants=critic_num_ants,
+        critic_obs_height=critic_obs_height,
+        critic_obs_width=critic_obs_width,
+    )
     return logprob, entropy, value
 
 
@@ -647,8 +1274,21 @@ def get_action_and_value(
     key: jax.Array,
     *,
     deterministic: bool = False,
+    policy_temperature: float = 1.0,
+    critic_architecture: str = "mlp",
+    critic_num_ants: int | None = None,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     move_logits, write_logits = get_action_logits(params, actor_obs)
+    move_logits = _logits_for_policy_temperature(
+        move_logits,
+        policy_temperature=policy_temperature,
+    )
+    write_logits = _logits_for_policy_temperature(
+        write_logits,
+        policy_temperature=policy_temperature,
+    )
     if deterministic:
         move_actions = jnp.argmax(move_logits, axis=-1)
         write_actions = jnp.argmax(write_logits, axis=-1)
@@ -660,7 +1300,14 @@ def get_action_and_value(
     logprob = _categorical_log_prob(move_logits, move_actions)
     logprob += _categorical_log_prob(write_logits, write_actions)
     entropy = _categorical_entropy(move_logits) + _categorical_entropy(write_logits)
-    value = get_value(params, central_obs)
+    value = get_value(
+        params,
+        central_obs,
+        critic_architecture=critic_architecture,
+        critic_num_ants=critic_num_ants,
+        critic_obs_height=critic_obs_height,
+        critic_obs_width=critic_obs_width,
+    )
     return actions, logprob, entropy, value
 
 
@@ -679,10 +1326,19 @@ def compute_forage_curriculum_rewards(
     actions: jax.Array | None = None,
     pickup_bonus: float,
     distance_bonus: float = 0.0,
+    carrying_hub_distance_bonus: float = 0.0,
     newly_visited_cells: jax.Array | None = None,
     visited_cell_fraction: jax.Array | None = None,
     visit_reward_scale: float = 0.0,
     visit_reward_decay: float = 1.0,
+    newly_viewed_cells: jax.Array | None = None,
+    viewed_cell_fraction: jax.Array | None = None,
+    view_reward_scale: float = 0.0,
+    view_reward_decay: float = 1.0,
+    visible_border_cells: jax.Array | None = None,
+    border_view_penalty: float = 0.0,
+    border_moat_cost: jax.Array | None = None,
+    border_moat_penalty: float = 0.0,
     stage_completion_events: jax.Array | None = None,
     stage_completion_bonus: float = 0.0,
     delivery_byte_trail_bonus: float = 0.0,
@@ -690,6 +1346,8 @@ def compute_forage_curriculum_rewards(
     byte_follow_bonus: float = 0.0,
     carrying_byte_write_bonus: float = 0.0,
     write_while_moving: bool = False,
+    per_ant_write_channels: bool = False,
+    write_bits: int = DEFAULT_WRITE_BITS,
 ) -> jax.Array:
     """Add trainer-side forage shaping without changing actor observations."""
 
@@ -719,6 +1377,8 @@ def compute_forage_curriculum_rewards(
         applied_write_values = _applied_write_values(
             actions,
             write_while_moving=write_while_moving,
+            per_ant_write_channels=per_ant_write_channels,
+            write_bits=write_bits,
         )
 
     target_bytes = _grid_values_at_positions(previous_bytes, next_positions)
@@ -817,10 +1477,47 @@ def compute_forage_curriculum_rewards(
             * visits
             * jnp.power(remaining_fraction, float(visit_reward_decay))
         )
-    if distance_bonus <= 0.0:
-        return shaped_rewards
-    progress = _forage_distance_progress(previous_obs=previous_obs, next_obs=next_obs)
-    return shaped_rewards + float(distance_bonus) * progress
+    if view_reward_scale > 0.0:
+        views = (
+            jnp.zeros_like(shaped_rewards)
+            if newly_viewed_cells is None
+            else newly_viewed_cells.astype(jnp.float32)
+        )
+        viewed_coverage = (
+            jnp.zeros_like(shaped_rewards)
+            if viewed_cell_fraction is None
+            else viewed_cell_fraction.astype(jnp.float32)
+        )
+        remaining_view_fraction = jnp.maximum(1.0 - viewed_coverage, 0.0)
+        shaped_rewards += (
+            float(view_reward_scale)
+            * views
+            * jnp.power(remaining_view_fraction, float(view_reward_decay))
+        )
+    if border_view_penalty > 0.0:
+        border_cells = (
+            jnp.zeros_like(shaped_rewards)
+            if visible_border_cells is None
+            else visible_border_cells.astype(jnp.float32)
+        )
+        shaped_rewards -= float(border_view_penalty) * border_cells
+    if border_moat_penalty > 0.0:
+        moat_cost = (
+            jnp.zeros_like(shaped_rewards)
+            if border_moat_cost is None
+            else border_moat_cost.astype(jnp.float32)
+        )
+        shaped_rewards -= float(border_moat_penalty) * moat_cost
+    if distance_bonus > 0.0:
+        progress = _forage_distance_progress(previous_obs=previous_obs, next_obs=next_obs)
+        shaped_rewards += float(distance_bonus) * progress
+    if carrying_hub_distance_bonus > 0.0:
+        carrying_progress = _carrying_hub_distance_progress(
+            previous_obs=previous_obs,
+            next_obs=next_obs,
+        )
+        shaped_rewards += float(carrying_hub_distance_bonus) * carrying_progress
+    return shaped_rewards
 
 
 def _forage_distance_progress(*, previous_obs: JaxObs, next_obs: JaxObs) -> jax.Array:
@@ -848,6 +1545,23 @@ def _forage_distance_progress(*, previous_obs: JaxObs, next_obs: JaxObs) -> jax.
     normalizer = jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
     progress = (previous_distance - next_distance) / normalizer
     progress = jnp.where(same_target_mode, progress, 0.0)
+    return jnp.sum(progress, axis=-1).astype(jnp.float32)
+
+
+def _carrying_hub_distance_progress(
+    *,
+    previous_obs: JaxObs,
+    next_obs: JaxObs,
+) -> jax.Array:
+    previous_carrying = previous_obs["ants_carrying"].astype(jnp.bool_)
+    next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
+    stayed_carrying = previous_carrying & next_carrying
+    previous_distance = _hub_distances(previous_obs["hub_pos"], previous_obs["ants_pos"])
+    next_distance = _hub_distances(previous_obs["hub_pos"], next_obs["ants_pos"])
+    _, height, width = previous_obs["food"].shape
+    normalizer = jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
+    progress = (previous_distance - next_distance) / normalizer
+    progress = jnp.where(stayed_carrying, progress, 0.0)
     return jnp.sum(progress, axis=-1).astype(jnp.float32)
 
 
@@ -879,12 +1593,18 @@ def compute_write_bit_penalties(
     base_penalty: float,
     decay: float,
     write_while_moving: bool = False,
+    per_ant_write_channels: bool = False,
 ) -> jax.Array:
     """Return per-env penalties for set write bits, with bit 0 most expensive."""
 
     if base_penalty <= 0.0:
         return jnp.zeros(actions.shape[0], dtype=jnp.float32)
-    write_values = _applied_write_values(actions, write_while_moving=write_while_moving)
+    write_values = _applied_write_values(
+        actions,
+        write_while_moving=write_while_moving,
+        per_ant_write_channels=per_ant_write_channels,
+        write_bits=write_bits,
+    )
     bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
     bit_mask = (write_values[..., None] >> bit_indices) & jnp.asarray(1, dtype=jnp.uint32)
     weights = float(base_penalty) * (float(decay) ** bit_indices.astype(jnp.float32))
@@ -930,13 +1650,19 @@ def compute_write_bit_entropy_bonus(
     write_bits: int,
     entropy_scale: float,
     write_while_moving: bool = False,
+    per_ant_write_channels: bool = False,
 ) -> jax.Array:
     """Return per-step rewards for balanced nonzero write-bit use in a rollout chunk."""
 
     if entropy_scale <= 0.0 or write_bits <= 0:
         return jnp.zeros(actions.shape[:2], dtype=jnp.float32)
 
-    write_values = _applied_write_values(actions, write_while_moving=write_while_moving)
+    write_values = _applied_write_values(
+        actions,
+        write_while_moving=write_while_moving,
+        per_ant_write_channels=per_ant_write_channels,
+        write_bits=write_bits,
+    )
     nonzero_writes = write_values > 0
     nonzero_count = jnp.sum(nonzero_writes.astype(jnp.float32), axis=(0, 2))
     bit_indices = jnp.arange(int(write_bits), dtype=jnp.uint32)
@@ -961,10 +1687,24 @@ def _applied_write_values(
     actions: jax.Array,
     *,
     write_while_moving: bool = False,
+    per_ant_write_channels: bool = False,
+    write_bits: int = DEFAULT_WRITE_BITS,
 ) -> jax.Array:
     """Return write values allowed by the current movement/write timing mode."""
 
     write_values = actions[..., 1].astype(jnp.uint32)
+    if per_ant_write_channels:
+        if int(write_bits) <= 0:
+            raise ValueError("write_bits must be positive.")
+        bit_indices = jnp.mod(
+            jnp.arange(actions.shape[-2], dtype=jnp.uint32),
+            jnp.asarray(int(write_bits), dtype=jnp.uint32),
+        )
+        ant_bits = jnp.left_shift(
+            jnp.asarray(1, dtype=jnp.uint32),
+            bit_indices,
+        )
+        write_values = write_values & ant_bits
     if write_while_moving:
         return write_values
     move_actions = actions[..., 0]
@@ -1064,8 +1804,11 @@ def _global_norm(tree: Any) -> jax.Array:
 
 
 def init_adam_state(params: JaxMAPPOParams) -> AdamState:
-    zeros = jax.tree_util.tree_map(jnp.zeros_like, params)
-    return AdamState(count=jnp.asarray(0, dtype=jnp.int32), m=zeros, v=zeros)
+    return AdamState(
+        count=jnp.asarray(0, dtype=jnp.int32),
+        m=jax.tree_util.tree_map(jnp.zeros_like, params),
+        v=jax.tree_util.tree_map(jnp.zeros_like, params),
+    )
 
 
 def adam_update(
@@ -1113,6 +1856,8 @@ def _ppo_loss(
         batch.actor_obs,
         batch.central_obs,
         batch.actions,
+        policy_temperature=float(getattr(args, "training_rollout_temperature", 1.0)),
+        **critic_forward_kwargs_from_args(args),
     )
     advantages = batch.advantages
     if args.norm_adv:

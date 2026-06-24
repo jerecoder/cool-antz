@@ -23,12 +23,14 @@ from ant_byte_env.training.jax_mappo.core import (
     UpdateMetrics,
     build_actor_observations,
     build_central_observations,
+    food_observation_scale,
     init_adam_state,
     init_agent_params,
     update_agent,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.evaluation import evaluate_params
+from ant_byte_env.training.jax_mappo.layout_audit import LayoutAuditTracker
 from ant_byte_env.training.jax_mappo.rollout import collect_rollout
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
@@ -73,6 +75,19 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
         "final_mean_visited_cell_fraction": float(
             jnp.mean(rollout.visited_cell_fraction[-1])
         ),
+        "viewed_cell_events": float(jnp.sum(rollout.newly_viewed_cells)),
+        "mean_viewed_cell_count": float(jnp.mean(rollout.viewed_cell_count)),
+        "final_mean_viewed_cell_count": float(jnp.mean(rollout.viewed_cell_count[-1])),
+        "mean_viewed_cell_fraction": float(jnp.mean(rollout.viewed_cell_fraction)),
+        "final_mean_viewed_cell_fraction": float(
+            jnp.mean(rollout.viewed_cell_fraction[-1])
+        ),
+        "mean_visible_border_cells": float(jnp.mean(rollout.visible_border_cells)),
+        "final_mean_visible_border_cells": float(
+            jnp.mean(rollout.visible_border_cells[-1])
+        ),
+        "mean_border_moat_cost": float(jnp.mean(rollout.border_moat_cost)),
+        "final_mean_border_moat_cost": float(jnp.mean(rollout.border_moat_cost[-1])),
         "write_action_nonzero_rate": float(jnp.mean(nonzero_write_actions)),
         "mean_write_action_value": float(jnp.mean(write_values)),
         "applied_write_action_nonzero_rate": float(
@@ -127,22 +142,30 @@ def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
         "random_hub": args.random_hub,
         "random_ant_spawn": args.random_ant_spawn,
         "random_ant_spawn_radius": args.random_ant_spawn_radius,
+        "actor_vision_radius": int(getattr(args, "actor_vision_radius", 1)),
         "step_penalty": args.step_penalty,
         "completion_bonus": args.completion_bonus,
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": args.write_while_moving,
+        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
     }
     if bool(getattr(args, "autocurriculum", False)):
         return JaxAntByteAutoCurriculumEnv(
             **common_kwargs,
             start_size=args.autocurriculum_start_size,
             success_cookies=args.autocurriculum_success_cookies,
-            actor_vision_radius=args.actor_vision_radius,
         )
     return JaxAntByteForagingEnv(
         **common_kwargs,
+        layout_margin=int(getattr(args, "layout_margin", 0)),
+        hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
         terminate_on_food_delivery=bool(args.food_termination),
+        terminate_on_full_coverage=bool(getattr(args, "terminate_on_full_coverage", False)),
+        maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
+        maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
+        maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
+        maze_seed=int(getattr(args, "maze_seed", 0)),
     )
 
 
@@ -198,6 +221,7 @@ def main(
     argv: list[str] | None = None,
     *,
     progress_callback: Any | None = None,
+    checkpoint_callback: Any | None = None,
 ) -> dict[str, float]:
     args = parse_args(argv)
     key = jax.random.PRNGKey(args.seed)
@@ -225,20 +249,29 @@ def main(
 
     key, reset_key, init_key = jax.random.split(key, 3)
     states, obs = reset_fn(reset_key)
+    layout_audit = LayoutAuditTracker.from_args(args, run_name=run_name)
+    layout_audit.observe_observations(
+        obs=obs,
+        update=0,
+        global_step=0,
+        reason="initial_reset",
+    )
+    food_scale = food_observation_scale(
+        food_count=args.food_count,
+        food_sources=getattr(args, "food_sources", None),
+    )
     central_obs = build_central_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
-        actor_hub_vector=args.actor_hub_vector,
-        actor_nearest_food_vector=args.actor_nearest_food_vector,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -250,6 +283,10 @@ def main(
         actor_obs_dim=actor_obs_dim,
         hidden_size=args.hidden_size,
         write_value_count=write_value_count(args.write_bits),
+        critic_architecture=getattr(args, "critic_architecture", "mlp"),
+        critic_num_ants=args.num_ants,
+        critic_obs_height=args.obs_height or args.height,
+        critic_obs_width=args.obs_width or args.width,
     )
     opt_state = init_adam_state(params)
     if args.load_model is not None:
@@ -259,9 +296,9 @@ def main(
             actor_obs_dim=actor_obs_dim,
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
-            actor_hub_vector=args.actor_hub_vector,
-            actor_nearest_food_vector=args.actor_nearest_food_vector,
+            target_num_ants=args.num_ants,
             write_head_transfer=args.write_head_transfer,
+            target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
         )
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]
@@ -285,7 +322,8 @@ def main(
             states=current_states,
             obs=current_obs,
             key=rollout_key,
-        )
+        ),
+        donate_argnums=(1, 2),
     )
     update_fn = jax.jit(
         lambda current_params, current_opt_state, rollout, learning_rate, update_key: update_agent(
@@ -295,7 +333,8 @@ def main(
             rollout=rollout,
             learning_rate=learning_rate,
             key=update_key,
-        )
+        ),
+        donate_argnums=(0, 1),
     )
 
     steps_per_update = args.num_envs * args.num_steps
@@ -327,6 +366,11 @@ def main(
                 update_key,
             )
             global_step += steps_per_update
+            layout_audit.observe_rollout_resets(
+                rollout=rollout,
+                update=update,
+                global_step=global_step,
+            )
             if _should_report_update(
                 update=update,
                 num_updates=num_updates,
@@ -336,6 +380,7 @@ def main(
                     **_metrics_to_float(update_metrics),
                     **_autocurriculum_state_stats(states),
                     **_rollout_stats(rollout),
+                    **layout_audit.metrics(),
                     "global_step": float(global_step),
                     "learning_rate": float(learning_rate),
                 }
@@ -402,6 +447,20 @@ def main(
                     )
                 if progress_callback is not None:
                     progress_callback(update, num_updates, reported_metrics)
+                if checkpoint_callback is not None:
+                    checkpoint_callback(
+                        update=update,
+                        num_updates=num_updates,
+                        metrics=reported_metrics,
+                        params=params,
+                        opt_state=opt_state,
+                        args=args,
+                        central_obs_dim=central_obs_dim,
+                        actor_obs_dim=actor_obs_dim,
+                        run_name=run_name,
+                        tracker=tracker,
+                        global_step=global_step,
+                    )
                 tracker.log_metrics(logged_metrics, step=global_step)
                 if not args.quiet:
                     print(

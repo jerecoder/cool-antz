@@ -3,7 +3,19 @@
   "base_config": "experiments/forage_curriculum.json",
   "run_root": "runs/autoresearch/forage_loop",
   "default_global_update_cap": 900,
-  "default_stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 22, 24, 25],
+  "default_stage_sizes": [
+    4,
+    6,
+    8,
+    10,
+    12,
+    15,
+    18,
+    20,
+    22,
+    24,
+    25
+  ],
   "food_source_divisor": 4,
   "target": {
     "stage_name": "25x25",
@@ -39,18 +51,42 @@
     "log_interval": 25
   },
   "stage_training_profile": [
-    {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
-    {"max_size": 15, "global_update_cap": 900, "num_steps": 192, "gamma": 0.995},
-    {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+    {
+      "max_size": 8,
+      "global_update_cap": 600,
+      "num_steps": 128,
+      "gamma": 0.99
+    },
+    {
+      "max_size": 15,
+      "global_update_cap": 900,
+      "num_steps": 192,
+      "gamma": 0.995
+    },
+    {
+      "max_size": 25,
+      "global_update_cap": 1200,
+      "num_steps": 256,
+      "gamma": 0.997
+    }
   ],
   "wandb": {
     "project": "cool-antz",
     "group": "forage_25x25_improvement_loop_v2",
     "mode": "online",
-    "tags": ["jax", "mappo", "forage-loop-v2", "25x25-gate"]
+    "tags": [
+      "jax",
+      "mappo",
+      "forage-loop-v2",
+      "25x25-gate"
+    ]
   },
   "wandb_video": {
-    "stage_names": ["15x15", "20x20", "25x25"],
+    "stage_names": [
+      "15x15",
+      "20x20",
+      "25x25"
+    ],
     "max_frames": 240
   },
   "experiments": [
@@ -72,7 +108,10 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-SHAPE",
-        "tags": ["distance-bonus", "reward-shaping"]
+        "tags": [
+          "distance-bonus",
+          "reward-shaping"
+        ]
       }
     },
     {
@@ -94,7 +133,10 @@
       },
       "wandb": {
         "name": "loop-CAPACITY4-four-ants",
-        "tags": ["capacity", "multi-ant"]
+        "tags": [
+          "capacity",
+          "multi-ant"
+        ]
       }
     },
     {
@@ -117,7 +159,11 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4",
-        "tags": ["distance-bonus", "multi-ant", "second-wave"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "second-wave"
+        ]
       }
     },
     {
@@ -133,9 +179,24 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP",
       "global_update_cap": 950,
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
-        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
-        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 8,
+          "global_update_cap": 600,
+          "num_steps": 128,
+          "gamma": 0.99
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 950,
+          "num_steps": 192,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1500,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -146,7 +207,12 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP",
-        "tags": ["distance-bonus", "multi-ant", "low-entropy", "policy-sharpening"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "low-entropy",
+          "policy-sharpening"
+        ]
       }
     },
     {
@@ -162,9 +228,24 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_BALANCED",
       "global_update_cap": 950,
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
-        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
-        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 8,
+          "global_update_cap": 600,
+          "num_steps": 128,
+          "gamma": 0.99
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 950,
+          "num_steps": 192,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1500,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -175,7 +256,12 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-BALANCED",
-        "tags": ["distance-bonus", "multi-ant", "moderate-entropy", "policy-sharpening"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "moderate-entropy",
+          "policy-sharpening"
+        ]
       }
     },
     {
@@ -190,11 +276,40 @@
       "report_notes": "Tests curriculum smoothness on top of the current best recipe. A win would support reporting late-stage transfer as the remaining bottleneck rather than entropy, visibility, or ant count.",
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_FINE",
       "global_update_cap": 950,
-      "stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 21, 22, 23, 24, 25],
+      "stage_sizes": [
+        4,
+        6,
+        8,
+        10,
+        12,
+        15,
+        18,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
-        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
-        {"max_size": 25, "global_update_cap": 1300, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 8,
+          "global_update_cap": 600,
+          "num_steps": 128,
+          "gamma": 0.99
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 950,
+          "num_steps": 192,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1300,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -205,7 +320,13 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-FINE",
-        "tags": ["distance-bonus", "multi-ant", "low-entropy", "fine-ladder", "stage-schedule"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "low-entropy",
+          "fine-ladder",
+          "stage-schedule"
+        ]
       }
     },
     {
@@ -221,9 +342,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_DISTILL",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1600,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1600, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 25,
+          "global_update_cap": 1600,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -231,12 +359,18 @@
         "hidden_size": 192,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00008,
+        "learning_rate": 8e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-DISTILL",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "low-entropy", "policy-distillation"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "low-entropy",
+          "policy-distillation"
+        ]
       }
     },
     {
@@ -252,9 +386,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_GREEDY_TUNE",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1200,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 25,
+          "global_update_cap": 1200,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -263,12 +404,18 @@
         "deterministic_rollout": true,
         "ent_coef": 0.0,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-GREEDY-TUNE",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "deterministic-rollout", "policy-sharpening"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "deterministic-rollout",
+          "policy-sharpening"
+        ]
       }
     },
     {
@@ -284,9 +431,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_MIXED_TUNE",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1200,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 25,
+          "global_update_cap": 1200,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -295,12 +449,18 @@
         "deterministic_rollout_fraction": 0.25,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-MIXED-TUNE",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "mixed-rollout", "policy-sharpening"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "mixed-rollout",
+          "policy-sharpening"
+        ]
       }
     },
     {
@@ -316,9 +476,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_NO_WRITE",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1200,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 25,
+          "global_update_cap": 1200,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -327,12 +494,18 @@
         "write_action_ablation": true,
         "ent_coef": 0.001,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-NO-WRITE",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "write-ablation", "action-ablation"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "write-ablation",
+          "action-ablation"
+        ]
       }
     },
     {
@@ -348,10 +521,17 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_NEAR",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1200,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "cookie_distance_scale": 0.5,
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1200, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 25,
+          "global_update_cap": 1200,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -359,12 +539,18 @@
         "hidden_size": 192,
         "ent_coef": 0.001,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-NEAR",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "cookie-distance", "distribution"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "cookie-distance",
+          "distribution"
+        ]
       }
     },
     {
@@ -380,9 +566,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_TUNE",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 900,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 900, "num_steps": 384, "gamma": 0.999}
+        {
+          "max_size": 25,
+          "global_update_cap": 900,
+          "num_steps": 384,
+          "gamma": 0.999
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -392,11 +585,17 @@
         "gae_lambda": 0.98,
         "ent_coef": 0.001,
         "clip_coef": 0.15,
-        "learning_rate": 0.00008
+        "learning_rate": 8e-05
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-LONG-CREDIT-TUNE",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "gamma999", "long-rollout"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "gamma999",
+          "long-rollout"
+        ]
       }
     },
     {
@@ -412,9 +611,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_GENTLE_GREEDY",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_TUNE/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 800,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 800, "num_steps": 384, "gamma": 0.999}
+        {
+          "max_size": 25,
+          "global_update_cap": 800,
+          "num_steps": 384,
+          "gamma": 0.999
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -425,12 +631,19 @@
         "deterministic_rollout_fraction": 0.1,
         "ent_coef": 0.0003,
         "clip_coef": 0.1,
-        "learning_rate": 0.00004,
+        "learning_rate": 4e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-LONG-CREDIT-GENTLE-GREEDY",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "gamma999", "mode-alignment", "mixed-rollout"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "gamma999",
+          "mode-alignment",
+          "mixed-rollout"
+        ]
       }
     },
     {
@@ -446,9 +659,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_ENTROPY_PENALTY",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_LONG_CREDIT_GENTLE_GREEDY/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 600,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 600, "num_steps": 384, "gamma": 0.999}
+        {
+          "max_size": 25,
+          "global_update_cap": 600,
+          "num_steps": 384,
+          "gamma": 0.999
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -458,12 +678,19 @@
         "gae_lambda": 0.98,
         "ent_coef": -0.0005,
         "clip_coef": 0.08,
-        "learning_rate": 0.00002,
+        "learning_rate": 2e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-LONG-CREDIT-ENTROPY-PENALTY",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "gamma999", "entropy-penalty", "mode-alignment"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "gamma999",
+          "entropy-penalty",
+          "mode-alignment"
+        ]
       }
     },
     {
@@ -479,9 +706,24 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_STABLE",
       "global_update_cap": 1100,
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 700, "num_steps": 128, "gamma": 0.99},
-        {"max_size": 15, "global_update_cap": 1100, "num_steps": 192, "gamma": 0.995},
-        {"max_size": 25, "global_update_cap": 1800, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 8,
+          "global_update_cap": 700,
+          "num_steps": 128,
+          "gamma": 0.99
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 1100,
+          "num_steps": 192,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1800,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -493,7 +735,13 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-STABLE",
-        "tags": ["distance-bonus", "multi-ant", "low-entropy", "policy-sharpening", "stable-ppo"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "low-entropy",
+          "policy-sharpening",
+          "stable-ppo"
+        ]
       }
     },
     {
@@ -509,9 +757,24 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_VISION2_CAP4_SHARP",
       "global_update_cap": 950,
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
-        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
-        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 8,
+          "global_update_cap": 600,
+          "num_steps": 128,
+          "gamma": 0.99
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 950,
+          "num_steps": 192,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1500,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -523,7 +786,13 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-VISION2-CAP4-SHARP",
-        "tags": ["distance-bonus", "multi-ant", "radius2", "low-entropy", "policy-sharpening"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "radius2",
+          "low-entropy",
+          "policy-sharpening"
+        ]
       }
     },
     {
@@ -539,9 +808,16 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_MOVE_ALIGN",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1000,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1000, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 25,
+          "global_update_cap": 1000,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -550,12 +826,18 @@
         "deterministic_move_rollout_fraction": 0.15,
         "ent_coef": 0.001,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-MOVE-ALIGN",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "movement-head", "mode-alignment"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "movement-head",
+          "mode-alignment"
+        ]
       }
     },
     {
@@ -571,9 +853,24 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP_SEED2",
       "global_update_cap": 950,
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 600, "num_steps": 128, "gamma": 0.99},
-        {"max_size": 15, "global_update_cap": 950, "num_steps": 192, "gamma": 0.995},
-        {"max_size": 25, "global_update_cap": 1500, "num_steps": 256, "gamma": 0.997}
+        {
+          "max_size": 8,
+          "global_update_cap": 600,
+          "num_steps": 128,
+          "gamma": 0.99
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 950,
+          "num_steps": 192,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1500,
+          "num_steps": 256,
+          "gamma": 0.997
+        }
       ],
       "args": {
         "seed": 2,
@@ -585,7 +882,13 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-SEED2",
-        "tags": ["distance-bonus", "multi-ant", "low-entropy", "policy-sharpening", "seed-replication"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "low-entropy",
+          "policy-sharpening",
+          "seed-replication"
+        ]
       }
     },
     {
@@ -641,7 +944,13 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-HYBRID-POLICY",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -701,7 +1010,14 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-TEMP-POLICY",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "temperature",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -768,7 +1084,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-TEMP-FINE-POLICY",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "paired-seeds", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "temperature",
+          "paired-seeds",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -814,7 +1138,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-T125-CONFIRM-POLICY",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "confirmation", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "temperature",
+          "confirmation",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -881,7 +1213,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-TEMP-CONFIRM-GRID",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "confirmation-grid", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "temperature",
+          "confirmation-grid",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -948,7 +1288,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-TEMP-HIGH-GRID",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "high-temperature", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "temperature",
+          "high-temperature",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -1001,7 +1349,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SHARP-TEMP-TOP3-CONFIRM",
-        "tags": ["distance-bonus", "multi-ant", "checkpoint-evaluation", "hybrid-policy", "temperature", "top3-confirmation", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "checkpoint-evaluation",
+          "hybrid-policy",
+          "temperature",
+          "top3-confirmation",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -1017,12 +1373,19 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SPEED_4A_800",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 800,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_overrides": {
         "max_steps": 800
       },
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 800, "num_steps": 256, "gamma": 0.995}
+        {
+          "max_size": 25,
+          "global_update_cap": 800,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -1031,7 +1394,7 @@
         "step_penalty": 0.0002,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1051,7 +1414,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SPEED-4A-800",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "speed", "step-penalty", "short-horizon", "efficiency"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "speed",
+          "step-penalty",
+          "short-horizon",
+          "efficiency"
+        ]
       }
     },
     {
@@ -1067,12 +1438,19 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SPEED_4A_550",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 1000,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_overrides": {
         "max_steps": 550
       },
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 1000, "num_steps": 256, "gamma": 0.995}
+        {
+          "max_size": 25,
+          "global_update_cap": 1000,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -1081,7 +1459,7 @@
         "step_penalty": 0.00035,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00004,
+        "learning_rate": 4e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1101,7 +1479,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP4-SPEED-4A-550",
-        "tags": ["distance-bonus", "multi-ant", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "warm-start",
+          "speed",
+          "step-penalty",
+          "short-horizon",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1117,12 +1503,19 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_SPEED_8A_550",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 900,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_overrides": {
         "max_steps": 550
       },
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 900, "num_steps": 256, "gamma": 0.995}
+        {
+          "max_size": 25,
+          "global_update_cap": 900,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -1131,7 +1524,7 @@
         "step_penalty": 0.00016,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1151,7 +1544,16 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP8-SPEED-8A-550",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "eight-ants",
+          "warm-start",
+          "speed",
+          "step-penalty",
+          "short-horizon",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1167,12 +1569,19 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP12_SPEED_12A_550",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 800,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_overrides": {
         "max_steps": 550
       },
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 800, "num_steps": 256, "gamma": 0.995}
+        {
+          "max_size": 25,
+          "global_update_cap": 800,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
@@ -1181,7 +1590,7 @@
         "step_penalty": 0.0001,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1201,7 +1610,16 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP12-SPEED-12A-550",
-        "tags": ["distance-bonus", "multi-ant", "twelve-ants", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twelve-ants",
+          "warm-start",
+          "speed",
+          "step-penalty",
+          "short-horizon",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1217,21 +1635,28 @@
       "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP16_SPEED_16A_550",
       "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP4_SHARP/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
       "global_update_cap": 700,
-      "stage_sizes": [25],
+      "stage_sizes": [
+        25
+      ],
       "stage_overrides": {
         "max_steps": 550
       },
       "stage_training_profile": [
-        {"max_size": 25, "global_update_cap": 700, "num_steps": 256, "gamma": 0.995}
+        {
+          "max_size": 25,
+          "global_update_cap": 700,
+          "num_steps": 256,
+          "gamma": 0.995
+        }
       ],
       "args": {
         "distance_bonus": 0.02,
         "num_ants": 16,
         "hidden_size": 192,
-        "step_penalty": 0.000075,
+        "step_penalty": 7.5e-05,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1251,7 +1676,16 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP16-SPEED-16A-550",
-        "tags": ["distance-bonus", "multi-ant", "sixteen-ants", "warm-start", "speed", "step-penalty", "short-horizon", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "sixteen-ants",
+          "warm-start",
+          "speed",
+          "step-penalty",
+          "short-horizon",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1270,7 +1704,7 @@
         "distance_bonus": 0.02,
         "num_ants": 16,
         "hidden_size": 192,
-        "step_penalty": 0.000075,
+        "step_penalty": 7.5e-05,
         "ent_coef": 0.0005,
         "clip_coef": 0.1
       },
@@ -1319,7 +1753,15 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP16-SPEED-TEMP-GRID",
-        "tags": ["distance-bonus", "multi-ant", "sixteen-ants", "checkpoint-evaluation", "speed", "temperature", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "sixteen-ants",
+          "checkpoint-evaluation",
+          "speed",
+          "temperature",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -1377,10 +1819,10 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000045,
+        "step_penalty": 4.5e-05,
         "ent_coef": 0.0006,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1414,7 +1856,16 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-RAMP-24A-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "horizon-ramp", "step-penalty", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "horizon-ramp",
+          "step-penalty",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1472,10 +1923,10 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000045,
+        "step_penalty": 4.5e-05,
         "ent_coef": 0.0006,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1502,7 +1953,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-SOURCES12-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "horizon-ramp", "food-distribution", "source-crowding", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "horizon-ramp",
+          "food-distribution",
+          "source-crowding",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1536,10 +1997,10 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000045,
+        "step_penalty": 4.5e-05,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1573,7 +2034,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-SOURCES12-POLISH-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "source-crowding", "polish", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "source-crowding",
+          "polish",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1592,7 +2063,7 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000045,
+        "step_penalty": 4.5e-05,
         "ent_coef": 0.0003,
         "clip_coef": 0.08
       },
@@ -1634,7 +2105,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-POLISH-FINE-TEMP",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "checkpoint-evaluation", "speed", "temperature", "fine-sweep", "4x-target", "deployment-policy"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "checkpoint-evaluation",
+          "speed",
+          "temperature",
+          "fine-sweep",
+          "4x-target",
+          "deployment-policy"
+        ]
       }
     },
     {
@@ -1668,10 +2149,10 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000035,
+        "step_penalty": 3.5e-05,
         "ent_coef": 0.0002,
         "clip_coef": 0.06,
-        "learning_rate": 0.00002,
+        "learning_rate": 2e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1698,7 +2179,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-SOURCES12-FINAL-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "source-crowding", "low-step-penalty", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "source-crowding",
+          "low-step-penalty",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1732,11 +2223,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000045,
+        "step_penalty": 4.5e-05,
         "completion_bonus": 2.0,
         "ent_coef": 0.0002,
         "clip_coef": 0.06,
-        "learning_rate": 0.00002,
+        "learning_rate": 2e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1763,7 +2254,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-COMPLETION-BONUS-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "completion-bonus", "reward-shaping", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "completion-bonus",
+          "reward-shaping",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1797,11 +2298,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000045,
+        "step_penalty": 4.5e-05,
         "completion_bonus": 2.0,
         "ent_coef": 0.0002,
         "clip_coef": 0.06,
-        "learning_rate": 0.00002,
+        "learning_rate": 2e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1828,7 +2329,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-COMPLETION-SHORT-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "completion-bonus", "early-stop", "reward-shaping", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "completion-bonus",
+          "early-stop",
+          "reward-shaping",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1874,11 +2386,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1905,7 +2417,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-DENSE2-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "dense-food", "two-sources", "completion-bonus", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "dense-food",
+          "two-sources",
+          "completion-bonus",
+          "4x-target"
+        ]
       }
     },
     {
@@ -1953,7 +2475,7 @@
         "hidden_size": 192,
         "write_bits": 2,
         "write_head_transfer": "neutral-new",
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "delivery_byte_trail_bonus": 0.2,
         "byte_follow_bonus": 0.004,
@@ -1961,7 +2483,7 @@
         "write_bit_entropy_bonus": 0.0005,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -1988,7 +2510,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-DENSE2-TRAIL-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "dense-food", "two-sources", "byte-trail", "communication", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "dense-food",
+          "two-sources",
+          "byte-trail",
+          "communication",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2034,11 +2567,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -2065,7 +2598,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-SOURCES16-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "sixteen-sources", "source-count", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "sixteen-sources",
+          "source-count",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2103,11 +2646,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6,
         "log_interval": 10
       },
@@ -2135,7 +2678,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-BEST-SELECT-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "checkpoint-selection", "best-checkpoint", "training-drift", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "checkpoint-selection",
+          "best-checkpoint",
+          "training-drift",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2154,11 +2708,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6,
         "log_interval": 10
       },
@@ -2193,7 +2747,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-BEST-SELECT-CONFIRM-GRID",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "speed", "checkpoint-selection", "best-checkpoint", "temperature-grid", "confirmation", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "speed",
+          "checkpoint-selection",
+          "best-checkpoint",
+          "temperature-grid",
+          "confirmation",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2231,11 +2795,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6,
         "log_interval": 10
       },
@@ -2263,7 +2827,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-REMAINING-SELECT-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "checkpoint-selection", "remaining-food", "cleanup", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "checkpoint-selection",
+          "remaining-food",
+          "cleanup",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2301,11 +2876,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6,
         "log_interval": 10,
         "seed": 2
@@ -2334,7 +2909,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-BEST-SELECT-SEED2-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "checkpoint-selection", "seed2", "seed-robustness", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "checkpoint-selection",
+          "seed2",
+          "seed-robustness",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2353,11 +2939,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6,
         "log_interval": 10,
         "seed": 2
@@ -2393,7 +2979,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-BEST-SELECT-SEED2-CONFIRM-GRID",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "speed", "checkpoint-selection", "best-checkpoint", "seed2", "temperature-grid", "confirmation", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "speed",
+          "checkpoint-selection",
+          "best-checkpoint",
+          "seed2",
+          "temperature-grid",
+          "confirmation",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2431,11 +3028,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.000035,
+        "step_penalty": 3.5e-05,
         "completion_bonus": 3.0,
         "ent_coef": 0.00025,
         "clip_coef": 0.08,
-        "learning_rate": 0.000025,
+        "learning_rate": 2.5e-05,
         "update_epochs": 6,
         "log_interval": 10
       },
@@ -2463,7 +3060,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-COMPLETION3-BEST-SELECT-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "completion-bonus", "checkpoint-selection", "cleanup", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "completion-bonus",
+          "checkpoint-selection",
+          "cleanup",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2507,11 +3115,11 @@
         "distance_bonus": 0.02,
         "num_ants": 24,
         "hidden_size": 192,
-        "step_penalty": 0.00004,
+        "step_penalty": 4e-05,
         "completion_bonus": 1.5,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6,
         "log_interval": 10
       },
@@ -2539,7 +3147,18 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP24-SPEED-HELDOUT-SELECT-430",
-        "tags": ["distance-bonus", "multi-ant", "twenty-four-ants", "warm-start", "speed", "food-distribution", "heldout-selection", "checkpoint-selection", "overfit-control", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twenty-four-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "heldout-selection",
+          "checkpoint-selection",
+          "overfit-control",
+          "4x-target"
+        ]
       }
     },
     {
@@ -2614,7 +3233,7 @@
         "random_ant_spawn": true,
         "write_bits": 2,
         "write_head_transfer": "neutral-new",
-        "step_penalty": 0.00006,
+        "step_penalty": 6e-05,
         "completion_bonus": 1.0,
         "delivery_byte_trail_bonus": 0.25,
         "byte_follow_bonus": 0.006,
@@ -2622,7 +3241,7 @@
         "write_bit_entropy_bonus": 0.0005,
         "ent_coef": 0.0006,
         "clip_coef": 0.1,
-        "learning_rate": 0.00004,
+        "learning_rate": 4e-05,
         "update_epochs": 6,
         "log_interval": 20
       },
@@ -2650,7 +3269,19 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-RANDOM-SPAWN",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "byte-trail", "communication"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "eight-ants",
+          "big-map",
+          "50x50",
+          "rare-sources",
+          "random-ant-spawn",
+          "random-hub",
+          "random-food",
+          "byte-trail",
+          "communication"
+        ]
       }
     },
     {
@@ -2702,7 +3333,7 @@
         "random_ant_spawn": true,
         "write_bits": 2,
         "write_head_transfer": "neutral-new",
-        "step_penalty": 0.00005,
+        "step_penalty": 5e-05,
         "completion_bonus": 1.0,
         "delivery_byte_trail_bonus": 0.35,
         "byte_follow_bonus": 0.01,
@@ -2710,7 +3341,7 @@
         "write_bit_entropy_bonus": 0.001,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.000035,
+        "learning_rate": 3.5e-05,
         "update_epochs": 6,
         "log_interval": 20
       },
@@ -2738,384 +3369,20 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP12-BIGMAP-RARE-VISION2-RANDOM-SPAWN",
-        "tags": ["distance-bonus", "multi-ant", "twelve-ants", "radius2", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "byte-trail", "communication"]
-      }
-    },
-    {
-      "id": "DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
-      "priority": 51,
-      "mode": "forage_curriculum",
-      "family": "observation_ablation",
-      "title": "Eight rare-map ants with explicit colony-return vector",
-      "hypothesis": "The random-spawn rare-source runs are not failing mainly because of ant count: 12 ants with radius-2 vision underperformed the 8-ant baseline. The bigger issue is that a carrying ant has no global way to know where the randomized colony is unless it happens to see the hub locally. A normalized hub vector is a minimal non-food oracle signal that should improve return efficiency while still requiring food discovery and trail use.",
-      "intervention": "Warm-start from the completed 8-ant rare-source 50x50 checkpoint, keep total food fixed at 23, keep food sources rare at 4 on 40x40 and 2 on 50x50, and keep random_food, random_hub, and random_ant_spawn enabled on every reset. Add actor_hub_vector but do not add nearest-food vectors, so empty ants still need search and communication rather than direct food coordinates.",
-      "success_signal": "The final 50x50 two-source randomized gate should beat the 8-ant baseline of 10.96/23 delivered, with lower steps per delivered food and nonzero byte diagnostics. A strong result would exceed 14/23 without increasing ants above eight.",
-      "report_notes": "This isolates a minimal navigation observation from food-position oracle inputs. It preserves the requested rarer food positions, smaller ant count, larger maps, randomized food, randomized colony, and randomized ant spawn.",
-      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
-      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN/checkpoints/jax_mappo_forage_stage1_50x50.pkl",
-      "global_update_cap": 300,
-      "custom_stages": [
-        {
-          "name": "40x40_rare4",
-          "width": 40,
-          "height": 40,
-          "food_count": 23,
-          "food_sources": 4,
-          "cookie_distance": 18,
-          "max_steps": 1300,
-          "global_update_cap": 300,
-          "num_steps": 320,
-          "gamma": 0.998
-        },
-        {
-          "name": "50x50",
-          "width": 50,
-          "height": 50,
-          "food_count": 23,
-          "food_sources": 2,
-          "cookie_distance": 24,
-          "max_steps": 1800,
-          "global_update_cap": 800,
-          "num_steps": 384,
-          "gamma": 0.999
-        }
-      ],
-      "args": {
-        "distance_bonus": 0.02,
-        "num_ants": 8,
-        "actor_hub_vector": true,
-        "hidden_size": 192,
-        "random_food": true,
-        "random_hub": true,
-        "random_ant_spawn": true,
-        "write_bits": 2,
-        "write_head_transfer": "neutral-new",
-        "step_penalty": 0.00005,
-        "completion_bonus": 1.0,
-        "delivery_byte_trail_bonus": 0.3,
-        "byte_follow_bonus": 0.008,
-        "carrying_byte_write_bonus": 0.004,
-        "write_bit_entropy_bonus": 0.0007,
-        "ent_coef": 0.0005,
-        "clip_coef": 0.1,
-        "learning_rate": 0.000035,
-        "update_epochs": 6,
-        "log_interval": 20
-      },
-      "evaluation": {
-        "deterministic_episodes": 0,
-        "sampled_episodes": 0,
-        "seed_offset": 6000000,
-        "shuffle_positions": true,
-        "action_modes": [
-          {
-            "name": "sampled_move_t100_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 64,
-            "seed_offset": 6000000,
-            "move_temperature": 1.0
-          },
-          {
-            "name": "sampled_move_t120_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 64,
-            "seed_offset": 6000000,
-            "move_temperature": 1.2
-          }
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "twelve-ants",
+          "radius2",
+          "big-map",
+          "50x50",
+          "rare-sources",
+          "random-ant-spawn",
+          "random-hub",
+          "random-food",
+          "byte-trail",
+          "communication"
         ]
-      },
-      "wandb": {
-        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-HUBVECTOR-RANDOM-SPAWN",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "hub-vector", "byte-trail", "communication"]
-      }
-    },
-    {
-      "id": "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
-      "priority": 52,
-      "mode": "forage_curriculum",
-      "family": "observation_ablation",
-      "title": "Eight rare-map ants with colony and food scent vectors",
-      "hypothesis": "The hub-vector run improved delivery and efficiency but still only reached 12.33/23 on randomized 50x50 two-source layouts. That points to food discovery, not just return-to-colony navigation, as the remaining bottleneck. A nearest-food scent vector is an upper-bound observation test: if it jumps sharply, sparse discovery is the wall; if it does not, the problem is policy optimization or multi-ant coordination.",
-      "intervention": "Warm-start from the hub-vector rare-map checkpoint, keep eight ants, 23 total food, rare source counts, random_food, random_hub, and random_ant_spawn. Keep actor_hub_vector and add actor_nearest_food_vector. This deliberately provides food-direction information, so it is logged as an observation ablation rather than a communication-only result.",
-      "success_signal": "The final 50x50 two-source randomized gate should clearly beat the hub-vector result of 12.33/23 delivered and should reduce steps per delivered food. A strong diagnostic win would exceed 16/23, proving rare-food discovery is the dominant bottleneck for the smaller colony.",
-      "report_notes": "Use this as a food-discovery upper bound. It preserves the requested randomized rare-source distribution and smaller ant count, but it adds a direct scent-like food vector, so it should not be reported as pure emergent communication.",
-      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
-      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN/checkpoints/jax_mappo_forage_stage1_50x50.pkl",
-      "global_update_cap": 250,
-      "custom_stages": [
-        {
-          "name": "40x40_rare4",
-          "width": 40,
-          "height": 40,
-          "food_count": 23,
-          "food_sources": 4,
-          "cookie_distance": 18,
-          "max_steps": 1300,
-          "global_update_cap": 250,
-          "num_steps": 320,
-          "gamma": 0.998
-        },
-        {
-          "name": "50x50",
-          "width": 50,
-          "height": 50,
-          "food_count": 23,
-          "food_sources": 2,
-          "cookie_distance": 24,
-          "max_steps": 1800,
-          "global_update_cap": 650,
-          "num_steps": 384,
-          "gamma": 0.999
-        }
-      ],
-      "args": {
-        "distance_bonus": 0.02,
-        "num_ants": 8,
-        "actor_hub_vector": true,
-        "actor_nearest_food_vector": true,
-        "hidden_size": 192,
-        "random_food": true,
-        "random_hub": true,
-        "random_ant_spawn": true,
-        "write_bits": 2,
-        "write_head_transfer": "neutral-new",
-        "step_penalty": 0.00005,
-        "completion_bonus": 1.0,
-        "delivery_byte_trail_bonus": 0.2,
-        "byte_follow_bonus": 0.004,
-        "carrying_byte_write_bonus": 0.003,
-        "write_bit_entropy_bonus": 0.0005,
-        "ent_coef": 0.0005,
-        "clip_coef": 0.1,
-        "learning_rate": 0.00003,
-        "update_epochs": 6,
-        "log_interval": 20
-      },
-      "evaluation": {
-        "deterministic_episodes": 0,
-        "sampled_episodes": 0,
-        "seed_offset": 6100000,
-        "shuffle_positions": true,
-        "action_modes": [
-          {
-            "name": "sampled_move_t090_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 64,
-            "seed_offset": 6100000,
-            "move_temperature": 0.9
-          },
-          {
-            "name": "sampled_move_t100_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 64,
-            "seed_offset": 6100000,
-            "move_temperature": 1.0
-          }
-        ]
-      },
-      "wandb": {
-        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-NAVVECTOR-RANDOM-SPAWN",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "hub-vector", "food-vector", "scent", "observation-ablation"]
-      }
-    },
-    {
-      "id": "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
-      "priority": 53,
-      "mode": "forage_curriculum",
-      "family": "checkpoint_selection",
-      "title": "Held-out best selection for the eight-ant rare-map scent policy",
-      "hypothesis": "The nav-vector rare-map run reached 17 deliveries in the final training batch but only 15.20/23 on the final held-out gate. The final checkpoint may be a noisy late snapshot rather than the best policy. Held-out checkpoint selection should recover a better 50x50 scent-policy checkpoint without changing the task or adding ants.",
-      "intervention": "Warm-start from the completed nav-vector 50x50 checkpoint and train only the randomized 50x50 two-source stage. Save a best checkpoint using eval_mean_delivered_food from 16 shuffled held-out episodes every 20 updates at movement temperature 0.90, then use that selected checkpoint for final evaluation.",
-      "success_signal": "The selected checkpoint should beat the parent nav-vector result of 15.20/23 delivered on the final 50x50 randomized gate. A strong result should exceed 16/23 and improve success rate while keeping eight ants.",
-      "report_notes": "This tests checkpoint-selection noise, not a new observation space. It keeps the same rare food, random food, random colony, random ant spawn, hub-vector, and food-scent setup as the parent run.",
-      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
-      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN/checkpoints/jax_mappo_forage_stage1_50x50.pkl",
-      "global_update_cap": 500,
-      "custom_stages": [
-        {
-          "name": "50x50",
-          "width": 50,
-          "height": 50,
-          "food_count": 23,
-          "food_sources": 2,
-          "cookie_distance": 24,
-          "max_steps": 1800,
-          "global_update_cap": 500,
-          "num_steps": 384,
-          "gamma": 0.999,
-          "save_best_checkpoint": true,
-          "select_best_checkpoint": true,
-          "best_checkpoint_selection": "eval",
-          "best_checkpoint_metric": "eval_mean_delivered_food",
-          "best_checkpoint_mode": "max",
-          "best_eval_episodes": 16,
-          "best_eval_interval": 20,
-          "best_eval_seed_offset": 6200000,
-          "best_eval_action_mode": "sampled_move_greedy_write",
-          "best_eval_move_temperature": 0.9
-        }
-      ],
-      "args": {
-        "distance_bonus": 0.02,
-        "num_ants": 8,
-        "actor_hub_vector": true,
-        "actor_nearest_food_vector": true,
-        "hidden_size": 192,
-        "random_food": true,
-        "random_hub": true,
-        "random_ant_spawn": true,
-        "write_bits": 2,
-        "write_head_transfer": "neutral-new",
-        "step_penalty": 0.00004,
-        "completion_bonus": 1.3,
-        "delivery_byte_trail_bonus": 0.2,
-        "byte_follow_bonus": 0.004,
-        "carrying_byte_write_bonus": 0.003,
-        "write_bit_entropy_bonus": 0.0005,
-        "ent_coef": 0.0003,
-        "clip_coef": 0.08,
-        "learning_rate": 0.00002,
-        "update_epochs": 6,
-        "log_interval": 10
-      },
-      "evaluation": {
-        "deterministic_episodes": 0,
-        "sampled_episodes": 0,
-        "seed_offset": 6300000,
-        "shuffle_positions": true,
-        "action_modes": [
-          {
-            "name": "sampled_move_t090_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 96,
-            "seed_offset": 6300000,
-            "move_temperature": 0.9
-          },
-          {
-            "name": "sampled_move_t100_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 96,
-            "seed_offset": 6300000,
-            "move_temperature": 1.0
-          }
-        ]
-      },
-      "wandb": {
-        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-NAVVECTOR-HELDOUT-SELECT",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "random-hub", "random-food", "hub-vector", "food-vector", "heldout-selection", "checkpoint-selection"]
-      }
-    },
-    {
-      "id": "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM",
-      "priority": 54,
-      "mode": "forage_curriculum",
-      "family": "reset_distribution",
-      "title": "Spawn-radius curriculum for eight rare-map scent ants",
-      "hypothesis": "The best eight-ant rare-map scent policy improves delivery on randomized 50x50 layouts, but full-map random ant spawn may be too abrupt during fine-tuning: ants begin far from both the randomized colony and rare food sources, causing long early wandering and weak credit assignment. A reset-distribution curriculum that keeps random ant spawn enabled but initially samples ants near the randomized colony should preserve the requested randomization while making the final full-map reset easier to optimize.",
-      "intervention": "Warm-start from the held-out selected 50x50 rare-map scent checkpoint. Keep eight ants, a 50x50 map, 23 total food, only two food-source positions, random_food, random_hub, and random_ant_spawn on every reset. Train three 50x50 stages: random ant spawn within Chebyshev radius 8 of the randomized colony, then radius 16, then unrestricted full-map random ant spawn. Keep hub and nearest-food vectors because this is a reset-distribution optimization test, not a pure communication claim.",
-      "success_signal": "The final unrestricted 50x50 randomized gate should beat the held-out selected parent score of about 16.2/23 delivered. A strong result would exceed 18/23 delivered, improve success rate, and lower steps per delivered food while keeping only eight ants and the rare two-source food distribution.",
-      "report_notes": "This preserves the user's requested setup: fewer ants than the 24-ant line, bigger maps than 25x25, same total food condensed into very few positions, randomized food positions, randomized colony positions, and randomized ant spawns every reset. The first two stages restrict how far random-spawned ants may appear from the randomized colony; the final training and evaluation gate use full-map random ant spawn.",
-      "run_dir": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM",
-      "source_checkpoint": "runs/autoresearch/forage_loop/DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT/checkpoints/jax_mappo_forage_stage1_50x50_best.pkl",
-      "global_update_cap": 500,
-      "custom_stages": [
-        {
-          "name": "50x50_spawn8",
-          "width": 50,
-          "height": 50,
-          "food_count": 23,
-          "food_sources": 2,
-          "cookie_distance": 24,
-          "max_steps": 1800,
-          "global_update_cap": 250,
-          "num_steps": 384,
-          "gamma": 0.999,
-          "random_ant_spawn_radius": 8
-        },
-        {
-          "name": "50x50_spawn16",
-          "width": 50,
-          "height": 50,
-          "food_count": 23,
-          "food_sources": 2,
-          "cookie_distance": 24,
-          "max_steps": 1800,
-          "global_update_cap": 250,
-          "num_steps": 384,
-          "gamma": 0.999,
-          "random_ant_spawn_radius": 16
-        },
-        {
-          "name": "50x50",
-          "width": 50,
-          "height": 50,
-          "food_count": 23,
-          "food_sources": 2,
-          "cookie_distance": 24,
-          "max_steps": 1800,
-          "global_update_cap": 500,
-          "num_steps": 384,
-          "gamma": 0.999,
-          "save_best_checkpoint": true,
-          "select_best_checkpoint": true,
-          "best_checkpoint_selection": "eval",
-          "best_checkpoint_metric": "eval_mean_delivered_food",
-          "best_checkpoint_mode": "max",
-          "best_eval_episodes": 16,
-          "best_eval_interval": 20,
-          "best_eval_seed_offset": 6400000,
-          "best_eval_action_mode": "sampled_move_greedy_write",
-          "best_eval_move_temperature": 0.9
-        }
-      ],
-      "args": {
-        "distance_bonus": 0.02,
-        "num_ants": 8,
-        "actor_hub_vector": true,
-        "actor_nearest_food_vector": true,
-        "hidden_size": 192,
-        "random_food": true,
-        "random_hub": true,
-        "random_ant_spawn": true,
-        "write_bits": 2,
-        "write_head_transfer": "neutral-new",
-        "step_penalty": 0.000035,
-        "completion_bonus": 1.5,
-        "delivery_byte_trail_bonus": 0.2,
-        "byte_follow_bonus": 0.004,
-        "carrying_byte_write_bonus": 0.003,
-        "write_bit_entropy_bonus": 0.0005,
-        "ent_coef": 0.0003,
-        "clip_coef": 0.08,
-        "learning_rate": 0.00002,
-        "update_epochs": 6,
-        "log_interval": 10
-      },
-      "evaluation": {
-        "deterministic_episodes": 0,
-        "sampled_episodes": 0,
-        "seed_offset": 6500000,
-        "shuffle_positions": true,
-        "action_modes": [
-          {
-            "name": "sampled_move_t090_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 96,
-            "seed_offset": 6500000,
-            "move_temperature": 0.9
-          },
-          {
-            "name": "sampled_move_t100_greedy_write",
-            "action_mode": "sampled_move_greedy_write",
-            "episodes": 96,
-            "seed_offset": 6500000,
-            "move_temperature": 1.0
-          }
-        ]
-      },
-      "wandb": {
-        "name": "loop-DISTANCE-CAP8-BIGMAP-RARE-NAVVECTOR-SPAWN-RADIUS-CURRICULUM",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "big-map", "50x50", "rare-sources", "random-ant-spawn", "spawn-radius-curriculum", "random-hub", "random-food", "hub-vector", "food-vector", "reset-distribution"]
       }
     },
     {
@@ -3149,10 +3416,10 @@
         "distance_bonus": 0.02,
         "num_ants": 32,
         "hidden_size": 192,
-        "step_penalty": 0.00003,
+        "step_penalty": 3e-05,
         "ent_coef": 0.0003,
         "clip_coef": 0.08,
-        "learning_rate": 0.00003,
+        "learning_rate": 3e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -3179,7 +3446,17 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP32-SPEED-SOURCES12-430",
-        "tags": ["distance-bonus", "multi-ant", "thirty-two-ants", "warm-start", "speed", "food-distribution", "source-crowding", "throughput", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "thirty-two-ants",
+          "warm-start",
+          "speed",
+          "food-distribution",
+          "source-crowding",
+          "throughput",
+          "4x-target"
+        ]
       }
     },
     {
@@ -3240,7 +3517,7 @@
         "step_penalty": 0.00012,
         "ent_coef": 0.0005,
         "clip_coef": 0.1,
-        "learning_rate": 0.00005,
+        "learning_rate": 5e-05,
         "update_epochs": 6
       },
       "evaluation": {
@@ -3260,7 +3537,16 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-CAP8-SPEED-RAMP-8A",
-        "tags": ["distance-bonus", "multi-ant", "eight-ants", "warm-start", "speed", "horizon-ramp", "step-penalty", "4x-target"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "eight-ants",
+          "warm-start",
+          "speed",
+          "horizon-ramp",
+          "step-penalty",
+          "4x-target"
+        ]
       }
     },
     {
@@ -3284,7 +3570,12 @@
       },
       "wandb": {
         "name": "loop-DISTANCE-VISION2-CAP4",
-        "tags": ["distance-bonus", "multi-ant", "radius2", "second-wave"]
+        "tags": [
+          "distance-bonus",
+          "multi-ant",
+          "radius2",
+          "second-wave"
+        ]
       }
     },
     {
@@ -3305,7 +3596,10 @@
       },
       "wandb": {
         "name": "loop-VISION2-radius2",
-        "tags": ["vision", "radius2"]
+        "tags": [
+          "vision",
+          "radius2"
+        ]
       }
     },
     {
@@ -3326,7 +3620,10 @@
       },
       "wandb": {
         "name": "loop-NEAR-COOKIE",
-        "tags": ["cookie-distance", "curriculum-geometry"]
+        "tags": [
+          "cookie-distance",
+          "curriculum-geometry"
+        ]
       }
     },
     {
@@ -3347,7 +3644,9 @@
       },
       "wandb": {
         "name": "loop-DENSE8-fewer-sources",
-        "tags": ["food-density"]
+        "tags": [
+          "food-density"
+        ]
       }
     },
     {
@@ -3363,9 +3662,24 @@
       "run_dir": "runs/autoresearch/forage_loop/GAMMA999",
       "global_update_cap": 800,
       "stage_training_profile": [
-        {"max_size": 8, "global_update_cap": 500, "num_steps": 160, "gamma": 0.995},
-        {"max_size": 15, "global_update_cap": 800, "num_steps": 256, "gamma": 0.997},
-        {"max_size": 25, "global_update_cap": 1000, "num_steps": 320, "gamma": 0.999}
+        {
+          "max_size": 8,
+          "global_update_cap": 500,
+          "num_steps": 160,
+          "gamma": 0.995
+        },
+        {
+          "max_size": 15,
+          "global_update_cap": 800,
+          "num_steps": 256,
+          "gamma": 0.997
+        },
+        {
+          "max_size": 25,
+          "global_update_cap": 1000,
+          "num_steps": 320,
+          "gamma": 0.999
+        }
       ],
       "args": {
         "num_envs": 6,
@@ -3376,7 +3690,10 @@
       },
       "wandb": {
         "name": "loop-GAMMA999-long-credit",
-        "tags": ["gamma", "long-rollout"]
+        "tags": [
+          "gamma",
+          "long-rollout"
+        ]
       }
     },
     {
@@ -3391,13 +3708,30 @@
       "report_notes": "This tests curriculum size spacing directly.",
       "run_dir": "runs/autoresearch/forage_loop/LADDER_FINE",
       "global_update_cap": 850,
-      "stage_sizes": [4, 6, 8, 10, 12, 15, 18, 20, 21, 22, 23, 24, 25],
+      "stage_sizes": [
+        4,
+        6,
+        8,
+        10,
+        12,
+        15,
+        18,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25
+      ],
       "args": {
         "ent_coef": 0.008
       },
       "wandb": {
         "name": "loop-LADDER-FINE",
-        "tags": ["stage-schedule", "fine-ladder"]
+        "tags": [
+          "stage-schedule",
+          "fine-ladder"
+        ]
       }
     },
     {
@@ -3420,7 +3754,11 @@
       },
       "wandb": {
         "name": "loop-VISION2-CAP4",
-        "tags": ["combined", "multi-ant", "radius2"]
+        "tags": [
+          "combined",
+          "multi-ant",
+          "radius2"
+        ]
       }
     },
     {
@@ -3443,7 +3781,10 @@
       },
       "wandb": {
         "name": "loop-BYTE-TRAIL",
-        "tags": ["byte-trail", "memory-shaping"]
+        "tags": [
+          "byte-trail",
+          "memory-shaping"
+        ]
       }
     },
     {
@@ -3469,7 +3810,10 @@
       },
       "wandb": {
         "name": "loop-AUTO-STAGE",
-        "tags": ["autocurriculum", "stage-bonus"]
+        "tags": [
+          "autocurriculum",
+          "stage-bonus"
+        ]
       }
     }
   ]

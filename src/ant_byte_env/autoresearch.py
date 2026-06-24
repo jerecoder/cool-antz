@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ant_byte_env.runtime.resources import (
+    assert_notebook_resources_available,
+    notebook_resource_snapshot,
+)
+
 AUTORESEARCH_MIN_DISK_FREE_GB = 5.0
 AUTORESEARCH_MIN_MEM_AVAILABLE_GB = 4.0
 AUTORESEARCH_MIN_SWAP_FREE_GB = 0.25
@@ -53,11 +58,6 @@ def assert_autoresearch_resources_available(
     context: str = "autoresearch",
 ) -> None:
     """Fail before a long autoresearch run when local resources look unsafe."""
-
-    from ant_byte_env.notebook_workflows import (
-        assert_notebook_resources_available,
-        notebook_resource_snapshot,
-    )
 
     actual_snapshot = notebook_resource_snapshot() if snapshot is None else snapshot
     try:

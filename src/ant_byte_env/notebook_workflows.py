@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-import sys
-import gc
+import math
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from ant_byte_env import MAX_WRITE_BITS
 from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
+from ant_byte_env.runtime.resources import (
+    DEFAULT_JAX_MEMORY_FRACTION,
+    NOTEBOOK_SAFE_CLEANUP_DIR_NAMES,
+    assert_notebook_resources_available,
+    cleanup_notebook_artifacts,
+    configure_jax_notebook_runtime,
+    notebook_resource_snapshot,
+    trim_current_process_memory,
+)
 from ant_byte_env.rendering import render_checkpoint
 from ant_byte_env.vault import create_vault_entry
 from ant_byte_env.wandb_tracking import WandbTracker
@@ -34,24 +40,38 @@ FORAGE_WANDB_PREVIEW_STAGE_NAMES = (
     "40x40",
     "50x50",
 )
+EXPLORATION_TO_FORAGE_STAGE_SIZES = (8, 12, 16, 20, 25, 30, 35, 40, 45, 50)
+EXPLORATION_TO_FORAGE_WANDB_PREVIEW_STAGE_NAMES = (
+    "8x8",
+    "16x16",
+    "25x25",
+    "35x35",
+    "50x50",
+)
+EXPLORATION_TO_FORAGE_VISIT_REWARD_SCHEDULE = (
+    (8, 0.02),
+    (12, 0.015),
+    (16, 0.01),
+    (20, 0.0075),
+    (25, 0.005),
+    (30, 0.003),
+    (35, 0.002),
+    (40, 0.0015),
+    (45, 0.001),
+    (50, 0.001),
+)
 EXPLORATION_STAGE_SIZES = tuple(range(4, 51))
 EXPLORATION_STAGE_TRAINING_PROFILE = (
     {"max_size": 50, "global_update_cap": 1500, "num_steps": 80, "gamma": 0.99},
 )
 EXPLORATION_WANDB_PREVIEW_STAGE_NAMES: tuple[str, ...] | None = None
+MAZE_EXPLORATION_STAGE_SIZES = tuple(range(10, 51))
+MAZE_EXPLORATION_WANDB_PREVIEW_STAGE_NAMES: tuple[str, ...] | None = None
 CURRICULUM_BITES_PER_FOOD_SOURCE = 4
+EXPLORATION_MAX_STEPS_PER_CELL = 2.5
 NOTEBOOK_ROLLOUT_TILE_SIZE = 16
 NOTEBOOK_ROLLOUT_SEED_OFFSET = 100_000
 NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE = 1.0
-DEFAULT_JAX_MEMORY_FRACTION = "0.35"
-NOTEBOOK_SAFE_CLEANUP_DIR_NAMES = frozenset(
-    {
-        "__pycache__",
-        ".ipynb_checkpoints",
-        ".pytest_cache",
-        ".ruff_cache",
-    }
-)
 COMMUNICATION_ARG_EXCLUDES = {
     "exp_name",
     "write_bits",
@@ -76,412 +96,66 @@ EXPLORATION_ARG_EXCLUDES = {
     "height",
     "food_count",
     "food_sources",
+    "food_cluster_count",
+    "food_cluster_radius",
     "cookie_distance",
     "max_steps",
     "save_model",
     "load_model",
     "run_dir",
 }
+EXPLORATION_TO_FORAGE_ARG_EXCLUDES = EXPLORATION_ARG_EXCLUDES | {
+    "gamma",
+    "num_steps",
+    "visit_reward_scale",
+    "view_reward_scale",
+    "cookies_per_source",
+    "save_best_model",
+    "best_model_metric",
+    "best_model_mode",
+    "best_model_selection",
+    "best_eval_episodes",
+    "best_eval_interval",
+    "best_eval_seed_offset",
+    "best_eval_action_mode",
+    "best_eval_move_temperature",
+    "best_eval_write_temperature",
+    "best_eval_shuffle_positions",
+}
 ANT_COUNT_ARG_EXCLUDES = COMMUNICATION_ARG_EXCLUDES | {"num_ants"}
+_WANDB_CLI_VALUE_ARGS = frozenset(
+    {
+        "--wandb-project",
+        "--wandb-entity",
+        "--wandb-group",
+        "--wandb-run-name",
+        "--wandb-notes",
+        "--wandb-mode",
+    }
+)
+_WANDB_CLI_VARARGS = frozenset({"--wandb-tags"})
 
 
-def configure_jax_notebook_runtime(
+def notebook_rollout_policy_temperature(
+    metadata: Mapping[str, Any],
     *,
-    memory_fraction: str = DEFAULT_JAX_MEMORY_FRACTION,
-) -> dict[str, Any]:
-    """Set conservative JAX runtime defaults before notebooks import JAX."""
-
-    jax_already_imported = "jax" in sys.modules
-    os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
-    _set_jax_memory_fraction(str(memory_fraction), jax_already_imported=jax_already_imported)
-    os.environ.setdefault("XLA_PYTHON_CLIENT_ALLOCATOR", "platform")
-    memory_trimmed = trim_current_process_memory()
-    snapshot = notebook_resource_snapshot()
-    return {
-        "jax_already_imported": jax_already_imported,
-        "jax_preallocate": os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"],
-        "jax_memory_fraction": os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"],
-        "jax_allocator": os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"],
-        "memory_trimmed": memory_trimmed,
-        **snapshot,
-    }
-
-
-def assert_notebook_resources_available(
-    snapshot: Mapping[str, Any],
-    *,
-    min_disk_free_gb: float = 3.0,
-    min_mem_available_gb: float = 2.0,
-    min_swap_free_gb: float = 0.25,
-    max_gpu_compute_memory_mb: int = 1024,
-) -> None:
-    """Fail early when a notebook run is likely to destabilize the machine."""
-
-    issues: list[str] = []
-    mem_available_gb = float(snapshot.get("mem_available_gb", min_mem_available_gb))
-    swap_free_gb = float(snapshot.get("swap_free_gb", min_swap_free_gb))
-    if float(snapshot.get("disk_free_gb", min_disk_free_gb)) < min_disk_free_gb:
-        issues.append(f"disk free is below {min_disk_free_gb:g} GB")
-    if mem_available_gb < min_mem_available_gb:
-        issues.append(f"available RAM is below {min_mem_available_gb:g} GB")
-    if swap_free_gb < min_swap_free_gb and mem_available_gb < 2 * min_mem_available_gb:
-        issues.append(
-            f"free swap is below {min_swap_free_gb:g} GB while available RAM is low"
-        )
-    gpu_memory = snapshot.get("gpu_compute_memory_mb")
-    if gpu_memory is not None and int(gpu_memory) > max_gpu_compute_memory_mb:
-        issues.append(f"GPU compute memory already exceeds {max_gpu_compute_memory_mb} MB")
-    recovery_action = str(snapshot.get("gpu_recovery_action", "")).strip()
-    if recovery_action and recovery_action.lower() not in {"n/a", "none", "no action"}:
-        issues.append(
-            f"GPU recovery action is {recovery_action}; reboot before expecting CUDA/JAX GPU"
-        )
-    if issues:
-        details = "\n- ".join(issues)
-        recovery = _resource_recovery_text(snapshot)
-        raise RuntimeError(
-            "Notebook resources look unsafe. Stop old kernels/processes or free space, then "
-            f"restart this kernel.\n- {details}{recovery}"
-        )
-
-
-def notebook_resource_snapshot(path: Path | str = ".") -> dict[str, Any]:
-    """Return a lightweight disk/RAM/GPU snapshot for notebook preflight cells."""
-
-    root = Path(path)
-    disk = shutil.disk_usage(root)
-    cleanup_candidates = _safe_cleanup_candidates(root)
-    snapshot: dict[str, Any] = {
-        "disk_free_gb": round(disk.free / 1024**3, 2),
-        "disk_used_percent": round(disk.used / disk.total * 100, 1),
-        "current_pid": os.getpid(),
-        "safe_cleanup_candidate_count": len(cleanup_candidates),
-        "safe_cleanup_candidate_gb": round(
-            sum(_path_size_bytes(candidate) for candidate in cleanup_candidates) / 1024**3,
-            3,
-        ),
-        "top_memory_processes": _top_memory_processes(),
-    }
-    runs_path = root / "runs"
-    if runs_path.exists():
-        snapshot["runs_size_gb"] = round(_path_size_bytes(runs_path) / 1024**3, 3)
-    snapshot.update(_linux_memory_snapshot())
-    snapshot.update(_nvidia_health_snapshot())
-    gpu_memory_mb = _nvidia_compute_memory_mb()
-    if gpu_memory_mb is not None:
-        snapshot["gpu_compute_memory_mb"] = gpu_memory_mb
-    return snapshot
-
-
-def cleanup_notebook_artifacts(
-    project_root: Path | str = ".",
-    *,
-    dry_run: bool = True,
-) -> dict[str, Any]:
-    """Remove safe local notebook/cache artifacts without touching run outputs."""
-
-    root = Path(project_root)
-    candidates = _safe_cleanup_candidates(root)
-    freed_bytes = sum(_path_size_bytes(candidate) for candidate in candidates)
-    removed: list[str] = []
-    if not dry_run:
-        for candidate in candidates:
-            if candidate.exists():
-                shutil.rmtree(candidate)
-                removed.append(str(candidate))
-    return {
-        "dry_run": dry_run,
-        "candidate_count": len(candidates),
-        "removed_count": len(removed),
-        "freed_bytes": freed_bytes,
-        "freed_gb": round(freed_bytes / 1024**3, 3),
-        "paths": [str(candidate) for candidate in candidates],
-    }
-
-
-def trim_current_process_memory() -> bool:
-    """Ask Python/libc to return free arenas to the OS before resource checks."""
-
-    gc.collect()
-    if not sys.platform.startswith("linux"):
-        return False
-    try:
-        import ctypes
-
-        libc = ctypes.CDLL("libc.so.6")
-        return bool(libc.malloc_trim(0))
-    except (AttributeError, OSError):
-        return False
-
-
-def _set_jax_memory_fraction(memory_fraction: str, *, jax_already_imported: bool) -> None:
-    current = os.environ.get("XLA_PYTHON_CLIENT_MEM_FRACTION")
-    if current is None:
-        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = memory_fraction
-        return
-    if jax_already_imported:
-        return
-    current_value = _float_or_none(current)
-    requested_value = _float_or_none(memory_fraction)
-    if current_value is None or requested_value is None or current_value > requested_value:
-        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = memory_fraction
-
-
-def _float_or_none(value: str) -> float | None:
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-
-def _resource_recovery_text(snapshot: Mapping[str, Any]) -> str:
-    lines: list[str] = []
-    top_processes = list(snapshot.get("top_memory_processes") or [])
-    if top_processes:
-        lines.append("")
-        lines.append("Largest memory users:")
-        for process in top_processes[:5]:
-            marker = " current" if process.get("is_current_process") else ""
-            kernel = " notebook-kernel" if process.get("is_notebook_kernel") else ""
-            lines.append(
-                "- PID {pid}: {rss_mb:g} MB{marker}{kernel} :: {command}".format(
-                    pid=process.get("pid"),
-                    rss_mb=float(process.get("rss_mb", 0.0)),
-                    marker=marker,
-                    kernel=kernel,
-                    command=str(process.get("command", ""))[:140],
-                )
-            )
-    stale_kernel_pids = [
-        str(process["pid"])
-        for process in top_processes
-        if process.get("is_notebook_kernel") and not process.get("is_current_process")
-    ]
-    lines.append("")
-    lines.append("Suggested recovery:")
-    recovery_action = str(snapshot.get("gpu_recovery_action", "")).strip()
-    if recovery_action and recovery_action.lower() not in {"n/a", "none", "no action"}:
-        lines.append(
-            f"- Reboot this machine; NVIDIA reports GPU Recovery Action: {recovery_action}."
-        )
-    if stale_kernel_pids:
-        lines.append(
-            "- Shut down stale Jupyter/VS Code kernels first. If those PIDs are stale, run: "
-            f"kill {' '.join(stale_kernel_pids[:6])}"
-        )
-    lines.append(
-        "- Clean safe local caches from a fresh cell or terminal: "
-        "from ant_byte_env import notebook_workflows as workflows; "
-        "workflows.cleanup_notebook_artifacts(PROJECT_ROOT, dry_run=False)"
-    )
-    if "runs_size_gb" in snapshot:
-        lines.append(
-            f"- runs/ currently uses {snapshot['runs_size_gb']} GB; archive or delete old runs "
-            "only after keeping the checkpoints/media you need."
-        )
-    return "\n" + "\n".join(lines)
-
-
-def _linux_memory_snapshot() -> dict[str, Any]:
-    meminfo_path = Path("/proc/meminfo")
-    if not meminfo_path.exists():
-        return {}
-
-    values: dict[str, int] = {}
-    for line in meminfo_path.read_text(encoding="utf-8").splitlines():
-        key, _, raw_value = line.partition(":")
-        parts = raw_value.strip().split()
-        if parts:
-            values[key] = int(parts[0])
-    return {
-        "mem_available_gb": round(values.get("MemAvailable", 0) / 1024**2, 2),
-        "swap_free_gb": round(values.get("SwapFree", 0) / 1024**2, 2),
-    }
-
-
-def _nvidia_health_snapshot() -> dict[str, Any]:
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "-q"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return {}
-    if result.returncode != 0:
-        return {}
-
-    raw = _parse_nvidia_smi_query(result.stdout)
-    snapshot: dict[str, Any] = {}
-    key_map = {
-        "Driver Version": "gpu_driver_version",
-        "CUDA Version": "gpu_cuda_version",
-        "Product Name": "gpu_name",
-        "GPU Recovery Action": "gpu_recovery_action",
-    }
-    for raw_key, snapshot_key in key_map.items():
-        if raw_key in raw:
-            snapshot[snapshot_key] = raw[raw_key]
-    return snapshot
-
-
-def _parse_nvidia_smi_query(output: str) -> dict[str, str]:
-    parsed: dict[str, str] = {}
-    for line in output.splitlines():
-        key, separator, value = line.partition(":")
-        if separator:
-            parsed.setdefault(key.strip(), value.strip())
-    return parsed
-
-
-def _safe_cleanup_candidates(root: Path) -> list[Path]:
-    if not root.exists():
-        return []
-    candidates: list[Path] = []
-    for path in root.rglob("*"):
-        if path.is_dir() and path.name in NOTEBOOK_SAFE_CLEANUP_DIR_NAMES:
-            candidates.append(path)
-    return candidates
-
-
-def _path_size_bytes(path: Path) -> int:
-    if not path.exists():
-        return 0
-    if path.is_file():
-        try:
-            return path.stat().st_size
-        except OSError:
-            return 0
-    total = 0
-    for child in path.rglob("*"):
-        if child.is_file():
-            try:
-                total += child.stat().st_size
-            except OSError:
-                pass
-    return total
-
-
-def _top_memory_processes(limit: int = 8) -> list[dict[str, Any]]:
-    proc_root = Path("/proc")
-    if not proc_root.exists():
-        return []
-
-    current_uid = os.getuid() if hasattr(os, "getuid") else None
-    current_pid = os.getpid()
-    processes: list[dict[str, Any]] = []
-    for entry in proc_root.iterdir():
-        if not entry.name.isdigit():
-            continue
-        status = _proc_status(entry)
-        if not status:
-            continue
-        if current_uid is not None and _proc_uid(status) != current_uid:
-            continue
-        rss_kb = _status_kb(status.get("VmRSS", "0 kB"))
-        if rss_kb <= 0:
-            continue
-        pid = int(entry.name)
-        command_parts = _proc_cmdline(entry)
-        command = " ".join(command_parts) if command_parts else status.get("Name", "")
-        processes.append(
-            {
-                "pid": pid,
-                "ppid": int(status.get("PPid", "0")),
-                "rss_mb": round(rss_kb / 1024, 1),
-                "command": command,
-                "connection_file": _connection_file(command_parts),
-                "is_current_process": pid == current_pid,
-                "is_notebook_kernel": _is_notebook_kernel(command_parts, command),
-            }
-        )
-    return sorted(processes, key=lambda process: float(process["rss_mb"]), reverse=True)[:limit]
-
-
-def _proc_status(proc_entry: Path) -> dict[str, str]:
-    try:
-        lines = (proc_entry / "status").read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {}
-    status: dict[str, str] = {}
-    for line in lines:
-        key, _, value = line.partition(":")
-        if key:
-            status[key] = value.strip()
-    return status
-
-
-def _proc_uid(status: Mapping[str, str]) -> int | None:
-    raw_uid = status.get("Uid", "")
-    parts = raw_uid.split()
-    if not parts:
-        return None
-    try:
-        return int(parts[0])
-    except ValueError:
-        return None
-
-
-def _status_kb(value: str) -> int:
-    parts = value.split()
-    if not parts:
-        return 0
-    try:
-        return int(parts[0])
-    except ValueError:
-        return 0
-
-
-def _proc_cmdline(proc_entry: Path) -> list[str]:
-    try:
-        raw = (proc_entry / "cmdline").read_bytes()
-    except OSError:
-        return []
-    return [part.decode(errors="replace") for part in raw.split(b"\0") if part]
-
-
-def _connection_file(command_parts: Sequence[str]) -> str | None:
-    for index, part in enumerate(command_parts):
-        if part.startswith("--f="):
-            return part.removeprefix("--f=")
-        if part == "--f" and index + 1 < len(command_parts):
-            return command_parts[index + 1]
-    return None
-
-
-def _is_notebook_kernel(command_parts: Sequence[str], command: str) -> bool:
-    return (
-        "ipykernel_launcher" in command
-        or any(part.startswith("--f=") and "kernel-" in part for part in command_parts)
+    key: str = "rollout_policy_temperature",
+    default: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+) -> float:
+    return _validate_rollout_policy_temperature(
+        metadata.get(key, default),
+        name=key,
     )
 
 
-def _nvidia_compute_memory_mb() -> int | None:
+def _validate_rollout_policy_temperature(value: object, *, name: str) -> float:
     try:
-        result = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-compute-apps=used_memory",
-                "--format=csv,noheader,nounits",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-    if result.returncode != 0:
-        return None
-
-    total = 0
-    for line in result.stdout.splitlines():
-        stripped = line.strip()
-        if stripped:
-            total += int(stripped)
-    return total
+        temperature = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a non-negative float.") from exc
+    if not math.isfinite(temperature) or temperature < 0.0:
+        raise ValueError(f"{name} must be a non-negative float.")
+    return temperature
 
 
 def load_jax_experiment(config_path: Path) -> Any:
@@ -517,6 +191,81 @@ def curriculum_food_sources(size: int) -> int:
         food_count + CURRICULUM_BITES_PER_FOOD_SOURCE - 1
     ) // CURRICULUM_BITES_PER_FOOD_SOURCE
     return max(1, min(food_count, concentrated_sources))
+
+
+def exploration_max_steps(size: int) -> int:
+    return int(math.ceil(EXPLORATION_MAX_STEPS_PER_CELL * int(size) * int(size)))
+
+
+def exploration_to_forage_visit_reward_scale(
+    size: int,
+    *,
+    schedule: object = None,
+    fallback: float = 0.0,
+) -> float:
+    """Return the small decaying new-cell reward for an exploration-to-forage stage."""
+
+    fallback_scale = float(fallback)
+    if not math.isfinite(fallback_scale) or fallback_scale < 0.0:
+        raise ValueError("fallback visit reward scale must be a non-negative float.")
+    normalized = _normalize_visit_reward_schedule(
+        EXPLORATION_TO_FORAGE_VISIT_REWARD_SCHEDULE if schedule is None else schedule
+    )
+    if not normalized:
+        return fallback_scale
+
+    target_size = int(size)
+    if target_size <= 0:
+        raise ValueError("visit reward stage size must be positive.")
+    previous_size, previous_scale = normalized[0]
+    if target_size <= previous_size:
+        return previous_scale
+    for next_size, next_scale in normalized[1:]:
+        if target_size == next_size:
+            return next_scale
+        if target_size < next_size:
+            fraction = (target_size - previous_size) / (next_size - previous_size)
+            return previous_scale + fraction * (next_scale - previous_scale)
+        previous_size, previous_scale = next_size, next_scale
+    return normalized[-1][1]
+
+
+def _normalize_visit_reward_schedule(schedule: object) -> tuple[tuple[int, float], ...]:
+    rows: list[tuple[int, float]] = []
+    if isinstance(schedule, Mapping):
+        items = tuple(schedule.items())
+    else:
+        try:
+            items = tuple(schedule)  # type: ignore[arg-type]
+        except TypeError as exc:
+            raise ValueError("visit reward schedule must be a mapping or sequence.") from exc
+
+    for item in items:
+        if isinstance(item, Mapping):
+            size_value = item.get("size", item.get("max_size"))
+            scale_value = item.get("scale", item.get("visit_reward_scale"))
+        else:
+            try:
+                size_value, scale_value = item  # type: ignore[misc]
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "visit reward schedule entries must be size/scale pairs."
+                ) from exc
+        try:
+            stage_size = int(size_value)
+            scale = float(scale_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("visit reward schedule entries must be numeric.") from exc
+        if stage_size <= 0:
+            raise ValueError("visit reward schedule sizes must be positive.")
+        if not math.isfinite(scale) or scale < 0.0:
+            raise ValueError("visit reward schedule scales must be non-negative floats.")
+        rows.append((stage_size, scale))
+
+    normalized = tuple(sorted(rows, key=lambda row: row[0]))
+    if any(left[0] == right[0] for left, right in zip(normalized, normalized[1:])):
+        raise ValueError("visit reward schedule sizes must be unique.")
+    return normalized
 
 
 def forage_training_profile(size: int) -> dict[str, int | float]:
@@ -560,6 +309,358 @@ def build_forage_curriculum_stages(
     ]
 
 
+def build_exploration_to_forage_curriculum_stages(
+    final_args: Mapping[str, Any],
+    stage_sizes: Sequence[int] = EXPLORATION_TO_FORAGE_STAGE_SIZES,
+    *,
+    visit_reward_schedule: object = None,
+    stage_update_multiplier: float = 1.0,
+) -> list[dict[str, int | float | str | bool]]:
+    final_width = int(final_args.get("width", 50))
+    final_height = int(final_args.get("height", final_width))
+    if final_width != final_height:
+        raise ValueError("exploration-to-forage curriculum currently expects square maps.")
+    if not stage_sizes:
+        raise ValueError("stage_sizes must not be empty.")
+    stage_sizes = tuple(int(size) for size in stage_sizes)
+    if stage_sizes[-1] != final_width:
+        raise ValueError("last exploration-to-forage stage must match the final map size.")
+    if any(size <= 1 for size in stage_sizes):
+        raise ValueError("stage_sizes must be greater than one.")
+    if any(left >= right for left, right in zip(stage_sizes, stage_sizes[1:])):
+        raise ValueError("stage_sizes must be strictly increasing.")
+
+    final_food_count = int(final_args["food_count"])
+    final_food_sources = int(final_args["food_sources"])
+    final_cookie_distance = int(final_args["cookie_distance"])
+    final_max_steps = int(final_args["max_steps"])
+    visit_reward_fallback = float(final_args.get("visit_reward_scale", 0.0))
+    stage_update_multiplier = _validate_stage_update_multiplier(
+        stage_update_multiplier
+    )
+    stages: list[dict[str, int | float | str | bool]] = []
+    for size in stage_sizes:
+        is_final = size == final_width
+        food_count = final_food_count if is_final else min(final_food_count, curriculum_food_count(size))
+        food_sources = (
+            final_food_sources
+            if is_final
+            else min(
+                food_count,
+                final_food_sources,
+                max(
+                    1,
+                    (food_count + CURRICULUM_BITES_PER_FOOD_SOURCE - 1)
+                    // CURRICULUM_BITES_PER_FOOD_SOURCE,
+                ),
+            )
+        )
+        cookie_distance = (
+            final_cookie_distance
+            if is_final
+            else min(final_cookie_distance, min(1 + (size - 4) // 2, size // 2))
+        )
+        max_steps = (
+            final_max_steps
+            if is_final
+            else max(
+                48,
+                (final_max_steps * size * size + final_width * final_width - 1)
+                // (final_width * final_width),
+            )
+        )
+        training_profile = forage_training_profile(size)
+        training_profile["global_update_cap"] = int(
+            math.ceil(int(training_profile["global_update_cap"]) * stage_update_multiplier)
+        )
+        stage: dict[str, int | float | str | bool] = {
+            "name": f"{size}x{size}",
+            "width": size,
+            "height": size,
+            "food_count": food_count,
+            "food_sources": food_sources,
+            "cookie_distance": cookie_distance,
+            "max_steps": max_steps,
+            "visit_reward_scale": exploration_to_forage_visit_reward_scale(
+                size,
+                schedule=visit_reward_schedule,
+                fallback=visit_reward_fallback,
+            ),
+            **training_profile,
+        }
+        if is_final and final_args.get("save_best_model"):
+            stage.update(
+                {
+                    "save_best_checkpoint": True,
+                    "select_best_checkpoint": True,
+                    "best_checkpoint_path": str(final_args["save_best_model"]),
+                    "best_checkpoint_metric": str(
+                        final_args.get("best_model_metric", "episode_return")
+                    ),
+                    "best_checkpoint_mode": str(final_args.get("best_model_mode", "max")),
+                    "best_checkpoint_selection": str(
+                        final_args.get("best_model_selection", "train")
+                    ),
+                }
+            )
+            for source_key, stage_key in (
+                ("best_eval_episodes", "best_eval_episodes"),
+                ("best_eval_interval", "best_eval_interval"),
+                ("best_eval_seed_offset", "best_eval_seed_offset"),
+                ("best_eval_action_mode", "best_eval_action_mode"),
+                ("best_eval_move_temperature", "best_eval_move_temperature"),
+                ("best_eval_write_temperature", "best_eval_write_temperature"),
+                ("best_eval_shuffle_positions", "best_eval_shuffle_positions"),
+            ):
+                if source_key in final_args:
+                    stage[stage_key] = final_args[source_key]
+        stages.append(stage)
+    return stages
+
+
+def build_food_source_curriculum_stages(
+    final_args: Mapping[str, Any],
+    source_counts: Sequence[int],
+    *,
+    visit_reward_schedule: object = None,
+    view_reward_schedule: object = None,
+    stage_update_multiplier: float = 1.0,
+) -> list[dict[str, int | float | str | bool]]:
+    """Build fixed-arena forage stages with decreasing food-source counts."""
+
+    if not source_counts:
+        raise ValueError("source_counts must not be empty.")
+    source_counts = tuple(int(count) for count in source_counts)
+    if any(count <= 0 for count in source_counts):
+        raise ValueError("source_counts must be positive.")
+    if any(left <= right for left, right in zip(source_counts, source_counts[1:])):
+        raise ValueError("source_counts must be strictly decreasing.")
+
+    width = int(final_args["width"])
+    height = int(final_args.get("height", width))
+    fixed_food_count = int(final_args["food_count"])
+    cookies_per_source = int(final_args.get("cookies_per_source", 0))
+    if cookies_per_source < 0:
+        raise ValueError("cookies_per_source must be non-negative.")
+    if any(count > fixed_food_count for count in source_counts):
+        raise ValueError("source_counts must not exceed food_count.")
+
+    visit_reward_fallback = float(final_args.get("visit_reward_scale", 0.0))
+    view_reward_fallback = float(final_args.get("view_reward_scale", 0.0))
+    stage_update_multiplier = _validate_stage_update_multiplier(
+        stage_update_multiplier
+    )
+    base_profile = forage_training_profile(max(width, height))
+    base_profile["global_update_cap"] = int(
+        math.ceil(int(base_profile["global_update_cap"]) * stage_update_multiplier)
+    )
+
+    stages: list[dict[str, int | float | str | bool]] = []
+    final_source_count = source_counts[-1]
+    for source_count in source_counts:
+        is_final = source_count == final_source_count
+        stage: dict[str, int | float | str | bool] = {
+            "name": f"{width}x{height}_sources_{source_count:02d}",
+            "width": width,
+            "height": height,
+            "food_count": fixed_food_count,
+            "food_sources": source_count,
+            "cookie_distance": int(final_args["cookie_distance"]),
+            "max_steps": int(final_args["max_steps"]),
+            "visit_reward_scale": food_source_curriculum_visit_reward_scale(
+                source_count,
+                schedule=visit_reward_schedule,
+                fallback=visit_reward_fallback,
+            ),
+            "view_reward_scale": food_source_curriculum_visit_reward_scale(
+                source_count,
+                schedule=view_reward_schedule,
+                fallback=view_reward_fallback,
+            ),
+            "view_reward_decay": float(final_args.get("view_reward_decay", 1.0)),
+            "border_view_penalty": float(final_args.get("border_view_penalty", 0.0)),
+            "border_moat_width": int(final_args.get("border_moat_width", 0)),
+            "border_moat_penalty": float(final_args.get("border_moat_penalty", 0.0)),
+            **base_profile,
+        }
+        if is_final and final_args.get("save_best_model"):
+            stage.update(
+                {
+                    "save_best_checkpoint": True,
+                    "select_best_checkpoint": True,
+                    "best_checkpoint_path": str(final_args["save_best_model"]),
+                    "best_checkpoint_metric": str(
+                        final_args.get("best_model_metric", "episode_return")
+                    ),
+                    "best_checkpoint_mode": str(final_args.get("best_model_mode", "max")),
+                    "best_checkpoint_selection": str(
+                        final_args.get("best_model_selection", "train")
+                    ),
+                }
+            )
+            for source_key, stage_key in (
+                ("best_eval_episodes", "best_eval_episodes"),
+                ("best_eval_interval", "best_eval_interval"),
+                ("best_eval_seed_offset", "best_eval_seed_offset"),
+                ("best_eval_action_mode", "best_eval_action_mode"),
+                ("best_eval_move_temperature", "best_eval_move_temperature"),
+                ("best_eval_write_temperature", "best_eval_write_temperature"),
+                ("best_eval_shuffle_positions", "best_eval_shuffle_positions"),
+            ):
+                if source_key in final_args:
+                    stage[stage_key] = final_args[source_key]
+        stages.append(stage)
+    return stages
+
+
+def build_food_cluster_curriculum_stages(
+    final_args: Mapping[str, Any],
+    source_counts: Sequence[int],
+    cluster_radii: Sequence[int],
+    *,
+    visit_reward_schedule: object = None,
+    view_reward_schedule: object = None,
+    stage_update_multiplier: float = 1.0,
+) -> list[dict[str, int | float | str | bool]]:
+    """Build fixed-arena stages with two macro food sources and shrinking footprints."""
+
+    if not source_counts:
+        raise ValueError("source_counts must not be empty.")
+    source_counts = tuple(int(count) for count in source_counts)
+    cluster_radii = tuple(int(radius) for radius in cluster_radii)
+    if len(source_counts) != len(cluster_radii):
+        raise ValueError("source_counts and cluster_radii must have the same length.")
+    if any(count <= 0 for count in source_counts):
+        raise ValueError("source_counts must be positive.")
+    if any(radius < 0 for radius in cluster_radii):
+        raise ValueError("cluster_radii must be non-negative.")
+    if any(left <= right for left, right in zip(source_counts, source_counts[1:])):
+        raise ValueError("source_counts must be strictly decreasing.")
+    if any(left < right for left, right in zip(cluster_radii, cluster_radii[1:])):
+        raise ValueError("cluster_radii must be non-increasing.")
+
+    width = int(final_args["width"])
+    height = int(final_args.get("height", width))
+    fixed_food_count = int(final_args["food_count"])
+    cluster_count = int(final_args.get("food_cluster_count", final_args["food_sources"]))
+    if cluster_count <= 0:
+        raise ValueError("food_cluster_count must be positive.")
+    if any(count > fixed_food_count for count in source_counts):
+        raise ValueError("source_counts must not exceed food_count.")
+    if any(count < cluster_count for count in source_counts):
+        raise ValueError("source_counts must be at least food_cluster_count.")
+    for count, radius in zip(source_counts, cluster_radii):
+        max_cluster_positions = cluster_count * (2 * radius + 1) ** 2
+        if count > max_cluster_positions:
+            raise ValueError("source_counts must fit inside each cluster footprint.")
+
+    visit_reward_fallback = float(final_args.get("visit_reward_scale", 0.0))
+    view_reward_fallback = float(final_args.get("view_reward_scale", 0.0))
+    stage_update_multiplier = _validate_stage_update_multiplier(
+        stage_update_multiplier
+    )
+    base_profile = forage_training_profile(max(width, height))
+    base_profile["global_update_cap"] = int(
+        math.ceil(int(base_profile["global_update_cap"]) * stage_update_multiplier)
+    )
+
+    stages: list[dict[str, int | float | str | bool]] = []
+    final_source_count = source_counts[-1]
+    for source_count, cluster_radius in zip(source_counts, cluster_radii):
+        is_final = source_count == final_source_count
+        stage: dict[str, int | float | str | bool] = {
+            "name": (
+                f"{width}x{height}_clusters_{cluster_count:02d}_"
+                f"r{cluster_radius:02d}_sources_{source_count:03d}"
+            ),
+            "width": width,
+            "height": height,
+            "food_count": fixed_food_count,
+            "food_sources": source_count,
+            "food_cluster_count": cluster_count,
+            "food_cluster_radius": cluster_radius,
+            "cookie_distance": int(final_args["cookie_distance"]),
+            "max_steps": int(final_args["max_steps"]),
+            "visit_reward_scale": food_source_curriculum_visit_reward_scale(
+                source_count,
+                schedule=visit_reward_schedule,
+                fallback=visit_reward_fallback,
+            ),
+            "view_reward_scale": food_source_curriculum_visit_reward_scale(
+                source_count,
+                schedule=view_reward_schedule,
+                fallback=view_reward_fallback,
+            ),
+            "view_reward_decay": float(final_args.get("view_reward_decay", 1.0)),
+            "border_view_penalty": float(final_args.get("border_view_penalty", 0.0)),
+            "border_moat_width": int(final_args.get("border_moat_width", 0)),
+            "border_moat_penalty": float(final_args.get("border_moat_penalty", 0.0)),
+            **base_profile,
+        }
+        if is_final and final_args.get("save_best_model"):
+            stage.update(
+                {
+                    "save_best_checkpoint": True,
+                    "select_best_checkpoint": True,
+                    "best_checkpoint_path": str(final_args["save_best_model"]),
+                    "best_checkpoint_metric": str(
+                        final_args.get("best_model_metric", "episode_return")
+                    ),
+                    "best_checkpoint_mode": str(final_args.get("best_model_mode", "max")),
+                    "best_checkpoint_selection": str(
+                        final_args.get("best_model_selection", "train")
+                    ),
+                }
+            )
+            for source_key, stage_key in (
+                ("best_eval_episodes", "best_eval_episodes"),
+                ("best_eval_interval", "best_eval_interval"),
+                ("best_eval_seed_offset", "best_eval_seed_offset"),
+                ("best_eval_action_mode", "best_eval_action_mode"),
+                ("best_eval_move_temperature", "best_eval_move_temperature"),
+                ("best_eval_write_temperature", "best_eval_write_temperature"),
+                ("best_eval_shuffle_positions", "best_eval_shuffle_positions"),
+            ):
+                if source_key in final_args:
+                    stage[stage_key] = final_args[source_key]
+        stages.append(stage)
+    return stages
+
+
+def food_source_curriculum_visit_reward_scale(
+    source_count: int,
+    *,
+    schedule: object,
+    fallback: float,
+) -> float:
+    """Return a configured source-count-specific visit reward scale."""
+
+    if fallback < 0.0:
+        raise ValueError("fallback visit reward scale must be a non-negative float.")
+    if schedule is None:
+        return fallback
+    normalized = _normalize_visit_reward_schedule(schedule)
+    if not normalized:
+        return fallback
+    source_count = int(source_count)
+    if source_count <= 0:
+        raise ValueError("source count must be positive.")
+    for scheduled_count, scale in normalized:
+        if source_count == scheduled_count:
+            return scale
+    return fallback
+
+
+def _validate_stage_update_multiplier(value: object) -> float:
+    try:
+        multiplier = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("stage update multiplier must be a positive float.") from exc
+    if not math.isfinite(multiplier) or multiplier <= 0.0:
+        raise ValueError("stage update multiplier must be a positive float.")
+    return multiplier
+
+
 def build_exploration_curriculum_stages(
     stage_sizes: Sequence[int] = EXPLORATION_STAGE_SIZES,
     *,
@@ -573,7 +674,7 @@ def build_exploration_curriculum_stages(
             "food_count": curriculum_food_count(int(size)),
             "food_sources": curriculum_food_sources(int(size)),
             "cookie_distance": min(1 + (int(size) - 4) // 2, int(size) // 2),
-            "max_steps": max(48, 4 * int(size) * int(size)),
+            "max_steps": exploration_max_steps(int(size)),
             **exploration_training_profile(
                 int(size),
                 training_profile=training_profile,
@@ -581,6 +682,17 @@ def build_exploration_curriculum_stages(
         }
         for size in stage_sizes
     ]
+
+
+def build_maze_exploration_curriculum_stages(
+    stage_sizes: Sequence[int] = MAZE_EXPLORATION_STAGE_SIZES,
+    *,
+    training_profile: Sequence[Mapping[str, Any]] | None = None,
+) -> list[dict[str, int | float | str]]:
+    return build_exploration_curriculum_stages(
+        stage_sizes,
+        training_profile=training_profile,
+    )
 
 
 def exploration_training_profile(
@@ -679,9 +791,70 @@ def build_exploration_common_args(
         "--reward-mode",
         "explore",
         "--no-food-termination",
+        "--terminate-on-full-coverage",
         "--write-action-ablation",
         "--random-food",
         "--random-hub",
+        "--pickup-bonus",
+        "0.0",
+        "--hidden-size",
+        "128",
+        "--seed",
+        str(seed),
+        "--quiet",
+    ]
+
+
+def build_maze_exploration_common_args(
+    stages: Sequence[Mapping[str, Any]],
+    *,
+    num_envs: int,
+    num_steps: int,
+    actor_vision_radius: int,
+    write_bits: int,
+    gamma: float = 0.99,
+    seed: int = 1,
+    maze_corridor_width: int = 3,
+    maze_wall_width: int = 1,
+    maze_seed: int = 0,
+) -> list[str]:
+    max_width = max(int(stage["width"]) for stage in stages)
+    max_height = max(int(stage["height"]) for stage in stages)
+    return [
+        "--num-envs",
+        str(num_envs),
+        "--num-steps",
+        str(num_steps),
+        "--num-minibatches",
+        "4",
+        "--update-epochs",
+        "4",
+        "--gamma",
+        str(float(gamma)),
+        "--obs-width",
+        str(max_width),
+        "--obs-height",
+        str(max_height),
+        "--actor-vision-radius",
+        str(actor_vision_radius),
+        "--write-bits",
+        str(write_bits),
+        "--num-ants",
+        "1",
+        "--reward-mode",
+        "explore",
+        "--no-food-termination",
+        "--terminate-on-full-coverage",
+        "--write-while-moving",
+        "--random-food",
+        "--random-hub",
+        "--maze-obstacles",
+        "--maze-corridor-width",
+        str(int(maze_corridor_width)),
+        "--maze-wall-width",
+        str(int(maze_wall_width)),
+        "--maze-seed",
+        str(int(maze_seed)),
         "--pickup-bonus",
         "0.0",
         "--hidden-size",
@@ -748,15 +921,69 @@ def run_forage_curriculum(
     wandb_video_key_prefix: str = "videos/forage",
     wandb_video_max_frames: int | None = 600,
     wandb_video_stage_names: Sequence[str] | None = FORAGE_WANDB_PREVIEW_STAGE_NAMES,
+    wandb_video_policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    wandb_video_rollout_count: int = 1,
+    wandb_video_seed_offset_base: int | None = None,
+    checkpoint_video_interval_updates: int | None = None,
+    checkpoint_video_max_frames: int | None = 600,
+    checkpoint_video_tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    checkpoint_video_policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    checkpoint_video_rollout_count: int = 1,
+    checkpoint_video_wandb_key_prefix: str | None = None,
 ) -> dict[str, Any]:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    uses_default_wandb_video_stage_names = (
+        wandb_video_stage_names is FORAGE_WANDB_PREVIEW_STAGE_NAMES
+    )
+    wandb_video_policy_temperature = _validate_rollout_policy_temperature(
+        wandb_video_policy_temperature,
+        name="wandb_video_policy_temperature",
+    )
+    wandb_video_rollout_count = _validate_wandb_video_rollout_count(
+        wandb_video_rollout_count
+    )
+    wandb_video_seed_offset_base = _wandb_video_seed_offset_base(
+        wandb_video_seed_offset_base
+    )
+    checkpoint_video_interval = (
+        None
+        if checkpoint_video_interval_updates is None
+        else int(checkpoint_video_interval_updates)
+    )
+    if checkpoint_video_interval is not None and checkpoint_video_interval <= 0:
+        raise ValueError("checkpoint_video_interval_updates must be positive.")
+    checkpoint_video_policy_temperature = _validate_rollout_policy_temperature(
+        checkpoint_video_policy_temperature,
+        name="checkpoint_video_policy_temperature",
+    )
+    checkpoint_video_rollout_count = _validate_wandb_video_rollout_count(
+        checkpoint_video_rollout_count
+    )
+    if (
+        _wandb_preview_enabled(wandb_video_max_frames)
+        and not uses_default_wandb_video_stage_names
+    ):
+        wandb_video_stage_names = _validate_wandb_preview_stage_names(
+            stages,
+            wandb_video_stage_names,
+        )
+    elif wandb_video_stage_names is not None:
+        wandb_video_stage_names = tuple(str(name) for name in wandb_video_stage_names)
     stage_metrics: list[dict[str, Any]] = []
     stage_checkpoint_paths: list[Path] = []
     terminal_stage_checkpoint_paths: list[Path] = []
     best_stage_checkpoint_paths: list[Path] = []
+    checkpoint_video_checkpoint_paths: list[Path] = []
+    checkpoint_video_paths: list[Path] = []
+    checkpoint_video_wandb_keys: list[str] = []
     previous_checkpoint = Path(initial_checkpoint) if initial_checkpoint is not None else None
     if previous_checkpoint is not None and not previous_checkpoint.exists():
         raise FileNotFoundError(f"initial forage checkpoint does not exist: {previous_checkpoint}")
+    if wandb_project is not None and wandb_mode != "disabled":
+        stage_common_args, stripped_stage_wandb_args = _strip_wandb_cli_args(common_args)
+    else:
+        stage_common_args = list(common_args)
+        stripped_stage_wandb_args = []
     final_train_metrics: dict[str, float] = {}
     curriculum_step_base = 0
     tracker = WandbTracker(
@@ -769,15 +996,16 @@ def run_forage_curriculum(
         run_dir=checkpoint_dir.parent,
         notes=wandb_notes,
         config={
-            "common_args": list(common_args),
+            "common_args": list(stage_common_args),
             "initial_checkpoint": None if previous_checkpoint is None else str(previous_checkpoint),
             "global_update_cap": int(global_update_cap),
             "checkpoint_name_prefix": str(checkpoint_name_prefix),
             "stages": [str(stage["name"]) for stage in stages],
             "update_timesteps_per_stage": int(update_timesteps_per_stage),
+            "stripped_stage_wandb_args": stripped_stage_wandb_args,
             "stage_training_profiles": _forage_stage_training_profiles(
                 stages,
-                common_args=common_args,
+                common_args=stage_common_args,
                 fallback_update_timesteps=int(update_timesteps_per_stage),
                 fallback_update_cap=int(global_update_cap),
             ),
@@ -787,6 +1015,14 @@ def run_forage_curriculum(
                 if wandb_video_stage_names is None
                 else [str(name) for name in wandb_video_stage_names]
             ),
+            "wandb_video_policy_temperature": wandb_video_policy_temperature,
+            "wandb_video_rollout_count": wandb_video_rollout_count,
+            "wandb_video_seed_offset_base": wandb_video_seed_offset_base,
+            "checkpoint_video_interval_updates": checkpoint_video_interval,
+            "checkpoint_video_max_frames": checkpoint_video_max_frames,
+            "checkpoint_video_policy_temperature": checkpoint_video_policy_temperature,
+            "checkpoint_video_rollout_count": checkpoint_video_rollout_count,
+            "checkpoint_video_wandb_key_prefix": checkpoint_video_wandb_key_prefix,
         },
     )
     if tracker.enabled:
@@ -804,22 +1040,24 @@ def run_forage_curriculum(
             stage_update_cap = int(stage.get("global_update_cap", global_update_cap))
             stage_update_timesteps = _forage_stage_update_timesteps(
                 stage,
-                common_args=common_args,
+                common_args=stage_common_args,
                 fallback_update_timesteps=int(update_timesteps_per_stage),
             )
             print(f"Training stage {stage_index}/{len(stages)}: {stage['name']}")
             print("First update for this shape may compile; progress starts after it returns.")
             checkpoint_path = checkpoint_dir / f"{checkpoint_name_prefix}_{stage['name']}.pkl"
-            best_checkpoint_path = (
-                checkpoint_dir / f"{checkpoint_name_prefix}_{stage['name']}_best.pkl"
-                if bool(
-                    stage.get(
-                        "save_best_checkpoint",
-                        stage.get("select_best_checkpoint", False),
-                    )
+            best_checkpoint_path = None
+            if bool(
+                stage.get(
+                    "save_best_checkpoint",
+                    stage.get("select_best_checkpoint", False),
                 )
-                else None
-            )
+            ):
+                best_checkpoint_path = (
+                    Path(str(stage["best_checkpoint_path"]))
+                    if "best_checkpoint_path" in stage
+                    else checkpoint_dir / f"{checkpoint_name_prefix}_{stage['name']}_best.pkl"
+                )
             progress = stage_update_progress(str(stage["name"]), stage_update_cap)
             last_progress_update = 0
 
@@ -858,8 +1096,90 @@ def run_forage_curriculum(
                 stage_metrics.append(row)
                 tracker.log_metrics(row, step=curriculum_step)
 
+            def record_checkpoint_video(
+                *,
+                update: int,
+                metrics: dict[str, float],
+                params: Any,
+                opt_state: Any,
+                args: Any,
+                central_obs_dim: int,
+                actor_obs_dim: int,
+                run_name: str,
+                global_step: int,
+                **_: Any,
+            ) -> None:
+                if (
+                    checkpoint_video_interval is None
+                    or int(update) % checkpoint_video_interval != 0
+                ):
+                    return
+                from ant_byte_env.training.jax_mappo.checkpointing import save_checkpoint
+
+                checkpoint_file = (
+                    checkpoint_dir
+                    / f"{checkpoint_path.stem}_update_{int(update):06d}{checkpoint_path.suffix}"
+                )
+                checkpoint_metrics = {
+                    **metrics,
+                    "checkpoint_update": float(update),
+                    "checkpoint_global_step": float(global_step),
+                    "checkpoint_stage_index": float(stage_index),
+                }
+                save_checkpoint(
+                    checkpoint_file,
+                    params=params,
+                    opt_state=opt_state,
+                    args=args,
+                    central_obs_dim=central_obs_dim,
+                    actor_obs_dim=actor_obs_dim,
+                    run_name=run_name,
+                    metrics=checkpoint_metrics,
+                )
+                checkpoint_video_checkpoint_paths.append(checkpoint_file)
+                for rollout_index in range(checkpoint_video_rollout_count):
+                    rollout_suffix = (
+                        ""
+                        if checkpoint_video_rollout_count == 1
+                        else f"_{rollout_index + 1:02d}"
+                    )
+                    rollout_path = render_checkpoint(
+                        checkpoint_file,
+                        checkpoint_dir.parent
+                        / "media"
+                        / "checkpoint_videos"
+                        / f"{checkpoint_file.stem}_rollout{rollout_suffix}.mp4",
+                        backend="jax",
+                        reuse_existing=False,
+                        seed_offset=(
+                            NOTEBOOK_ROLLOUT_SEED_OFFSET
+                            + int(update)
+                            + rollout_index
+                        ),
+                        max_frames=checkpoint_video_max_frames,
+                        tile_size=checkpoint_video_tile_size,
+                        policy_temperature=checkpoint_video_policy_temperature,
+                    )
+                    checkpoint_video_paths.append(rollout_path)
+                    if (
+                        checkpoint_video_wandb_key_prefix is not None
+                        and tracker.enabled
+                    ):
+                        video_key = (
+                            f"{checkpoint_video_wandb_key_prefix.rstrip('/')}/"
+                            f"{stage['name']}/update_{int(update):06d}"
+                        )
+                        if checkpoint_video_rollout_count > 1:
+                            video_key = f"{video_key}/rollout_{rollout_index + 1:02d}"
+                        tracker.log_video(
+                            video_key,
+                            rollout_path,
+                            step=curriculum_step_base + int(global_step),
+                        )
+                        checkpoint_video_wandb_keys.append(video_key)
+
             train_args = [
-                *common_args,
+                *stage_common_args,
                 "--total-timesteps",
                 str(stage_update_timesteps * stage_update_cap),
                 "--width",
@@ -881,6 +1201,26 @@ def run_forage_curriculum(
                 train_args.extend(["--num-steps", str(int(stage["num_steps"]))])
             if "gamma" in stage:
                 train_args.extend(["--gamma", str(float(stage["gamma"]))])
+            for stage_key, option in (
+                ("visit_reward_scale", "--visit-reward-scale"),
+                ("visit_reward_decay", "--visit-reward-decay"),
+                ("view_reward_scale", "--view-reward-scale"),
+                ("view_reward_decay", "--view-reward-decay"),
+                ("border_view_penalty", "--border-view-penalty"),
+                ("border_moat_penalty", "--border-moat-penalty"),
+            ):
+                if stage_key in stage:
+                    train_args.extend([option, str(float(stage[stage_key]))])
+            if "border_moat_width" in stage:
+                train_args.extend(["--border-moat-width", str(int(stage["border_moat_width"]))])
+            if "food_cluster_count" in stage:
+                train_args.extend(
+                    ["--food-cluster-count", str(int(stage["food_cluster_count"]))]
+                )
+            if "food_cluster_radius" in stage:
+                train_args.extend(
+                    ["--food-cluster-radius", str(int(stage["food_cluster_radius"]))]
+                )
             if "random_ant_spawn_radius" in stage:
                 train_args.extend(
                     [
@@ -940,7 +1280,10 @@ def run_forage_curriculum(
                 train_args.extend(["--load-model", str(previous_checkpoint)])
 
             try:
-                final_train_metrics = train_main(train_args, progress_callback=record_progress)
+                train_kwargs: dict[str, Any] = {"progress_callback": record_progress}
+                if checkpoint_video_interval is not None:
+                    train_kwargs["checkpoint_callback"] = record_checkpoint_video
+                final_train_metrics = train_main(train_args, **train_kwargs)
             finally:
                 progress.close()
 
@@ -964,18 +1307,27 @@ def run_forage_curriculum(
                 and _wandb_preview_enabled(wandb_video_max_frames)
                 and _wandb_preview_stage_enabled(stage["name"], wandb_video_stage_names)
             ):
-                preview_path = _render_forage_wandb_preview(
+                preview_paths = _render_forage_wandb_previews(
                     checkpoint_path=selected_checkpoint_path,
                     checkpoint_dir=checkpoint_dir,
                     stage_index=stage_index,
                     max_frames=wandb_video_max_frames,
+                    policy_temperature=wandb_video_policy_temperature,
+                    rollout_count=wandb_video_rollout_count,
+                    seed_offset_base=wandb_video_seed_offset_base,
                 )
-                tracker.log_video(
-                    f"{wandb_video_key_prefix}/{stage['name']}",
-                    preview_path,
-                    step=curriculum_step_base
-                    + int(float(final_train_metrics.get("global_step", 0.0))),
-                )
+                for preview_index, preview_path in enumerate(preview_paths):
+                    tracker.log_video(
+                        _wandb_preview_video_key(
+                            prefix=wandb_video_key_prefix,
+                            stage_name=stage["name"],
+                            preview_index=preview_index,
+                            preview_count=len(preview_paths),
+                        ),
+                        preview_path,
+                        step=curriculum_step_base
+                        + int(float(final_train_metrics.get("global_step", 0.0))),
+                    )
             curriculum_step_base += stage_update_timesteps * stage_update_cap
             previous_checkpoint = selected_checkpoint_path
     finally:
@@ -988,6 +1340,9 @@ def run_forage_curriculum(
         "best_stage_checkpoint_paths": best_stage_checkpoint_paths,
         "final_checkpoint_path": previous_checkpoint,
         "final_train_metrics": final_train_metrics,
+        "checkpoint_video_checkpoint_paths": checkpoint_video_checkpoint_paths,
+        "checkpoint_video_paths": checkpoint_video_paths,
+        "checkpoint_video_wandb_keys": checkpoint_video_wandb_keys,
     }
 
 
@@ -1010,6 +1365,7 @@ def run_exploration_curriculum(
     wandb_artifact_paths: Sequence[Path] | None = None,
     wandb_video_max_frames: int | None = 600,
     wandb_video_stage_names: Sequence[str] | None = EXPLORATION_WANDB_PREVIEW_STAGE_NAMES,
+    wandb_video_policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
 ) -> dict[str, Any]:
     return run_forage_curriculum(
         stages=stages,
@@ -1032,6 +1388,7 @@ def run_exploration_curriculum(
         wandb_video_key_prefix="videos/exploration",
         wandb_video_max_frames=wandb_video_max_frames,
         wandb_video_stage_names=wandb_video_stage_names,
+        wandb_video_policy_temperature=wandb_video_policy_temperature,
     )
 
 
@@ -1103,9 +1460,28 @@ def run_jax_checkpoint_training(
     train_main: Callable[..., dict[str, float]],
     checkpoint_name: str = "model.pkl",
     progress_label: str = "training",
+    checkpoint_video_interval_updates: int | None = None,
+    checkpoint_video_max_frames: int | None = 600,
+    checkpoint_video_tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    checkpoint_video_policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    checkpoint_video_wandb_key_prefix: str | None = None,
 ) -> dict[str, Any]:
     checkpoint_path = run_dir / "checkpoints" / checkpoint_name
     stage_metrics: list[dict[str, Any]] = []
+    checkpoint_video_paths: list[Path] = []
+    checkpoint_video_checkpoint_paths: list[Path] = []
+    checkpoint_video_wandb_keys: list[str] = []
+    checkpoint_video_interval = (
+        None
+        if checkpoint_video_interval_updates is None
+        else int(checkpoint_video_interval_updates)
+    )
+    if checkpoint_video_interval is not None and checkpoint_video_interval <= 0:
+        raise ValueError("checkpoint_video_interval_updates must be positive.")
+    checkpoint_video_policy_temperature = _validate_rollout_policy_temperature(
+        checkpoint_video_policy_temperature,
+        name="checkpoint_video_policy_temperature",
+    )
     progress = stage_update_progress(progress_label, global_update_cap)
     last_progress_update = 0
 
@@ -1134,6 +1510,65 @@ def run_jax_checkpoint_training(
             }
         )
 
+    def record_checkpoint_video(
+        *,
+        update: int,
+        metrics: dict[str, float],
+        params: Any,
+        opt_state: Any,
+        args: Any,
+        central_obs_dim: int,
+        actor_obs_dim: int,
+        run_name: str,
+        tracker: Any,
+        global_step: int,
+        **_: Any,
+    ) -> None:
+        if checkpoint_video_interval is None or int(update) % checkpoint_video_interval != 0:
+            return
+        from ant_byte_env.training.jax_mappo.checkpointing import save_checkpoint
+
+        checkpoint_file = (
+            checkpoint_path.parent
+            / f"{checkpoint_path.stem}_update_{int(update):06d}{checkpoint_path.suffix}"
+        )
+        checkpoint_metrics = {
+            **metrics,
+            "checkpoint_update": float(update),
+            "checkpoint_global_step": float(global_step),
+        }
+        save_checkpoint(
+            checkpoint_file,
+            params=params,
+            opt_state=opt_state,
+            args=args,
+            central_obs_dim=central_obs_dim,
+            actor_obs_dim=actor_obs_dim,
+            run_name=run_name,
+            metrics=checkpoint_metrics,
+        )
+        rollout_path = render_checkpoint(
+            checkpoint_file,
+            run_dir
+            / "media"
+            / "checkpoint_videos"
+            / f"{checkpoint_file.stem}_rollout.mp4",
+            backend="jax",
+            reuse_existing=False,
+            seed_offset=NOTEBOOK_ROLLOUT_SEED_OFFSET + int(update),
+            max_frames=checkpoint_video_max_frames,
+            tile_size=checkpoint_video_tile_size,
+            policy_temperature=checkpoint_video_policy_temperature,
+        )
+        checkpoint_video_checkpoint_paths.append(checkpoint_file)
+        checkpoint_video_paths.append(rollout_path)
+        if checkpoint_video_wandb_key_prefix is not None and tracker.enabled:
+            video_key = (
+                f"{checkpoint_video_wandb_key_prefix.rstrip('/')}/update_{int(update):06d}"
+            )
+            tracker.log_video(video_key, rollout_path, step=global_step)
+            checkpoint_video_wandb_keys.append(video_key)
+
     train_args = [
         *common_args,
         "--total-timesteps",
@@ -1144,7 +1579,10 @@ def run_jax_checkpoint_training(
         str(checkpoint_path),
     ]
     try:
-        final_train_metrics = train_main(train_args, progress_callback=record_progress)
+        train_kwargs: dict[str, Any] = {"progress_callback": record_progress}
+        if checkpoint_video_interval is not None:
+            train_kwargs["checkpoint_callback"] = record_checkpoint_video
+        final_train_metrics = train_main(train_args, **train_kwargs)
     finally:
         progress.close()
 
@@ -1152,6 +1590,9 @@ def run_jax_checkpoint_training(
         "checkpoint_path": checkpoint_path,
         "stage_metrics": stage_metrics,
         "final_train_metrics": final_train_metrics,
+        "checkpoint_video_checkpoint_paths": checkpoint_video_checkpoint_paths,
+        "checkpoint_video_paths": checkpoint_video_paths,
+        "checkpoint_video_wandb_keys": checkpoint_video_wandb_keys,
     }
 
 
@@ -1205,6 +1646,32 @@ def _argv_int(argv: Sequence[str], option: str) -> int | None:
         return None
 
 
+def _strip_wandb_cli_args(argv: Sequence[str]) -> tuple[list[str], list[str]]:
+    stripped: list[str] = []
+    removed: list[str] = []
+    index = 0
+    values = list(argv)
+    while index < len(values):
+        value = str(values[index])
+        if value in _WANDB_CLI_VALUE_ARGS:
+            removed.append(value)
+            index += 1
+            if index < len(values):
+                removed.append(str(values[index]))
+                index += 1
+            continue
+        if value in _WANDB_CLI_VARARGS:
+            removed.append(value)
+            index += 1
+            while index < len(values) and not str(values[index]).startswith("--"):
+                removed.append(str(values[index]))
+                index += 1
+            continue
+        stripped.append(value)
+        index += 1
+    return stripped, removed
+
+
 def _advance_progress_to(
     progress: Any,
     *,
@@ -1229,25 +1696,101 @@ def _wandb_preview_stage_enabled(
     return str(stage_name) in {str(name) for name in enabled_stage_names}
 
 
-def _render_forage_wandb_preview(
+def _validate_wandb_preview_stage_names(
+    stages: Sequence[Mapping[str, Any]],
+    enabled_stage_names: Sequence[str] | None,
+) -> tuple[str, ...] | None:
+    if enabled_stage_names is None:
+        return None
+
+    requested_stage_names = tuple(str(name) for name in enabled_stage_names)
+    generated_stage_names = tuple(str(stage["name"]) for stage in stages)
+    generated_stage_name_set = set(generated_stage_names)
+    unknown_stage_names = tuple(
+        name for name in requested_stage_names if name not in generated_stage_name_set
+    )
+    if unknown_stage_names:
+        unknown_text = ", ".join(unknown_stage_names)
+        available_text = ", ".join(generated_stage_names)
+        raise ValueError(
+            "wandb video stage names must match generated curriculum stage names; "
+            f"unknown: {unknown_text}. Available stages: {available_text}"
+        )
+    return requested_stage_names
+
+
+def _validate_wandb_video_rollout_count(value: object) -> int:
+    try:
+        count = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("wandb video rollout count must be a positive integer.") from exc
+    if count < 1:
+        raise ValueError("wandb video rollout count must be a positive integer.")
+    return count
+
+
+def _wandb_video_seed_offset_base(value: int | None) -> int:
+    if value is None:
+        return NOTEBOOK_ROLLOUT_SEED_OFFSET + int(time.time_ns() % 1_000_000_000)
+    try:
+        seed_offset_base = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("wandb video seed offset base must be non-negative.") from exc
+    if seed_offset_base < 0:
+        raise ValueError("wandb video seed offset base must be non-negative.")
+    return seed_offset_base
+
+
+def _wandb_preview_video_key(
+    *,
+    prefix: str,
+    stage_name: object,
+    preview_index: int,
+    preview_count: int,
+) -> str:
+    stage_key = f"{prefix}/{stage_name}"
+    if preview_count == 1:
+        return stage_key
+    return f"{stage_key}/rollout_{preview_index + 1:02d}"
+
+
+def _render_forage_wandb_previews(
     *,
     checkpoint_path: Path,
     checkpoint_dir: Path,
     stage_index: int,
     max_frames: int | None,
-) -> Path:
+    policy_temperature: float,
+    rollout_count: int,
+    seed_offset_base: int,
+) -> list[Path]:
     media_dir = checkpoint_dir.parent / "media" / "wandb_previews"
-    output_path = media_dir / f"{checkpoint_path.stem}_preview.mp4"
-    return render_checkpoint(
-        checkpoint_path,
-        output_path,
-        backend="jax",
-        seed_offset=NOTEBOOK_ROLLOUT_SEED_OFFSET + int(stage_index) - 1,
-        reuse_existing=False,
-        max_frames=max_frames,
-        tile_size=NOTEBOOK_ROLLOUT_TILE_SIZE,
-        policy_temperature=NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
-    )
+    output_paths: list[Path] = []
+    for preview_index in range(int(rollout_count)):
+        suffix = (
+            "_preview.mp4"
+            if int(rollout_count) == 1
+            else f"_preview_{preview_index + 1:02d}.mp4"
+        )
+        output_path = media_dir / f"{checkpoint_path.stem}{suffix}"
+        seed_offset = (
+            int(seed_offset_base)
+            + (int(stage_index) - 1) * int(rollout_count)
+            + preview_index
+        )
+        output_paths.append(
+            render_checkpoint(
+                checkpoint_path,
+                output_path,
+                backend="jax",
+                seed_offset=seed_offset,
+                reuse_existing=False,
+                max_frames=max_frames,
+                tile_size=NOTEBOOK_ROLLOUT_TILE_SIZE,
+                policy_temperature=policy_temperature,
+            )
+        )
+    return output_paths
 
 
 def validate_communication_stages(bit_stages: Sequence[int]) -> None:
@@ -1701,6 +2244,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     from ant_byte_env.training.jax_mappo.core import (
         build_actor_observations,
         build_central_observations,
+        food_observation_scale,
     )
     from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
@@ -1721,6 +2265,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": args.write_while_moving,
+        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
     }
     if bool(getattr(args, "autocurriculum", False)):
         env = JaxAntByteAutoCurriculumEnv(
@@ -1732,23 +2277,33 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     else:
         env = JaxAntByteForagingEnv(
             **env_kwargs,
+            hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
             terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
+            terminate_on_full_coverage=bool(
+                getattr(args, "terminate_on_full_coverage", False)
+            ),
+            maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
+            maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
+            maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
+            maze_seed=int(getattr(args, "maze_seed", 0)),
         )
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
+    food_scale = food_observation_scale(
+        food_count=args.food_count,
+        food_sources=getattr(args, "food_sources", None),
+    )
     central_obs = build_central_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -1778,10 +2333,7 @@ def prepare_ant_count_checkpoint(
             actor_obs_dim=target_actor_obs_dim,
             target_write_bits=expected_write_bits,
             actor_vision_radius=target_args.actor_vision_radius,
-            actor_hub_vector=bool(getattr(target_args, "actor_hub_vector", False)),
-            actor_nearest_food_vector=bool(
-                getattr(target_args, "actor_nearest_food_vector", False)
-            ),
+            target_num_ants=target_args.num_ants,
         )
     source_args = checkpoint.get("args", {})
     source_num_ants = int(source_args.get("num_ants", fallback_source_num_ants))
@@ -1850,6 +2402,16 @@ def exploration_checkpoint_paths(
     return [checkpoint_dir / f"jax_mappo_explore_{stage['name']}.pkl" for stage in stages]
 
 
+def maze_exploration_checkpoint_paths(
+    checkpoint_dir: Path,
+    stages: Sequence[Mapping[str, Any]],
+) -> list[Path]:
+    return [
+        checkpoint_dir / f"jax_mappo_maze_explore_{stage['name']}.pkl"
+        for stage in stages
+    ]
+
+
 def communication_checkpoint_paths(run_dir: Path, bit_stages: Sequence[int]) -> list[Path]:
     return [run_dir / f"{bits}_bits" / "checkpoints" / "model.pkl" for bits in bit_stages]
 
@@ -1872,6 +2434,7 @@ def render_forage_rollouts(
     global_update_cap: int,
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
     stage_names: Sequence[str] | None = FORAGE_WANDB_PREVIEW_STAGE_NAMES,
 ) -> dict[str, Any]:
     selected_stages = _filter_stages_by_name(stages, stage_names)
@@ -1893,6 +2456,7 @@ def render_forage_rollouts(
         },
         max_frames=max_frames,
         tile_size=tile_size,
+        policy_temperature=policy_temperature,
     )
 
 
@@ -1907,6 +2471,7 @@ def render_exploration_rollouts(
     global_update_cap: int,
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
     stage_names: Sequence[str] | None = EXPLORATION_WANDB_PREVIEW_STAGE_NAMES,
 ) -> dict[str, Any]:
     selected_stages = _filter_stages_by_name(stages, stage_names)
@@ -1929,6 +2494,66 @@ def render_exploration_rollouts(
         },
         max_frames=max_frames,
         tile_size=tile_size,
+        policy_temperature=policy_temperature,
+    )
+
+
+def render_maze_exploration_rollouts(
+    *,
+    run_dir: Path,
+    checkpoint_dir: Path,
+    media_dir: Path,
+    stages: Sequence[Mapping[str, Any]],
+    actor_vision_radius: int,
+    write_bits: int,
+    global_update_cap: int,
+    max_frames: int | None = None,
+    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    stage_names: Sequence[str] | None = MAZE_EXPLORATION_WANDB_PREVIEW_STAGE_NAMES,
+    wandb_project: str | None = None,
+    wandb_entity: str | None = None,
+    wandb_group: str | None = None,
+    wandb_run_name: str | None = None,
+    wandb_mode: str = "online",
+    wandb_tags: Sequence[str] | None = None,
+    wandb_video_key_prefix: str | None = None,
+    wandb_step: int | float | None = None,
+) -> dict[str, Any]:
+    selected_stages = _filter_stages_by_name(stages, stage_names)
+    selected_stage_names = [str(stage["name"]) for stage in selected_stages]
+    return render_rollout_suite(
+        checkpoint_paths=maze_exploration_checkpoint_paths(checkpoint_dir, selected_stages),
+        media_dir=media_dir,
+        rollout_path_for_checkpoint=lambda checkpoint, media: (
+            media / f"{checkpoint.stem}_rollout.mp4"
+        ),
+        progress_desc="rendering maze exploration policies",
+        vault_dir=run_dir / "vault",
+        title="JAX MAPPO maze exploration curriculum policy rollouts",
+        description=(
+            "Rollout MP4 videos for each saved JAX MAPPO maze exploration stage policy."
+        ),
+        metadata={
+            "stages": selected_stage_names,
+            "actor_vision_radius": actor_vision_radius,
+            "write_bits": write_bits,
+            "global_update_cap": global_update_cap,
+            "reward_mode": "explore",
+            "maze_obstacles": True,
+        },
+        max_frames=max_frames,
+        tile_size=tile_size,
+        policy_temperature=policy_temperature,
+        wandb_project=wandb_project,
+        wandb_entity=wandb_entity,
+        wandb_group=wandb_group,
+        wandb_run_name=wandb_run_name,
+        wandb_mode=wandb_mode,
+        wandb_tags=wandb_tags,
+        wandb_video_key_prefix=wandb_video_key_prefix,
+        wandb_video_names=selected_stage_names,
+        wandb_step=wandb_step,
     )
 
 
@@ -1964,6 +2589,10 @@ def render_jax_checkpoint_rollout(
     wandb_video_key: str | None = None,
     wandb_step: int | float | None = None,
 ) -> dict[str, Any]:
+    policy_temperature = _validate_rollout_policy_temperature(
+        policy_temperature,
+        name="policy_temperature",
+    )
     media_dir.mkdir(parents=True, exist_ok=True)
     rollout_path = render_checkpoint(
         checkpoint_path,
@@ -2016,6 +2645,7 @@ def render_autocurriculum_rollout(
     global_update_cap: int,
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
     reuse_existing: bool = True,
     wandb_project: str | None = None,
     wandb_entity: str | None = None,
@@ -2041,6 +2671,7 @@ def render_autocurriculum_rollout(
         },
         max_frames=max_frames,
         tile_size=tile_size,
+        policy_temperature=policy_temperature,
         reuse_existing=reuse_existing,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
@@ -2065,6 +2696,7 @@ def render_communication_rollouts(
     extra_checkpoint_paths: Sequence[Path] = (),
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
 ) -> dict[str, Any]:
     checkpoint_paths = [
         *communication_checkpoint_paths(run_dir, bit_stages),
@@ -2092,6 +2724,7 @@ def render_communication_rollouts(
         },
         max_frames=max_frames,
         tile_size=tile_size,
+        policy_temperature=policy_temperature,
     )
 
 
@@ -2107,6 +2740,7 @@ def render_ant_count_rollouts(
     global_update_cap: int,
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
 ) -> dict[str, Any]:
     return render_rollout_suite(
         checkpoint_paths=ant_count_checkpoint_paths(run_dir, ant_stages),
@@ -2131,6 +2765,7 @@ def render_ant_count_rollouts(
         },
         max_frames=max_frames,
         tile_size=tile_size,
+        policy_temperature=policy_temperature,
     )
 
 
@@ -2160,6 +2795,10 @@ def render_rollout_suite(
 ) -> dict[str, Any]:
     from tqdm.auto import tqdm
 
+    policy_temperature = _validate_rollout_policy_temperature(
+        policy_temperature,
+        name="policy_temperature",
+    )
     media_dir.mkdir(parents=True, exist_ok=True)
     checkpoints = [Path(path) for path in checkpoint_paths]
     missing = [path for path in checkpoints if not path.exists()]
@@ -2202,6 +2841,7 @@ def render_rollout_suite(
             "rollout_paths": [str(path) for path in rollout_paths],
             "render_max_frames": max_frames,
             "render_tile_size": tile_size,
+            "rollout_policy_temperature": policy_temperature,
             "reuse_existing": reuse_existing,
         },
     )

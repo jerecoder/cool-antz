@@ -20,6 +20,9 @@ from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
     LinearParams,
+    ResNetCriticParams,
+    StridedCNNCriticParams,
+    StructuredMLPCriticParams,
     init_adam_state,
 )
 
@@ -34,26 +37,40 @@ def load_checkpoint_for_training(
     actor_obs_dim: int,
     target_write_bits: int,
     actor_vision_radius: int,
-    actor_hub_vector: bool = False,
-    actor_nearest_food_vector: bool = False,
+    target_num_ants: int = 1,
     write_head_transfer: str = "repeat",
+    target_critic_architecture: str = "mlp",
 ) -> dict[str, Any]:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
     checkpoint = read_checkpoint(path)
     source_args = checkpoint.get("args", {})
     params = checkpoint["params"]
     params, params_changed = adapt_movement_head(params)
+    source_critic_architecture = str(source_args.get("critic_architecture", "mlp"))
+    target_critic_architecture = str(target_critic_architecture)
+    if source_critic_architecture != target_critic_architecture:
+        raise ValueError(
+            "Checkpoint critic architecture does not match this run "
+            f"({source_critic_architecture!r} != {target_critic_architecture!r})."
+        )
     source_write_bits = int(source_args.get("write_bits", DEFAULT_WRITE_BITS))
     if target_write_bits < source_write_bits:
         raise ValueError("Checkpoint actor observation dimension does not match this run.")
     if target_write_bits > MAX_WRITE_BITS:
         raise ValueError(f"target_write_bits must be at most {MAX_WRITE_BITS}.")
     if int(checkpoint["central_obs_dim"]) != central_obs_dim:
-        params = expand_critic_input_for_ants_count(
-            params,
-            source_args=source_args,
-            target_central_obs_dim=central_obs_dim,
-        )
+        if target_critic_architecture == "mlp":
+            params = expand_critic_input_for_ants_count(
+                params,
+                source_args=source_args,
+                target_central_obs_dim=central_obs_dim,
+            )
+        else:
+            params = resize_non_mlp_critic_for_ants_count(
+                params,
+                source_args=source_args,
+                target_central_obs_dim=central_obs_dim,
+            )
         params_changed = True
     if int(checkpoint["actor_obs_dim"]) == actor_obs_dim:
         if not params_changed:
@@ -68,17 +85,17 @@ def load_checkpoint_for_training(
 
     source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
     source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
-    source_actor_hub_vector = bool(source_args.get("actor_hub_vector", False))
-    source_actor_nearest_food_vector = bool(source_args.get("actor_nearest_food_vector", False))
+    source_num_ants = int(source_args.get("num_ants", 1))
     source_shape = _actor_obs_source_shape(
         actor_obs_dim=source_actor_obs_dim,
         write_bits=source_write_bits,
         actor_vision_radius=source_actor_vision_radius,
-        include_hub_vector=source_actor_hub_vector,
-        include_nearest_food_vector=source_actor_nearest_food_vector,
+        num_ants=source_num_ants,
     )
     if source_shape is None:
-        raise ValueError("Checkpoint actor observation dimension does not match its write-bit config.")
+        raise ValueError(
+            "Checkpoint actor observation dimension does not match its write-bit config."
+        )
 
     params = expand_params_for_write_bits(
         params,
@@ -87,7 +104,10 @@ def load_checkpoint_for_training(
         actor_vision_radius=source_actor_vision_radius,
         source_includes_ants_count=source_shape["include_ants_count"],
         source_includes_orientation=source_shape["include_orientation"],
+        source_includes_agent_identity=source_shape["include_agent_identity"],
         source_layout=source_shape["layout"],
+        source_num_ants=source_num_ants,
+        target_num_ants=target_num_ants,
         write_head_transfer=write_head_transfer,
     )
     params = resize_params_for_actor_vision_radius(
@@ -95,16 +115,14 @@ def load_checkpoint_for_training(
         write_bits=target_write_bits,
         source_actor_vision_radius=source_actor_vision_radius,
         target_actor_vision_radius=actor_vision_radius,
-        source_actor_hub_vector=source_actor_hub_vector,
-        source_actor_nearest_food_vector=source_actor_nearest_food_vector,
-        target_actor_hub_vector=actor_hub_vector,
-        target_actor_nearest_food_vector=actor_nearest_food_vector,
+        source_num_ants=target_num_ants,
+        target_num_ants=target_num_ants,
+        source_includes_agent_identity=True,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_write_bits,
         actor_vision_radius=actor_vision_radius,
-        include_hub_vector=actor_hub_vector,
-        include_nearest_food_vector=actor_nearest_food_vector,
+        num_ants=target_num_ants,
     )
     if target_dim != actor_obs_dim:
         raise ValueError("Transferred actor observation dimension does not match this run.")
@@ -119,8 +137,7 @@ def load_checkpoint_for_training(
             **source_args,
             "write_bits": target_write_bits,
             "actor_vision_radius": actor_vision_radius,
-            "actor_hub_vector": actor_hub_vector,
-            "actor_nearest_food_vector": actor_nearest_food_vector,
+            "num_ants": target_num_ants,
             "transfer_source_checkpoint": str(path),
             "write_head_transfer": write_head_transfer,
         },
@@ -138,11 +155,11 @@ def actor_obs_dim_for_bits(
     *,
     write_bits: int,
     actor_vision_radius: int,
+    num_ants: int = 1,
     include_ants_count: bool = True,
     include_orientation: bool = True,
+    include_agent_identity: bool = True,
     include_current_row: bool = True,
-    include_hub_vector: bool = False,
-    include_nearest_food_vector: bool = False,
 ) -> int:
     if actor_vision_radius < 0:
         raise ValueError("actor_vision_radius must be non-negative.")
@@ -153,9 +170,22 @@ def actor_obs_dim_for_bits(
         patch_size = DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius
     grid_channels = write_bits + (4 if include_ants_count else 3)
     orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-    hub_features = 2 if include_hub_vector else 0
-    food_features = 2 if include_nearest_food_vector else 0
-    return patch_size * grid_channels + 1 + orientation_features + hub_features + food_features
+    identity_features = agent_identity_feature_count(
+        num_ants,
+        include_agent_identity=include_agent_identity,
+    )
+    return patch_size * grid_channels + identity_features + 1 + orientation_features
+
+
+def agent_identity_feature_count(
+    num_ants: int,
+    *,
+    include_agent_identity: bool = True,
+) -> int:
+    if not include_agent_identity:
+        return 0
+    count = int(num_ants)
+    return count if count > 1 else 0
 
 
 def source_actor_patch_size(*, actor_vision_radius: int, source_layout: str) -> int:
@@ -172,11 +202,11 @@ def source_actor_obs_dim(
     *,
     write_bits: int,
     actor_vision_radius: int,
+    num_ants: int,
     include_ants_count: bool,
     include_orientation: bool,
+    include_agent_identity: bool,
     source_layout: str,
-    include_hub_vector: bool = False,
-    include_nearest_food_vector: bool = False,
 ) -> int:
     patch_size = source_actor_patch_size(
         actor_vision_radius=actor_vision_radius,
@@ -184,9 +214,11 @@ def source_actor_obs_dim(
     )
     grid_channels = write_bits + (4 if include_ants_count else 3)
     orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-    hub_features = 2 if include_hub_vector else 0
-    food_features = 2 if include_nearest_food_vector else 0
-    return patch_size * grid_channels + 1 + orientation_features + hub_features + food_features
+    identity_features = agent_identity_feature_count(
+        num_ants,
+        include_agent_identity=include_agent_identity,
+    )
+    return patch_size * grid_channels + identity_features + 1 + orientation_features
 
 
 def _actor_obs_source_shape(
@@ -194,8 +226,7 @@ def _actor_obs_source_shape(
     actor_obs_dim: int,
     write_bits: int,
     actor_vision_radius: int,
-    include_hub_vector: bool = False,
-    include_nearest_food_vector: bool = False,
+    num_ants: int = 1,
 ) -> dict[str, bool | str] | None:
     source_layouts = (
         ("centered", actor_vision_patch_size(actor_vision_radius), True),
@@ -208,27 +239,28 @@ def _actor_obs_source_shape(
     )
     for include_ants_count in (True, False):
         for include_orientation in (True, False):
-            for layout, patch_size, include_current_row in source_layouts:
-                grid_channels = write_bits + (4 if include_ants_count else 3)
-                orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-                hub_features = 2 if include_hub_vector else 0
-                food_features = 2 if include_nearest_food_vector else 0
-                expected_dim = (
-                    patch_size * grid_channels
-                    + 1
-                    + orientation_features
-                    + hub_features
-                    + food_features
-                )
-                if actor_obs_dim == expected_dim:
-                    return {
-                        "include_ants_count": include_ants_count,
-                        "include_orientation": include_orientation,
-                        "include_current_row": include_current_row,
-                        "layout": layout,
-                        "include_hub_vector": include_hub_vector,
-                        "include_nearest_food_vector": include_nearest_food_vector,
-                    }
+            for include_agent_identity in (True, False):
+                for layout, patch_size, include_current_row in source_layouts:
+                    grid_channels = write_bits + (4 if include_ants_count else 3)
+                    orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+                    identity_features = agent_identity_feature_count(
+                        num_ants,
+                        include_agent_identity=include_agent_identity,
+                    )
+                    expected_dim = (
+                        patch_size * grid_channels
+                        + identity_features
+                        + 1
+                        + orientation_features
+                    )
+                    if actor_obs_dim == expected_dim:
+                        return {
+                            "include_ants_count": include_ants_count,
+                            "include_orientation": include_orientation,
+                            "include_agent_identity": include_agent_identity,
+                            "include_current_row": include_current_row,
+                            "layout": layout,
+                        }
     return None
 
 
@@ -403,6 +435,102 @@ def resize_central_input_layer_for_num_ants(
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
+def resize_critic_entity_input_layer_for_num_ants(
+    layer: LinearParams,
+    *,
+    source_num_ants: int,
+    target_num_ants: int,
+) -> LinearParams:
+    old_weight = jnp.asarray(layer.weight)
+    source_dim = 7 * int(source_num_ants) + 4
+    target_dim = 7 * int(target_num_ants) + 4
+    if old_weight.shape[0] != source_dim:
+        raise ValueError(f"Expected critic entity input dim {source_dim}, got {old_weight.shape[0]}.")
+    if source_dim == target_dim:
+        return layer
+
+    shared_ants = min(int(source_num_ants), int(target_num_ants))
+    source_pos_end = 2 * int(source_num_ants)
+    source_carrying_end = 3 * int(source_num_ants)
+    source_facing_end = 7 * int(source_num_ants)
+    target_pos_end = 2 * int(target_num_ants)
+    target_carrying_end = 3 * int(target_num_ants)
+    target_facing_end = 7 * int(target_num_ants)
+
+    new_weight = jnp.zeros((target_dim, old_weight.shape[1]), dtype=old_weight.dtype)
+    new_weight = new_weight.at[: 2 * shared_ants, :].set(
+        old_weight[: 2 * shared_ants, :]
+    )
+    new_weight = new_weight.at[target_pos_end : target_pos_end + shared_ants, :].set(
+        old_weight[source_pos_end : source_pos_end + shared_ants, :]
+    )
+    new_weight = new_weight.at[
+        target_carrying_end : target_carrying_end + FACING_FEATURE_COUNT * shared_ants,
+        :,
+    ].set(
+        old_weight[
+            source_carrying_end : source_carrying_end + FACING_FEATURE_COUNT * shared_ants,
+            :,
+        ]
+    )
+    new_weight = new_weight.at[target_facing_end:, :].set(old_weight[source_facing_end:, :])
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
+def resize_non_mlp_critic_for_ants_count(
+    params: JaxMAPPOParams,
+    *,
+    source_args: dict[str, Any],
+    target_central_obs_dim: int,
+) -> JaxMAPPOParams:
+    source_num_ants = int(source_args.get("num_ants", 1))
+    source_width = _source_grid_size(source_args, "width")
+    source_height = _source_grid_size(source_args, "height")
+    target_num_ants = _infer_num_ants_for_current_central_dim(
+        target_central_obs_dim,
+        obs_height=source_height,
+        obs_width=source_width,
+    )
+    critic_body = params.critic_body
+    if isinstance(critic_body, StridedCNNCriticParams):
+        resized_body = critic_body._replace(
+            entity_dense=resize_critic_entity_input_layer_for_num_ants(
+                critic_body.entity_dense,
+                source_num_ants=source_num_ants,
+                target_num_ants=target_num_ants,
+            )
+        )
+    elif isinstance(critic_body, ResNetCriticParams):
+        resized_first = resize_critic_entity_input_layer_for_num_ants(
+            critic_body.entity_body[0],
+            source_num_ants=source_num_ants,
+            target_num_ants=target_num_ants,
+        )
+        resized_body = critic_body._replace(
+            entity_body=(resized_first, critic_body.entity_body[1])
+        )
+    elif isinstance(critic_body, StructuredMLPCriticParams):
+        resized_first = resize_critic_entity_input_layer_for_num_ants(
+            critic_body.entity_body[0],
+            source_num_ants=source_num_ants,
+            target_num_ants=target_num_ants,
+        )
+        resized_body = critic_body._replace(
+            entity_body=(resized_first, critic_body.entity_body[1])
+        )
+    else:
+        raise ValueError(
+            "Non-MLP critic checkpoint central observation dimension does not match this run."
+        )
+    return JaxMAPPOParams(
+        actor_body=params.actor_body,
+        move_head=adapt_movement_head_layer(params.move_head),
+        write_head=params.write_head,
+        critic_body=resized_body,
+        value_head=params.value_head,
+    )
+
+
 def expand_central_input_layer_for_ants_count(
     layer: LinearParams,
     *,
@@ -494,14 +622,23 @@ def expand_params_for_write_bits(
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
     source_includes_orientation: bool = False,
+    source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
+    source_num_ants: int = 1,
+    target_num_ants: int = 1,
     write_head_transfer: str = "repeat",
 ) -> JaxMAPPOParams:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
+    source_identity_features = agent_identity_feature_count(
+        source_num_ants,
+        include_agent_identity=source_includes_agent_identity,
+    )
+    target_identity_features = agent_identity_feature_count(target_num_ants)
     if (
         target_bits == old_bits
         and source_includes_ants_count
         and source_includes_orientation
+        and source_identity_features == target_identity_features
         and source_layout == "centered"
     ):
         return params
@@ -516,7 +653,10 @@ def expand_params_for_write_bits(
                 actor_vision_radius=actor_vision_radius,
                 source_includes_ants_count=source_includes_ants_count,
                 source_includes_orientation=source_includes_orientation,
+                source_includes_agent_identity=source_includes_agent_identity,
                 source_layout=source_layout,
+                source_num_ants=source_num_ants,
+                target_num_ants=target_num_ants,
             ),
             params.actor_body[1],
         ),
@@ -540,15 +680,18 @@ def resize_params_for_actor_vision_radius(
     write_bits: int,
     source_actor_vision_radius: int,
     target_actor_vision_radius: int,
-    source_actor_hub_vector: bool = False,
-    source_actor_nearest_food_vector: bool = False,
-    target_actor_hub_vector: bool = False,
-    target_actor_nearest_food_vector: bool = False,
+    source_num_ants: int = 1,
+    target_num_ants: int = 1,
+    source_includes_agent_identity: bool = True,
 ) -> JaxMAPPOParams:
+    source_identity_features = agent_identity_feature_count(
+        source_num_ants,
+        include_agent_identity=source_includes_agent_identity,
+    )
+    target_identity_features = agent_identity_feature_count(target_num_ants)
     if (
         source_actor_vision_radius == target_actor_vision_radius
-        and source_actor_hub_vector == target_actor_hub_vector
-        and source_actor_nearest_food_vector == target_actor_nearest_food_vector
+        and source_identity_features == target_identity_features
     ):
         return params
     return JaxMAPPOParams(
@@ -558,10 +701,9 @@ def resize_params_for_actor_vision_radius(
                 write_bits=write_bits,
                 source_actor_vision_radius=source_actor_vision_radius,
                 target_actor_vision_radius=target_actor_vision_radius,
-                source_actor_hub_vector=source_actor_hub_vector,
-                source_actor_nearest_food_vector=source_actor_nearest_food_vector,
-                target_actor_hub_vector=target_actor_hub_vector,
-                target_actor_nearest_food_vector=target_actor_nearest_food_vector,
+                source_num_ants=source_num_ants,
+                target_num_ants=target_num_ants,
+                source_includes_agent_identity=source_includes_agent_identity,
             ),
             params.actor_body[1],
         ),
@@ -611,7 +753,10 @@ def expand_actor_input_layer(
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
     source_includes_orientation: bool = False,
+    source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
+    source_num_ants: int = 1,
+    target_num_ants: int = 1,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     target_patch_size = actor_vision_patch_size(actor_vision_radius)
@@ -622,16 +767,21 @@ def expand_actor_input_layer(
     expected_old_dim = source_actor_obs_dim(
         write_bits=old_bits,
         actor_vision_radius=actor_vision_radius,
+        num_ants=source_num_ants,
         include_ants_count=source_includes_ants_count,
         include_orientation=source_includes_orientation,
+        include_agent_identity=source_includes_agent_identity,
         source_layout=source_layout,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_bits,
         actor_vision_radius=actor_vision_radius,
+        num_ants=target_num_ants,
     )
     if old_weight.shape[0] != expected_old_dim:
-        raise ValueError(f"Expected actor input dim {expected_old_dim}, got {old_weight.shape[0]}.")
+        raise ValueError(
+            f"Expected actor input dim {expected_old_dim}, got {old_weight.shape[0]}."
+        )
 
     new_weight = jnp.zeros((target_dim, old_weight.shape[1]), dtype=old_weight.dtype)
     old_food = slice(0, source_patch_size)
@@ -681,17 +831,24 @@ def expand_actor_input_layer(
         target_patch_size * (4 + target_bits),
     )
     old_tail_start = source_patch_size * (old_bits + (4 if source_includes_ants_count else 3))
-    old_carrying = slice(old_tail_start, old_tail_start + 1)
+    old_identity_width = agent_identity_feature_count(
+        source_num_ants,
+        include_agent_identity=source_includes_agent_identity,
+    )
+    old_identity = slice(old_tail_start, old_tail_start + old_identity_width)
+    old_carrying = slice(old_identity.stop, old_identity.stop + 1)
     old_orientation = (
-        slice(old_tail_start + 1, old_tail_start + 1 + FACING_FEATURE_COUNT)
+        slice(old_carrying.stop, old_carrying.stop + FACING_FEATURE_COUNT)
         if source_includes_orientation
         else None
     )
     new_tail_start = target_patch_size * (target_bits + 4)
-    new_carrying = slice(new_tail_start, new_tail_start + 1)
+    new_identity_width = agent_identity_feature_count(target_num_ants)
+    new_identity = slice(new_tail_start, new_tail_start + new_identity_width)
+    new_carrying = slice(new_identity.stop, new_identity.stop + 1)
     new_orientation = slice(
-        new_tail_start + 1,
-        new_tail_start + 1 + FACING_FEATURE_COUNT,
+        new_carrying.stop,
+        new_carrying.stop + FACING_FEATURE_COUNT,
     )
 
     new_weight = copy_actor_patch_channel(
@@ -736,6 +893,17 @@ def expand_actor_input_layer(
         actor_vision_radius=actor_vision_radius,
         source_layout=source_layout,
     )
+    if old_identity_width > 0 and new_identity_width > 0:
+        shared_identity_width = min(old_identity_width, new_identity_width)
+        new_weight = new_weight.at[
+            new_identity.start : new_identity.start + shared_identity_width,
+            :,
+        ].set(
+            old_weight[
+                old_identity.start : old_identity.start + shared_identity_width,
+                :,
+            ]
+        )
     new_weight = new_weight.at[new_carrying, :].set(old_weight[old_carrying, :])
     if old_orientation is not None:
         new_weight = new_weight.at[new_orientation, :].set(old_weight[old_orientation, :])
@@ -748,23 +916,21 @@ def resize_actor_input_layer_for_vision_radius(
     write_bits: int,
     source_actor_vision_radius: int,
     target_actor_vision_radius: int,
-    source_actor_hub_vector: bool = False,
-    source_actor_nearest_food_vector: bool = False,
-    target_actor_hub_vector: bool = False,
-    target_actor_nearest_food_vector: bool = False,
+    source_num_ants: int = 1,
+    target_num_ants: int = 1,
+    source_includes_agent_identity: bool = True,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     source_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
         actor_vision_radius=source_actor_vision_radius,
-        include_hub_vector=source_actor_hub_vector,
-        include_nearest_food_vector=source_actor_nearest_food_vector,
+        num_ants=source_num_ants,
+        include_agent_identity=source_includes_agent_identity,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
         actor_vision_radius=target_actor_vision_radius,
-        include_hub_vector=target_actor_hub_vector,
-        include_nearest_food_vector=target_actor_nearest_food_vector,
+        num_ants=target_num_ants,
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected actor input dim {source_dim}, got {old_weight.shape[0]}.")
@@ -793,36 +959,40 @@ def resize_actor_input_layer_for_vision_radius(
 
     source_tail_start = channel_count * source_patch_size
     target_tail_start = channel_count * target_patch_size
+    source_identity_width = agent_identity_feature_count(
+        source_num_ants,
+        include_agent_identity=source_includes_agent_identity,
+    )
+    target_identity_width = agent_identity_feature_count(target_num_ants)
+    if source_identity_width > 0 and target_identity_width > 0:
+        shared_identity_width = min(source_identity_width, target_identity_width)
+        new_weight = new_weight.at[
+            target_tail_start : target_tail_start + shared_identity_width,
+            :,
+        ].set(
+            old_weight[
+                source_tail_start : source_tail_start + shared_identity_width,
+                :,
+            ]
+        )
     tail_width = 1 + FACING_FEATURE_COUNT
+    target_tail = slice(
+        target_tail_start + target_identity_width,
+        target_tail_start + target_identity_width + tail_width,
+    )
+    source_tail = slice(
+        source_tail_start + source_identity_width,
+        source_tail_start + source_identity_width + tail_width,
+    )
     new_weight = new_weight.at[
-        target_tail_start : target_tail_start + tail_width,
+        target_tail,
         :,
     ].set(
         old_weight[
-            source_tail_start : source_tail_start + tail_width,
+            source_tail,
             :,
         ]
     )
-    source_extra_start = source_tail_start + tail_width
-    target_extra_start = target_tail_start + tail_width
-    source_hub = None
-    if source_actor_hub_vector:
-        source_hub = slice(source_extra_start, source_extra_start + 2)
-        source_extra_start += 2
-    source_nearest_food = None
-    if source_actor_nearest_food_vector:
-        source_nearest_food = slice(source_extra_start, source_extra_start + 2)
-
-    if target_actor_hub_vector:
-        if source_hub is not None:
-            new_weight = new_weight.at[target_extra_start : target_extra_start + 2, :].set(
-                old_weight[source_hub, :]
-            )
-        target_extra_start += 2
-    if target_actor_nearest_food_vector and source_nearest_food is not None:
-        new_weight = new_weight.at[target_extra_start : target_extra_start + 2, :].set(
-            old_weight[source_nearest_food, :]
-        )
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 

@@ -30,21 +30,48 @@ class WandbTracker:
             return
 
         self._wandb = _import_wandb()
-        self._run = self._wandb.init(
-            project=project,
-            entity=entity,
-            group=group,
-            name=name,
-            tags=list(tags) if tags is not None else None,
-            mode=mode,
-            dir=str(run_dir) if run_dir is not None else None,
-            config=dict(config or {}),
-            notes=notes,
-        )
+        init_kwargs = {
+            "project": project,
+            "entity": entity,
+            "group": group,
+            "name": name,
+            "tags": list(tags) if tags is not None else None,
+            "mode": mode,
+            "dir": str(run_dir) if run_dir is not None else None,
+            "config": dict(config or {}),
+            "notes": notes,
+            "reinit": "create_new",
+        }
+        self._run = self._init_run(init_kwargs)
 
     @property
     def enabled(self) -> bool:
         return self._run is not None
+
+    def _init_run(self, init_kwargs: Mapping[str, Any]) -> Any | None:
+        if self._wandb is None:
+            return None
+        try:
+            return self._wandb.init(**dict(init_kwargs))
+        except Exception as exc:
+            warnings.warn(
+                "W&B init failed; resetting the local W&B service and retrying once: "
+                f"{type(exc).__name__}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _teardown_wandb(self._wandb)
+        try:
+            return self._wandb.init(**{**dict(init_kwargs), "reinit": "create_new"})
+        except Exception as exc:
+            warnings.warn(
+                "W&B init failed after retry; continuing with W&B disabled for this run: "
+                f"{type(exc).__name__}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            self._wandb = None
+            return None
 
     def log_metrics(
         self,
@@ -54,7 +81,10 @@ class WandbTracker:
     ) -> None:
         if self._run is None:
             return
-        self._run.log(dict(metrics), step=None if step is None else int(step))
+        try:
+            self._run.log(dict(metrics), step=None if step is None else int(step))
+        except Exception as exc:
+            self._disable_after_log_failure("metric logging", exc)
 
     def log_video(
         self,
@@ -66,10 +96,13 @@ class WandbTracker:
     ) -> None:
         if self._run is None or self._wandb is None:
             return
-        self._run.log(
-            {key: self._wandb.Video(str(path), fps=int(fps), format="mp4")},
-            step=None if step is None else int(step),
-        )
+        try:
+            self._run.log(
+                {key: self._wandb.Video(str(path), fps=int(fps), format="mp4")},
+                step=None if step is None else int(step),
+            )
+        except Exception as exc:
+            self._disable_after_log_failure("video logging", exc)
 
     def log_artifact(
         self,
@@ -81,12 +114,15 @@ class WandbTracker:
     ) -> None:
         if self._run is None or self._wandb is None:
             return
-        artifact = self._wandb.Artifact(name, type=artifact_type)
-        artifact.add_file(str(path))
-        self._run.log_artifact(
-            artifact,
-            aliases=list(aliases) if aliases is not None else None,
-        )
+        try:
+            artifact = self._wandb.Artifact(name, type=artifact_type)
+            artifact.add_file(str(path))
+            self._run.log_artifact(
+                artifact,
+                aliases=list(aliases) if aliases is not None else None,
+            )
+        except Exception as exc:
+            self._disable_after_log_failure("artifact logging", exc)
 
     def finish(self) -> None:
         if self._run is None:
@@ -103,6 +139,16 @@ class WandbTracker:
                 stacklevel=2,
             )
 
+    def _disable_after_log_failure(self, operation: str, exc: Exception) -> None:
+        self._run = None
+        warnings.warn(
+            "W&B "
+            f"{operation} failed; continuing with W&B disabled for this run: "
+            f"{type(exc).__name__}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
 
 def _import_wandb() -> Any:
     try:
@@ -114,3 +160,20 @@ def _import_wandb() -> Any:
             "W&B tracking was requested, but the optional 'wandb' package is not "
             "installed. Install it with `pip install -e '.[wandb]'` or `pip install wandb`."
         ) from exc
+
+
+def _teardown_wandb(wandb_module: Any) -> None:
+    teardown = getattr(wandb_module, "teardown", None)
+    if teardown is None:
+        return
+    try:
+        teardown(exit_code=1)
+    except TypeError:
+        teardown()
+    except Exception as exc:
+        warnings.warn(
+            "W&B teardown failed while recovering from init failure; retrying anyway: "
+            f"{type(exc).__name__}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )

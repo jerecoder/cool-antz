@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import pickle
 from pathlib import Path
 from typing import Any, Callable
@@ -146,6 +147,8 @@ def render_torch_checkpoint(
             actor_obs_dim=actor_obs_dim,
             write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
+            source_num_ants=int(getattr(args, "num_ants", 1)),
+            target_num_ants=int(getattr(args, "num_ants", 1)),
         )
     )
     agent.eval()
@@ -216,37 +219,45 @@ def render_jax_checkpoint(
     ):
         return output_path
 
-    import jax
-    import jax.numpy as jnp
-
-    from ant_byte_env.training.jax_mappo import (
-        build_actor_observations,
-        build_central_observations,
-        get_action_and_value,
-    )
-    from ant_byte_env.training.jax_mappo.evaluation import (
-        _evaluation_actions_for_mode,
-        validate_evaluation_action_mode,
-    )
-    from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with Path(checkpoint_path).open("rb") as checkpoint_file:
         raw_checkpoint = pickle.load(checkpoint_file)
     args = argparse.Namespace(**raw_checkpoint["args"])
-    step_count = _render_step_count(args, max_frames=max_frames)
+    frame_limit = _render_frame_limit(args, max_frames=max_frames)
     deterministic = _deterministic_from_temperature(policy_temperature)
-    resolved_action_mode = (
-        None if action_mode is None else validate_evaluation_action_mode(action_mode)
-    )
+    food_scale = _jax_render_food_scale(args)
 
     env = _env_from_args(args, render_mode="rgb_array", tile_size=tile_size)
     writer = imageio.get_writer(output_path, fps=AntByteForagingEnv.metadata["render_fps"])
+    jax_module: Any | None = None
     try:
         reset_seed = args.seed + seed_offset
         obs, _ = env.reset(
             seed=reset_seed,
             options=_jax_render_reset_options(args, seed=reset_seed),
+        )
+        writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
+        frames_written = 1
+
+        import jax
+        import jax.numpy as jnp
+
+        from ant_byte_env.training.jax_mappo import (
+            build_actor_observations,
+            build_central_observations,
+            get_action_and_value,
+        )
+        from ant_byte_env.training.jax_mappo.core import critic_forward_kwargs_from_args
+        from ant_byte_env.training.jax_mappo.evaluation import (
+            _evaluation_actions_for_mode,
+            validate_evaluation_action_mode,
+        )
+        from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
+
+        jax_module = jax
+        critic_kwargs = critic_forward_kwargs_from_args(args)
+        resolved_action_mode = (
+            None if action_mode is None else validate_evaluation_action_mode(action_mode)
         )
         obs_batch = {
             name: jnp.expand_dims(jnp.asarray(value), axis=0)
@@ -254,18 +265,16 @@ def render_jax_checkpoint(
         }
         central_obs = build_central_observations(
             obs_batch,
-            food_scale=args.food_count,
+            food_scale=food_scale,
             write_bits=args.write_bits,
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
         actor_obs = build_actor_observations(
             obs_batch,
-            food_scale=args.food_count,
+            food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
-            actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-            actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -275,8 +284,8 @@ def render_jax_checkpoint(
             actor_obs_dim=int(actor_obs.shape[-1]),
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
-            actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-            actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
+            target_num_ants=int(getattr(args, "num_ants", 1)),
+            target_critic_architecture=_target_critic_architecture(critic_kwargs),
         )
         params = jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
         select_action = _compile_jax_action_selector(
@@ -288,13 +297,15 @@ def render_jax_checkpoint(
             get_action_and_value=get_action_and_value,
             evaluation_actions_for_mode=_evaluation_actions_for_mode,
             jax=jax,
+            food_scale=food_scale,
             action_mode=resolved_action_mode,
             move_temperature=move_temperature,
             write_temperature=write_temperature,
+            critic_kwargs=critic_kwargs,
         )
-        writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
         key = jax.random.PRNGKey(args.seed + seed_offset)
-        for _ in range(step_count):
+        episode_index = 0
+        while frames_written < frame_limit:
             key, action_key = jax.random.split(key)
             obs_batch = {
                 name: jnp.expand_dims(jnp.asarray(value), axis=0)
@@ -303,13 +314,29 @@ def render_jax_checkpoint(
             actions = select_action(obs_batch, action_key)
             obs, _, terminated, truncated, _ = env.step(np.asarray(actions).reshape(-1))
             writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
+            frames_written += 1
             if terminated or truncated:
+                if not bool(getattr(args, "maze_obstacles", False)) or max_frames is None:
+                    break
+                if frames_written >= frame_limit:
+                    break
+                episode_index += 1
+                reset_seed = args.seed + seed_offset + episode_index
+                obs, _ = env.reset(
+                    seed=reset_seed,
+                    options=_jax_render_reset_options(args, seed=reset_seed),
+                )
+                key = jax.random.PRNGKey(reset_seed)
+                writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
+                frames_written += 1
+                continue
+            if max_frames is None and frames_written >= int(args.max_steps) + 1:
                 break
     finally:
         writer.close()
         env.close()
-        if hasattr(jax, "clear_caches"):
-            jax.clear_caches()
+        if jax_module is not None and hasattr(jax_module, "clear_caches"):
+            jax_module.clear_caches()
     return output_path
 
 
@@ -334,6 +361,15 @@ def _render_step_count(args: argparse.Namespace, *, max_frames: int | None) -> i
     return min(max_steps, frame_count - 1)
 
 
+def _render_frame_limit(args: argparse.Namespace, *, max_frames: int | None) -> int:
+    if max_frames is None:
+        return int(args.max_steps) + 1
+    frame_count = int(max_frames)
+    if frame_count < 1:
+        raise ValueError("max_frames must be at least 1.")
+    return frame_count
+
+
 def _deterministic_from_temperature(policy_temperature: float) -> bool:
     temperature = float(policy_temperature)
     if temperature < 0.0:
@@ -343,9 +379,9 @@ def _deterministic_from_temperature(policy_temperature: float) -> bool:
 
 def _actor_obs_dim_from_args(args: argparse.Namespace) -> int:
     patch_size = actor_vision_patch_size(int(args.actor_vision_radius))
-    hub_features = 2 if bool(getattr(args, "actor_hub_vector", False)) else 0
-    food_features = 2 if bool(getattr(args, "actor_nearest_food_vector", False)) else 0
-    return patch_size * (int(args.write_bits) + 4) + MOVEMENT_ACTION_COUNT + hub_features + food_features
+    num_ants = int(getattr(args, "num_ants", 1))
+    identity_features = num_ants if num_ants > 1 else 0
+    return patch_size * (int(args.write_bits) + 4) + identity_features + MOVEMENT_ACTION_COUNT
 
 
 def _compile_jax_action_selector(
@@ -358,26 +394,28 @@ def _compile_jax_action_selector(
     get_action_and_value: Callable[..., Any],
     evaluation_actions_for_mode: Callable[..., Any] | None = None,
     jax: Any,
+    food_scale: float,
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    critic_kwargs: dict[str, Any] | None = None,
 ) -> Callable[..., Any]:
+    resolved_critic_kwargs = {} if critic_kwargs is None else dict(critic_kwargs)
+
     @jax.jit
     def select_action(obs_batch: dict[str, Any], action_key: Any) -> Any:
         central_obs = build_central_observations(
             obs_batch,
-            food_scale=args.food_count,
+            food_scale=food_scale,
             write_bits=args.write_bits,
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
         actor_obs = build_actor_observations(
             obs_batch,
-            food_scale=args.food_count,
+            food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
-            actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-            actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -388,6 +426,7 @@ def _compile_jax_action_selector(
                 central_obs,
                 action_key,
                 deterministic=deterministic,
+                **resolved_critic_kwargs,
             )
             return actions
         if evaluation_actions_for_mode is None:
@@ -402,9 +441,21 @@ def _compile_jax_action_selector(
             action_mode=action_mode,
             move_temperature=move_temperature,
             write_temperature=write_temperature,
+            **resolved_critic_kwargs,
         )
 
     return select_action
+
+
+def _target_critic_architecture(critic_kwargs: dict[str, Any]) -> str:
+    return str(critic_kwargs.get("critic_architecture", "mlp"))
+
+
+def _jax_render_food_scale(args: argparse.Namespace) -> float:
+    food_sources = getattr(args, "food_sources", None)
+    if food_sources is None or int(food_sources) <= 0:
+        return max(float(args.food_count), 1.0)
+    return max(float(math.ceil(float(args.food_count) / float(food_sources))), 1.0)
 
 
 def _render_frame(
@@ -448,6 +499,7 @@ def _env_from_args(
             "write_penalty": args.write_penalty,
             "write_bits": args.write_bits,
             "write_while_moving": bool(getattr(args, "write_while_moving", False)),
+            "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
             "actor_vision_radius": int(getattr(args, "actor_vision_radius", 1)),
             "render_mode": render_mode,
         }
@@ -466,11 +518,21 @@ def _env_from_args(
         "random_hub": bool(getattr(args, "random_hub", False)),
         "random_ant_spawn": bool(getattr(args, "random_ant_spawn", False)),
         "random_ant_spawn_radius": getattr(args, "random_ant_spawn_radius", None),
+        "layout_margin": int(getattr(args, "layout_margin", 0)),
+        "hub_center_window_size": int(getattr(args, "hub_center_window_size", 0)),
         "step_penalty": args.step_penalty,
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": bool(getattr(args, "write_while_moving", False)),
+        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
         "terminate_on_food_delivery": bool(getattr(args, "food_termination", True)),
+        "terminate_on_full_coverage": bool(
+            getattr(args, "terminate_on_full_coverage", False)
+        ),
+        "maze_obstacles": bool(getattr(args, "maze_obstacles", False)),
+        "maze_corridor_width": int(getattr(args, "maze_corridor_width", 3)),
+        "maze_wall_width": int(getattr(args, "maze_wall_width", 1)),
+        "maze_seed": int(getattr(args, "maze_seed", 0)),
         "render_mode": render_mode,
     }
     if tile_size is not None:
@@ -485,16 +547,9 @@ def _jax_render_reset_options(
 ) -> dict[str, tuple[int, int] | list[tuple[int, int]]] | None:
     if bool(getattr(args, "autocurriculum", False)):
         return None
-    if bool(getattr(args, "random_hub", False)):
-        rng = np.random.default_rng(seed)
-        hub = (
-            int(rng.integers(0, args.width)),
-            int(rng.integers(0, args.height)),
-        )
-    else:
-        hub = (args.width // 2, args.height // 2)
-    if args.random_food:
-        return {"hub_pos": hub} if bool(getattr(args, "random_hub", False)) else None
+    if bool(getattr(args, "random_food", False)) or bool(getattr(args, "random_hub", False)):
+        return None
+    hub = (args.width // 2, args.height // 2)
     distance = min(args.cookie_distance, max(args.width, args.height))
     candidates = (
         (hub[0] + distance, hub[1]),

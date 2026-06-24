@@ -135,10 +135,6 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "DISTANCE_CAP24_SPEED_HELDOUT_SELECT_430",
         "DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN",
         "DISTANCE_CAP12_BIGMAP_RARE_VISION2_RANDOM_SPAWN",
-        "DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
-        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
-        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
-        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM",
         "DISTANCE_CAP32_SPEED_SOURCES12_430",
         "DISTANCE_CAP8_SPEED_RAMP_8A",
         "DISTANCE_VISION2_CAP4",
@@ -173,8 +169,6 @@ def test_research_loop_matrix_is_self_contained_and_substantive() -> None:
         "deployment_policy",
         "efficiency_finetune",
         "checkpoint_selection",
-        "observation_ablation",
-        "reset_distribution",
         "combined_capacity",
         "memory_shaping",
         "autocurriculum",
@@ -587,34 +581,6 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
         num_steps=None,
         wandb_mode="disabled",
     )
-    rare_hubvector = build_research_experiment_plan(
-        run_id="DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN",
-        global_update_cap=None,
-        num_envs=1,
-        num_steps=None,
-        wandb_mode="disabled",
-    )
-    rare_navvector = build_research_experiment_plan(
-        run_id="DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_RANDOM_SPAWN",
-        global_update_cap=None,
-        num_envs=1,
-        num_steps=None,
-        wandb_mode="disabled",
-    )
-    rare_navvector_select = build_research_experiment_plan(
-        run_id="DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT",
-        global_update_cap=None,
-        num_envs=1,
-        num_steps=None,
-        wandb_mode="disabled",
-    )
-    rare_spawn_curriculum = build_research_experiment_plan(
-        run_id="DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM",
-        global_update_cap=None,
-        num_envs=1,
-        num_steps=None,
-        wandb_mode="disabled",
-    )
     cap32 = build_research_experiment_plan(
         run_id="DISTANCE_CAP32_SPEED_SOURCES12_430",
         global_update_cap=None,
@@ -847,89 +813,6 @@ def test_research_loop_plan_can_target_short_horizon_speed() -> None:
     assert rare_vision2_parsed.random_ant_spawn is True
     assert rare_vision2_parsed.byte_follow_bonus == 0.01
     assert rare_vision2_parsed.carrying_byte_write_bonus == 0.005
-
-    rare_hubvector_parsed = parse_args(rare_hubvector["common_args"])
-    assert rare_hubvector["family"] == "observation_ablation"
-    assert [stage["width"] for stage in rare_hubvector["stages"]] == [40, 50]
-    assert [stage["food_sources"] for stage in rare_hubvector["stages"]] == [4, 2]
-    assert rare_hubvector["source_checkpoint"].endswith(
-        "DISTANCE_CAP8_BIGMAP_RARE_RANDOM_SPAWN/checkpoints/"
-        "jax_mappo_forage_stage1_50x50.pkl"
-    )
-    assert rare_hubvector_parsed.num_ants == 8
-    assert rare_hubvector_parsed.actor_hub_vector is True
-    assert rare_hubvector_parsed.actor_nearest_food_vector is False
-    assert rare_hubvector_parsed.random_food is True
-    assert rare_hubvector_parsed.random_hub is True
-    assert rare_hubvector_parsed.random_ant_spawn is True
-    assert rare_hubvector_parsed.delivery_byte_trail_bonus == 0.3
-    assert "nearest-food vectors" in rare_hubvector["notes_markdown"]
-
-    rare_navvector_parsed = parse_args(rare_navvector["common_args"])
-    assert rare_navvector["family"] == "observation_ablation"
-    assert [stage["width"] for stage in rare_navvector["stages"]] == [40, 50]
-    assert [stage["food_sources"] for stage in rare_navvector["stages"]] == [4, 2]
-    assert rare_navvector["source_checkpoint"].endswith(
-        "DISTANCE_CAP8_BIGMAP_RARE_HUBVECTOR_RANDOM_SPAWN/checkpoints/"
-        "jax_mappo_forage_stage1_50x50.pkl"
-    )
-    assert rare_navvector_parsed.num_ants == 8
-    assert rare_navvector_parsed.actor_hub_vector is True
-    assert rare_navvector_parsed.actor_nearest_food_vector is True
-    assert rare_navvector_parsed.random_food is True
-    assert rare_navvector_parsed.random_hub is True
-    assert rare_navvector_parsed.random_ant_spawn is True
-    assert "upper-bound observation test" in rare_navvector["notes_markdown"]
-    assert "pure emergent communication" in rare_navvector["notes_markdown"]
-
-    rare_navvector_select_parsed = parse_args(rare_navvector_select["common_args"])
-    assert rare_navvector_select["family"] == "checkpoint_selection"
-    assert rare_navvector_select["stages"][0]["select_best_checkpoint"] is True
-    assert rare_navvector_select["stages"][0]["best_checkpoint_selection"] == "eval"
-    assert rare_navvector_select["stages"][0]["best_checkpoint_metric"] == (
-        "eval_mean_delivered_food"
-    )
-    assert rare_navvector_select["stages"][0]["best_eval_episodes"] == 16
-    assert rare_navvector_select["stages"][0]["best_eval_interval"] == 20
-    assert rare_navvector_select["stages"][0]["best_eval_seed_offset"] == 6200000
-    assert rare_navvector_select["stages"][0]["best_eval_move_temperature"] == 0.9
-    assert rare_navvector_select["final_checkpoint"].endswith(
-        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT/checkpoints/"
-        "jax_mappo_forage_stage1_50x50_best.pkl"
-    )
-    assert rare_navvector_select_parsed.num_ants == 8
-    assert rare_navvector_select_parsed.actor_hub_vector is True
-    assert rare_navvector_select_parsed.actor_nearest_food_vector is True
-    assert rare_navvector_select_parsed.random_ant_spawn is True
-
-    rare_spawn_curriculum_parsed = parse_args(rare_spawn_curriculum["common_args"])
-    assert rare_spawn_curriculum["family"] == "reset_distribution"
-    assert [stage["width"] for stage in rare_spawn_curriculum["stages"]] == [50, 50, 50]
-    assert [stage["food_sources"] for stage in rare_spawn_curriculum["stages"]] == [2, 2, 2]
-    assert [
-        stage.get("random_ant_spawn_radius") for stage in rare_spawn_curriculum["stages"]
-    ] == [8, 16, None]
-    assert rare_spawn_curriculum["stages"][-1]["select_best_checkpoint"] is True
-    assert rare_spawn_curriculum["stages"][-1]["best_checkpoint_selection"] == "eval"
-    assert rare_spawn_curriculum["stages"][-1]["best_checkpoint_metric"] == (
-        "eval_mean_delivered_food"
-    )
-    assert rare_spawn_curriculum["stages"][-1]["best_eval_seed_offset"] == 6400000
-    assert rare_spawn_curriculum["source_checkpoint"].endswith(
-        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_HELDOUT_SELECT/checkpoints/"
-        "jax_mappo_forage_stage1_50x50_best.pkl"
-    )
-    assert rare_spawn_curriculum["final_checkpoint"].endswith(
-        "DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM/checkpoints/"
-        "jax_mappo_forage_stage1_50x50_best.pkl"
-    )
-    assert rare_spawn_curriculum_parsed.num_ants == 8
-    assert rare_spawn_curriculum_parsed.actor_hub_vector is True
-    assert rare_spawn_curriculum_parsed.actor_nearest_food_vector is True
-    assert rare_spawn_curriculum_parsed.random_food is True
-    assert rare_spawn_curriculum_parsed.random_hub is True
-    assert rare_spawn_curriculum_parsed.random_ant_spawn is True
-    assert "full-map random ant spawn" in rare_spawn_curriculum["notes_markdown"]
 
     cap32_parsed = parse_args(cap32["common_args"])
     assert cap32["family"] == "food_distribution"

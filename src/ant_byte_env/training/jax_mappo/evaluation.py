@@ -18,7 +18,9 @@ from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
     build_actor_observations,
     build_central_observations,
+    critic_forward_kwargs_from_args,
     flatten_agent_actions,
+    food_observation_scale,
     get_action_logits,
     get_action_and_value,
 )
@@ -95,10 +97,18 @@ def evaluate_params(
     ant_steps_per_delivered_food: list[float] = []
     delivered_per_1000_ant_steps: list[float] = []
     successes: list[float] = []
+    previous_obs: Any | None = None
+    previous_food: Any | None = None
 
     for _ in range(num_episodes):
         key, reset_key = jax.random.split(key)
-        state, obs = reset_batch(args=eval_args, env=env, key=reset_key)
+        state, obs = reset_batch(
+            args=eval_args,
+            env=env,
+            key=reset_key,
+            previous_obs=previous_obs,
+            previous_food=previous_food,
+        )
         episode_return = 0.0
         episode_length = int(eval_args.max_steps)
         episode_terminated = False
@@ -125,6 +135,8 @@ def evaluate_params(
         episode_returns.append(episode_return)
         episode_lengths.append(episode_length)
         successes.append(float(episode_terminated))
+        previous_obs = obs
+        previous_food = getattr(state, "initial_food", None)
 
     return {
         "eval_success_rate": float(np.mean(successes)),
@@ -154,20 +166,22 @@ def _evaluation_step(
     move_temperature: float,
     write_temperature: float,
 ) -> tuple[Any, Any, Any, Any, Any]:
+    food_scale = food_observation_scale(
+        food_count=args.food_count,
+        food_sources=getattr(args, "food_sources", None),
+    )
     central_obs = build_central_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -179,6 +193,7 @@ def _evaluation_step(
         action_mode=action_mode,
         move_temperature=move_temperature,
         write_temperature=write_temperature,
+        **critic_forward_kwargs_from_args(args),
     )
     if bool(getattr(args, "write_action_ablation", False)):
         actions = actions.at[..., 1].set(0)
@@ -215,8 +230,8 @@ def evaluate_checkpoint(
         actor_obs_dim=actor_obs_dim,
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
+        target_num_ants=args.num_ants,
+        target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
     )
     return evaluate_params(
         params=checkpoint["params"],
@@ -240,6 +255,10 @@ def _evaluation_actions_for_mode(
     action_mode: str,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    critic_architecture: str = "mlp",
+    critic_num_ants: int | None = None,
+    critic_obs_height: int | None = None,
+    critic_obs_width: int | None = None,
 ) -> jax.Array:
     if action_mode in {"deterministic", "sampled"}:
         actions, _, _, _ = get_action_and_value(
@@ -248,6 +267,10 @@ def _evaluation_actions_for_mode(
             central_obs,
             key,
             deterministic=action_mode == "deterministic",
+            critic_architecture=critic_architecture,
+            critic_num_ants=critic_num_ants,
+            critic_obs_height=critic_obs_height,
+            critic_obs_width=critic_obs_width,
         )
         return actions
 
@@ -334,20 +357,22 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
     env = _make_eval_env(args)
     shape_args = argparse.Namespace(**{**vars(args), "num_envs": 1})
     _, obs = reset_batch(args=shape_args, env=env, key=jax.random.PRNGKey(args.seed))
+    food_scale = food_observation_scale(
+        food_count=args.food_count,
+        food_sources=getattr(args, "food_sources", None),
+    )
     central_obs = build_central_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
         obs,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -371,17 +396,25 @@ def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntBy
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": bool(getattr(args, "write_while_moving", False)),
+        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
+        "actor_vision_radius": int(getattr(args, "actor_vision_radius", 1)),
     }
     if bool(getattr(args, "autocurriculum", False)):
         return JaxAntByteAutoCurriculumEnv(
             **common_kwargs,
             start_size=int(getattr(args, "autocurriculum_start_size", 4)),
             success_cookies=int(getattr(args, "autocurriculum_success_cookies", 6)),
-            actor_vision_radius=int(getattr(args, "actor_vision_radius", 1)),
         )
     return JaxAntByteForagingEnv(
         **common_kwargs,
+        layout_margin=int(getattr(args, "layout_margin", 0)),
+        hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
         terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
+        terminate_on_full_coverage=bool(getattr(args, "terminate_on_full_coverage", False)),
+        maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
+        maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
+        maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
+        maze_seed=int(getattr(args, "maze_seed", 0)),
     )
 
 

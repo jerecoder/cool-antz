@@ -10,6 +10,7 @@
     "num_minibatches": 4,
     "update_epochs": 4,
     "ent_coef": 0.02,
+    "training_rollout_temperature": 0.75,
     "width": 25,
     "height": 25,
     "obs_width": 50,
@@ -40,6 +41,7 @@
   "metadata": {
     "bit_stages": [2, 3, 5, 8],
     "global_update_cap": 10000,
+    "rollout_policy_temperature": 1.0,
     "source_checkpoint": "runs/notebooks/forage_curriculum/checkpoints/jax_mappo_forage_stage1_25x25.pkl",
     "consolidation": {
       "enabled": true,

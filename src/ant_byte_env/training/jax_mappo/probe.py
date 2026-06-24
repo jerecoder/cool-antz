@@ -20,7 +20,9 @@ from ant_byte_env.training.jax_mappo.core import (
     JaxMAPPOParams,
     build_actor_observations,
     build_central_observations,
+    critic_forward_kwargs_from_args,
     flatten_agent_actions,
+    food_observation_scale,
     get_action_and_value,
 )
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
@@ -150,20 +152,22 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
     finally:
         env.close()
     obs_batch = _obs_batch(obs)
+    food_scale = food_observation_scale(
+        food_count=args.food_count,
+        food_sources=getattr(args, "food_sources", None),
+    )
     central_obs = build_central_observations(
         obs_batch,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
         obs_batch,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -173,8 +177,8 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
         actor_obs_dim=int(actor_obs.shape[-1]),
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
+        target_num_ants=args.num_ants,
+        target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
     )
     return jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
 
@@ -245,6 +249,10 @@ def _probe_mode(
                 write_values = _applied_probe_write_values(
                     agent_actions,
                     write_while_moving=bool(getattr(args, "write_while_moving", False)),
+                    per_ant_write_channels=bool(
+                        getattr(args, "per_ant_write_channels", False)
+                    ),
+                    write_bits=int(getattr(args, "write_bits", 1)),
                 )
                 action_counts += np.bincount(write_values, minlength=action_counts.shape[0])
                 obs, reward, terminated, truncated, info = env.step(
@@ -307,11 +315,17 @@ def _applied_probe_write_values(
     agent_actions: np.ndarray,
     *,
     write_while_moving: bool,
+    per_ant_write_channels: bool = False,
+    write_bits: int = 1,
 ) -> np.ndarray:
     actions = np.asarray(agent_actions)
+    write_values = actions[:, 1].astype(np.int64)
+    if per_ant_write_channels:
+        bit_indices = np.arange(actions.shape[0], dtype=np.int64) % int(write_bits)
+        write_values = write_values & np.left_shift(1, bit_indices)
     if write_while_moving:
-        return actions[:, 1].astype(np.int64)
-    return np.where(actions[:, 0] == ACTION_STAY, actions[:, 1], 0).astype(np.int64)
+        return write_values
+    return np.where(actions[:, 0] == ACTION_STAY, write_values, 0).astype(np.int64)
 
 
 def _select_actions(
@@ -339,20 +353,22 @@ def _select_actions_from_batch(
     key: jax.Array,
     deterministic: bool,
 ) -> jax.Array:
+    food_scale = food_observation_scale(
+        food_count=args.food_count,
+        food_sources=getattr(args, "food_sources", None),
+    )
     central_obs = build_central_observations(
         obs_batch,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
         obs_batch,
-        food_scale=args.food_count,
+        food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
-        actor_hub_vector=bool(getattr(args, "actor_hub_vector", False)),
-        actor_nearest_food_vector=bool(getattr(args, "actor_nearest_food_vector", False)),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -362,6 +378,7 @@ def _select_actions_from_batch(
         central_obs,
         key,
         deterministic=deterministic,
+        **critic_forward_kwargs_from_args(args),
     )
     return actions
 

@@ -87,6 +87,7 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
     assert init_kwargs["dir"] == str(tmp_path)
     assert init_kwargs["config"] == {"gamma": 0.99}
     assert init_kwargs["notes"] == "Testing short autocurriculum reward shaping."
+    assert init_kwargs["reinit"] == "create_new"
     assert fake_run.logs[0] == ({"loss": 0.5}, 128)
     video_payload, video_step = fake_run.logs[1]
     assert video_step == 128
@@ -124,6 +125,86 @@ def test_wandb_tracker_finish_does_not_raise_connection_reset(
 
     tracker.finish()
     assert fake_run.finish_calls == 1
+
+
+def test_wandb_tracker_finished_run_log_becomes_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeUsageError(Exception):
+        pass
+
+    class FakeRun:
+        log_calls = 0
+
+        def log(self, payload: dict[str, object], *, step: int | None = None) -> None:
+            del payload, step
+            self.log_calls += 1
+            raise FakeUsageError("Run is finished. The call to `log` will be ignored.")
+
+    fake_run = FakeRun()
+    fake_wandb = types.SimpleNamespace(init=lambda **kwargs: fake_run)
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
+
+    tracker = WandbTracker(project="cool-antz")
+
+    with pytest.warns(RuntimeWarning, match="metric logging failed"):
+        tracker.log_metrics({"loss": 1.0}, step=1)
+
+    tracker.log_metrics({"loss": 2.0}, step=2)
+    assert fake_run.log_calls == 1
+    assert not tracker.enabled
+
+
+def test_wandb_tracker_retries_init_after_service_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeRun:
+        pass
+
+    init_calls: list[dict[str, object]] = []
+    teardown_calls: list[int | None] = []
+    fake_run = FakeRun()
+
+    def fake_init(**kwargs: object) -> FakeRun:
+        init_calls.append(kwargs)
+        if len(init_calls) == 1:
+            raise RuntimeError("MailboxClosedError")
+        return fake_run
+
+    fake_wandb = types.SimpleNamespace(
+        init=fake_init,
+        teardown=lambda exit_code=None: teardown_calls.append(exit_code),
+    )
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
+
+    with pytest.warns(RuntimeWarning, match="retrying once"):
+        tracker = WandbTracker(project="cool-antz")
+
+    assert tracker.enabled
+    assert init_calls[0]["project"] == "cool-antz"
+    assert init_calls[1]["project"] == "cool-antz"
+    assert init_calls[1]["reinit"] == "create_new"
+    assert teardown_calls == [1]
+
+
+def test_wandb_tracker_init_failure_after_retry_becomes_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_init(**kwargs: object) -> object:
+        del kwargs
+        raise RuntimeError("MailboxClosedError")
+
+    fake_wandb = types.SimpleNamespace(init=fake_init, teardown=lambda exit_code=None: None)
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
+
+    with pytest.warns(RuntimeWarning) as warnings:
+        tracker = WandbTracker(project="cool-antz")
+
+    assert not tracker.enabled
+    assert any("retrying once" in str(warning.message) for warning in warnings)
+    assert any("continuing with W&B disabled" in str(warning.message) for warning in warnings)
+    tracker.log_metrics({"loss": 1.0})
+    tracker.finish()
 
 
 def test_wandb_tracker_missing_package_has_install_hint(monkeypatch: pytest.MonkeyPatch) -> None:

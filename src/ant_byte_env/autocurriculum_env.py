@@ -51,6 +51,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
+        per_ant_write_channels: bool = False,
         actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
         seed: int | None = None,
     ) -> None:
@@ -70,6 +71,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             step_penalty=step_penalty,
             write_penalty=write_penalty,
             write_bits=write_bits,
+            per_ant_write_channels=per_ant_write_channels,
             actor_vision_radius=actor_vision_radius,
         )
 
@@ -88,6 +90,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
+        self.per_ant_write_channels = bool(per_ant_write_channels)
         self.actor_vision_radius = int(actor_vision_radius)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
@@ -242,6 +245,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         step_penalty: float,
         write_penalty: float,
         write_bits: int,
+        per_ant_write_channels: bool,
         actor_vision_radius: int,
     ) -> None:
         if start_size <= 0:
@@ -307,6 +311,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             write_penalty=self.write_penalty,
             write_bits=self.write_bits,
             write_while_moving=self.write_while_moving,
+            per_ant_write_channels=self.per_ant_write_channels,
         )
         stage_seed = int(self.np_random.integers(0, np.iinfo(np.int32).max))
         return self._env.reset(seed=stage_seed, options=stage_options)

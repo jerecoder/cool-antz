@@ -36,8 +36,11 @@ def load_agent_checkpoint(
     write_bits: int,
     actor_vision_radius: int,
     device: torch.device,
+    target_num_ants: int = 1,
 ) -> dict[str, Any]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    source_args = checkpoint.get("args", {})
+    source_num_ants = int(source_args.get("num_ants", 1))
     saved_central_dim = int(checkpoint["central_obs_dim"])
     saved_actor_dim = int(checkpoint["actor_obs_dim"])
     if saved_central_dim != central_obs_dim:
@@ -53,6 +56,8 @@ def load_agent_checkpoint(
         actor_obs_dim=actor_obs_dim,
         write_bits=write_bits,
         actor_vision_radius=actor_vision_radius,
+        source_num_ants=source_num_ants,
+        target_num_ants=target_num_ants,
     )
     agent.load_state_dict(agent_state_dict)
     state_shapes_changed = _state_dict_shapes_changed(
@@ -88,6 +93,8 @@ def adapt_agent_state_dict_for_actor_window(
     actor_obs_dim: int,
     write_bits: int,
     actor_vision_radius: int,
+    source_num_ants: int = 1,
+    target_num_ants: int = 1,
 ) -> dict[str, torch.Tensor]:
     adapted_state_dict = _adapt_movement_head_state_dict(state_dict)
     if saved_actor_dim == actor_obs_dim:
@@ -97,6 +104,7 @@ def adapt_agent_state_dict_for_actor_window(
         actor_obs_dim=saved_actor_dim,
         write_bits=write_bits,
         actor_vision_radius=actor_vision_radius,
+        num_ants=source_num_ants,
     )
     if source_shape is None:
         raise ValueError(
@@ -109,7 +117,13 @@ def adapt_agent_state_dict_for_actor_window(
         actor_vision_radius=actor_vision_radius,
         source_layout=str(source_shape["layout"]),
     )
-    target_dim = target_patch_size * (write_bits + 4) + 1 + FACING_FEATURE_COUNT
+    target_identity_width = _agent_identity_feature_count(target_num_ants)
+    target_dim = (
+        target_patch_size * (write_bits + 4)
+        + target_identity_width
+        + 1
+        + FACING_FEATURE_COUNT
+    )
     if target_dim != actor_obs_dim:
         raise ValueError("Target actor observation dimension does not match this run.")
 
@@ -145,14 +159,29 @@ def adapt_agent_state_dict_for_actor_window(
         write_bits + (4 if source_shape["include_ants_count"] else 3)
     )
     target_tail_start = target_patch_size * (write_bits + 4)
-    new_weight[:, target_tail_start] = old_weight[:, source_tail_start]
+    source_identity_width = _agent_identity_feature_count(
+        source_num_ants,
+        include_agent_identity=bool(source_shape["include_agent_identity"]),
+    )
+    if source_identity_width > 0 and target_identity_width > 0:
+        shared_identity_width = min(source_identity_width, target_identity_width)
+        new_weight[
+            :,
+            target_tail_start : target_tail_start + shared_identity_width,
+        ] = old_weight[
+            :,
+            source_tail_start : source_tail_start + shared_identity_width,
+        ]
+    source_carrying_index = source_tail_start + source_identity_width
+    target_carrying_index = target_tail_start + target_identity_width
+    new_weight[:, target_carrying_index] = old_weight[:, source_carrying_index]
     if source_shape["include_orientation"]:
         new_weight[
             :,
-            target_tail_start + 1 : target_tail_start + 1 + FACING_FEATURE_COUNT,
+            target_carrying_index + 1 : target_carrying_index + 1 + FACING_FEATURE_COUNT,
         ] = old_weight[
             :,
-            source_tail_start + 1 : source_tail_start + 1 + FACING_FEATURE_COUNT,
+            source_carrying_index + 1 : source_carrying_index + 1 + FACING_FEATURE_COUNT,
         ]
 
     return {
@@ -166,6 +195,7 @@ def _actor_obs_source_shape(
     actor_obs_dim: int,
     write_bits: int,
     actor_vision_radius: int,
+    num_ants: int = 1,
 ) -> dict[str, bool | str] | None:
     source_layouts = (
         ("centered", actor_vision_patch_size(actor_vision_radius), True),
@@ -178,17 +208,40 @@ def _actor_obs_source_shape(
     )
     for include_ants_count in (True, False):
         for include_orientation in (True, False):
-            for layout, patch_size, include_current_row in source_layouts:
-                channels = write_bits + (4 if include_ants_count else 3)
-                orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-                if actor_obs_dim == patch_size * channels + 1 + orientation_features:
-                    return {
-                        "include_ants_count": include_ants_count,
-                        "include_orientation": include_orientation,
-                        "include_current_row": include_current_row,
-                        "layout": layout,
-                    }
+            for include_agent_identity in (True, False):
+                for layout, patch_size, include_current_row in source_layouts:
+                    channels = write_bits + (4 if include_ants_count else 3)
+                    orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+                    identity_features = _agent_identity_feature_count(
+                        num_ants,
+                        include_agent_identity=include_agent_identity,
+                    )
+                    expected_dim = (
+                        patch_size * channels
+                        + identity_features
+                        + 1
+                        + orientation_features
+                    )
+                    if actor_obs_dim == expected_dim:
+                        return {
+                            "include_ants_count": include_ants_count,
+                            "include_orientation": include_orientation,
+                            "include_agent_identity": include_agent_identity,
+                            "include_current_row": include_current_row,
+                            "layout": layout,
+                        }
     return None
+
+
+def _agent_identity_feature_count(
+    num_ants: int,
+    *,
+    include_agent_identity: bool = True,
+) -> int:
+    if not include_agent_identity:
+        return 0
+    count = int(num_ants)
+    return count if count > 1 else 0
 
 
 def _actor_channel_slices(

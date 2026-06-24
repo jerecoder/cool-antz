@@ -19,6 +19,7 @@ EVALUATION_ACTION_MODES = (
     "sampled_move_zero_write",
 )
 REWARD_MODES = ("forage", "explore")
+CRITIC_ARCHITECTURES = ("mlp", "structured_mlp", "strided_cnn", "resnet_cnn")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -47,6 +48,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--clip-coef", type=float, default=0.2)
     parser.add_argument("--ent-coef", type=float, default=0.01)
     parser.add_argument(
+        "--training-rollout-temperature",
+        type=float,
+        default=1.0,
+        help=(
+            "Positive softmax temperature used for PPO rollout action sampling and "
+            "policy logprobs. Lower values make sampled training actions greedier."
+        ),
+    )
+    parser.add_argument(
         "--deterministic-rollout",
         action="store_true",
         help="Collect PPO rollouts with greedy argmax actions instead of sampling.",
@@ -72,6 +82,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-size", type=int, default=128)
+    parser.add_argument(
+        "--critic-architecture",
+        choices=CRITIC_ARCHITECTURES,
+        default="mlp",
+        help=(
+            "Centralized value-function architecture. 'mlp' preserves the original "
+            "dense critic; 'structured_mlp' splits flattened grid and entity features; "
+            "'strided_cnn' uses a lightweight downsampling CNN; 'resnet_cnn' uses a "
+            "compact residual CNN critic."
+        ),
+    )
 
     parser.add_argument("--width", type=int, default=5)
     parser.add_argument("--height", type=int, default=5)
@@ -93,6 +114,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--num-ants", type=int, default=2)
     parser.add_argument("--food-count", type=int, default=4)
     parser.add_argument("--food-sources", type=int, default=1)
+    parser.add_argument(
+        "--food-cluster-count",
+        type=int,
+        default=0,
+        help=(
+            "When positive with --random-food, sample food-source tiles around this "
+            "many random macro-source centers instead of uniformly across the map."
+        ),
+    )
+    parser.add_argument(
+        "--food-cluster-radius",
+        type=int,
+        default=0,
+        help=(
+            "Chebyshev radius around each macro-source center for clustered food "
+            "source sampling. Use 0 for one source tile per macro-source center."
+        ),
+    )
     parser.add_argument("--max-steps", type=int, default=64)
     parser.add_argument("--step-penalty", type=float, default=0.0)
     parser.add_argument(
@@ -115,6 +154,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--write-while-moving",
         action="store_true",
         help="Apply each write value after movement instead of only on stay/write actions.",
+    )
+    parser.add_argument(
+        "--per-ant-write-channels",
+        action="store_true",
+        help=(
+            "Treat write bits as ant-owned channels: every ant observes all bits, "
+            "but ant i can only set or clear bit i modulo --write-bits on a tile."
+        ),
     )
     parser.add_argument(
         "--write-bit-penalty-decay",
@@ -172,6 +219,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.set_defaults(food_termination=True)
     parser.add_argument(
+        "--terminate-on-full-coverage",
+        action="store_true",
+        help="Terminate non-autocurriculum episodes after every map cell has been visited.",
+    )
+    parser.add_argument(
         "--random-ant-spawn",
         action="store_true",
         help=(
@@ -189,20 +241,45 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--actor-hub-vector",
-        action="store_true",
+        "--layout-margin",
+        type=int,
+        default=0,
         help=(
-            "Append each ant's normalized relative vector to the colony hub to "
-            "the actor observation. Useful when hubs and ant spawns are randomized."
+            "Restrict random hub, food, and random ant spawn candidates to cells at "
+            "least this many tiles from the map border when enough candidates exist."
         ),
     )
     parser.add_argument(
-        "--actor-nearest-food-vector",
-        action="store_true",
+        "--hub-center-window-size",
+        type=int,
+        default=0,
         help=(
-            "Append each ant's normalized relative vector to the nearest current "
-            "food tile to the actor observation."
+            "When positive with --random-hub, restrict colony sampling to this "
+            "centered square window. For example, 4 on an 80x80 map samples x/y 38..41."
         ),
+    )
+    parser.add_argument(
+        "--maze-obstacles",
+        action="store_true",
+        help="Generate fixed maze walls and block ant movement through them.",
+    )
+    parser.add_argument(
+        "--maze-corridor-width",
+        type=int,
+        default=3,
+        help="Open corridor thickness, in cells, for --maze-obstacles.",
+    )
+    parser.add_argument(
+        "--maze-wall-width",
+        type=int,
+        default=1,
+        help="Wall thickness, in cells, for --maze-obstacles.",
+    )
+    parser.add_argument(
+        "--maze-seed",
+        type=int,
+        default=0,
+        help="Seed for the generated maze layout.",
     )
     parser.add_argument("--pickup-bonus", type=float, default=0.25)
     parser.add_argument(
@@ -212,6 +289,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Trainer-side normalized Manhattan progress bonus toward food while empty and "
             "toward the hub while carrying. Actor observations are unchanged."
+        ),
+    )
+    parser.add_argument(
+        "--carrying-hub-distance-bonus",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side normalized Manhattan progress bonus only while an ant remains "
+            "carrying food and moves toward the hub. Actor observations are unchanged."
         ),
     )
     parser.add_argument(
@@ -228,6 +314,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=1.0,
         help="Decay exponent for --visit-reward-scale as more of the map is visited.",
+    )
+    parser.add_argument(
+        "--view-reward-scale",
+        type=float,
+        default=0.0,
+        help=(
+            "Trainer-side bonus for newly viewed cells from the actor vision window. "
+            "The bonus is multiplied by (1 - viewed_fraction) ** view_reward_decay."
+        ),
+    )
+    parser.add_argument(
+        "--view-reward-decay",
+        type=float,
+        default=1.0,
+        help="Decay exponent for --view-reward-scale as more of the map is viewed.",
+    )
+    parser.add_argument(
+        "--border-view-penalty",
+        type=float,
+        default=0.0,
+        help="Trainer-side penalty per visible border cell in the actor vision window.",
+    )
+    parser.add_argument(
+        "--border-moat-width",
+        type=int,
+        default=0,
+        help="Outer-border moat width in cells for a soft near-border trainer penalty.",
+    )
+    parser.add_argument(
+        "--border-moat-penalty",
+        type=float,
+        default=0.0,
+        help="Trainer-side penalty scale for distance inside --border-moat-width.",
     )
     parser.add_argument(
         "--stage-completion-bonus",
@@ -355,6 +474,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Write resolved config, metrics, summary, and default checkpoint under this run directory.",
     )
+    parser.add_argument(
+        "--layout-audit-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Temporary debug folder for randomized training-layout JSONL records "
+            "and optional PNG snapshots."
+        ),
+    )
+    parser.add_argument(
+        "--layout-audit-snapshot-interval",
+        type=int,
+        default=0,
+        help=(
+            "When --layout-audit-dir is set, write one map PNG after every N "
+            "recorded layouts. 0 disables PNG snapshots."
+        ),
+    )
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--wandb-entity", type=str, default=None)
     parser.add_argument("--wandb-group", type=str, default=None)
@@ -397,6 +534,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--hidden-size must be positive.")
     if args.log_interval <= 0:
         raise ValueError("--log-interval must be positive.")
+    if args.training_rollout_temperature <= 0.0:
+        raise ValueError("--training-rollout-temperature must be positive.")
+    if args.layout_audit_snapshot_interval < 0:
+        raise ValueError("--layout-audit-snapshot-interval must be non-negative.")
+    if args.layout_audit_snapshot_interval > 0 and args.layout_audit_dir is None:
+        raise ValueError(
+            "--layout-audit-snapshot-interval requires --layout-audit-dir."
+        )
     if args.save_best_model is not None and not args.best_model_metric:
         raise ValueError(
             "--best-model-metric must be non-empty when --save-best-model is set."
@@ -417,6 +562,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--cookie-distance must be positive.")
     if args.food_count > 0 and args.width * args.height <= 1:
         raise ValueError("food_count requires at least one non-hub tile.")
+    if args.food_cluster_count < 0:
+        raise ValueError("--food-cluster-count must be non-negative.")
+    if args.food_cluster_radius < 0:
+        raise ValueError("--food-cluster-radius must be non-negative.")
+    if args.food_cluster_count > 0:
+        if not args.random_food:
+            raise ValueError("--food-cluster-count requires --random-food.")
+        if args.food_cluster_count > args.food_sources:
+            raise ValueError("--food-cluster-count must be no larger than --food-sources.")
+        max_cluster_positions = args.food_cluster_count * (
+            2 * args.food_cluster_radius + 1
+        ) ** 2
+        if args.food_sources > max_cluster_positions:
+            raise ValueError(
+                "--food-sources must fit inside the requested food cluster footprint."
+            )
     if args.autocurriculum:
         if args.width != args.height:
             raise ValueError("--autocurriculum requires a square max grid.")
@@ -440,10 +601,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--actor-vision-radius must be non-negative.")
     if args.random_ant_spawn_radius is not None and args.random_ant_spawn_radius < 0:
         raise ValueError("--random-ant-spawn-radius must be non-negative.")
+    if args.layout_margin < 0:
+        raise ValueError("--layout-margin must be non-negative.")
+    if args.layout_margin * 2 >= min(args.width, args.height):
+        raise ValueError("--layout-margin must leave at least one interior cell.")
+    if args.hub_center_window_size < 0:
+        raise ValueError("--hub-center-window-size must be non-negative.")
+    if args.hub_center_window_size > min(args.width, args.height):
+        raise ValueError("--hub-center-window-size must fit inside the map.")
+    if args.maze_corridor_width <= 0:
+        raise ValueError("--maze-corridor-width must be positive.")
+    if args.maze_wall_width <= 0:
+        raise ValueError("--maze-wall-width must be positive.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
     if args.autocurriculum and not args.food_termination:
         raise ValueError("--no-food-termination is only supported for non-autocurriculum runs.")
+    if args.autocurriculum and args.terminate_on_full_coverage:
+        raise ValueError(
+            "--terminate-on-full-coverage is only supported for non-autocurriculum runs."
+        )
+    if args.autocurriculum and args.maze_obstacles:
+        raise ValueError("--maze-obstacles is only supported for non-autocurriculum runs.")
     if args.write_bit_penalty < 0.0:
         raise ValueError("--write-bit-penalty must be non-negative.")
     if not 0.0 <= args.write_bit_penalty_decay <= 1.0:
@@ -456,10 +635,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-bit-entropy-bonus must be non-negative.")
     if args.distance_bonus < 0.0:
         raise ValueError("--distance-bonus must be non-negative.")
+    if args.carrying_hub_distance_bonus < 0.0:
+        raise ValueError("--carrying-hub-distance-bonus must be non-negative.")
     if args.visit_reward_scale < 0.0:
         raise ValueError("--visit-reward-scale must be non-negative.")
     if args.visit_reward_decay < 0.0:
         raise ValueError("--visit-reward-decay must be non-negative.")
+    if args.view_reward_scale < 0.0:
+        raise ValueError("--view-reward-scale must be non-negative.")
+    if args.view_reward_decay < 0.0:
+        raise ValueError("--view-reward-decay must be non-negative.")
+    if args.border_view_penalty < 0.0:
+        raise ValueError("--border-view-penalty must be non-negative.")
+    if args.border_moat_width < 0:
+        raise ValueError("--border-moat-width must be non-negative.")
+    if args.border_moat_penalty < 0.0:
+        raise ValueError("--border-moat-penalty must be non-negative.")
     if args.completion_bonus < 0.0:
         raise ValueError("--completion-bonus must be non-negative.")
     if args.stage_completion_bonus < 0.0:

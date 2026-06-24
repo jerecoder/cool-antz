@@ -54,6 +54,18 @@ def _facing_one_hot(ants_facing: torch.Tensor) -> torch.Tensor:
     ).float()
 
 
+def _agent_identity_features(ants_pos: torch.Tensor) -> torch.Tensor:
+    batch_size, num_agents = ants_pos.shape[:2]
+    if num_agents <= 1:
+        return torch.zeros(
+            (batch_size, num_agents, 0),
+            dtype=torch.float32,
+            device=ants_pos.device,
+        )
+    identity = torch.eye(num_agents, dtype=torch.float32, device=ants_pos.device)
+    return identity.unsqueeze(0).expand(batch_size, -1, -1)
+
+
 def _ants_facing_or_default(obs: TensorObs) -> torch.Tensor:
     ants_facing = obs.get("ants_facing")
     if ants_facing is None:
@@ -251,6 +263,7 @@ def build_actor_observations(
             local_byte_bits,
             local_hub,
             local_border,
+            _agent_identity_features(obs["ants_pos"]),
             own_carrying,
             own_facing,
         ],

@@ -11,11 +11,15 @@ from ant_byte_env import cli as ant_cli
 from ant_byte_env.env import AntByteForagingEnv, facing_rotation_degrees, food_alpha
 from ant_byte_env.rendering import (
     _can_reuse_render,
+    _compile_jax_action_selector,
     _deterministic_from_temperature,
     _env_from_args,
+    _jax_render_food_scale,
     _jax_render_reset_options,
     _render_frame,
+    _render_frame_limit,
     _render_step_count,
+    _target_critic_architecture,
     render_checkpoint,
 )
 
@@ -117,6 +121,17 @@ def test_render_step_count_caps_total_frames() -> None:
         _render_step_count(args, max_frames=0)
 
 
+def test_render_frame_limit_keeps_total_video_budget() -> None:
+    args = argparse.Namespace(max_steps=10)
+
+    assert _render_frame_limit(args, max_frames=None) == 11
+    assert _render_frame_limit(args, max_frames=1) == 1
+    assert _render_frame_limit(args, max_frames=4) == 4
+
+    with pytest.raises(ValueError, match="max_frames"):
+        _render_frame_limit(args, max_frames=0)
+
+
 def test_render_temperature_zero_is_deterministic_and_positive_samples() -> None:
     assert _deterministic_from_temperature(0.0)
     assert not _deterministic_from_temperature(0.5)
@@ -124,24 +139,226 @@ def test_render_temperature_zero_is_deterministic_and_positive_samples() -> None
         _deterministic_from_temperature(-0.5)
 
 
-def test_jax_render_reset_options_respect_random_hub() -> None:
+def test_jax_render_target_critic_architecture_defaults_to_mlp() -> None:
+    assert _target_critic_architecture({}) == "mlp"
+    assert _target_critic_architecture({"critic_architecture": "strided_cnn"}) == (
+        "strided_cnn"
+    )
+
+
+def test_jax_render_action_selector_passes_critic_kwargs() -> None:
+    class FakeJax:
+        @staticmethod
+        def jit(fn):
+            return fn
+
+    captured: dict[str, object] = {}
+
+    def build_central_observations(obs_batch, **kwargs):
+        captured["central_kwargs"] = kwargs
+        return "central"
+
+    def build_actor_observations(obs_batch, **kwargs):
+        captured["actor_kwargs"] = kwargs
+        return "actor"
+
+    def get_action_and_value(
+        params,
+        actor_obs,
+        central_obs,
+        action_key,
+        *,
+        deterministic,
+        **kwargs,
+    ):
+        captured["call"] = (
+            params,
+            actor_obs,
+            central_obs,
+            action_key,
+            deterministic,
+            kwargs,
+        )
+        return "actions", None, None, None
+
+    selector = _compile_jax_action_selector(
+        args=argparse.Namespace(
+            write_bits=4,
+            obs_width=50,
+            obs_height=50,
+            actor_vision_radius=2,
+        ),
+        params="params",
+        deterministic=False,
+        build_actor_observations=build_actor_observations,
+        build_central_observations=build_central_observations,
+        get_action_and_value=get_action_and_value,
+        jax=FakeJax(),
+        food_scale=125.0,
+        critic_kwargs={
+            "critic_architecture": "strided_cnn",
+            "critic_num_ants": 4,
+            "critic_obs_height": 50,
+            "critic_obs_width": 50,
+        },
+    )
+
+    assert selector({"obs": object()}, "key") == "actions"
+    assert captured["call"] == (
+        "params",
+        "actor",
+        "central",
+        "key",
+        False,
+        {
+            "critic_architecture": "strided_cnn",
+            "critic_num_ants": 4,
+            "critic_obs_height": 50,
+            "critic_obs_width": 50,
+        },
+    )
+
+
+def test_render_jax_checkpoint_uses_saved_critic_architecture(tmp_path: Path) -> None:
+    jax = pytest.importorskip("jax")
+    jnp = pytest.importorskip("jax.numpy")
+
+    from ant_byte_env import write_value_count
+    from ant_byte_env.jax_env import JaxAntByteForagingEnv
+    from ant_byte_env.training.jax_mappo import (
+        build_actor_observations,
+        build_central_observations,
+        init_adam_state,
+        init_agent_params,
+        parse_args,
+        save_checkpoint,
+    )
+
+    args = parse_args(
+        [
+            "--critic-architecture",
+            "strided_cnn",
+            "--width",
+            "8",
+            "--height",
+            "8",
+            "--num-ants",
+            "2",
+            "--food-count",
+            "2",
+            "--food-sources",
+            "1",
+            "--cookie-distance",
+            "2",
+            "--max-steps",
+            "4",
+            "--write-bits",
+            "2",
+            "--hidden-size",
+            "8",
+            "--quiet",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        write_bits=args.write_bits,
+    )
+    _, obs, _ = env.reset(jax.random.PRNGKey(args.seed))
+    obs_batch = {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
+    central_obs = build_central_observations(
+        obs_batch,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        obs_batch,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+        obs_width=args.obs_width,
+        obs_height=args.obs_height,
+    )
+    params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=int(central_obs.shape[-1]),
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        hidden_size=args.hidden_size,
+        write_value_count=write_value_count(args.write_bits),
+        critic_architecture=args.critic_architecture,
+        critic_num_ants=args.num_ants,
+        critic_obs_height=args.obs_height or args.height,
+        critic_obs_width=args.obs_width or args.width,
+    )
+    checkpoint_path = tmp_path / "strided_cnn.pkl"
+    save_checkpoint(
+        checkpoint_path,
+        params=params,
+        opt_state=init_adam_state(params),
+        args=args,
+        central_obs_dim=int(central_obs.shape[-1]),
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        run_name="test",
+        metrics={},
+    )
+
+    output_path = render_checkpoint(
+        checkpoint_path,
+        tmp_path / "rollout.mp4",
+        backend="jax",
+        max_frames=2,
+        tile_size=4,
+    )
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_jax_render_reset_options_leave_random_layout_to_env() -> None:
+    args = argparse.Namespace(
+        width=7,
+        height=6,
+        cookie_distance=2,
+        random_food=True,
+        random_hub=True,
+    )
+
+    assert _jax_render_reset_options(args, seed=123) is None
+
+    args.random_food = False
+    assert _jax_render_reset_options(args, seed=123) is None
+
+
+def test_jax_render_reset_options_fix_nonrandom_layout() -> None:
     args = argparse.Namespace(
         width=7,
         height=6,
         cookie_distance=2,
         random_food=False,
-        random_hub=True,
+        random_hub=False,
     )
 
-    first = _jax_render_reset_options(args, seed=123)
-    second = _jax_render_reset_options(args, seed=123)
+    options = _jax_render_reset_options(args, seed=123)
 
-    assert first == second
-    assert first is not None
-    assert set(first) == {"hub_pos", "food_positions"}
-    assert 0 <= first["hub_pos"][0] < args.width
-    assert 0 <= first["hub_pos"][1] < args.height
-    assert first["food_positions"][0] != first["hub_pos"]
+    assert options == {"hub_pos": (3, 3), "food_positions": [(5, 3)]}
+
+
+def test_jax_render_food_scale_uses_food_per_source() -> None:
+    dense_args = argparse.Namespace(food_count=250, food_sources=250)
+    sparse_args = argparse.Namespace(food_count=250, food_sources=2)
+    legacy_args = argparse.Namespace(food_count=250)
+
+    assert _jax_render_food_scale(dense_args) == 1.0
+    assert _jax_render_food_scale(sparse_args) == 125.0
+    assert _jax_render_food_scale(legacy_args) == 250.0
 
 
 def test_env_from_args_accepts_render_tile_size() -> None:
@@ -161,6 +378,33 @@ def test_env_from_args_accepts_render_tile_size() -> None:
     env = _env_from_args(args, render_mode="rgb_array", tile_size=12)
 
     assert env.tile_size == 12
+    env.close()
+
+
+def test_env_from_args_passes_hub_center_window_size() -> None:
+    args = argparse.Namespace(
+        width=50,
+        height=50,
+        num_ants=2,
+        food_count=0,
+        food_sources=1,
+        max_steps=12,
+        random_food=True,
+        random_hub=True,
+        layout_margin=10,
+        hub_center_window_size=4,
+        step_penalty=0.0,
+        write_penalty=0.0,
+        write_bits=1,
+    )
+
+    env = _env_from_args(args, render_mode="rgb_array", tile_size=12)
+    obs, _ = env.reset(seed=3)
+    hub_x, hub_y = obs["hub_pos"]
+
+    assert env.hub_center_window_size == 4
+    assert 23 <= int(hub_x) < 27
+    assert 23 <= int(hub_y) < 27
     env.close()
 
 

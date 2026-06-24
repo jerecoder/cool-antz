@@ -101,6 +101,7 @@ def main(argv: list[str] | None = None) -> dict[str, float]:
                 actor_obs_dim=actor_obs_dim,
                 write_bits=args.write_bits,
                 actor_vision_radius=args.actor_vision_radius,
+                target_num_ants=args.num_ants,
                 device=device,
             )
         loss_module = make_mappo_loss(args, agent).to(device)

@@ -9,6 +9,7 @@
     "num_steps": 80,
     "num_minibatches": 4,
     "update_epochs": 4,
+    "training_rollout_temperature": 0.75,
     "width": 50,
     "height": 50,
     "obs_width": 50,
@@ -31,6 +32,7 @@
   },
   "metadata": {
     "target": "50x50 map, 3x3 actor vision, 5 writable bits, 10 ants",
+    "rollout_policy_temperature": 0.0,
     "reward_shaping": "disabled",
     "food_defaults": {
       "food_count": 48,

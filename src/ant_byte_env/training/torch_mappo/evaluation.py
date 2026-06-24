@@ -161,6 +161,8 @@ def evaluate_checkpoint(
             actor_obs_dim=actor_obs_dim,
             write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
+            source_num_ants=int(getattr(args, "num_ants", 1)),
+            target_num_ants=int(getattr(args, "num_ants", 1)),
         )
     )
     agent.eval()
@@ -178,7 +180,9 @@ def evaluate_checkpoint(
 
 def _actor_obs_dim_from_args(args: argparse.Namespace) -> int:
     patch_size = actor_vision_patch_size(int(args.actor_vision_radius))
-    return patch_size * (int(args.write_bits) + 4) + MOVEMENT_ACTION_COUNT
+    num_ants = int(getattr(args, "num_ants", 1))
+    identity_features = num_ants if num_ants > 1 else 0
+    return patch_size * (int(args.write_bits) + 4) + identity_features + MOVEMENT_ACTION_COUNT
 
 
 def mastery_reached(

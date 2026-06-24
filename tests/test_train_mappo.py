@@ -64,7 +64,7 @@ def test_observation_builders_create_stable_mappo_tensors() -> None:
     actor_obs = build_actor_observations(obs, central_obs, food_scale=3)
 
     assert central_obs.shape == (1, 54)
-    assert actor_obs.shape == (1, 2, 50)
+    assert actor_obs.shape == (1, 2, 52)
     assert torch.all(central_obs >= 0.0)
     assert torch.all(central_obs <= 1.0)
     assert torch.all(actor_obs >= 0.0)
@@ -76,6 +76,10 @@ def test_observation_builders_create_stable_mappo_tensors() -> None:
     torch.testing.assert_close(
         actor_obs[0, 0, -5:],
         torch.tensor([0, 0, 1, 0, 0], dtype=torch.float32),
+    )
+    torch.testing.assert_close(
+        actor_obs[0, :, 45:47],
+        torch.tensor([[1, 0], [0, 1]], dtype=torch.float32),
     )
 
 
@@ -97,7 +101,7 @@ def test_observation_builders_can_pad_to_larger_curriculum_map() -> None:
     )
 
     assert central_obs.shape == (1, 126)
-    assert actor_obs.shape == (1, 2, 50)
+    assert actor_obs.shape == (1, 2, 52)
     torch.testing.assert_close(central_obs[:, -2:], torch.tensor([[4 / 6, 3 / 6]]))
 
 
@@ -112,7 +116,7 @@ def test_actor_observation_contains_local_grids_border_mask_and_carrying_flag() 
         actor_vision_radius=1,
     )
 
-    assert actor_obs.shape == (1, 2, 50)
+    assert actor_obs.shape == (1, 2, 52)
     torch.testing.assert_close(
         actor_obs[0, 0, :9],
         torch.tensor([0, 0, 0.0, 0, 0, 1.0, 0, 0, 0.0]),
@@ -131,7 +135,7 @@ def test_actor_observation_contains_local_grids_border_mask_and_carrying_flag() 
         torch.tensor([1, 1, 1.0, 1, 0, 0.0, 1, 0, 0.0]),
     )
     torch.testing.assert_close(
-        actor_obs[0, 0, 45:],
+        actor_obs[0, 0, -5:],
         torch.tensor([0, 0, 1, 0, 0], dtype=torch.float32),
     )
 
@@ -367,7 +371,7 @@ def test_agent_write_head_size_follows_write_bits() -> None:
     move_logits, write_logits = agent.get_action_logits(actor_obs)
     actions, _, _, _ = agent.get_action_and_value(actor_obs, central_obs)
 
-    assert actor_obs.shape == (1, 2, 68)
+    assert actor_obs.shape == (1, 2, 70)
     assert move_logits.shape == (1, 2, MOVEMENT_ACTION_COUNT)
     assert write_logits.shape == (1, 2, 8)
     assert torch.all((0 <= actions[..., 1]) & (actions[..., 1] <= 7))

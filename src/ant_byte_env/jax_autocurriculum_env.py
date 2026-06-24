@@ -90,6 +90,7 @@ class JaxAntByteAutoCurriculumEnv:
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
         write_while_moving: bool = False,
+        per_ant_write_channels: bool = False,
         actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     ) -> None:
         self._validate_args(
@@ -105,6 +106,7 @@ class JaxAntByteAutoCurriculumEnv:
             completion_bonus=completion_bonus,
             write_penalty=write_penalty,
             write_bits=write_bits,
+            per_ant_write_channels=per_ant_write_channels,
             actor_vision_radius=actor_vision_radius,
             random_ant_spawn_radius=random_ant_spawn_radius,
         )
@@ -127,6 +129,7 @@ class JaxAntByteAutoCurriculumEnv:
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
         self.write_while_moving = bool(write_while_moving)
+        self.per_ant_write_channels = bool(per_ant_write_channels)
         self.actor_vision_radius = int(actor_vision_radius)
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
@@ -154,6 +157,7 @@ class JaxAntByteAutoCurriculumEnv:
         completion_bonus: float,
         write_penalty: float,
         write_bits: int,
+        per_ant_write_channels: bool,
         actor_vision_radius: int,
         random_ant_spawn_radius: int | None,
     ) -> None:
@@ -306,8 +310,21 @@ class JaxAntByteAutoCurriculumEnv:
                 jnp.logical_or(already_written, can_write)
             )
             current_value = bytes_grid[y_pos, x_pos]
+            applied_write_value = write_value
+            if self.per_ant_write_channels:
+                ant_bit_index = jnp.mod(
+                    ant_index.astype(jnp.uint8),
+                    jnp.asarray(self.write_bits, dtype=jnp.uint8),
+                )
+                ant_bit = jnp.left_shift(
+                    jnp.asarray(1, dtype=jnp.uint8),
+                    ant_bit_index,
+                )
+                applied_write_value = (
+                    current_value & jnp.bitwise_not(ant_bit)
+                ) | (write_value & ant_bit)
             bytes_grid = bytes_grid.at[y_pos, x_pos].set(
-                jnp.where(can_write, write_value, current_value)
+                jnp.where(can_write, applied_write_value, current_value)
             )
             num_writes = num_writes + can_write.astype(jnp.int32)
             return (

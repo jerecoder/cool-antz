@@ -11,6 +11,7 @@ from typing import Any
 
 _EXPORTS = {
     "AdamState": ("core", "AdamState"),
+    "CRITIC_ARCHITECTURES": ("cli", "CRITIC_ARCHITECTURES"),
     "JaxMAPPOParams": ("core", "JaxMAPPOParams"),
     "LinearParams": ("core", "LinearParams"),
     "Rollout": ("core", "Rollout"),
@@ -34,6 +35,7 @@ _EXPORTS = {
     "evaluate_checkpoint": ("evaluation", "evaluate_checkpoint"),
     "evaluate_params": ("evaluation", "evaluate_params"),
     "flatten_agent_actions": ("core", "flatten_agent_actions"),
+    "food_observation_scale": ("core", "food_observation_scale"),
     "get_action_and_value": ("core", "get_action_and_value"),
     "get_action_logits": ("core", "get_action_logits"),
     "get_value": ("core", "get_value"),
