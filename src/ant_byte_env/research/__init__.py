@@ -12,6 +12,10 @@ from ant_byte_env.research.config import (
     validate_jax_training_args,
     wandb_argv,
 )
+from ant_byte_env.research.evaluation import (
+    evaluate_research_plan_checkpoint,
+    log_sidecar_research_artifacts,
+)
 from ant_byte_env.research.markdown import research_experiment_markdown
 from ant_byte_env.research.scoring import (
     evaluation_score,
@@ -29,6 +33,8 @@ __all__ = [
     "research_evaluation_config",
     "research_stages",
     "research_wandb_config",
+    "evaluate_research_plan_checkpoint",
+    "log_sidecar_research_artifacts",
     "research_experiment_markdown",
     "validate_jax_training_args",
     "wandb_argv",
