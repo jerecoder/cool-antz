@@ -13,6 +13,11 @@ from ant_byte_env.autoresearch import (
     assert_autoresearch_resources_available,
 )
 from ant_byte_env.experiments import config_args_to_argv, load_experiment_config
+from ant_byte_env.research.artifacts import (
+    forage_stage_checkpoint_path as _forage_stage_checkpoint_path,
+    planned_stage_checkpoints as _planned_stage_checkpoints,
+    resolve_run_dir as _resolve_run_dir,
+)
 from ant_byte_env.research.scoring import (
     evaluation_score as _evaluation_score,
     extra_evaluation_summary as _extra_evaluation_summary,
@@ -989,42 +994,10 @@ def _wandb_argv(wandb: Mapping[str, Any]) -> list[str]:
     return argv
 
 
-def _resolve_run_dir(path: Path, *, matrix_root: Path, override: Path | None) -> Path:
-    if override is None:
-        return path
-    try:
-        relative = path.relative_to(matrix_root)
-    except ValueError:
-        relative = Path(path.name)
-    return override / relative
-
-
 def _validate_jax_training_args(args: Sequence[str]) -> None:
     from ant_byte_env.training.jax_mappo.cli import parse_args
 
     parse_args(list(args))
-
-
-def _forage_stage_checkpoint_path(
-    checkpoint_dir: Path,
-    stage: Mapping[str, Any],
-    *,
-    selected: bool,
-) -> Path:
-    suffix = (
-        "_best"
-        if selected and bool(stage.get("select_best_checkpoint", False))
-        else ""
-    )
-    return checkpoint_dir / f"jax_mappo_forage_stage1_{stage['name']}{suffix}.pkl"
-
-
-def _planned_stage_checkpoints(plan: Mapping[str, Any]) -> list[str]:
-    checkpoint_dir = Path(str(plan["checkpoint_dir"]))
-    return [
-        str(_forage_stage_checkpoint_path(checkpoint_dir, stage, selected=True))
-        for stage in plan["stages"]
-    ]
 
 
 def _evaluate_research_plan_checkpoint(
