@@ -5,6 +5,7 @@ from ant_byte_env.research.artifacts import (
     planned_stage_checkpoints,
     resolve_run_dir,
 )
+from ant_byte_env.research.markdown import research_experiment_markdown
 from ant_byte_env.research.scoring import (
     evaluation_score,
     extra_evaluation_summary,
@@ -18,6 +19,7 @@ __all__ = [
     "forage_stage_checkpoint_path",
     "planned_stage_checkpoints",
     "resolve_run_dir",
+    "research_experiment_markdown",
     "evaluation_score",
     "extra_evaluation_summary",
     "flatten_evaluation_metrics",
