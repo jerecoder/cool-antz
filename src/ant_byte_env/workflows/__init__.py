@@ -41,6 +41,14 @@ from ant_byte_env.workflows.progress import (
     advance_progress_to,
     stage_update_progress,
 )
+from ant_byte_env.workflows.previews import (
+    validate_wandb_preview_stage_names,
+    validate_wandb_video_rollout_count,
+    wandb_preview_enabled,
+    wandb_preview_stage_enabled,
+    wandb_preview_video_key,
+    wandb_video_seed_offset_base,
+)
 from ant_byte_env.workflows.rollouts import (
     NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
     NOTEBOOK_ROLLOUT_SEED_OFFSET,
@@ -79,6 +87,12 @@ __all__ = [
     "run_jax_smoke",
     "advance_progress_to",
     "stage_update_progress",
+    "validate_wandb_preview_stage_names",
+    "validate_wandb_video_rollout_count",
+    "wandb_preview_enabled",
+    "wandb_preview_stage_enabled",
+    "wandb_preview_video_key",
+    "wandb_video_seed_offset_base",
     "NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE",
     "NOTEBOOK_ROLLOUT_SEED_OFFSET",
     "NOTEBOOK_ROLLOUT_TILE_SIZE",
