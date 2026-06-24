@@ -13,6 +13,12 @@ from ant_byte_env.workflows.args import (
     config_common_args,
     update_timesteps,
 )
+from ant_byte_env.workflows.ant_count import (
+    ant_count_train_args,
+    ant_count_training_args,
+    strictly_increasing,
+    validate_ant_count_stages,
+)
 from ant_byte_env.workflows.checkpoints import (
     ant_count_checkpoint_paths,
     communication_checkpoint_paths,
@@ -39,6 +45,10 @@ __all__ = [
     "build_maze_exploration_common_args",
     "config_common_args",
     "update_timesteps",
+    "ant_count_train_args",
+    "ant_count_training_args",
+    "strictly_increasing",
+    "validate_ant_count_stages",
     "ant_count_checkpoint_paths",
     "communication_checkpoint_paths",
     "exploration_checkpoint_paths",

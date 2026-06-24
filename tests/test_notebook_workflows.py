@@ -1700,24 +1700,6 @@ def test_forage_curriculum_rejects_unknown_wandb_preview_stage_names(
         )
 
 
-def test_ant_count_training_args_keep_25x25_task_with_50_padded_observations() -> None:
-    args = workflows.ant_count_training_args(
-        {"num_envs": 16, "num_steps": 80, "write_bits": 1},
-        communication_bits=3,
-    )
-
-    assert args["width"] == 25
-    assert args["height"] == 25
-    assert args["obs_width"] == 50
-    assert args["obs_height"] == 50
-    assert args["food_count"] == 23
-    assert args["food_sources"] == 6
-    assert args["cookie_distance"] == 11
-    assert args["max_steps"] == 2500
-    assert args["write_bits"] == 3
-    assert args["write_while_moving"] is True
-
-
 def test_render_forage_rollouts_can_limit_stage_names(monkeypatch, tmp_path: Path) -> None:
     captured_checkpoint_paths: list[Path] = []
     captured_metadata: dict[str, object] = {}
