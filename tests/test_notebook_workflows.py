@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ant_byte_env import notebook_workflows as workflows
+from ant_byte_env.workflows import rollouts as rollout_helpers
 
 
 def test_jax_notebook_runtime_sets_conservative_defaults(
@@ -877,7 +878,7 @@ def test_forage_curriculum_logs_wandb_metrics_and_stage_preview(
         lambda label, total_updates: FakeProgress(),
     )
     monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
-    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
 
     stages = workflows.build_forage_curriculum_stages((4,))
     result = workflows.run_forage_curriculum(
@@ -1001,7 +1002,7 @@ def test_forage_curriculum_logs_two_run_specific_wandb_stage_previews(
         lambda label, total_updates: FakeProgress(),
     )
     monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
-    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
 
     workflows.run_forage_curriculum(
         stages=workflows.build_forage_curriculum_stages((4,)),
@@ -1958,7 +1959,7 @@ def test_rollout_suite_uses_full_episode_render_defaults(
         output_path.write_bytes(b"mp4")
         return output_path
 
-    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
 
     workflows.render_rollout_suite(
         checkpoint_paths=[checkpoint_path],
@@ -2020,8 +2021,8 @@ def test_autocurriculum_rollout_reuses_existing_video_and_logs_wandb(
         def finish(self) -> None:
             self.finished = True
 
-    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
-    monkeypatch.setattr(workflows, "WandbTracker", FakeTracker)
+    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(rollout_helpers, "WandbTracker", FakeTracker)
 
     result = workflows.render_autocurriculum_rollout(
         run_dir=tmp_path / "run",
@@ -2077,8 +2078,8 @@ def test_rollout_suite_uses_distinct_seed_offsets_per_rollout(
         captured_metadata.update(dict(kwargs["metadata"]))
         return tmp_path / "vault" / "entry"
 
-    monkeypatch.setattr(workflows, "render_checkpoint", fake_render_checkpoint)
-    monkeypatch.setattr(workflows, "create_vault_entry", fake_create_vault_entry)
+    monkeypatch.setattr(rollout_helpers, "render_checkpoint", fake_render_checkpoint)
+    monkeypatch.setattr(rollout_helpers, "create_vault_entry", fake_create_vault_entry)
 
     workflows.render_rollout_suite(
         checkpoint_paths=checkpoint_paths,
