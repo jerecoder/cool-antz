@@ -56,6 +56,7 @@ from ant_byte_env.workflows.rollouts import (
     notebook_rollout_policy_temperature,
     validate_rollout_policy_temperature,
 )
+from ant_byte_env.workflows.training import run_jax_checkpoint_training
 
 __all__ = [
     "ANT_COUNT_ARG_EXCLUDES",
@@ -98,4 +99,5 @@ __all__ = [
     "NOTEBOOK_ROLLOUT_TILE_SIZE",
     "notebook_rollout_policy_temperature",
     "validate_rollout_policy_temperature",
+    "run_jax_checkpoint_training",
 ]
