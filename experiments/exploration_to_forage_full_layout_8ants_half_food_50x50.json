@@ -1,9 +1,9 @@
 {
-  "name": "exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long2_from_8ant_best",
+  "name": "exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long3_from_long2_latest",
   "backend": "jax",
-  "description": "Continue the best 8-ant half-food full-layout checkpoint directly on unrestricted 50x50 random hub and two-source food layouts.",
+  "description": "Continue the latest completed 8-ant half-food full-layout checkpoint directly on unrestricted 50x50 random hub and two-source food layouts.",
   "args": {
-    "exp_name": "jax_mappo_full_layout_proximity_8ants_half_food_long2_from_8ant_best",
+    "exp_name": "jax_mappo_full_layout_proximity_8ants_half_food_long3_from_long2_latest",
     "total_timesteps": 327680000,
     "num_envs": 16,
     "num_steps": 256,
@@ -46,8 +46,8 @@
     "write_while_moving": true,
     "per_ant_write_channels": true,
     "write_bit_entropy_bonus": 0.0,
-    "load_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_from_best/checkpoints/best_full_layout_proximity_8ants_half_food_from_best.pkl",
-    "save_best_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long2_from_8ant_best/checkpoints/best_full_layout_proximity_8ants_half_food_long2.pkl",
+    "load_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long2_from_8ant_best/checkpoints/jax_mappo_full_layout_proximity_8ants_half_food_long2_from_8ant_best_50x50_clusters_02_r00_sources_002.pkl",
+    "save_best_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long3_from_long2_latest/checkpoints/best_full_layout_proximity_8ants_half_food_long3.pkl",
     "best_model_selection": "eval",
     "best_model_metric": "eval_mean_delivered_fraction",
     "best_model_mode": "max",
@@ -62,8 +62,8 @@
     "random_hub": true
   },
   "metadata": {
-    "source": "full_layout_8ant_half_food_best",
-    "source_checkpoint": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_from_best/checkpoints/best_full_layout_proximity_8ants_half_food_from_best.pkl",
+    "source": "full_layout_8ant_half_food_long2_latest",
+    "source_checkpoint": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long2_from_8ant_best/checkpoints/jax_mappo_full_layout_proximity_8ants_half_food_long2_from_8ant_best_50x50_clusters_02_r00_sources_002.pkl",
     "hidden_arena": "50x50",
     "macro_food_sources": 2,
     "critic_architecture": "strided_cnn",
@@ -96,6 +96,6 @@
       "delivery_byte_trail_bonus": 0.0,
       "byte_follow_bonus": 0.0
     },
-    "notes": "Long direct continuation from the best completed 8-ant half-food full-layout checkpoint. Training uses unrestricted random hub and random food placement on the full 50x50 arena, two single-tile macro food sources, 125 total food, 8 ants, 4 per-ant write channel types, 2000-step episodes, strided_cnn critic, and eval-selected best checkpoints by delivered fraction. The stage update multiplier gives one final-stage run with 80000 PPO updates."
+    "notes": "Long direct continuation from the latest completed 8-ant half-food full-layout checkpoint from the long2 run. Training uses unrestricted random hub and random food placement on the full 50x50 arena, two single-tile macro food sources, 125 total food, 8 ants, 4 per-ant write channel types, 2000-step episodes, strided_cnn critic, and eval-selected best checkpoints by delivered fraction. The stage update multiplier gives one final-stage run with 80000 PPO updates."
   }
 }
