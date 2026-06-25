@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
+pytest.importorskip("tensordict")
+pytest.importorskip("torchrl")
 
 from ant_byte_env import (
     ACTION_DOWN,
