@@ -77,6 +77,7 @@ from ant_byte_env.workflows.checkpoints import (
 from ant_byte_env.workflows.cli import (
     WANDB_CLI_VALUE_ARGS as _WANDB_CLI_VALUE_ARGS,
     WANDB_CLI_VARARGS as _WANDB_CLI_VARARGS,
+    argv_int as _argv_int,
     strip_wandb_cli_args as _strip_wandb_cli_args,
 )
 from ant_byte_env.workflows.experiments import (
@@ -1004,7 +1005,7 @@ def expand_critic_input_for_ant_count(
 ) -> Any:
     import jax.numpy as jnp
 
-    from ant_byte_env.training.jax_mappo.core import JaxMAPPOParams, LinearParams
+    from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams, LinearParams
 
     source_num_ants = int(source_num_ants)
     target_num_ants = int(target_num_ants)
@@ -1053,7 +1054,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
     from ant_byte_env.jax_env import JaxAntByteForagingEnv
     from ant_byte_env.training.jax_mappo.cli import parse_args
-    from ant_byte_env.training.jax_mappo.core import (
+    from ant_byte_env.training.jax_mappo.observations import (
         build_actor_observations,
         build_central_observations,
         food_observation_scale,
@@ -1131,7 +1132,7 @@ def prepare_ant_count_checkpoint(
     expected_write_bits: int,
 ) -> Path:
     from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint, save_checkpoint
-    from ant_byte_env.training.jax_mappo.core import init_adam_state
+    from ant_byte_env.training.jax_mappo.updates import init_adam_state
     from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
     source_checkpoint = Path(source_checkpoint)

@@ -18,14 +18,15 @@ from ant_byte_env.training.jax_mappo.checkpointing import (
     save_checkpoint,
 )
 from ant_byte_env.training.jax_mappo.cli import parse_args
-from ant_byte_env.training.jax_mappo.core import (
-    Rollout,
-    UpdateMetrics,
+from ant_byte_env.training.jax_mappo.models import init_agent_params
+from ant_byte_env.training.jax_mappo.observations import (
     build_actor_observations,
     build_central_observations,
     food_observation_scale,
+)
+from ant_byte_env.training.jax_mappo.types import Rollout, UpdateMetrics
+from ant_byte_env.training.jax_mappo.updates import (
     init_adam_state,
-    init_agent_params,
     update_agent,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch

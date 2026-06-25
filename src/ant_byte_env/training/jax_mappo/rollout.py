@@ -10,23 +10,27 @@ import jax.numpy as jnp
 
 from ant_byte_env import ACTION_STAY
 from ant_byte_env.jax_env import JaxAntByteForagingEnv, JaxAntState, JaxObs
-from ant_byte_env.training.jax_mappo.core import (
-    JaxMAPPOParams,
-    Rollout,
-    Transition,
+from ant_byte_env.training.jax_mappo.models import (
+    critic_forward_kwargs_from_args,
+    get_value,
+)
+from ant_byte_env.training.jax_mappo.observations import (
     build_actor_observations,
     build_central_observations,
+    flatten_agent_actions,
+    food_observation_scale,
+)
+from ant_byte_env.training.jax_mappo.policy import (
+    evaluate_actions,
+    get_action_and_value,
+)
+from ant_byte_env.training.jax_mappo.rewards import (
     compute_forage_curriculum_rewards,
     compute_terminal_write_entropy_bonus,
     compute_write_bit_entropy_bonus,
     compute_write_bit_penalties,
-    critic_forward_kwargs_from_args,
-    evaluate_actions,
-    flatten_agent_actions,
-    food_observation_scale,
-    get_action_and_value,
-    get_value,
 )
+from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams, Rollout, Transition
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
 

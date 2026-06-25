@@ -16,15 +16,17 @@ from ant_byte_env.rendering import _env_from_args, _jax_render_reset_options, _r
 from ant_byte_env.runs import write_json
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.cli import parse_args
-from ant_byte_env.training.jax_mappo.core import (
-    JaxMAPPOParams,
+from ant_byte_env.training.jax_mappo.models import critic_forward_kwargs_from_args
+from ant_byte_env.training.jax_mappo.observations import (
     build_actor_observations,
     build_central_observations,
-    critic_forward_kwargs_from_args,
     flatten_agent_actions,
     food_observation_scale,
+)
+from ant_byte_env.training.jax_mappo.policy import (
     get_action_and_value,
 )
+from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
 COMMUNICATION_PROBE_ROOT = Path("runs/autoresearch/communication_bits")

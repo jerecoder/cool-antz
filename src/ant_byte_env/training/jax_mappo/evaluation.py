@@ -14,16 +14,20 @@ from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.cli import parse_args
-from ant_byte_env.training.jax_mappo.core import (
-    JaxMAPPOParams,
+from ant_byte_env.training.jax_mappo.models import (
+    critic_forward_kwargs_from_args,
+    get_action_logits,
+)
+from ant_byte_env.training.jax_mappo.observations import (
     build_actor_observations,
     build_central_observations,
-    critic_forward_kwargs_from_args,
     flatten_agent_actions,
     food_observation_scale,
-    get_action_logits,
+)
+from ant_byte_env.training.jax_mappo.policy import (
     get_action_and_value,
 )
+from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 

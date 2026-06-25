@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env.training.jax_mappo.core import AdamState, JaxMAPPOParams
+from ant_byte_env.training.jax_mappo.types import AdamState, JaxMAPPOParams
 
 
 def checkpoint_args(args: argparse.Namespace) -> dict[str, Any]:

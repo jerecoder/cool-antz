@@ -247,11 +247,11 @@ def render_jax_checkpoint(
             build_central_observations,
             get_action_and_value,
         )
-        from ant_byte_env.training.jax_mappo.core import critic_forward_kwargs_from_args
         from ant_byte_env.training.jax_mappo.evaluation import (
             _evaluation_actions_for_mode,
             validate_evaluation_action_mode,
         )
+        from ant_byte_env.training.jax_mappo.models import critic_forward_kwargs_from_args
         from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
         jax_module = jax

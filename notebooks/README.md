@@ -4,6 +4,9 @@ Notebook filenames are short and grouped by workflow. Open notebooks from the
 repo root or any notebook subfolder; each notebook resolves the project root by
 walking up to `pyproject.toml`.
 
+For the maintained config, artifact, and result map, see
+`../docs/experiments.md`.
+
 ## Curriculum
 
 - `curriculum/forage.ipynb` - main staged forage curriculum.

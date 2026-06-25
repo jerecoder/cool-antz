@@ -504,7 +504,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--wandb-tags", nargs="*", default=None)
 
-    args = parser.parse_args(argv)
+    return _validate_args(parser.parse_args(argv))
+
+
+def _validate_args(args: argparse.Namespace) -> argparse.Namespace:
     rollout_batch_size = args.num_envs * args.num_steps
     if args.num_envs <= 0:
         raise ValueError("--num-envs must be positive.")
