@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import importlib
+import hashlib
+import re
 import warnings
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+
+_MAX_WANDB_ARTIFACT_NAME_LENGTH = 128
+_WANDB_ARTIFACT_NAME_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 class WandbTracker:
@@ -115,14 +121,19 @@ class WandbTracker:
         if self._run is None or self._wandb is None:
             return
         try:
-            artifact = self._wandb.Artifact(name, type=artifact_type)
+            artifact = self._wandb.Artifact(_wandb_artifact_name(name), type=artifact_type)
             artifact.add_file(str(path))
             self._run.log_artifact(
                 artifact,
                 aliases=list(aliases) if aliases is not None else None,
             )
         except Exception as exc:
-            self._disable_after_log_failure("artifact logging", exc)
+            warnings.warn(
+                "W&B artifact logging failed; continuing without disabling metric "
+                f"or video logging for this run: {type(exc).__name__}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
     def finish(self) -> None:
         if self._run is None:
@@ -160,6 +171,22 @@ def _import_wandb() -> Any:
             "W&B tracking was requested, but the optional 'wandb' package is not "
             "installed. Install it with `pip install -e '.[wandb]'` or `pip install wandb`."
         ) from exc
+
+
+def _wandb_artifact_name(name: str) -> str:
+    cleaned = _WANDB_ARTIFACT_NAME_PATTERN.sub("-", str(name)).strip(".-")
+    if not cleaned:
+        cleaned = "artifact"
+    if len(cleaned) <= _MAX_WANDB_ARTIFACT_NAME_LENGTH:
+        return cleaned
+
+    digest = hashlib.sha1(cleaned.encode("utf-8")).hexdigest()[:10]
+    suffix = f"-{digest}"
+    head_length = _MAX_WANDB_ARTIFACT_NAME_LENGTH - len(suffix)
+    head = cleaned[:head_length].rstrip(".-")
+    if not head:
+        head = "artifact"[:head_length]
+    return f"{head}{suffix}"
 
 
 def _teardown_wandb(wandb_module: Any) -> None:

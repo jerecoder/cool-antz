@@ -104,6 +104,78 @@ def test_wandb_tracker_logs_metrics_and_video(monkeypatch: pytest.MonkeyPatch, t
     assert fake_run.finished is True
 
 
+def test_wandb_tracker_shortens_long_artifact_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class FakeRun:
+        def __init__(self) -> None:
+            self.artifacts: list[object] = []
+
+        def log_artifact(self, artifact: object, *, aliases=None) -> None:
+            del aliases
+            self.artifacts.append(artifact)
+
+    class FakeArtifact:
+        def __init__(self, name: str, *, type: str) -> None:
+            del type
+            self.name = name
+
+        def add_file(self, path: str) -> None:
+            del path
+
+    fake_run = FakeRun()
+    fake_wandb = types.SimpleNamespace(init=lambda **kwargs: fake_run, Artifact=FakeArtifact)
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
+    artifact_path = tmp_path / "plan.json"
+    artifact_path.write_text("{}", encoding="utf-8")
+
+    tracker = WandbTracker(project="cool-antz")
+    long_name = "exploration-to-forage-full-layout-" + ("8ants-half-food-" * 20)
+    tracker.log_artifact(long_name, artifact_path, artifact_type="research-plan")
+
+    artifact = fake_run.artifacts[0]
+    assert len(artifact.name) <= 128
+    assert artifact.name.startswith("exploration-to-forage-full-layout-")
+    assert artifact.name != long_name
+
+
+def test_wandb_tracker_artifact_failure_keeps_metrics_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class FakeRun:
+        def __init__(self) -> None:
+            self.logs: list[dict[str, object]] = []
+
+        def log(self, payload: dict[str, object], *, step: int | None = None) -> None:
+            del step
+            self.logs.append(payload)
+
+        def log_artifact(self, artifact: object, *, aliases=None) -> None:
+            del artifact, aliases
+            raise ValueError("artifact name is too long")
+
+    class FakeArtifact:
+        def __init__(self, name: str, *, type: str) -> None:
+            del name, type
+
+        def add_file(self, path: str) -> None:
+            del path
+
+    fake_run = FakeRun()
+    fake_wandb = types.SimpleNamespace(init=lambda **kwargs: fake_run, Artifact=FakeArtifact)
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_wandb)
+    artifact_path = tmp_path / "plan.json"
+    artifact_path.write_text("{}", encoding="utf-8")
+
+    tracker = WandbTracker(project="cool-antz")
+    with pytest.warns(RuntimeWarning, match="artifact logging failed"):
+        tracker.log_artifact("plan", artifact_path, artifact_type="research-plan")
+
+    assert tracker.enabled
+    tracker.log_metrics({"loss": 1.0}, step=1)
+    assert fake_run.logs == [{"loss": 1.0}]
+
+
 def test_wandb_tracker_finish_does_not_raise_connection_reset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
