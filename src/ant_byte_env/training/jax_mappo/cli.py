@@ -38,6 +38,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=2.5e-4)
     parser.add_argument("--num-envs", type=int, default=64)
     parser.add_argument("--num-steps", type=int, default=128)
+    parser.add_argument(
+        "--jax-parallelism",
+        choices=("single", "data"),
+        default="single",
+        help=(
+            "JAX execution strategy. 'single' preserves the existing single-device "
+            "trainer; 'data' shards environments across local devices and averages "
+            "PPO gradients with lax.pmean."
+        ),
+    )
+    parser.add_argument(
+        "--jax-device-count",
+        type=int,
+        default=0,
+        help=(
+            "Number of local JAX devices to use for --jax-parallelism=data. "
+            "0 uses every local device visible to JAX."
+        ),
+    )
     parser.add_argument("--anneal-lr", action="store_true")
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--gae-lambda", type=float, default=0.95)
@@ -510,6 +529,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--num-envs must be positive.")
     if args.num_steps <= 0:
         raise ValueError("--num-steps must be positive.")
+    if args.jax_device_count < 0:
+        raise ValueError("--jax-device-count must be non-negative.")
+    if args.jax_parallelism == "data" and args.jax_device_count > 0:
+        if args.num_envs % args.jax_device_count != 0:
+            raise ValueError("--num-envs must be divisible by --jax-device-count.")
     if args.num_minibatches <= 0:
         raise ValueError("--num-minibatches must be positive.")
     if rollout_batch_size < args.num_minibatches:

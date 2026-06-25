@@ -61,6 +61,12 @@ from ant_byte_env.training.jax_mappo.transfer import (
     legacy_central_obs_dim,
 )
 from ant_byte_env.training.jax_mappo.core import Rollout, TrainingBatch, _shuffle_batch
+from ant_byte_env.training.jax_mappo.data_parallel import (
+    merge_device_observations,
+    merge_device_rollout,
+    per_device_args,
+    resolve_data_parallel_devices,
+)
 from ant_byte_env.training.jax_mappo.probe import (
     _applied_probe_write_values,
     write_action_bit_summary,
@@ -3633,6 +3639,156 @@ def test_jax_parse_args_accepts_training_rollout_temperature() -> None:
     args = parse_args(["--training-rollout-temperature", "0.5"])
 
     assert args.training_rollout_temperature == 0.5
+
+
+def test_jax_parse_args_accepts_data_parallel_options() -> None:
+    args = parse_args(
+        [
+            "--jax-parallelism",
+            "data",
+            "--jax-device-count",
+            "2",
+            "--num-envs",
+            "8",
+            "--num-steps",
+            "4",
+            "--num-minibatches",
+            "4",
+        ]
+    )
+
+    assert args.jax_parallelism == "data"
+    assert args.jax_device_count == 2
+
+
+def test_jax_parse_args_rejects_explicit_data_parallel_env_mismatch() -> None:
+    with pytest.raises(ValueError, match="num-envs"):
+        parse_args(
+            [
+                "--jax-parallelism",
+                "data",
+                "--jax-device-count",
+                "3",
+                "--num-envs",
+                "8",
+            ]
+        )
+
+
+def test_data_parallel_helpers_resolve_local_env_batch() -> None:
+    args = parse_args(
+        [
+            "--jax-parallelism",
+            "data",
+            "--jax-device-count",
+            "2",
+            "--num-envs",
+            "8",
+            "--num-steps",
+            "4",
+            "--num-minibatches",
+            "4",
+        ]
+    )
+
+    local_args = per_device_args(args, device_count=2)
+
+    assert local_args.num_envs == 4
+    assert args.num_envs == 8
+
+
+def test_data_parallel_helpers_reject_local_minibatch_mismatch() -> None:
+    args = parse_args(
+        [
+            "--jax-parallelism",
+            "data",
+            "--num-envs",
+            "6",
+            "--num-steps",
+            "2",
+            "--num-minibatches",
+            "4",
+        ]
+    )
+
+    with pytest.raises(ValueError, match="per-device"):
+        per_device_args(args, device_count=2)
+
+
+def test_data_parallel_helpers_limit_visible_devices() -> None:
+    devices = tuple(jax.local_devices())
+    if len(devices) < 1:
+        pytest.skip("JAX did not report local devices")
+
+    selected = resolve_data_parallel_devices(
+        1,
+        available_devices=devices,
+    )
+
+    assert selected == devices[:1]
+
+
+def test_data_parallel_helpers_merge_observations() -> None:
+    obs = {
+        "food": jnp.arange(2 * 3 * 4 * 5).reshape((2, 3, 4, 5)),
+        "hub_pos": jnp.arange(2 * 3 * 2).reshape((2, 3, 2)),
+    }
+
+    merged = merge_device_observations(obs)
+
+    assert merged["food"].shape == (6, 4, 5)
+    assert merged["hub_pos"].shape == (6, 2)
+
+
+def test_data_parallel_helpers_merge_rollout_device_axis() -> None:
+    leaf = jnp.arange(2 * 3 * 4).reshape((2, 3, 4))
+    rollout = Rollout(
+        actor_obs=leaf,
+        central_obs=leaf,
+        actions=leaf,
+        logprobs=leaf,
+        rewards=leaf,
+        dones=leaf,
+        terminations=leaf,
+        truncations=leaf,
+        values=leaf,
+        next_values=leaf,
+        env_rewards=leaf,
+        pickup_events=leaf,
+        delivery_events=leaf,
+        carrying_ants=leaf,
+        remaining_food=leaf,
+        active_size=leaf,
+        stage_advances=leaf,
+        stage_delivered_food=leaf,
+        newly_visited_cells=leaf,
+        visited_cell_count=leaf,
+        visited_cell_fraction=leaf,
+        newly_viewed_cells=leaf,
+        viewed_cell_count=leaf,
+        viewed_cell_fraction=leaf,
+        visible_border_cells=leaf,
+        border_moat_cost=leaf,
+        nonzero_byte_tiles=leaf,
+        nonzero_byte_fraction=leaf,
+        applied_nonzero_write_actions=leaf,
+        empty_nonzero_write_actions=leaf,
+        carrying_nonzero_write_actions=leaf,
+        empty_write_action_slots=leaf,
+        carrying_write_action_slots=leaf,
+        write_attempts=leaf,
+        overwrite_events=leaf,
+        reset_hub_pos=leaf,
+        reset_food_positions=leaf,
+    )
+
+    merged = merge_device_rollout(rollout)
+
+    assert merged.actor_obs.shape == (3, 8)
+    np.testing.assert_array_equal(
+        np.asarray(merged.actor_obs[0]),
+        np.asarray([0, 1, 2, 3, 12, 13, 14, 15]),
+    )
 
 
 def test_jax_parse_args_accepts_layout_audit_options(tmp_path: Path) -> None:
