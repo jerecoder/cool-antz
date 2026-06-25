@@ -39,6 +39,43 @@ def test_run_jax_smoke_uses_tiny_training_args() -> None:
     assert "--quiet" in captured
 
 
+def test_write_cost_experiment_uses_small_bit_level_penalty() -> None:
+    experiment = experiments.load_jax_experiment(
+        Path(
+            "experiments/"
+            "exploration_to_forage_full_layout_8ants_half_food_50x50_"
+            "shared_writes_write_cost.json"
+        )
+    )
+    args = experiment.args
+
+    assert args["load_model"].endswith(
+        "best_full_layout_proximity_8ants_half_food_shared_writes.pkl"
+    )
+    assert args["per_ant_write_channels"] is False
+    assert args["write_bit_penalty"] == pytest.approx(0.0002)
+    assert args["write_bit_penalty_decay"] == pytest.approx(0.5)
+    assert args["write_bit_entropy_bonus"] == pytest.approx(0.0)
+
+    common_args = workflows.config_common_args(
+        args,
+        exclude=workflows.EXPLORATION_TO_FORAGE_ARG_EXCLUDES,
+    )
+    assert common_args[common_args.index("--write-bit-penalty") + 1] == "0.0002"
+    assert common_args[common_args.index("--write-bit-penalty-decay") + 1] == "0.5"
+
+    full_value_penalty = sum(
+        float(args["write_bit_penalty"])
+        * (float(args["write_bit_penalty_decay"]) ** bit_index)
+        for bit_index in range(int(args["write_bits"]))
+    )
+    full_episode_spam_cost = (
+        full_value_penalty * int(args["num_ants"]) * int(args["max_steps"])
+    )
+    assert full_episode_spam_cost == pytest.approx(6.0)
+    assert full_episode_spam_cost < float(args["food_count"]) * 0.05
+
+
 def test_notebook_workflows_reexports_experiment_helpers() -> None:
     assert workflows.load_jax_experiment is experiments.load_jax_experiment
     assert workflows.resolve_project_path is experiments.resolve_project_path
