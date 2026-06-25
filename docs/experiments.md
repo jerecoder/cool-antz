@@ -41,6 +41,12 @@ jupyter notebook notebooks/curriculum/forage.ipynb
 | `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50_shared_writes.json` | `notebooks/scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb` | Full-layout continuation with unrestricted shared write values. | `runs/notebooks/...shared_writes...` |
 | `experiments/exploration_to_forage_full_layout_16ants_half_food_8types_50x50_from_shared_writes.json` | scaling family | 16-ant continuation with 8 per-ant write-channel types from the shared-write checkpoint. | `runs/notebooks/...16ants_half_food_8types...` |
 
+## Historical Experiments To Preserve
+
+| Experiment | Source | Final repo treatment |
+| --- | --- | --- |
+| Gated map-ant MLP curriculum | `research/direct-goal-repro-sweep`: `src/ant_byte_env/training/jax_mappo/map_ant_curriculum.py`, `docs/map_ant_autoresearch_log.md`, `notebooks/train_jax_10_ant_map_curriculum.ipynb` | Port as a documented historical experiment with a clean config/notebook surface. It grows maps and ant counts from `4x4_1_ants` toward `50x50_10_ants`, advances only through validation gates, keeps actor vision radius `1`, keeps random food/hub placement, and uses the default MLP critic. The result is useful evidence, not the strongest final experiment: the strict run reached `20x20_5_ants`, plateaued around `25x25_6_ants`, and later new-critic variants failed earlier. |
+
 ## Scripts
 
 No one-off training launchers are maintained as the primary reproduction
