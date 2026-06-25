@@ -45,7 +45,7 @@
     "write_bits": 4,
     "write_while_moving": true,
     "per_ant_write_channels": false,
-    "write_bit_penalty": 0.0002,
+    "write_bit_penalty": 0.001,
     "write_bit_penalty_decay": 0.5,
     "write_bit_entropy_bonus": 0.0,
     "load_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_from_64env_best/checkpoints/best_full_layout_proximity_8ants_half_food_shared_writes.pkl",
@@ -100,22 +100,22 @@
       "view_reward": 0.0,
       "write_bits": 4,
       "per_ant_write_channels": false,
-      "write_bit_penalty": 0.0002,
+      "write_bit_penalty": 0.001,
       "write_bit_penalty_decay": 0.5,
       "write_bit_entropy_bonus": 0.0,
       "delivery_byte_trail_bonus": 0.0,
       "byte_follow_bonus": 0.0
     },
     "write_cost_calibration": {
-      "base_penalty": 0.0002,
+      "base_penalty": 0.001,
       "decay": 0.5,
-      "full_value_penalty": 0.000375,
-      "one_bit_all_slots_episode_cost": 3.2,
-      "all_bits_all_slots_episode_cost": 6.0,
+      "full_value_penalty": 0.001875,
+      "one_bit_all_slots_episode_cost": 16.0,
+      "all_bits_all_slots_episode_cost": 30.0,
       "max_delivery_reward": 125.0,
-      "rationale": "A one-bit write on every 8-ant action slot for a full 2000-step episode costs 3.2 reward, and setting all four bits every slot costs 6.0 reward. That is large enough to discourage write spam but small compared with the 125 possible delivery reward."
+      "rationale": "A one-bit write on every 8-ant action slot for a full 2000-step episode costs 16 reward, and setting all four bits every slot costs 30 reward. That should be large enough to noticeably suppress write spam while still leaving selective writes cheap compared with the 125 possible delivery reward."
     },
-    "notes": "Continuation from the best shared-write 8-ant half-food full-layout checkpoint. The environment still lets every ant write any 4-bit value, but PPO now pays a small trainer-side cost for each set write bit. Bit 0 costs 0.0002 and higher bits decay geometrically by 0.5. This keeps useful trails cheap while making dense bit spam measurably worse.",
+    "notes": "Continuation from the best shared-write 8-ant half-food full-layout checkpoint. The environment still lets every ant write any 4-bit value, but PPO now pays a trainer-side cost for each set write bit. Bit 0 costs 0.001 and higher bits decay geometrically by 0.5. This keeps selective trails cheap while making dense bit spam substantially worse.",
     "write_channel_policy": "shared_write_space",
     "source_write_channel_policy": "shared_write_space"
   }
