@@ -29,6 +29,7 @@ walking up to `pyproject.toml`.
 
 - `scaling/ant_count_curriculum.ipynb` - ant-count scaling from a communication checkpoint.
 - `scaling/full_layout_8ants_half_food_50x50.ipynb` - larger 8-ant full-layout experiment.
+- `scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb` - 8-ant full-layout continuation with unrestricted write values for every ant.
 
 ## Baselines
 
