@@ -25,6 +25,10 @@ DEFAULT_CONFIG_PATH = (
 )
 
 
+def _bool_tag(enabled: bool, *, enabled_tag: str, disabled_tag: str) -> str:
+    return enabled_tag if enabled else disabled_tag
+
+
 def _resolve_project_path(path: str | Path) -> Path:
     candidate = Path(path)
     return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
@@ -230,6 +234,15 @@ def main() -> int:
         json.dumps(manifest, indent=2, default=_json_default, sort_keys=True),
         encoding="utf-8",
     )
+    num_ants = int(experiment_args["num_ants"])
+    write_bits = int(experiment_args["write_bits"])
+    per_ant_write_channels = bool(experiment_args.get("per_ant_write_channels", False))
+    video_key_prefix = str(
+        metadata.get(
+            "wandb_video_key_prefix",
+            f"videos/exploration_to_forage/{experiment.name}",
+        )
+    )
     training_result = workflows.run_forage_curriculum(
         stages=plan["stages"],
         checkpoint_dir=paths["checkpoint_dir"],
@@ -247,18 +260,24 @@ def main() -> int:
             "exploration-to-forage",
             "full-layout-randomization",
             "warm-start",
-            "8-ants",
+            f"{num_ants}-ants",
             "half-food",
             "two-sources",
             "moving-writes",
+            f"{write_bits}-write-bits",
+            _bool_tag(
+                per_ant_write_channels,
+                enabled_tag="per-ant-write-channels",
+                disabled_tag="shared-write-space",
+            ),
             critic_tag,
             "50x50",
         ],
-        wandb_notes=metadata["notes"],
+        wandb_notes=str(metadata.get("notes", "")),
         wandb_artifact_paths=[config_path],
-        wandb_artifact_prefix="exploration-to-forage-full-layout-8ants-half-food",
+        wandb_artifact_prefix=f"exploration-to-forage-{experiment.name}",
         checkpoint_name_prefix=experiment_args["exp_name"],
-        wandb_video_key_prefix="videos/exploration_to_forage/full_layout_8ants_half_food",
+        wandb_video_key_prefix=video_key_prefix,
         wandb_video_max_frames=int(metadata["wandb_video_max_frames"]),
         wandb_video_stage_names=tuple(metadata["wandb_preview_stage_names"]),
         wandb_video_policy_temperature=workflows.notebook_rollout_policy_temperature(
@@ -274,8 +293,11 @@ def main() -> int:
         checkpoint_video_rollout_count=int(
             metadata.get("checkpoint_video_rollout_count", 1)
         ),
-        checkpoint_video_wandb_key_prefix=(
-            "videos/exploration_to_forage/full_layout_8ants_half_food/checkpoints"
+        checkpoint_video_wandb_key_prefix=str(
+            metadata.get(
+                "checkpoint_video_wandb_key_prefix",
+                f"{video_key_prefix}/checkpoints",
+            )
         ),
     )
     (paths["run_dir"] / "training_result.json").write_text(
