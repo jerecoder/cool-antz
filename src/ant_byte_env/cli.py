@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ant_byte_env.experiments import (
+    ExperimentSpec,
     load_experiment_config,
     namespace_to_jsonable,
     resolve_training_argv,
@@ -325,6 +326,9 @@ def _run_train(args: argparse.Namespace, overrides: list[str]) -> int:
         raise ValueError(
             f"config backend {spec.backend!r} does not match selected backend {args.backend!r}."
         )
+    workflow = _workflow_name(spec)
+    if workflow is not None:
+        return _run_train_workflow(args, spec, overrides, workflow)
 
     training_argv = resolve_training_argv(args.config, overrides)
     parse_args = _backend_parse_args(args.backend)
@@ -353,6 +357,52 @@ def _run_train(args: argparse.Namespace, overrides: list[str]) -> int:
     metrics = runner(training_argv)
     print(json.dumps(_jsonable_metrics(metrics), sort_keys=True))
     return 0
+
+
+def _workflow_name(spec: ExperimentSpec) -> str | None:
+    workflow = spec.metadata.get("workflow") if spec.metadata is not None else None
+    if workflow is None:
+        return None
+    return str(workflow)
+
+
+def _run_train_workflow(
+    args: argparse.Namespace,
+    spec: ExperimentSpec,
+    overrides: list[str],
+    workflow: str,
+) -> int:
+    if args.backend != "jax":
+        raise ValueError("workflow experiment configs are currently supported for JAX only.")
+    if workflow != "map_ant_gated_curriculum":
+        raise ValueError(f"unknown training workflow {workflow!r}.")
+
+    from ant_byte_env.workflows import map_ant
+
+    training_argv = resolve_training_argv(args.config, overrides)
+    if not args.dry_run and "--run-dir" not in training_argv:
+        run_dir = prepare_run_dir(args.run_root, spec.name)
+        training_argv.extend(["--run-dir", str(run_dir)])
+
+    parsed = map_ant.parse_args(training_argv)
+    if args.dry_run:
+        print(
+            json.dumps(
+                map_ant.dry_run_payload(
+                    config_path=args.config,
+                    experiment=spec.name,
+                    argv=training_argv,
+                    args=parsed,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    result = map_ant.execute_curriculum(parsed)
+    print(json.dumps(map_ant.jsonable(result), indent=2, sort_keys=True))
+    return 0 if result["status"] == "passed" else map_ant.GATE_FAILURE_EXIT_CODE
 
 
 def _backend_parse_args(backend: str) -> Any:

@@ -97,6 +97,12 @@ def evaluate_params(
     episode_lengths: list[int] = []
     delivered_food: list[float] = []
     delivered_fractions: list[float] = []
+    pickups: list[float] = []
+    pickup_to_delivery_rates: list[float] = []
+    write_action_rates: list[float] = []
+    applied_write_rates: list[float] = []
+    applied_nonzero_write_rates: list[float] = []
+    overwrite_rates: list[float] = []
     steps_per_delivered_food: list[float] = []
     ant_steps_per_delivered_food: list[float] = []
     delivered_per_1000_ant_steps: list[float] = []
@@ -116,21 +122,43 @@ def evaluate_params(
         episode_return = 0.0
         episode_length = int(eval_args.max_steps)
         episode_terminated = False
+        episode_nonzero_write_actions = 0.0
+        episode_applied_writes = 0.0
+        episode_overwrites = 0.0
 
         for step_index in range(int(eval_args.max_steps)):
             key, action_key = jax.random.split(key)
-            state, obs, reward, terminated, truncated = step_fn(state, obs, action_key)
+            state, obs, reward, terminated, truncated, infos, actions = step_fn(
+                state,
+                obs,
+                action_key,
+            )
             episode_return += float(np.asarray(reward)[0])
+            write_values = np.asarray(actions)[0, :, 1]
+            episode_nonzero_write_actions += float(np.count_nonzero(write_values))
+            episode_applied_writes += float(np.asarray(infos.num_writes)[0])
+            episode_overwrites += float(np.asarray(infos.num_overwrites)[0])
             episode_terminated = bool(np.asarray(terminated)[0])
             if episode_terminated or bool(np.asarray(truncated)[0]):
                 episode_length = step_index + 1
                 break
 
-        delivered = float(np.asarray(state.delivered_food)[0])
+        delivered = _first_env_value(state.delivered_food)
+        remaining = _first_env_sum(state.food)
+        initial = _first_env_value(state.initial_food_total)
+        picked_up = max(0.0, initial - remaining)
         delivered_denominator = max(delivered, 1.0)
         ant_steps = float(episode_length) * max(float(eval_args.num_ants), 1.0)
         delivered_food.append(delivered)
         delivered_fractions.append(delivered / max(float(eval_args.food_count), 1.0))
+        pickups.append(picked_up)
+        pickup_to_delivery_rates.append(delivered / max(picked_up, 1.0))
+        write_action_rates.append(episode_nonzero_write_actions / max(ant_steps, 1.0))
+        applied_write_rates.append(episode_applied_writes / max(ant_steps, 1.0))
+        applied_nonzero_write_rates.append(
+            episode_nonzero_write_actions / max(ant_steps, 1.0)
+        )
+        overwrite_rates.append(episode_overwrites / max(ant_steps, 1.0))
         steps_per_delivered_food.append(float(episode_length) / delivered_denominator)
         ant_steps_per_delivered_food.append(ant_steps / delivered_denominator)
         delivered_per_1000_ant_steps.append(
@@ -146,6 +174,14 @@ def evaluate_params(
         "eval_success_rate": float(np.mean(successes)),
         "eval_mean_delivered_food": float(np.mean(delivered_food)),
         "eval_mean_delivered_fraction": float(np.mean(delivered_fractions)),
+        "eval_mean_pickups": float(np.mean(pickups)),
+        "eval_mean_pickup_to_delivery_rate": float(np.mean(pickup_to_delivery_rates)),
+        "eval_mean_write_action_rate": float(np.mean(write_action_rates)),
+        "eval_mean_applied_write_rate": float(np.mean(applied_write_rates)),
+        "eval_mean_applied_nonzero_write_rate": float(
+            np.mean(applied_nonzero_write_rates)
+        ),
+        "eval_mean_write_overwrite_rate": float(np.mean(overwrite_rates)),
         "eval_mean_episode_return": float(np.mean(episode_returns)),
         "eval_mean_episode_length": float(np.mean(episode_lengths)),
         "eval_mean_steps_per_delivered_food": float(np.mean(steps_per_delivered_food)),
@@ -169,7 +205,7 @@ def _evaluation_step(
     action_mode: str,
     move_temperature: float,
     write_temperature: float,
-) -> tuple[Any, Any, Any, Any, Any]:
+) -> tuple[Any, Any, Any, Any, Any, Any, Any]:
     food_scale = food_observation_scale(
         food_count=args.food_count,
         food_sources=getattr(args, "food_sources", None),
@@ -211,7 +247,21 @@ def _evaluation_step(
             "newly_visited_cells",
             jnp.zeros_like(reward, dtype=jnp.int32),
         ).astype(jnp.float32)
-    return state, obs, reward, terminated, truncated
+    return state, obs, reward, terminated, truncated, infos, actions
+
+
+def _first_env_value(value: Any) -> float:
+    array = np.asarray(value)
+    if array.ndim == 0:
+        return float(array)
+    return float(array[0])
+
+
+def _first_env_sum(value: Any) -> float:
+    array = np.asarray(value)
+    if array.ndim == 0:
+        return float(array)
+    return float(np.sum(array[0]))
 
 
 def evaluate_checkpoint(

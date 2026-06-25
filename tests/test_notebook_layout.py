@@ -10,6 +10,7 @@ EXPECTED_NOTEBOOKS = {
     Path("curriculum/forage.ipynb"),
     Path("curriculum/maze_exploration.ipynb"),
     Path("exploration_to_forage/base_50x50.ipynb"),
+    Path("historical/map_ant_gated_mlp_curriculum.ipynb"),
     Path("scaling/ant_count_curriculum.ipynb"),
     Path("scaling/full_layout_8ants_half_food_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb"),

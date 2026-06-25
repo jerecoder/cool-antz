@@ -9,7 +9,7 @@ and audit while preserving reproductive experiment behavior.
 | Ref | Role | Integration decision |
 | --- | --- | --- |
 | `origin/main` | Current best-organized base. It already contains grouped notebooks, experiment JSON files, workflow modules, runtime resource checks, curated results, and the archived forage autoresearch report. | Use as the base for integration. |
-| `research/direct-goal-repro-sweep` | Older direct-goal/autoresearch line with flat notebook names, direct-goal sweep artifacts, and the original gated map-ant MLP curriculum. | Selectively port durable artifacts only. The gated map-ant MLP curriculum should become a documented historical experiment; do not merge wholesale because this branch would remove newer workflow and notebook organization. |
+| `research/direct-goal-repro-sweep` | Older direct-goal/autoresearch line with flat notebook names, direct-goal sweep artifacts, and the original gated map-ant MLP curriculum. | Selectively port durable artifacts only. The gated map-ant MLP curriculum is preserved as a documented historical experiment; do not merge wholesale because this branch would remove newer workflow and notebook organization. |
 | `autoresearch/map-ant-12x12-conv-critic` | Failed/new-critic map-ant autoresearch line. It includes useful evidence and some diagnostics, but did not produce a solved curriculum. | Preserve as branch evidence. Do not make its autoresearch loop a mainline workflow. Keep the maintained map-growth and ant-scaling experiments in `experiments/` and `notebooks/`; port only isolated, tested utilities if they improve those workflows without changing the environment or actor information surface. |
 | `origin/vision_shrink_curriculum` | Vision-range curriculum experiment branch. | Treat as optional experiment lineage. Port only as a documented config/notebook if later desired; do not change default actor vision or baseline semantics. |
 | local `main` | Old local main behind `origin/main`. | Ignore for integration. |
@@ -33,9 +33,9 @@ and audit while preserving reproductive experiment behavior.
 
 ## Next Integration Decisions
 
-1. Port the gated map-ant MLP curriculum as a historical experiment, not as the
-   failed new-critic autoresearch loop. The final surface should be a clear
-   config/notebook plus a small tested workflow entrypoint if needed.
+1. Keep the gated map-ant MLP curriculum as a historical experiment, not as the
+   failed new-critic autoresearch loop. Its final surface is a clear
+   config/notebook plus a tested workflow entrypoint.
 2. Preserve its claims accurately: it is evidence that the old MLP critic made
    real gated progress with growing maps and ant counts, but it is not a solved
    50x50 result.

@@ -32,6 +32,7 @@ jupyter notebook notebooks/curriculum/forage.ipynb
 | `experiments/exploration_curriculum.json` | `notebooks/curriculum/exploration.ipynb` | Exploration-only curriculum with coverage rewards. | `runs/notebooks/exploration_curriculum/...` |
 | `experiments/maze_exploration_curriculum.json` | `notebooks/curriculum/maze_exploration.ipynb` | Exploration curriculum with generated wide-corridor maze obstacles. | `runs/notebooks/maze_exploration_curriculum/...` |
 | `experiments/communication_bits.json` | `notebooks/communication/bit_curriculum.ipynb` | Communication-bit curriculum warm-started from the forage checkpoint. | `runs/notebooks/communication_bits/...` |
+| `experiments/map_ant_gated_mlp_curriculum.json` | `notebooks/historical/map_ant_gated_mlp_curriculum.ipynb` | Historical gated map-and-ant curriculum using the original MLP critic. | `runs/historical/map_ant_gated_mlp_curriculum/...` |
 | `experiments/exploration_to_forage_50x50.json` | `notebooks/exploration_to_forage/base_50x50.ipynb` | Warm-started exploration-to-forage curriculum into 50x50 delivery. | `runs/notebooks/exploration_to_forage_50x50...` |
 | `experiments/exploration_to_forage_padded_sources_50x50.json` | `notebooks/source_layouts/padded_sources_50x50.ipynb` | 50x50 padded hidden arena with source-count curriculum inside a smaller task window. | `runs/notebooks/exploration_to_forage_padded_sources_50x50/...` |
 | `experiments/exploration_to_forage_proximity_sources_50x50.json` | `notebooks/source_layouts/proximity_sources_50x50.ipynb` | Positive-only proximity/source-footprint curriculum in a 50x50 arena. | `runs/notebooks/exploration_to_forage_proximity_sources...` |
@@ -45,7 +46,7 @@ jupyter notebook notebooks/curriculum/forage.ipynb
 
 | Experiment | Source | Final repo treatment |
 | --- | --- | --- |
-| Gated map-ant MLP curriculum | `research/direct-goal-repro-sweep`: `src/ant_byte_env/training/jax_mappo/map_ant_curriculum.py`, `docs/map_ant_autoresearch_log.md`, `notebooks/train_jax_10_ant_map_curriculum.ipynb` | Port as a documented historical experiment with a clean config/notebook surface. It grows maps and ant counts from `4x4_1_ants` toward `50x50_10_ants`, advances only through validation gates, keeps actor vision radius `1`, keeps random food/hub placement, and uses the default MLP critic. The result is useful evidence, not the strongest final experiment: the strict run reached `20x20_5_ants`, plateaued around `25x25_6_ants`, and later new-critic variants failed earlier. |
+| Gated map-ant MLP curriculum | `research/direct-goal-repro-sweep`: `src/ant_byte_env/training/jax_mappo/map_ant_curriculum.py`, `docs/map_ant_autoresearch_log.md`, `notebooks/train_jax_10_ant_map_curriculum.ipynb` | Preserved as `experiments/map_ant_gated_mlp_curriculum.json` and `docs/map_ant_gated_mlp_curriculum.md`. The strict run reached `20x20_5_ants`, plateaued around `25x25_6_ants`, and later new-critic variants failed earlier. |
 
 ## Scripts
 

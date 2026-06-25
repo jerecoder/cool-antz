@@ -22,6 +22,10 @@ For the maintained config, artifact, and result map, see
 
 - `communication/bit_curriculum.ipynb` - communication-bit curriculum.
 
+## Historical
+
+- `historical/map_ant_gated_mlp_curriculum.ipynb` - gated map-and-ant MLP curriculum evidence.
+
 ## Source Layouts
 
 - `source_layouts/padded_sources_50x50.ipynb` - padded source layout workflow.
