@@ -85,6 +85,7 @@
     "checkpoint_video_max_frames": 1200,
     "checkpoint_video_policy_temperature": 0.75,
     "checkpoint_video_rollout_count": 2,
+    "checkpoint_video_wandb_key_prefix": "videos/exploration_to_forage/full_layout_8ants_half_food_shared_writes/checkpoints",
     "reward_scales": {
       "delivery_at_colony": 1.0,
       "pickup": 0.05,
