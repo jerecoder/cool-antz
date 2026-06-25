@@ -43,10 +43,9 @@ jupyter notebook notebooks/curriculum/forage.ipynb
 
 ## Scripts
 
-| Script | Status | Replacement path |
-| --- | --- | --- |
-| `scripts/run_full_layout_8ants_half_food_continuation.py` | Transitional launcher for the full-layout half-food config family. | Keep until dry-run parity is documented through `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50.json`. |
-| `scripts/run_full_layout_proximity_continuation.py` | Transitional launcher for a proximity-source continuation from a best checkpoint. | Keep until represented as a maintained experiment JSON or explicitly archived. |
+No one-off training launchers are maintained as the primary reproduction
+surface. Prefer committed experiment JSON files, notebooks, and `ant-byte`
+commands so runs are inspectable without chasing bespoke script defaults.
 
 ## Results And Claims
 

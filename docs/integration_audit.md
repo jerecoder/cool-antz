@@ -10,7 +10,7 @@ and audit while preserving reproductive experiment behavior.
 | --- | --- | --- |
 | `origin/main` | Current best-organized base. It already contains grouped notebooks, experiment JSON files, workflow modules, runtime resource checks, curated results, and the archived forage autoresearch report. | Use as the base for integration. |
 | `research/direct-goal-repro-sweep` | Older direct-goal/autoresearch line with flat notebook names and direct-goal sweep artifacts. | Selectively port durable direct-goal artifacts only if they are not represented by current notebooks/configs/docs. Do not merge wholesale because it would remove newer workflow and notebook organization. |
-| `autoresearch/map-ant-12x12-conv-critic` | Failed/new-critic map-ant autoresearch line. It includes useful evidence and some diagnostics, but did not produce a solved curriculum. | Preserve as evidence. Do not make it a mainline workflow. Port only isolated, tested utilities if they improve maintained experiments without changing the environment or actor information surface. |
+| `autoresearch/map-ant-12x12-conv-critic` | Failed/new-critic map-ant autoresearch line. It includes useful evidence and some diagnostics, but did not produce a solved curriculum. | Preserve as branch evidence. Do not make its autoresearch loop a mainline workflow. Keep the maintained map-growth and ant-scaling experiments in `experiments/` and `notebooks/`; port only isolated, tested utilities if they improve those workflows without changing the environment or actor information surface. |
 | `origin/vision_shrink_curriculum` | Vision-range curriculum experiment branch. | Treat as optional experiment lineage. Port only as a documented config/notebook if later desired; do not change default actor vision or baseline semantics. |
 | local `main` | Old local main behind `origin/main`. | Ignore for integration. |
 
@@ -29,7 +29,7 @@ and audit while preserving reproductive experiment behavior.
 - `.vscode/` is ignored so editor state does not pollute branch status.
 - `autoresearch/REPORT.md` is the durable historical evidence for the forage autoresearch loop; long autoresearch matrices are archival, not the primary user-facing workflow.
 - `experiments/*.json` and grouped notebooks are the canonical reproduction surfaces.
-- `scripts/` contains transitional launchers for full-layout continuations. Keep them until each has an equivalent documented config command and dry-run validation.
+- One-off continuation launchers were removed from `scripts/`; committed experiment JSON files and notebooks are the reproduction surface.
 
 ## MAPPO Organization Finding
 
