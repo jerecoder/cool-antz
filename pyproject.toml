@@ -28,8 +28,13 @@ rl = [
 jax = [
   "jax>=0.4"
 ]
+jax-cuda12 = [
+  "jax[cuda12]>=0.4"
+]
 jax-cuda13 = [
-  "jax[cuda13]>=0.4"
+  # On Python 3.10, pip resolves JAX to 0.6.x, which exposes CUDA 12 plugin
+  # wheels but not CUDA 13 plugin wheels. CUDA 12 wheels run on CUDA 13 drivers.
+  "jax[cuda12]>=0.4"
 ]
 notebooks = [
   "notebook>=7.0",
