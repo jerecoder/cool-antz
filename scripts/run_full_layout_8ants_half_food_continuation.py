@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-CONFIG_PATH = (
+DEFAULT_CONFIG_PATH = (
     PROJECT_ROOT
     / "experiments"
     / "exploration_to_forage_full_layout_8ants_half_food_50x50.json"
@@ -39,10 +39,10 @@ def _run_paths(experiment_name: str) -> dict[str, Path]:
     }
 
 
-def build_plan() -> dict[str, Any]:
+def build_plan(config_path: Path) -> dict[str, Any]:
     from ant_byte_env import notebook_workflows as workflows
 
-    experiment = workflows.load_jax_experiment(CONFIG_PATH)
+    experiment = workflows.load_jax_experiment(config_path)
     experiment_args = dict(experiment.args)
     source_checkpoint = _resolve_project_path(experiment_args["load_model"])
     best_checkpoint = _resolve_project_path(experiment_args["save_best_model"])
@@ -156,6 +156,7 @@ def _json_default(value: Any) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
     parser.add_argument(
         "--wandb-mode",
         choices=["online", "offline", "disabled"],
@@ -179,7 +180,8 @@ def main() -> int:
     import jax
     from ant_byte_env.training.jax_mappo import runner as jax_runner
 
-    plan = build_plan()
+    config_path = _resolve_project_path(args.config)
+    plan = build_plan(config_path)
     verification = verify_first_stage(plan)
     experiment = plan["experiment"]
     experiment_args = plan["experiment_args"]
@@ -189,7 +191,7 @@ def main() -> int:
         f"{experiment_args.get('critic_architecture', 'mlp').replace('_', '-')}-critic"
     )
     manifest = {
-        "config": str(CONFIG_PATH),
+        "config": str(config_path),
         "experiment": experiment.name,
         "run_dir": str(paths["run_dir"]),
         "source_checkpoint": str(plan["source_checkpoint"]),
@@ -253,7 +255,7 @@ def main() -> int:
             "50x50",
         ],
         wandb_notes=metadata["notes"],
-        wandb_artifact_paths=[CONFIG_PATH],
+        wandb_artifact_paths=[config_path],
         wandb_artifact_prefix="exploration-to-forage-full-layout-8ants-half-food",
         checkpoint_name_prefix=experiment_args["exp_name"],
         wandb_video_key_prefix="videos/exploration_to_forage/full_layout_8ants_half_food",
