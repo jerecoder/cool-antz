@@ -54,8 +54,8 @@ from ant_byte_env.training.jax_mappo import (
 )
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.layout_audit import LayoutAuditTracker
-from ant_byte_env.training.jax_mappo.transfer import (
-    adapt_movement_head_layer,
+from ant_byte_env.training.jax_mappo.transfer_actor import adapt_movement_head_layer
+from ant_byte_env.training.jax_mappo.transfer_shapes import (
     actor_obs_dim_for_bits,
     central_obs_dim_with_ants_count,
     legacy_central_obs_dim,

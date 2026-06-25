@@ -47,7 +47,7 @@ _EXPORTS = {
     "main": ("runner", "main"),
     "parse_args": ("cli", "parse_args"),
     "probe_communication_checkpoint": ("probe", "probe_communication_checkpoint"),
-    "repeated_write_action_indices": ("transfer", "repeated_write_action_indices"),
+    "repeated_write_action_indices": ("transfer_shapes", "repeated_write_action_indices"),
     "reset_batch": ("curriculum", "reset_batch"),
     "save_checkpoint": ("checkpointing", "save_checkpoint"),
     "update_agent": ("updates", "update_agent"),
