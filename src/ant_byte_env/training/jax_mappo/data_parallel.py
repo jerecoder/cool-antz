@@ -72,7 +72,13 @@ def per_device_args(args: argparse.Namespace, *, device_count: int) -> argparse.
 
 
 def replicate_tree(tree: Any, *, devices: Sequence[jax.Device]) -> Any:
-    return jax.device_put_replicated(tree, tuple(devices))
+    device_count = len(tuple(devices))
+    if device_count <= 0:
+        raise ValueError("Cannot replicate a tree with no target devices.")
+    return jax.tree_util.tree_map(
+        lambda value: jnp.broadcast_to(value, (device_count,) + value.shape),
+        tree,
+    )
 
 
 def unreplicate_tree(tree: Any) -> Any:

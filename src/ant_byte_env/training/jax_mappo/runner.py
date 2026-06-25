@@ -29,6 +29,16 @@ from ant_byte_env.training.jax_mappo.core import (
     update_agent,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
+from ant_byte_env.training.jax_mappo.data_parallel import (
+    DATA_PARALLEL_AXIS_NAME,
+    merge_device_observations,
+    merge_device_rollout,
+    per_device_args,
+    replicate_tree,
+    resolve_data_parallel_devices,
+    unreplicate_tree,
+    update_agent_data_parallel,
+)
 from ant_byte_env.training.jax_mappo.evaluation import evaluate_params
 from ant_byte_env.training.jax_mappo.layout_audit import LayoutAuditTracker
 from ant_byte_env.training.jax_mappo.rollout import collect_rollout
@@ -217,6 +227,10 @@ def _best_eval_metrics(*, args: Any, params: Any) -> dict[str, float]:
     )
 
 
+def _checkpoint_tree(tree: Any, *, data_parallel: bool) -> Any:
+    return unreplicate_tree(tree) if data_parallel else tree
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -244,14 +258,31 @@ def main(
         )
 
     env = _make_env(args)
+    data_parallel = str(getattr(args, "jax_parallelism", "single")) == "data"
+    devices = ()
+    local_args = args
+    if data_parallel:
+        devices = resolve_data_parallel_devices(int(args.jax_device_count))
+        local_args = per_device_args(args, device_count=len(devices))
 
-    reset_fn = jax.jit(lambda reset_key: reset_batch(args=args, env=env, key=reset_key))
+    if data_parallel:
+        reset_fn = jax.pmap(
+            lambda reset_key: reset_batch(args=local_args, env=env, key=reset_key),
+            devices=devices,
+        )
+    else:
+        reset_fn = jax.jit(lambda reset_key: reset_batch(args=args, env=env, key=reset_key))
 
     key, reset_key, init_key = jax.random.split(key, 3)
-    states, obs = reset_fn(reset_key)
+    if data_parallel:
+        states, obs = reset_fn(jax.random.split(reset_key, len(devices)))
+        observed_obs = merge_device_observations(obs)
+    else:
+        states, obs = reset_fn(reset_key)
+        observed_obs = obs
     layout_audit = LayoutAuditTracker.from_args(args, run_name=run_name)
     layout_audit.observe_observations(
-        obs=obs,
+        obs=observed_obs,
         update=0,
         global_step=0,
         reason="initial_reset",
@@ -261,14 +292,14 @@ def main(
         food_sources=getattr(args, "food_sources", None),
     )
     central_obs = build_central_observations(
-        obs,
+        observed_obs,
         food_scale=food_scale,
         write_bits=args.write_bits,
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     actor_obs = build_actor_observations(
-        obs,
+        observed_obs,
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
@@ -302,6 +333,9 @@ def main(
         )
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]
+    if data_parallel:
+        params = replicate_tree(params, devices=devices)
+        opt_state = replicate_tree(opt_state, devices=devices)
 
     tracker = WandbTracker(
         project=args.wandb_project,
@@ -314,28 +348,60 @@ def main(
         config=checkpoint_args(args),
         notes=args.wandb_notes,
     )
-    rollout_fn = jax.jit(
-        lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
-            args=args,
-            env=env,
-            params=current_params,
-            states=current_states,
-            obs=current_obs,
-            key=rollout_key,
-        ),
-        donate_argnums=(1, 2),
-    )
-    update_fn = jax.jit(
-        lambda current_params, current_opt_state, rollout, learning_rate, update_key: update_agent(
-            args=args,
-            params=current_params,
-            opt_state=current_opt_state,
-            rollout=rollout,
-            learning_rate=learning_rate,
-            key=update_key,
-        ),
-        donate_argnums=(0, 1),
-    )
+    if data_parallel:
+        rollout_fn = jax.pmap(
+            lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
+                args=local_args,
+                env=env,
+                params=current_params,
+                states=current_states,
+                obs=current_obs,
+                key=rollout_key,
+            ),
+            axis_name=DATA_PARALLEL_AXIS_NAME,
+            devices=devices,
+            donate_argnums=(1, 2),
+        )
+        update_fn = jax.pmap(
+            lambda current_params, current_opt_state, rollout, learning_rate, update_key: (
+                update_agent_data_parallel(
+                    args=local_args,
+                    params=current_params,
+                    opt_state=current_opt_state,
+                    rollout=rollout,
+                    learning_rate=learning_rate,
+                    key=update_key,
+                    axis_name=DATA_PARALLEL_AXIS_NAME,
+                )
+            ),
+            axis_name=DATA_PARALLEL_AXIS_NAME,
+            devices=devices,
+            in_axes=(0, 0, 0, None, 0),
+            donate_argnums=(0, 1),
+        )
+    else:
+        rollout_fn = jax.jit(
+            lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
+                args=args,
+                env=env,
+                params=current_params,
+                states=current_states,
+                obs=current_obs,
+                key=rollout_key,
+            ),
+            donate_argnums=(1, 2),
+        )
+        update_fn = jax.jit(
+            lambda current_params, current_opt_state, rollout, learning_rate, update_key: update_agent(
+                args=args,
+                params=current_params,
+                opt_state=current_opt_state,
+                rollout=rollout,
+                learning_rate=learning_rate,
+                key=update_key,
+            ),
+            donate_argnums=(0, 1),
+        )
 
     steps_per_update = args.num_envs * args.num_steps
     num_updates = max(1, args.total_timesteps // steps_per_update)
@@ -353,18 +419,37 @@ def main(
     try:
         for update in range(1, num_updates + 1):
             key, rollout_key, update_key = jax.random.split(key, 3)
-            states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
+            if data_parallel:
+                states, obs, sharded_rollout = rollout_fn(
+                    params,
+                    states,
+                    obs,
+                    jax.random.split(rollout_key, len(devices)),
+                )
+                rollout = merge_device_rollout(sharded_rollout)
+            else:
+                states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
             learning_rate = args.learning_rate
             if args.anneal_lr:
                 learning_rate *= 1.0 - (update - 1.0) / num_updates
 
-            params, opt_state, update_metrics = update_fn(
-                params,
-                opt_state,
-                rollout,
-                learning_rate,
-                update_key,
-            )
+            if data_parallel:
+                params, opt_state, update_metrics = update_fn(
+                    params,
+                    opt_state,
+                    sharded_rollout,
+                    learning_rate,
+                    jax.random.split(update_key, len(devices)),
+                )
+                update_metrics = unreplicate_tree(update_metrics)
+            else:
+                params, opt_state, update_metrics = update_fn(
+                    params,
+                    opt_state,
+                    rollout,
+                    learning_rate,
+                    update_key,
+                )
             global_step += steps_per_update
             layout_audit.observe_rollout_resets(
                 rollout=rollout,
@@ -384,6 +469,13 @@ def main(
                     "global_step": float(global_step),
                     "learning_rate": float(learning_rate),
                 }
+                if data_parallel:
+                    final_metrics.update(
+                        {
+                            "data_parallel_device_count": float(len(devices)),
+                            "data_parallel_local_num_envs": float(local_args.num_envs),
+                        }
+                    )
                 logged_metrics = {
                     "update": update,
                     "num_updates": num_updates,
@@ -400,7 +492,11 @@ def main(
                             num_updates=num_updates,
                         )
                         if should_score_checkpoint:
-                            eval_metrics = _best_eval_metrics(args=args, params=params)
+                            eval_params = _checkpoint_tree(
+                                params,
+                                data_parallel=data_parallel,
+                            )
+                            eval_metrics = _best_eval_metrics(args=args, params=eval_params)
                             selection_metrics.update(eval_metrics)
                             reported_metrics.update(eval_metrics)
                             logged_metrics.update(eval_metrics)
@@ -430,10 +526,18 @@ def main(
                                 "best_model_global_step": float(global_step),
                                 "best_model_selection": str(args.best_model_selection),
                             }
+                            checkpoint_params = _checkpoint_tree(
+                                params,
+                                data_parallel=data_parallel,
+                            )
+                            checkpoint_opt_state = _checkpoint_tree(
+                                opt_state,
+                                data_parallel=data_parallel,
+                            )
                             save_checkpoint(
                                 args.save_best_model,
-                                params=params,
-                                opt_state=opt_state,
+                                params=checkpoint_params,
+                                opt_state=checkpoint_opt_state,
                                 args=args,
                                 central_obs_dim=central_obs_dim,
                                 actor_obs_dim=actor_obs_dim,
@@ -448,12 +552,20 @@ def main(
                 if progress_callback is not None:
                     progress_callback(update, num_updates, reported_metrics)
                 if checkpoint_callback is not None:
+                    callback_params = _checkpoint_tree(
+                        params,
+                        data_parallel=data_parallel,
+                    )
+                    callback_opt_state = _checkpoint_tree(
+                        opt_state,
+                        data_parallel=data_parallel,
+                    )
                     checkpoint_callback(
                         update=update,
                         num_updates=num_updates,
                         metrics=reported_metrics,
-                        params=params,
-                        opt_state=opt_state,
+                        params=callback_params,
+                        opt_state=callback_opt_state,
                         args=args,
                         central_obs_dim=central_obs_dim,
                         actor_obs_dim=actor_obs_dim,
@@ -476,10 +588,12 @@ def main(
                     append_metrics(metrics_path, logged_metrics)
 
         if args.save_model is not None:
+            checkpoint_params = _checkpoint_tree(params, data_parallel=data_parallel)
+            checkpoint_opt_state = _checkpoint_tree(opt_state, data_parallel=data_parallel)
             save_checkpoint(
                 args.save_model,
-                params=params,
-                opt_state=opt_state,
+                params=checkpoint_params,
+                opt_state=checkpoint_opt_state,
                 args=args,
                 central_obs_dim=central_obs_dim,
                 actor_obs_dim=actor_obs_dim,
