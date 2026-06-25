@@ -53,7 +53,7 @@ def test_write_cost_experiment_uses_meaningful_bit_level_penalty() -> None:
         "best_full_layout_proximity_8ants_half_food_shared_writes.pkl"
     )
     assert args["per_ant_write_channels"] is False
-    assert args["write_bit_penalty"] == pytest.approx(0.001)
+    assert args["write_bit_penalty"] == pytest.approx(0.01)
     assert args["write_bit_penalty_decay"] == pytest.approx(0.5)
     assert args["write_bit_entropy_bonus"] == pytest.approx(0.0)
 
@@ -61,7 +61,7 @@ def test_write_cost_experiment_uses_meaningful_bit_level_penalty() -> None:
         args,
         exclude=workflows.EXPLORATION_TO_FORAGE_ARG_EXCLUDES,
     )
-    assert common_args[common_args.index("--write-bit-penalty") + 1] == "0.001"
+    assert common_args[common_args.index("--write-bit-penalty") + 1] == "0.01"
     assert common_args[common_args.index("--write-bit-penalty-decay") + 1] == "0.5"
 
     full_value_penalty = sum(
@@ -72,8 +72,8 @@ def test_write_cost_experiment_uses_meaningful_bit_level_penalty() -> None:
     full_episode_spam_cost = (
         full_value_penalty * int(args["num_ants"]) * int(args["max_steps"])
     )
-    assert full_episode_spam_cost == pytest.approx(30.0)
-    assert full_episode_spam_cost < float(args["food_count"]) * 0.25
+    assert full_episode_spam_cost == pytest.approx(300.0)
+    assert full_episode_spam_cost > float(args["food_count"]) * 2.0
 
 
 def test_notebook_workflows_reexports_experiment_helpers() -> None:
