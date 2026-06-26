@@ -166,6 +166,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--panel-size", type=int, default=400)
     parser.add_argument("--layout-margin", type=int, default=0)
     parser.add_argument("--hub-center-window-size", type=int, default=0)
+    parser.add_argument(
+        "--single-centered-ant-no-food",
+        action="store_true",
+        help="Render a one-ant centered rollout with an empty food grid.",
+    )
     parser.add_argument("--ffmpeg-crf", type=int, default=24)
     parser.add_argument("--ffmpeg-preset", default="veryfast")
     parser.add_argument("--progress-every", type=int, default=500)
@@ -194,9 +199,24 @@ def main() -> int:
     original_layout_margin = int(getattr(train_args, "layout_margin", 0))
     original_hub_center_window_size = int(getattr(train_args, "hub_center_window_size", 0))
     original_max_steps = int(getattr(train_args, "max_steps", cli_args.max_steps))
+    original_num_ants = int(getattr(train_args, "num_ants", 1))
+    original_food_count = int(getattr(train_args, "food_count", 0))
+    original_food_sources = int(getattr(train_args, "food_sources", 1))
+    original_food_termination = bool(getattr(train_args, "food_termination", True))
+    original_random_food = bool(getattr(train_args, "random_food", False))
+    original_random_hub = bool(getattr(train_args, "random_hub", False))
+    original_random_ant_spawn = bool(getattr(train_args, "random_ant_spawn", False))
     train_args.layout_margin = int(cli_args.layout_margin)
     train_args.hub_center_window_size = int(cli_args.hub_center_window_size)
     train_args.max_steps = int(cli_args.max_steps)
+    if cli_args.single_centered_ant_no_food:
+        train_args.num_ants = 1
+        train_args.food_count = 0
+        train_args.food_sources = 1
+        train_args.random_food = False
+        train_args.random_hub = False
+        train_args.random_ant_spawn = False
+        train_args.food_termination = False
 
     frame_limit = _frame_limit(train_args.max_steps, cli_args.max_frames)
     output_fps = int(round(float(cli_args.base_output_fps) * float(cli_args.speedup)))
@@ -238,6 +258,7 @@ def main() -> int:
     terminated = False
     truncated = False
     initial_hub: list[int] | None = None
+    initial_ant_positions: list[list[int]] = []
     source_positions: list[list[int]] = []
     action_mode = cli_args.action_mode
     jax_module: Any | None = None
@@ -247,6 +268,7 @@ def main() -> int:
             options=_jax_render_reset_options(train_args, seed=reset_seed),
         )
         initial_hub = _xy_list(obs["hub_pos"])
+        initial_ant_positions = _positions_list(obs["ants_pos"])
         source_positions = _food_positions(obs["food"])
         writer.append_data(renderer.frame(obs["bytes"]))
         frames_written = 1
@@ -368,11 +390,25 @@ def main() -> int:
         "initial_hub": initial_hub,
         "final_hub": _xy_list(obs["hub_pos"]),
         "source_positions": source_positions,
+        "initial_ant_positions": initial_ant_positions,
+        "final_ant_positions": _positions_list(obs["ants_pos"]),
         "layout_margin": int(train_args.layout_margin),
         "hub_center_window_size": int(train_args.hub_center_window_size),
         "original_layout_margin": original_layout_margin,
         "original_hub_center_window_size": original_hub_center_window_size,
         "original_max_steps": original_max_steps,
+        "original_num_ants": original_num_ants,
+        "original_food_count": original_food_count,
+        "original_food_sources": original_food_sources,
+        "original_food_termination": original_food_termination,
+        "original_random_food": original_random_food,
+        "original_random_hub": original_random_hub,
+        "original_random_ant_spawn": original_random_ant_spawn,
+        "rollout_overrides": {
+            "single_centered_ant_no_food": bool(cli_args.single_centered_ant_no_food),
+            "centered_spawn": bool(cli_args.single_centered_ant_no_food),
+            "no_cookies": bool(cli_args.single_centered_ant_no_food),
+        },
         "max_steps": int(train_args.max_steps),
         "steps": int(steps),
         "frames_written": int(frames_written),
@@ -458,6 +494,11 @@ def _load_font(size: int) -> ImageFont.ImageFont:
 def _xy_list(value: np.ndarray) -> list[int]:
     array = np.asarray(value).astype(int).reshape(-1)
     return [int(array[0]), int(array[1])]
+
+
+def _positions_list(value: np.ndarray) -> list[list[int]]:
+    positions = np.asarray(value).astype(int).reshape(-1, 2)
+    return [[int(x_pos), int(y_pos)] for x_pos, y_pos in positions]
 
 
 def _food_positions(food_grid: np.ndarray) -> list[list[int]]:
