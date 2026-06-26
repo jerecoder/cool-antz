@@ -205,7 +205,7 @@ def main() -> int:
         raise ValueError(
             f"this presentation preset supports at most {len(BIT_COLORS_RGB)} write bits"
         )
-    labels = tuple(f"ant{index + 1}" for index in range(write_bits))
+    labels = tuple(f"bit{index + 1}" for index in range(write_bits))
     renderer = ChannelGridRenderer(
         bit_colors=BIT_COLORS_RGB[: len(labels)],
         labels=labels,
@@ -338,11 +338,11 @@ def main() -> int:
 
     elapsed = time.monotonic() - start_time
     metadata = {
-        "renderer": "normalized_channel_grid_no_markers_smooth_ant_labels_3x",
+        "renderer": "normalized_channel_grid_no_markers_smooth_bit_labels_3x",
         "left_panel": "normalized_active_byte_channel_grid_only",
         "bitmap_panels": list(labels),
         "panel_label_policy": (
-            "bit panels are labeled ant1..antN; "
+            "bit panels are labeled bit1..bitN; "
             "blue/channel prefixes intentionally omitted"
         ),
         "normalization": "mean of active channel colors per cell; zero active bits are black",
