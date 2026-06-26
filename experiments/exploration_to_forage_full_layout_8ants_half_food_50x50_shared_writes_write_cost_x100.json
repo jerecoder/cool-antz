@@ -1,9 +1,9 @@
 {
-  "name": "exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_write_cost_x100_from_write_cost_latest",
+  "name": "fl50_8ants_half_food_shared_writes_write_cost_x100_from_latest",
   "backend": "jax",
   "description": "Continue the latest cost-penalized shared-write 8-ant half-food checkpoint with a 100x higher trainer-side cost for each set write bit.",
   "args": {
-    "exp_name": "jax_mappo_full_layout_proximity_8ants_half_food_shared_writes_write_cost_x100_from_write_cost_latest",
+    "exp_name": "jax_mappo_fl50_8ants_half_food_shared_writes_write_cost_x100_from_latest",
     "total_timesteps": 327680000,
     "num_envs": 64,
     "num_steps": 256,
@@ -49,7 +49,7 @@
     "write_bit_penalty_decay": 0.5,
     "write_bit_entropy_bonus": 0.0,
     "load_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_write_cost_from_shared_best/checkpoints/jax_mappo_full_layout_proximity_8ants_half_food_shared_writes_write_cost_from_shared_best_50x50_clusters_02_r00_sources_002.pkl",
-    "save_best_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_write_cost_x100_from_write_cost_latest/checkpoints/best_full_layout_proximity_8ants_half_food_shared_writes_write_cost_x100.pkl",
+    "save_best_model": "runs/notebooks/fl50_8ants_half_food_shared_writes_write_cost_x100_from_latest/checkpoints/best_full_layout_proximity_8ants_half_food_shared_writes_write_cost_x100.pkl",
     "best_model_selection": "eval",
     "best_model_metric": "eval_mean_delivered_fraction",
     "best_model_mode": "max",
