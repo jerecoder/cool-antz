@@ -159,6 +159,6 @@ class UpdateMetrics(NamedTuple):
     value_loss: jax.Array
     entropy: jax.Array
     approx_kl: jax.Array
+    behavior_anchor_kl: jax.Array
     clipfrac: jax.Array
     grad_norm: jax.Array
-

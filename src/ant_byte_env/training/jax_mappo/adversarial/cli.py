@@ -39,6 +39,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--hidden-size", type=int, default=128)
     parser.add_argument("--training-rollout-temperature", type=float, default=1.0)
     parser.add_argument("--freeze-actor", action="store_true")
+    parser.add_argument(
+        "--behavior-anchor-coef",
+        type=float,
+        default=0.0,
+        help=(
+            "Default-off KL penalty that keeps the learner actor near a "
+            "frozen behavior-anchor actor."
+        ),
+    )
+    parser.add_argument(
+        "--behavior-anchor-model",
+        type=Path,
+        default=None,
+        help=(
+            "Optional checkpoint whose actor becomes the behavior anchor. "
+            "When omitted, the post-transfer learner actor is used."
+        ),
+    )
 
     parser.add_argument("--width", type=int, default=5)
     parser.add_argument("--height", type=int, default=5)
@@ -76,6 +94,51 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--side-swap-eval", action="store_true")
 
     parser.add_argument("--save-model", type=Path, default=None)
+    parser.add_argument(
+        "--save-best-model",
+        type=Path,
+        default=None,
+        help=(
+            "Optionally overwrite this checkpoint whenever --best-model-metric "
+            "improves during training."
+        ),
+    )
+    parser.add_argument(
+        "--best-model-metric",
+        type=str,
+        default="episode_return",
+        help="Metric used to choose --save-best-model checkpoints.",
+    )
+    parser.add_argument(
+        "--best-model-mode",
+        choices=("max", "min"),
+        default="max",
+        help="Whether larger or smaller --best-model-metric values are better.",
+    )
+    parser.add_argument(
+        "--best-model-selection",
+        choices=("train", "eval"),
+        default="train",
+        help=(
+            "Choose --save-best-model from rollout/update metrics or from the "
+            "adversarial evaluation matrix."
+        ),
+    )
+    parser.add_argument(
+        "--best-eval-episodes",
+        type=int,
+        default=8,
+        help="Evaluation episodes per matchup when --best-model-selection=eval.",
+    )
+    parser.add_argument(
+        "--best-eval-interval",
+        type=int,
+        default=0,
+        help=(
+            "Run best-checkpoint evaluation every N updates. 0 reuses "
+            "--log-interval; the first and final updates are always evaluated."
+        ),
+    )
     parser.add_argument("--run-dir", type=Path, default=None)
     return _validate_args(parser.parse_args(argv))
 
@@ -98,6 +161,8 @@ def _validate_args(args: argparse.Namespace) -> argparse.Namespace:
         raise ValueError("--log-interval must be positive.")
     if args.training_rollout_temperature <= 0.0:
         raise ValueError("--training-rollout-temperature must be positive.")
+    if args.behavior_anchor_coef < 0.0:
+        raise ValueError("--behavior-anchor-coef must be non-negative.")
     if args.width <= 0 or args.height <= 0:
         raise ValueError("--width and --height must be positive.")
     if args.num_ants_per_team <= 0:
@@ -121,6 +186,16 @@ def _validate_args(args: argparse.Namespace) -> argparse.Namespace:
         raise ValueError("--delivery-limit must be positive when provided.")
     if args.eval_episodes < 0:
         raise ValueError("--eval-episodes must be non-negative.")
+    if args.save_best_model is not None and not args.best_model_metric:
+        raise ValueError(
+            "--best-model-metric must be non-empty when --save-best-model is set."
+        )
+    if args.best_model_selection == "eval" and args.save_best_model is None:
+        raise ValueError("--best-model-selection eval requires --save-best-model.")
+    if args.best_eval_episodes <= 0:
+        raise ValueError("--best-eval-episodes must be positive.")
+    if args.best_eval_interval < 0:
+        raise ValueError("--best-eval-interval must be non-negative.")
     if (
         args.learner_load_model is None
         and args.resume_model is None

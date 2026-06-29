@@ -24,6 +24,7 @@ _EXPORTS = {
     "build_local_byte_bit_patches": ("observations", "build_local_byte_bit_patches"),
     "build_local_grid_patches": ("observations", "build_local_grid_patches"),
     "build_local_hub_patches": ("observations", "build_local_hub_patches"),
+    "behavior_anchor_kl": ("updates", "behavior_anchor_kl"),
     "checkpoint_args": ("checkpointing", "checkpoint_args"),
     "collect_rollout": ("rollout", "collect_rollout"),
     "compute_forage_curriculum_rewards": ("rewards", "compute_forage_curriculum_rewards"),

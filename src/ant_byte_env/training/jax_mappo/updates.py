@@ -8,8 +8,14 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from ant_byte_env.training.jax_mappo.models import critic_forward_kwargs_from_args
-from ant_byte_env.training.jax_mappo.policy import evaluate_actions
+from ant_byte_env.training.jax_mappo.models import (
+    critic_forward_kwargs_from_args,
+    get_action_logits,
+)
+from ant_byte_env.training.jax_mappo.policy import (
+    _logits_for_policy_temperature,
+    evaluate_actions,
+)
 from ant_byte_env.training.jax_mappo.types import (
     AdamState,
     JaxMAPPOParams,
@@ -136,6 +142,44 @@ def _restore_actor_params(
     )
 
 
+def _categorical_kl(anchor_logits: jax.Array, current_logits: jax.Array) -> jax.Array:
+    anchor_log_probs = jax.nn.log_softmax(anchor_logits, axis=-1)
+    current_log_probs = jax.nn.log_softmax(current_logits, axis=-1)
+    anchor_probs = jnp.exp(anchor_log_probs)
+    return jnp.sum(anchor_probs * (anchor_log_probs - current_log_probs), axis=-1)
+
+
+def behavior_anchor_kl(
+    anchor_params: JaxMAPPOParams,
+    current_params: JaxMAPPOParams,
+    actor_obs: jax.Array,
+    *,
+    policy_temperature: float = 1.0,
+) -> jax.Array:
+    """Mean KL(anchor actor || current actor) for move and write heads."""
+    anchor_move_logits, anchor_write_logits = get_action_logits(anchor_params, actor_obs)
+    current_move_logits, current_write_logits = get_action_logits(current_params, actor_obs)
+    anchor_move_logits = _logits_for_policy_temperature(
+        anchor_move_logits,
+        policy_temperature=policy_temperature,
+    )
+    anchor_write_logits = _logits_for_policy_temperature(
+        anchor_write_logits,
+        policy_temperature=policy_temperature,
+    )
+    current_move_logits = _logits_for_policy_temperature(
+        current_move_logits,
+        policy_temperature=policy_temperature,
+    )
+    current_write_logits = _logits_for_policy_temperature(
+        current_write_logits,
+        policy_temperature=policy_temperature,
+    )
+    move_kl = _categorical_kl(anchor_move_logits, current_move_logits)
+    write_kl = _categorical_kl(anchor_write_logits, current_write_logits)
+    return jnp.mean(move_kl + write_kl)
+
+
 def init_adam_state(params: JaxMAPPOParams) -> AdamState:
     return AdamState(
         count=jnp.asarray(0, dtype=jnp.int32),
@@ -183,13 +227,15 @@ def _ppo_loss(
     batch: TrainingBatch,
     *,
     args: argparse.Namespace,
+    behavior_anchor_params: JaxMAPPOParams | None = None,
 ) -> tuple[jax.Array, UpdateMetrics]:
+    policy_temperature = float(getattr(args, "training_rollout_temperature", 1.0))
     new_logprobs, entropy, values = evaluate_actions(
         params,
         batch.actor_obs,
         batch.central_obs,
         batch.actions,
-        policy_temperature=float(getattr(args, "training_rollout_temperature", 1.0)),
+        policy_temperature=policy_temperature,
         **critic_forward_kwargs_from_args(args),
     )
     advantages = batch.advantages
@@ -209,6 +255,16 @@ def _ppo_loss(
     value_loss = 0.5 * jnp.mean(jnp.square(values - batch.returns))
     entropy_mean = jnp.mean(entropy)
     loss = policy_loss + args.vf_coef * value_loss - args.ent_coef * entropy_mean
+    behavior_kl = jnp.asarray(0.0, dtype=jnp.float32)
+    behavior_anchor_coef = float(getattr(args, "behavior_anchor_coef", 0.0))
+    if behavior_anchor_params is not None and behavior_anchor_coef != 0.0:
+        behavior_kl = behavior_anchor_kl(
+            behavior_anchor_params,
+            params,
+            batch.actor_obs,
+            policy_temperature=policy_temperature,
+        )
+        loss = loss + behavior_anchor_coef * behavior_kl
     approx_kl = jnp.mean((ratio - 1.0) - logratio)
     clipfrac = jnp.mean((jnp.abs(ratio - 1.0) > args.clip_coef).astype(jnp.float32))
     return loss, UpdateMetrics(
@@ -217,6 +273,7 @@ def _ppo_loss(
         value_loss=value_loss,
         entropy=entropy_mean,
         approx_kl=approx_kl,
+        behavior_anchor_kl=behavior_kl,
         clipfrac=clipfrac,
         grad_norm=jnp.asarray(0.0, dtype=jnp.float32),
     )
@@ -230,6 +287,7 @@ def update_agent(
     rollout: Rollout,
     learning_rate: float | jax.Array,
     key: jax.Array,
+    behavior_anchor_params: JaxMAPPOParams | None = None,
 ) -> tuple[JaxMAPPOParams, AdamState, UpdateMetrics]:
     batch = _flatten_rollout(rollout, args=args)
 
@@ -242,6 +300,7 @@ def update_agent(
             current_params,
             minibatch,
             args=args,
+            behavior_anchor_params=behavior_anchor_params,
         )
         del loss
         if getattr(args, "freeze_actor", False):

@@ -43,6 +43,7 @@ def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
         "value_loss": float(metrics.value_loss),
         "entropy": float(metrics.entropy),
         "approx_kl": float(metrics.approx_kl),
+        "behavior_anchor_kl": float(metrics.behavior_anchor_kl),
         "clipfrac": float(metrics.clipfrac),
         "grad_norm": float(metrics.grad_norm),
     }

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +22,7 @@ from ant_byte_env.training.jax_mappo import (
     update_agent,
     write_value_count,
 )
+from ant_byte_env.training.jax_mappo.checkpointing import load_checkpoint, read_checkpoint
 from ant_byte_env.training.jax_mappo.adversarial.cli import parse_args
 from ant_byte_env.training.jax_mappo.adversarial.checkpointing import (
     evaluate_checkpoint_matrix,
@@ -46,6 +49,7 @@ from ant_byte_env.training.jax_mappo.adversarial.rendering import (
 )
 from ant_byte_env.training.jax_mappo.adversarial.runner import main as adversarial_main
 from ant_byte_env.training.jax_mappo.adversarial.transfer import warm_start_actor_params
+from ant_byte_env.training.jax_mappo.updates import behavior_anchor_kl
 
 
 def _env(*, max_steps: int = 10, food_count: int = 2) -> JaxAdversarialAntByteEnv:
@@ -356,6 +360,179 @@ def test_hybrid_adversarial_action_mode_samples_move_and_greedy_write() -> None:
     assert int(actions[0, 0, 1]) == 2
 
 
+def test_behavior_anchor_kl_uses_move_and_write_heads() -> None:
+    args = _small_args(["--training-rollout-temperature", "0.75"])
+    env = _env(max_steps=args.max_steps)
+    params, _, _, _, _, actor_dim = _params_for_args(args, env)
+    actor_obs = jnp.zeros((2, args.num_ants_per_team, actor_dim), dtype=jnp.float32)
+
+    identical_kl = behavior_anchor_kl(
+        params,
+        params,
+        actor_obs,
+        policy_temperature=args.training_rollout_temperature,
+    )
+    move_perturbed = params._replace(
+        move_head=params.move_head._replace(
+            bias=params.move_head.bias.at[0].add(1.0),
+        ),
+    )
+    write_perturbed = params._replace(
+        write_head=params.write_head._replace(
+            bias=params.write_head.bias.at[1].add(1.0),
+        ),
+    )
+
+    move_kl = behavior_anchor_kl(
+        params,
+        move_perturbed,
+        actor_obs,
+        policy_temperature=args.training_rollout_temperature,
+    )
+    write_kl = behavior_anchor_kl(
+        params,
+        write_perturbed,
+        actor_obs,
+        policy_temperature=args.training_rollout_temperature,
+    )
+
+    assert float(identical_kl) == pytest.approx(0.0, abs=1e-7)
+    assert float(move_kl) > 0.0
+    assert float(write_kl) > 0.0
+
+
+def test_update_agent_accepts_behavior_anchor_params_and_reports_kl() -> None:
+    args = _small_args()
+    args.behavior_anchor_coef = 0.5
+    env = _env(max_steps=args.max_steps)
+    params, opponent_params, states, obs, _, _ = _params_for_args(args, env)
+    anchor_params = params._replace(
+        write_head=params.write_head._replace(
+            bias=params.write_head.bias.at[1].add(1.0),
+        ),
+    )
+    _, _, rollout = collect_rollout(
+        args=args,
+        env=env,
+        learner_params=params,
+        opponent_params=opponent_params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(19),
+    )
+
+    _, _, metrics = update_agent(
+        args=args,
+        params=params,
+        opt_state=init_adam_state(params),
+        rollout=rollout,
+        learning_rate=args.learning_rate,
+        key=jax.random.PRNGKey(20),
+        behavior_anchor_params=anchor_params,
+    )
+
+    assert float(metrics.behavior_anchor_kl) > 0.0
+
+
+def test_checkpoint_round_trips_behavior_anchor_and_accepts_legacy_payload(
+    tmp_path: Path,
+) -> None:
+    args = _small_args()
+    env = _env(max_steps=args.max_steps)
+    params, _, _, _, central_dim, actor_dim = _params_for_args(args, env)
+    anchor_params = params._replace(
+        move_head=params.move_head._replace(
+            bias=params.move_head.bias.at[0].add(1.0),
+        ),
+    )
+    checkpoint_path = tmp_path / "anchor.pkl"
+
+    save_checkpoint(
+        checkpoint_path,
+        params=params,
+        opt_state=init_adam_state(params),
+        args=args,
+        central_obs_dim=central_dim,
+        actor_obs_dim=actor_dim,
+        run_name="anchored",
+        metrics={},
+        behavior_anchor_params=anchor_params,
+    )
+
+    checkpoint = read_checkpoint(checkpoint_path)
+    loaded = load_checkpoint(
+        checkpoint_path,
+        central_obs_dim=central_dim,
+        actor_obs_dim=actor_dim,
+    )
+    assert checkpoint["behavior_anchor_params"] is not None
+    assert loaded["behavior_anchor_params"] is not None
+    for actual, expected in zip(
+        jax.tree_util.tree_leaves(checkpoint["behavior_anchor_params"]),
+        jax.tree_util.tree_leaves(anchor_params),
+    ):
+        np.testing.assert_allclose(np.asarray(actual), np.asarray(expected))
+
+    legacy_path = tmp_path / "legacy.pkl"
+    with legacy_path.open("wb") as checkpoint_file:
+        pickle.dump(
+            {
+                "params": jax.tree_util.tree_map(np.asarray, params),
+                "opt_state": jax.tree_util.tree_map(np.asarray, init_adam_state(params)),
+                "args": {},
+                "central_obs_dim": central_dim,
+                "actor_obs_dim": actor_dim,
+                "run_name": "legacy",
+                "metrics": {},
+            },
+            checkpoint_file,
+        )
+
+    legacy_checkpoint = read_checkpoint(legacy_path)
+    legacy_loaded = load_checkpoint(
+        legacy_path,
+        central_obs_dim=central_dim,
+        actor_obs_dim=actor_dim,
+    )
+    assert legacy_checkpoint["behavior_anchor_params"] is None
+    assert legacy_loaded["behavior_anchor_params"] is None
+
+
+def test_adversarial_parse_args_accepts_best_model_options(tmp_path: Path) -> None:
+    best_path = tmp_path / "best.pkl"
+    anchor_path = tmp_path / "anchor.pkl"
+
+    args = _small_args(
+        [
+            "--behavior-anchor-coef",
+            "0.01",
+            "--behavior-anchor-model",
+            str(anchor_path),
+            "--save-best-model",
+            str(best_path),
+            "--best-model-metric",
+            "delivery_event_difference",
+            "--best-model-mode",
+            "max",
+            "--best-model-selection",
+            "eval",
+            "--best-eval-episodes",
+            "3",
+            "--best-eval-interval",
+            "5",
+        ]
+    )
+
+    assert args.behavior_anchor_coef == pytest.approx(0.01)
+    assert args.behavior_anchor_model == anchor_path
+    assert args.save_best_model == best_path
+    assert args.best_model_metric == "delivery_event_difference"
+    assert args.best_model_mode == "max"
+    assert args.best_model_selection == "eval"
+    assert args.best_eval_episodes == 3
+    assert args.best_eval_interval == 5
+
+
 def test_actor_warm_start_copies_actor_only(tmp_path: Path) -> None:
     args = _small_args()
     env = _env(max_steps=args.max_steps)
@@ -657,6 +834,121 @@ def test_adversarial_runner_resumes_checkpoint_between_food_stages(tmp_path: Pat
     assert stage1_checkpoint.exists()
     assert (stage2_dir / "checkpoints" / "model.pkl").exists()
     assert "loss" in metrics
+
+
+def test_adversarial_runner_saves_best_checkpoint_from_training_metrics(
+    tmp_path: Path,
+) -> None:
+    final_path = tmp_path / "model.pkl"
+    best_path = tmp_path / "model_best.pkl"
+
+    metrics = adversarial_main(
+        _small_argv(
+            [
+                "--save-model",
+                str(final_path),
+                "--save-best-model",
+                str(best_path),
+                "--best-model-metric",
+                "episode_return",
+            ]
+        )
+    )
+
+    assert final_path.exists()
+    assert best_path.exists()
+    checkpoint = read_checkpoint(best_path)
+    assert checkpoint["args"]["save_best_model"] == str(best_path)
+    assert checkpoint["metrics"]["best_model_selection"] == "train"
+    assert checkpoint["metrics"]["best_model_metric_value"] == checkpoint["metrics"][
+        "episode_return"
+    ]
+    assert checkpoint["metrics"]["best_model_update"] in {1.0, 2.0}
+    assert metrics["best_model_metric_value"] == checkpoint["metrics"][
+        "best_model_metric_value"
+    ]
+
+
+def test_adversarial_runner_can_select_best_checkpoint_by_eval_matrix(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "adversarial_run"
+    best_path = run_dir / "checkpoints" / "best.pkl"
+
+    metrics = adversarial_main(
+        _small_argv(
+            [
+                "--run-dir",
+                str(run_dir),
+                "--save-best-model",
+                str(best_path),
+                "--best-model-selection",
+                "eval",
+                "--best-model-metric",
+                "eval_learner_vs_frozen_mean_delivery_difference",
+                "--best-eval-episodes",
+                "1",
+                "--best-eval-interval",
+                "1",
+            ]
+        )
+    )
+
+    checkpoint = read_checkpoint(best_path)
+    summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert checkpoint["metrics"]["best_model_selection"] == "eval"
+    assert checkpoint["metrics"]["best_model_metric_value"] == checkpoint["metrics"][
+        "eval_learner_vs_frozen_mean_delivery_difference"
+    ]
+    assert "eval_frozen_vs_frozen_mean_delivery_difference" in checkpoint["metrics"]
+    assert summary["best_checkpoint_path"] == str(best_path)
+    assert summary["best_checkpoint_selection"] == "eval"
+    assert summary["best_checkpoint_metrics"]["best_model_metric_value"] == metrics[
+        "best_model_metric_value"
+    ]
+
+
+def test_adversarial_runner_saves_and_resumes_behavior_anchor(
+    tmp_path: Path,
+) -> None:
+    stage1_dir = tmp_path / "stage1"
+    stage2_dir = tmp_path / "stage2"
+    stage1_argv = _small_argv(
+        [
+            "--run-dir",
+            str(stage1_dir),
+            "--behavior-anchor-coef",
+            "0.01",
+        ]
+    )
+
+    adversarial_main(stage1_argv)
+    stage1_checkpoint = stage1_dir / "checkpoints" / "model.pkl"
+    stage1_payload = read_checkpoint(stage1_checkpoint)
+    assert stage1_payload["behavior_anchor_params"] is not None
+
+    stage2_argv = _small_argv(
+        [
+            "--run-dir",
+            str(stage2_dir),
+            "--resume-model",
+            str(stage1_checkpoint),
+            "--opponent-load-model",
+            str(stage1_checkpoint),
+            "--behavior-anchor-coef",
+            "0.01",
+        ]
+    )
+    metrics = adversarial_main(stage2_argv)
+
+    stage2_payload = read_checkpoint(stage2_dir / "checkpoints" / "model.pkl")
+    assert stage2_payload["behavior_anchor_params"] is not None
+    assert "behavior_anchor_kl" in metrics
+    for actual, expected in zip(
+        jax.tree_util.tree_leaves(stage2_payload["behavior_anchor_params"]),
+        jax.tree_util.tree_leaves(stage1_payload["behavior_anchor_params"]),
+    ):
+        np.testing.assert_allclose(np.asarray(actual), np.asarray(expected))
 
 
 def test_adversarial_frame_uses_shared_sprite_renderer() -> None:

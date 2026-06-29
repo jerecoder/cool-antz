@@ -35,7 +35,9 @@ _PATH_ARG_NAMES = {
     "learner_load_model",
     "opponent_load_model",
     "resume_model",
+    "behavior_anchor_model",
     "save_model",
+    "save_best_model",
     "run_dir",
 }
 _DERIVED_ARG_NAMES = {"critic_architecture", "num_ants"}

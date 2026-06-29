@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 EXPECTED_NOTEBOOKS = {
+    Path("adversarial/capability_audit.ipynb"),
     Path("adversarial/frozen_opponent.ipynb"),
     Path("baselines/direct_goal.ipynb"),
     Path("communication/bit_curriculum.ipynb"),
