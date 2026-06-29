@@ -23,10 +23,10 @@ from ant_byte_env.training.jax_mappo.core import (
     UpdateMetrics,
     build_actor_observations,
     build_central_observations,
-    food_observation_scale,
     init_adam_state,
     init_agent_params,
     update_agent,
+    visible_food_observation_scale,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.evaluation import evaluate_params
@@ -158,6 +158,9 @@ def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
         )
     return JaxAntByteForagingEnv(
         **common_kwargs,
+        lethal_food_count=int(getattr(args, "lethal_food_count", 0)),
+        lethal_food_source_count=int(getattr(args, "lethal_food_sources", 0)),
+        death_penalty=float(getattr(args, "death_penalty", 0.0)),
         layout_margin=int(getattr(args, "layout_margin", 0)),
         hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
         terminate_on_food_delivery=bool(args.food_termination),
@@ -256,10 +259,7 @@ def main(
         global_step=0,
         reason="initial_reset",
     )
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     central_obs = build_central_observations(
         obs,
         food_scale=food_scale,

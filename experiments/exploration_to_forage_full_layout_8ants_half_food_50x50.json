@@ -46,7 +46,7 @@
     "write_while_moving": true,
     "per_ant_write_channels": true,
     "write_bit_entropy_bonus": 0.0,
-    "load_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long3_from_long2_latest/checkpoints/best_full_layout_proximity_8ants_half_food_long3.pkl",
+    "load_model": null,
     "save_best_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_long4_from_long3_best/checkpoints/best_full_layout_proximity_8ants_half_food_long4.pkl",
     "best_model_selection": "eval",
     "best_model_metric": "eval_mean_delivered_fraction",

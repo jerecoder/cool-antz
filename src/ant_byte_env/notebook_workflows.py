@@ -434,6 +434,8 @@ def run_forage_curriculum(
                 train_args.extend(
                     ["--food-cluster-radius", str(int(stage["food_cluster_radius"]))]
                 )
+            if stage.get("random_food_same_distance", False):
+                train_args.append("--random-food-same-distance")
             if "random_ant_spawn_radius" in stage:
                 train_args.extend(
                     [
@@ -1056,7 +1058,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     from ant_byte_env.training.jax_mappo.core import (
         build_actor_observations,
         build_central_observations,
-        food_observation_scale,
+        visible_food_observation_scale,
     )
     from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
@@ -1089,6 +1091,9 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     else:
         env = JaxAntByteForagingEnv(
             **env_kwargs,
+            lethal_food_count=int(getattr(args, "lethal_food_count", 0)),
+            lethal_food_source_count=int(getattr(args, "lethal_food_sources", 0)),
+            death_penalty=float(getattr(args, "death_penalty", 0.0)),
             hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
             terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
             terminate_on_full_coverage=bool(
@@ -1100,10 +1105,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
             maze_seed=int(getattr(args, "maze_seed", 0)),
         )
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     central_obs = build_central_observations(
         obs,
         food_scale=food_scale,

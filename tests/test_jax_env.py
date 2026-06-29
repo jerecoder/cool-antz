@@ -130,6 +130,113 @@ def test_jax_info_tracks_newly_viewed_cells() -> None:
     assert int(info.visible_border_cells) == 3
 
 
+def test_jax_lethal_food_is_visible_food_but_hidden_as_a_channel() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=3,
+        num_ants=1,
+        food_count=1,
+        food_source_count=1,
+        lethal_food_count=1,
+        lethal_food_source_count=1,
+        random_food=False,
+        terminate_on_food_delivery=False,
+    )
+
+    _, obs, _ = env.reset(
+        jax.random.PRNGKey(0),
+        hub_pos=jnp.array([0, 1], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 1]], dtype=jnp.int32),
+        lethal_food_positions=jnp.array([[2, 1]], dtype=jnp.int32),
+    )
+
+    assert int(obs["food"][1, 1]) == 1
+    assert int(obs["food"][1, 2]) == 1
+    assert "lethal_food" not in obs
+    assert "dead_ants_count" in obs
+    assert int(obs["dead_ants_count"].sum()) == 0
+
+
+def test_jax_lethal_food_kills_ant_and_dead_ant_is_noop() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=3,
+        num_ants=1,
+        food_count=1,
+        food_source_count=1,
+        lethal_food_count=1,
+        lethal_food_source_count=1,
+        death_penalty=1.0,
+        random_food=False,
+        terminate_on_food_delivery=False,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(1),
+        hub_pos=jnp.array([0, 1], dtype=jnp.int32),
+        food_positions=jnp.array([[4, 1]], dtype=jnp.int32),
+        lethal_food_positions=jnp.array([[1, 1]], dtype=jnp.int32),
+    )
+
+    state, obs, reward, terminated, _, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    assert float(reward) == -1.0
+    np.testing.assert_array_equal(np.asarray(state.ants_pos[0]), np.array([1, 1]))
+    assert bool(state.ants_alive[0]) is False
+    assert bool(state.ants_carrying[0]) is False
+    assert int(state.lethal_food.sum()) == 0
+    assert int(obs["dead_ants_count"][1, 1]) == 1
+    assert int(info.death_events) == 1
+    assert bool(terminated) is True
+
+    bytes_before = np.asarray(state.bytes).copy()
+    state, obs, *_ = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 1], dtype=jnp.int32),
+    )
+
+    np.testing.assert_array_equal(np.asarray(state.ants_pos[0]), np.array([1, 1]))
+    np.testing.assert_array_equal(np.asarray(state.bytes), bytes_before)
+    assert int(obs["ants_count"].sum()) == 0
+    assert int(obs["dead_ants_count"][1, 1]) == 1
+
+
+def test_jax_actor_observation_has_dead_ant_plane_when_lethal_food_enabled() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=3,
+        num_ants=1,
+        food_count=1,
+        food_source_count=1,
+        lethal_food_count=1,
+        lethal_food_source_count=1,
+        random_food=False,
+        actor_vision_radius=1,
+        terminate_on_food_delivery=False,
+    )
+    state, _, _ = env.reset(
+        jax.random.PRNGKey(2),
+        hub_pos=jnp.array([0, 1], dtype=jnp.int32),
+        food_positions=jnp.array([[4, 1]], dtype=jnp.int32),
+        lethal_food_positions=jnp.array([[1, 1]], dtype=jnp.int32),
+    )
+    _, obs, *_ = env.step(state, jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32))
+
+    actor_obs = build_actor_observations(
+        _batched(obs),
+        food_scale=1,
+        actor_vision_radius=1,
+        write_bits=env.write_bits,
+    )
+    patch_size = 9
+    dead_plane = np.asarray(actor_obs[0, 0, 2 * patch_size : 3 * patch_size])
+
+    assert dead_plane[4] == 1.0
+    assert dead_plane.sum() == 1.0
+
+
 def test_jax_maze_obstacles_block_movement_and_are_observed() -> None:
     env = JaxAntByteForagingEnv(
         width=10,

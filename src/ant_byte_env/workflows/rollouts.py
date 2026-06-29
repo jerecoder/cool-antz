@@ -150,6 +150,7 @@ def render_jax_checkpoint_rollout(
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
     policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    reset_options: Mapping[str, Any] | None = None,
     reuse_existing: bool = True,
     wandb_project: str | None = None,
     wandb_entity: str | None = None,
@@ -173,6 +174,7 @@ def render_jax_checkpoint_rollout(
         max_frames=max_frames,
         tile_size=tile_size,
         policy_temperature=policy_temperature,
+        reset_options=reset_options,
     )
     tracker = WandbTracker(
         project=wandb_project,

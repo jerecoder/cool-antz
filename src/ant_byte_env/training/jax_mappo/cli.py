@@ -114,6 +114,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--num-ants", type=int, default=2)
     parser.add_argument("--food-count", type=int, default=4)
     parser.add_argument("--food-sources", type=int, default=1)
+    parser.add_argument("--lethal-food-count", type=int, default=0)
+    parser.add_argument("--lethal-food-sources", type=int, default=0)
     parser.add_argument(
         "--food-cluster-count",
         type=int,
@@ -134,6 +136,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--max-steps", type=int, default=64)
     parser.add_argument("--step-penalty", type=float, default=0.0)
+    parser.add_argument("--death-penalty", type=float, default=0.0)
     parser.add_argument(
         "--completion-bonus",
         type=float,
@@ -210,6 +213,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--cookie-distance", type=int, default=1)
     parser.add_argument("--random-food", action="store_true")
+    parser.add_argument(
+        "--random-food-same-distance",
+        action="store_true",
+        help=(
+            "When used with --random-food, sample food-source tiles from cells at "
+            "Chebyshev distance --cookie-distance from the hub."
+        ),
+    )
     parser.add_argument("--random-hub", action="store_true")
     parser.add_argument(
         "--no-food-termination",
@@ -560,8 +571,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--best-eval-write-temperature must be positive.")
     if args.cookie_distance <= 0:
         raise ValueError("--cookie-distance must be positive.")
+    if args.random_food_same_distance and not args.random_food:
+        raise ValueError("--random-food-same-distance requires --random-food.")
     if args.food_count > 0 and args.width * args.height <= 1:
         raise ValueError("food_count requires at least one non-hub tile.")
+    if args.lethal_food_count < 0:
+        raise ValueError("--lethal-food-count must be non-negative.")
+    if args.lethal_food_sources < 0:
+        raise ValueError("--lethal-food-sources must be non-negative.")
+    if args.lethal_food_count > 0:
+        if args.lethal_food_sources <= 0:
+            raise ValueError("--lethal-food-sources must be positive with lethal food.")
+        if not args.random_food:
+            raise ValueError("--lethal-food-count requires --random-food.")
+        if args.autocurriculum:
+            raise ValueError("--lethal-food-count is only supported for non-autocurriculum runs.")
     if args.food_cluster_count < 0:
         raise ValueError("--food-cluster-count must be non-negative.")
     if args.food_cluster_radius < 0:
@@ -569,6 +593,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.food_cluster_count > 0:
         if not args.random_food:
             raise ValueError("--food-cluster-count requires --random-food.")
+        if args.random_food_same_distance and args.food_cluster_radius > 0:
+            raise ValueError(
+                "--random-food-same-distance requires --food-cluster-radius 0."
+            )
         if args.food_cluster_count > args.food_sources:
             raise ValueError("--food-cluster-count must be no larger than --food-sources.")
         max_cluster_positions = args.food_cluster_count * (
@@ -633,6 +661,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--write-entropy-bonus-cap must be non-negative.")
     if args.write_bit_entropy_bonus < 0.0:
         raise ValueError("--write-bit-entropy-bonus must be non-negative.")
+    if args.death_penalty < 0.0:
+        raise ValueError("--death-penalty must be non-negative.")
     if args.distance_bonus < 0.0:
         raise ValueError("--distance-bonus must be non-negative.")
     if args.carrying_hub_distance_bonus < 0.0:

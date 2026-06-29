@@ -20,9 +20,9 @@ from ant_byte_env.training.jax_mappo.core import (
     build_central_observations,
     critic_forward_kwargs_from_args,
     flatten_agent_actions,
-    food_observation_scale,
     get_action_logits,
     get_action_and_value,
+    visible_food_observation_scale,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
@@ -166,10 +166,7 @@ def _evaluation_step(
     move_temperature: float,
     write_temperature: float,
 ) -> tuple[Any, Any, Any, Any, Any]:
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     central_obs = build_central_observations(
         obs,
         food_scale=food_scale,
@@ -357,10 +354,7 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
     env = _make_eval_env(args)
     shape_args = argparse.Namespace(**{**vars(args), "num_envs": 1})
     _, obs = reset_batch(args=shape_args, env=env, key=jax.random.PRNGKey(args.seed))
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     central_obs = build_central_observations(
         obs,
         food_scale=food_scale,
@@ -407,6 +401,9 @@ def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntBy
         )
     return JaxAntByteForagingEnv(
         **common_kwargs,
+        lethal_food_count=int(getattr(args, "lethal_food_count", 0)),
+        lethal_food_source_count=int(getattr(args, "lethal_food_sources", 0)),
+        death_penalty=float(getattr(args, "death_penalty", 0.0)),
         layout_margin=int(getattr(args, "layout_margin", 0)),
         hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
         terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),

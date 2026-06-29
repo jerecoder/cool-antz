@@ -115,6 +115,12 @@ def test_render_jax_checkpoint_rollout_logs_single_video(
     monkeypatch.setattr(rollout_helpers, "create_vault_entry", fake_create_vault_entry)
     monkeypatch.setattr(rollout_helpers, "WandbTracker", FakeTracker)
 
+    reset_options = {
+        "hub_pos": (25, 25),
+        "food_positions": [(21, 21), (25, 21), (29, 21), (21, 25), (29, 25)],
+        "lethal_food_positions": [(26, 25)],
+    }
+
     result = rollout_helpers.render_jax_checkpoint_rollout(
         run_dir=tmp_path / "run",
         checkpoint_path=checkpoint_path,
@@ -124,6 +130,7 @@ def test_render_jax_checkpoint_rollout_logs_single_video(
         description="Single checkpoint rollout.",
         metadata={"stage": "25x25"},
         policy_temperature=0.5,
+        reset_options=reset_options,
         wandb_project="cool-antz",
         wandb_group="course",
         wandb_run_name="single-rollout",
@@ -140,6 +147,7 @@ def test_render_jax_checkpoint_rollout_logs_single_video(
             "max_frames": None,
             "tile_size": rollout_helpers.NOTEBOOK_ROLLOUT_TILE_SIZE,
             "policy_temperature": 0.5,
+            "reset_options": reset_options,
         }
     ]
     assert captured_vault_metadata["checkpoint_path"] == str(checkpoint_path)

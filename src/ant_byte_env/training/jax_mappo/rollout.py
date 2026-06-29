@@ -23,9 +23,9 @@ from ant_byte_env.training.jax_mappo.core import (
     critic_forward_kwargs_from_args,
     evaluate_actions,
     flatten_agent_actions,
-    food_observation_scale,
     get_action_and_value,
     get_value,
+    visible_food_observation_scale,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
@@ -129,10 +129,7 @@ def collect_rollout(
     obs: JaxObs,
     key: jax.Array,
 ) -> tuple[JaxAntState, JaxObs, Rollout]:
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     critic_kwargs = critic_forward_kwargs_from_args(args)
 
     def scan_step(
@@ -386,7 +383,11 @@ def collect_rollout(
             axis=-1,
         )
         carrying_ants = jnp.sum(next_carrying.astype(jnp.float32), axis=-1)
-        remaining_food = jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1))
+        remaining_food = getattr(
+            infos,
+            "remaining_food",
+            jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1)),
+        ).astype(jnp.float32)
         active_grid_size = next_obs.get("active_grid_size")
         active_size = (
             active_grid_size[..., 0].astype(jnp.float32)

@@ -351,6 +351,37 @@ def test_jax_render_reset_options_fix_nonrandom_layout() -> None:
     assert options == {"hub_pos": (3, 3), "food_positions": [(5, 3)]}
 
 
+def test_render_checkpoint_passes_jax_reset_options(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    reset_options = {
+        "hub_pos": (25, 25),
+        "food_positions": [(21, 21), (29, 29)],
+        "lethal_food_positions": [(26, 25)],
+    }
+
+    def fake_render_jax_checkpoint(*args, **kwargs) -> Path:
+        del args
+        captured.update(kwargs)
+        return tmp_path / "rollout.mp4"
+
+    monkeypatch.setattr(
+        "ant_byte_env.rendering.render_jax_checkpoint",
+        fake_render_jax_checkpoint,
+    )
+
+    render_checkpoint(
+        tmp_path / "model.pkl",
+        tmp_path / "rollout.mp4",
+        backend="jax",
+        reset_options=reset_options,
+    )
+
+    assert captured["reset_options"] == reset_options
+
+
 def test_jax_render_food_scale_uses_food_per_source() -> None:
     dense_args = argparse.Namespace(food_count=250, food_sources=250)
     sparse_args = argparse.Namespace(food_count=250, food_sources=2)
@@ -464,6 +495,16 @@ def test_render_checkpoint_rejects_torch_action_mode(tmp_path: Path) -> None:
             tmp_path / "rollout.mp4",
             backend="torch",
             action_mode="sampled_move_greedy_write",
+        )
+
+
+def test_render_checkpoint_rejects_torch_reset_options(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="only supported for JAX"):
+        render_checkpoint(
+            tmp_path / "model.pt",
+            tmp_path / "rollout.mp4",
+            backend="torch",
+            reset_options={"hub_pos": (1, 1)},
         )
 
 

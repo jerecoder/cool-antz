@@ -34,6 +34,7 @@ EXPLORATION_ARG_EXCLUDES = {
     "food_cluster_count",
     "food_cluster_radius",
     "cookie_distance",
+    "random_food_same_distance",
     "max_steps",
     "save_model",
     "load_model",

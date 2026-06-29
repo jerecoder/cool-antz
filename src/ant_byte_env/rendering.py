@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import math
 import pickle
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable
 
@@ -45,12 +45,15 @@ def render_checkpoint(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    reset_options: Mapping[str, Any] | None = None,
 ) -> Path:
     actual_backend = backend or infer_checkpoint_backend(checkpoint_path)
     if actual_backend not in {"torch", "jax"}:
         raise ValueError("backend must be 'torch' or 'jax'.")
     if actual_backend == "torch" and action_mode is not None:
         raise ValueError("action_mode rendering is only supported for JAX checkpoints.")
+    if actual_backend == "torch" and reset_options is not None:
+        raise ValueError("reset_options rendering is only supported for JAX checkpoints.")
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
         output_path=output_path,
@@ -82,6 +85,7 @@ def render_checkpoint(
             action_mode=action_mode,
             move_temperature=move_temperature,
             write_temperature=write_temperature,
+            reset_options=reset_options,
         )
     raise ValueError("backend must be 'torch' or 'jax'.")
 
@@ -211,6 +215,7 @@ def render_jax_checkpoint(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    reset_options: Mapping[str, Any] | None = None,
 ) -> Path:
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
@@ -234,7 +239,9 @@ def render_jax_checkpoint(
         reset_seed = args.seed + seed_offset
         obs, _ = env.reset(
             seed=reset_seed,
-            options=_jax_render_reset_options(args, seed=reset_seed),
+            options=dict(reset_options)
+            if reset_options is not None
+            else _jax_render_reset_options(args, seed=reset_seed),
         )
         writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
         frames_written = 1
@@ -324,7 +331,9 @@ def render_jax_checkpoint(
                 reset_seed = args.seed + seed_offset + episode_index
                 obs, _ = env.reset(
                     seed=reset_seed,
-                    options=_jax_render_reset_options(args, seed=reset_seed),
+                    options=dict(reset_options)
+                    if reset_options is not None
+                    else _jax_render_reset_options(args, seed=reset_seed),
                 )
                 key = jax.random.PRNGKey(reset_seed)
                 writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
@@ -452,10 +461,9 @@ def _target_critic_architecture(critic_kwargs: dict[str, Any]) -> str:
 
 
 def _jax_render_food_scale(args: argparse.Namespace) -> float:
-    food_sources = getattr(args, "food_sources", None)
-    if food_sources is None or int(food_sources) <= 0:
-        return max(float(args.food_count), 1.0)
-    return max(float(math.ceil(float(args.food_count) / float(food_sources))), 1.0)
+    from ant_byte_env.training.jax_mappo.core import visible_food_observation_scale
+
+    return visible_food_observation_scale(args)
 
 
 def _render_frame(
@@ -513,6 +521,8 @@ def _env_from_args(
         "num_ants": args.num_ants,
         "food_count": args.food_count,
         "food_source_count": args.food_sources,
+        "lethal_food_count": int(getattr(args, "lethal_food_count", 0)),
+        "lethal_food_source_count": int(getattr(args, "lethal_food_sources", 0)),
         "max_steps": args.max_steps,
         "random_food": args.random_food,
         "random_hub": bool(getattr(args, "random_hub", False)),
@@ -521,6 +531,7 @@ def _env_from_args(
         "layout_margin": int(getattr(args, "layout_margin", 0)),
         "hub_center_window_size": int(getattr(args, "hub_center_window_size", 0)),
         "step_penalty": args.step_penalty,
+        "death_penalty": float(getattr(args, "death_penalty", 0.0)),
         "write_penalty": args.write_penalty,
         "write_bits": args.write_bits,
         "write_while_moving": bool(getattr(args, "write_while_moving", False)),

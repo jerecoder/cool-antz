@@ -426,6 +426,13 @@ def test_proximity_config_uses_laptop_minimal_cnn_recipe() -> None:
     assert experiment.args["num_minibatches"] == 4
     assert experiment.args["update_epochs"] == 1
     assert experiment.args["log_interval"] == 100
+    assert experiment.args["food_count"] == 50
+    assert experiment.args["food_sources"] == 1
+    assert experiment.args["lethal_food_count"] == 50
+    assert experiment.args["lethal_food_sources"] == 1
+    assert experiment.args["random_food_same_distance"] is True
+    assert experiment.metadata["food_source_counts"] == [1]
+    assert experiment.metadata["food_cluster_radii"] == [0]
 
 
 def test_forage_common_args_use_largest_stage_padding_and_moving_writes() -> None:

@@ -483,6 +483,9 @@ def build_food_cluster_curriculum_stages(
             "food_cluster_count": cluster_count,
             "food_cluster_radius": cluster_radius,
             "cookie_distance": int(final_args["cookie_distance"]),
+            "random_food_same_distance": bool(
+                final_args.get("random_food_same_distance", False)
+            ),
             "max_steps": int(final_args["max_steps"]),
             "visit_reward_scale": food_source_curriculum_visit_reward_scale(
                 source_count,

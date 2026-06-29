@@ -18,6 +18,7 @@ from ant_byte_env import (
 )
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.core import (
+    ConvParams,
     JaxMAPPOParams,
     LinearParams,
     ResNetCriticParams,
@@ -64,12 +65,14 @@ def load_checkpoint_for_training(
                 params,
                 source_args=source_args,
                 target_central_obs_dim=central_obs_dim,
+                target_num_ants=target_num_ants,
             )
         else:
             params = resize_non_mlp_critic_for_ants_count(
                 params,
                 source_args=source_args,
                 target_central_obs_dim=central_obs_dim,
+                target_num_ants=target_num_ants,
             )
         params_changed = True
     if int(checkpoint["actor_obs_dim"]) == actor_obs_dim:
@@ -124,6 +127,12 @@ def load_checkpoint_for_training(
         actor_vision_radius=actor_vision_radius,
         num_ants=target_num_ants,
     )
+    if target_dim + actor_vision_patch_size(actor_vision_radius) == actor_obs_dim:
+        params = insert_dead_ant_actor_channel(
+            params,
+            actor_vision_radius=actor_vision_radius,
+        )
+        target_dim = actor_obs_dim
     if target_dim != actor_obs_dim:
         raise ValueError("Transferred actor observation dimension does not match this run.")
 
@@ -270,10 +279,42 @@ def central_obs_dim_with_ants_count(
     obs_height: int,
     obs_width: int,
     include_orientation: bool = True,
+    include_dead_ants: bool = False,
 ) -> int:
     grid_area = obs_height * obs_width
     orientation_features = FACING_FEATURE_COUNT * num_ants if include_orientation else 0
-    return 3 * num_ants + orientation_features + 3 * grid_area + 4
+    grid_plane_count = 4 if include_dead_ants else 3
+    return 3 * num_ants + orientation_features + grid_plane_count * grid_area + 4
+
+
+def _central_dim_includes_dead_ants(
+    central_obs_dim: int,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> bool:
+    if int(central_obs_dim) == central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        include_dead_ants=False,
+    ):
+        return False
+    if int(central_obs_dim) == central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        include_dead_ants=True,
+    ):
+        return True
+    raise ValueError("Checkpoint central observation dimension does not match this run.")
+
+
+def _critic_grid_map_names(*, include_dead_ants: bool) -> tuple[str, ...]:
+    if include_dead_ants:
+        return ("ants_count", "dead_ants_count", "food", "bytes")
+    return ("ants_count", "food", "bytes")
 
 
 def legacy_central_obs_dim(*, num_ants: int, obs_height: int, obs_width: int) -> int:
@@ -286,10 +327,17 @@ def expand_critic_input_for_ants_count(
     *,
     source_args: dict[str, Any],
     target_central_obs_dim: int,
+    target_num_ants: int,
 ) -> JaxMAPPOParams:
     source_num_ants = int(source_args.get("num_ants", 1))
     source_width = _source_grid_size(source_args, "width")
     source_height = _source_grid_size(source_args, "height")
+    target_include_dead_ants = _central_dim_includes_dead_ants(
+        target_central_obs_dim,
+        num_ants=target_num_ants,
+        obs_height=source_height,
+        obs_width=source_width,
+    )
     legacy_dim = legacy_central_obs_dim(
         num_ants=source_num_ants,
         obs_height=source_height,
@@ -306,10 +354,11 @@ def expand_critic_input_for_ants_count(
         obs_height=source_height,
         obs_width=source_width,
     )
-    target_num_ants = _infer_num_ants_for_current_central_dim(
-        target_central_obs_dim,
+    current_dead_dim = central_obs_dim_with_ants_count(
+        num_ants=source_num_ants,
         obs_height=source_height,
         obs_width=source_width,
+        include_dead_ants=True,
     )
 
     first_layer = params.critic_body[0]
@@ -321,6 +370,7 @@ def expand_critic_input_for_ants_count(
             obs_height=source_height,
             obs_width=source_width,
         )
+        source_include_dead_ants = False
     elif old_weight.shape[0] == no_orientation_dim:
         current_first_layer = expand_central_input_layer_for_orientation(
             first_layer,
@@ -328,8 +378,13 @@ def expand_critic_input_for_ants_count(
             obs_height=source_height,
             obs_width=source_width,
         )
+        source_include_dead_ants = False
     elif old_weight.shape[0] == current_dim:
         current_first_layer = first_layer
+        source_include_dead_ants = False
+    elif old_weight.shape[0] == current_dead_dim:
+        current_first_layer = first_layer
+        source_include_dead_ants = True
     else:
         raise ValueError("Checkpoint central observation dimension does not match this run.")
 
@@ -339,6 +394,8 @@ def expand_critic_input_for_ants_count(
         target_num_ants=target_num_ants,
         obs_height=source_height,
         obs_width=source_width,
+        source_include_dead_ants=source_include_dead_ants,
+        target_include_dead_ants=target_include_dead_ants,
     )
 
     return JaxMAPPOParams(
@@ -357,11 +414,16 @@ def _infer_num_ants_for_current_central_dim(
     obs_width: int,
 ) -> int:
     grid_area = obs_height * obs_width
-    non_ant_dim = 3 * grid_area + 4
-    ant_dim = int(central_obs_dim) - non_ant_dim
-    if ant_dim <= 0 or ant_dim % 7 != 0:
+    candidates = []
+    for include_dead_ants in (False, True):
+        grid_plane_count = 4 if include_dead_ants else 3
+        non_ant_dim = grid_plane_count * grid_area + 4
+        ant_dim = int(central_obs_dim) - non_ant_dim
+        if ant_dim > 0 and ant_dim % 7 == 0:
+            candidates.append(ant_dim // 7)
+    if not candidates:
         raise ValueError("Checkpoint central observation dimension does not match this run.")
-    return ant_dim // 7
+    return candidates[0]
 
 
 def resize_central_input_layer_for_num_ants(
@@ -371,17 +433,21 @@ def resize_central_input_layer_for_num_ants(
     target_num_ants: int,
     obs_height: int,
     obs_width: int,
+    source_include_dead_ants: bool = False,
+    target_include_dead_ants: bool = False,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     source_dim = central_obs_dim_with_ants_count(
         num_ants=source_num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        include_dead_ants=source_include_dead_ants,
     )
     target_dim = central_obs_dim_with_ants_count(
         num_ants=target_num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        include_dead_ants=target_include_dead_ants,
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected central input dim {source_dim}, got {old_weight.shape[0]}.")
@@ -392,12 +458,14 @@ def resize_central_input_layer_for_num_ants(
     source_prefix_dim = 3 * source_num_ants
     source_orientation_dim = FACING_FEATURE_COUNT * source_num_ants
     source_maps_start = source_prefix_dim + source_orientation_dim
-    source_tail = slice(source_maps_start + 3 * grid_area, source_dim)
+    source_map_names = _critic_grid_map_names(include_dead_ants=source_include_dead_ants)
+    source_tail = slice(source_maps_start + len(source_map_names) * grid_area, source_dim)
 
     target_prefix_dim = 3 * target_num_ants
     target_orientation_dim = FACING_FEATURE_COUNT * target_num_ants
     target_maps_start = target_prefix_dim + target_orientation_dim
-    target_tail = slice(target_maps_start + 3 * grid_area, target_dim)
+    target_map_names = _critic_grid_map_names(include_dead_ants=target_include_dead_ants)
+    target_tail = slice(target_maps_start + len(target_map_names) * grid_area, target_dim)
 
     shared_ants = min(source_num_ants, target_num_ants)
     new_weight = jnp.zeros((target_dim, old_weight.shape[1]), dtype=old_weight.dtype)
@@ -422,15 +490,19 @@ def resize_central_input_layer_for_num_ants(
             :,
         ]
     )
-    new_weight = new_weight.at[
-        target_maps_start : target_maps_start + 3 * grid_area,
-        :,
-    ].set(
-        old_weight[
-            source_maps_start : source_maps_start + 3 * grid_area,
-            :,
-        ]
-    )
+    for target_map_index, map_name in enumerate(target_map_names):
+        if map_name not in source_map_names:
+            continue
+        source_map_index = source_map_names.index(map_name)
+        source_map = slice(
+            source_maps_start + source_map_index * grid_area,
+            source_maps_start + (source_map_index + 1) * grid_area,
+        )
+        target_map = slice(
+            target_maps_start + target_map_index * grid_area,
+            target_maps_start + (target_map_index + 1) * grid_area,
+        )
+        new_weight = new_weight.at[target_map, :].set(old_weight[source_map, :])
     new_weight = new_weight.at[target_tail, :].set(old_weight[source_tail, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
@@ -477,23 +549,138 @@ def resize_critic_entity_input_layer_for_num_ants(
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
+def _spatial_conv_includes_dead_ants(layer: ConvParams) -> bool:
+    input_channels = int(jnp.asarray(layer.kernel).shape[2])
+    if input_channels == 4:
+        return False
+    if input_channels == 5:
+        return True
+    raise ValueError(
+        "Non-MLP critic checkpoint central observation dimension does not match this run."
+    )
+
+
+def resize_spatial_conv_input_for_dead_ants(
+    layer: ConvParams,
+    *,
+    source_include_dead_ants: bool,
+    target_include_dead_ants: bool,
+) -> ConvParams:
+    source_channels = (*_critic_grid_map_names(include_dead_ants=source_include_dead_ants), "hub")
+    target_channels = (*_critic_grid_map_names(include_dead_ants=target_include_dead_ants), "hub")
+    old_kernel = jnp.asarray(layer.kernel)
+    expected_source_channels = len(source_channels)
+    if old_kernel.shape[2] != expected_source_channels:
+        raise ValueError(
+            f"Expected critic spatial input channels {expected_source_channels}, "
+            f"got {old_kernel.shape[2]}."
+        )
+    if source_channels == target_channels:
+        return layer
+
+    new_kernel = jnp.zeros(
+        (
+            old_kernel.shape[0],
+            old_kernel.shape[1],
+            len(target_channels),
+            old_kernel.shape[3],
+        ),
+        dtype=old_kernel.dtype,
+    )
+    for target_channel_index, channel_name in enumerate(target_channels):
+        if channel_name not in source_channels:
+            continue
+        source_channel_index = source_channels.index(channel_name)
+        new_kernel = new_kernel.at[:, :, target_channel_index, :].set(
+            old_kernel[:, :, source_channel_index, :]
+        )
+    return ConvParams(kernel=new_kernel, bias=jnp.asarray(layer.bias))
+
+
+def _structured_grid_layer_includes_dead_ants(
+    layer: LinearParams,
+    *,
+    obs_height: int,
+    obs_width: int,
+) -> bool:
+    grid_area = int(obs_height) * int(obs_width)
+    input_dim = int(jnp.asarray(layer.weight).shape[0])
+    if input_dim == 3 * grid_area:
+        return False
+    if input_dim == 4 * grid_area:
+        return True
+    raise ValueError(
+        "Non-MLP critic checkpoint central observation dimension does not match this run."
+    )
+
+
+def resize_structured_grid_input_for_dead_ants(
+    layer: LinearParams,
+    *,
+    obs_height: int,
+    obs_width: int,
+    source_include_dead_ants: bool,
+    target_include_dead_ants: bool,
+) -> LinearParams:
+    grid_area = int(obs_height) * int(obs_width)
+    source_maps = _critic_grid_map_names(include_dead_ants=source_include_dead_ants)
+    target_maps = _critic_grid_map_names(include_dead_ants=target_include_dead_ants)
+    old_weight = jnp.asarray(layer.weight)
+    if old_weight.shape[0] != len(source_maps) * grid_area:
+        raise ValueError(
+            f"Expected critic grid input dim {len(source_maps) * grid_area}, "
+            f"got {old_weight.shape[0]}."
+        )
+    if source_maps == target_maps:
+        return layer
+
+    new_weight = jnp.zeros(
+        (len(target_maps) * grid_area, old_weight.shape[1]),
+        dtype=old_weight.dtype,
+    )
+    for target_map_index, map_name in enumerate(target_maps):
+        if map_name not in source_maps:
+            continue
+        source_map_index = source_maps.index(map_name)
+        source_map = slice(
+            source_map_index * grid_area,
+            (source_map_index + 1) * grid_area,
+        )
+        target_map = slice(
+            target_map_index * grid_area,
+            (target_map_index + 1) * grid_area,
+        )
+        new_weight = new_weight.at[target_map, :].set(old_weight[source_map, :])
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
 def resize_non_mlp_critic_for_ants_count(
     params: JaxMAPPOParams,
     *,
     source_args: dict[str, Any],
     target_central_obs_dim: int,
+    target_num_ants: int,
 ) -> JaxMAPPOParams:
     source_num_ants = int(source_args.get("num_ants", 1))
     source_width = _source_grid_size(source_args, "width")
     source_height = _source_grid_size(source_args, "height")
-    target_num_ants = _infer_num_ants_for_current_central_dim(
+    target_include_dead_ants = _central_dim_includes_dead_ants(
         target_central_obs_dim,
+        num_ants=target_num_ants,
         obs_height=source_height,
         obs_width=source_width,
     )
     critic_body = params.critic_body
     if isinstance(critic_body, StridedCNNCriticParams):
+        source_include_dead_ants = _spatial_conv_includes_dead_ants(
+            critic_body.conv_5x5
+        )
         resized_body = critic_body._replace(
+            conv_5x5=resize_spatial_conv_input_for_dead_ants(
+                critic_body.conv_5x5,
+                source_include_dead_ants=source_include_dead_ants,
+                target_include_dead_ants=target_include_dead_ants,
+            ),
             entity_dense=resize_critic_entity_input_layer_for_num_ants(
                 critic_body.entity_dense,
                 source_num_ants=source_num_ants,
@@ -501,21 +688,40 @@ def resize_non_mlp_critic_for_ants_count(
             )
         )
     elif isinstance(critic_body, ResNetCriticParams):
+        source_include_dead_ants = _spatial_conv_includes_dead_ants(critic_body.stem)
         resized_first = resize_critic_entity_input_layer_for_num_ants(
             critic_body.entity_body[0],
             source_num_ants=source_num_ants,
             target_num_ants=target_num_ants,
         )
         resized_body = critic_body._replace(
+            stem=resize_spatial_conv_input_for_dead_ants(
+                critic_body.stem,
+                source_include_dead_ants=source_include_dead_ants,
+                target_include_dead_ants=target_include_dead_ants,
+            ),
             entity_body=(resized_first, critic_body.entity_body[1])
         )
     elif isinstance(critic_body, StructuredMLPCriticParams):
+        source_include_dead_ants = _structured_grid_layer_includes_dead_ants(
+            critic_body.grid_body[0],
+            obs_height=source_height,
+            obs_width=source_width,
+        )
+        resized_grid_first = resize_structured_grid_input_for_dead_ants(
+            critic_body.grid_body[0],
+            obs_height=source_height,
+            obs_width=source_width,
+            source_include_dead_ants=source_include_dead_ants,
+            target_include_dead_ants=target_include_dead_ants,
+        )
         resized_first = resize_critic_entity_input_layer_for_num_ants(
             critic_body.entity_body[0],
             source_num_ants=source_num_ants,
             target_num_ants=target_num_ants,
         )
         resized_body = critic_body._replace(
+            grid_body=(resized_grid_first, critic_body.grid_body[1]),
             entity_body=(resized_first, critic_body.entity_body[1])
         )
     else:
@@ -708,6 +914,36 @@ def resize_params_for_actor_vision_radius(
             params.actor_body[1],
         ),
         move_head=adapt_movement_head_layer(params.move_head),
+        write_head=params.write_head,
+        critic_body=params.critic_body,
+        value_head=params.value_head,
+    )
+
+
+def insert_dead_ant_actor_channel(
+    params: JaxMAPPOParams,
+    *,
+    actor_vision_radius: int,
+) -> JaxMAPPOParams:
+    first_layer = params.actor_body[0]
+    old_weight = jnp.asarray(first_layer.weight)
+    patch_size = actor_vision_patch_size(actor_vision_radius)
+    insert_at = 2 * patch_size
+    zero_rows = jnp.zeros((patch_size, old_weight.shape[1]), dtype=old_weight.dtype)
+    new_weight = jnp.concatenate(
+        [
+            old_weight[:insert_at],
+            zero_rows,
+            old_weight[insert_at:],
+        ],
+        axis=0,
+    )
+    return JaxMAPPOParams(
+        actor_body=(
+            LinearParams(weight=new_weight, bias=jnp.asarray(first_layer.bias)),
+            params.actor_body[1],
+        ),
+        move_head=params.move_head,
         write_head=params.write_head,
         critic_body=params.critic_body,
         value_head=params.value_head,

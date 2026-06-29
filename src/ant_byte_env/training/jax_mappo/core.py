@@ -196,6 +196,21 @@ def food_observation_scale(*, food_count: int | float, food_sources: int | None 
     return max(float(math.ceil(float(food_count) / float(food_sources))), 1.0)
 
 
+def visible_food_observation_scale(args: Any) -> float:
+    food_scale = food_observation_scale(
+        food_count=getattr(args, "food_count", 0),
+        food_sources=getattr(args, "food_sources", None),
+    )
+    lethal_food_count = int(getattr(args, "lethal_food_count", 0))
+    if lethal_food_count <= 0:
+        return food_scale
+    lethal_scale = food_observation_scale(
+        food_count=lethal_food_count,
+        food_sources=getattr(args, "lethal_food_sources", None),
+    )
+    return max(food_scale, lethal_scale)
+
+
 def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
     facing_index = jnp.clip(
         ants_facing.astype(jnp.int32) - 1,
@@ -318,6 +333,15 @@ def build_central_observations(
         height=target_height,
         width=target_width,
     )
+    grid_features = [ants_count_norm.reshape(batch_size, -1)]
+    if "dead_ants_count" in obs:
+        dead_ants_count = obs["dead_ants_count"].astype(jnp.float32)
+        dead_ants_count_norm = _pad_grid(
+            dead_ants_count / ant_count_scale,
+            height=target_height,
+            width=target_width,
+        )
+        grid_features.append(dead_ants_count_norm.reshape(batch_size, -1))
     food_norm = _pad_grid(
         food / max(float(food_scale), 1.0),
         height=target_height,
@@ -337,7 +361,7 @@ def build_central_observations(
             ants_pos.reshape(batch_size, -1),
             ants_carrying.reshape(batch_size, -1),
             ants_facing.reshape(batch_size, -1),
-            ants_count_norm.reshape(batch_size, -1),
+            *grid_features,
             food_norm.reshape(batch_size, -1),
             bytes_norm.reshape(batch_size, -1),
             hub_pos.reshape(batch_size, -1),
@@ -380,6 +404,16 @@ def build_actor_observations(
         ants_facing=ants_facing,
     )
     local_ants_count = local_ants_count / ant_count_scale
+    local_dead_ants_count = None
+    if "dead_ants_count" in obs:
+        dead_ants_count = obs["dead_ants_count"].astype(jnp.float32)
+        local_dead_ants_count = build_local_grid_patches(
+            dead_ants_count,
+            obs["ants_pos"],
+            radius=actor_vision_radius,
+            ants_facing=ants_facing,
+        )
+        local_dead_ants_count = local_dead_ants_count / ant_count_scale
     local_byte_bits = build_local_byte_bit_patches(
         obs["bytes"],
         obs["ants_pos"],
@@ -420,13 +454,19 @@ def build_actor_observations(
     features = [
         local_food,
         local_ants_count,
-        local_byte_bits,
-        local_hub,
-        local_border,
-        _agent_identity_features(obs["ants_pos"]),
-        own_carrying,
-        own_facing,
     ]
+    if local_dead_ants_count is not None:
+        features.append(local_dead_ants_count)
+    features.extend(
+        [
+            local_byte_bits,
+            local_hub,
+            local_border,
+            _agent_identity_features(obs["ants_pos"]),
+            own_carrying,
+            own_facing,
+        ]
+    )
     return jnp.concatenate(features, axis=-1)
 
 
@@ -630,9 +670,37 @@ def central_obs_dim_with_ants_count(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    include_dead_ants: bool = False,
 ) -> int:
     grid_area = int(obs_height) * int(obs_width)
-    return 7 * int(num_ants) + 3 * grid_area + 4
+    grid_plane_count = 4 if include_dead_ants else 3
+    return 7 * int(num_ants) + grid_plane_count * grid_area + 4
+
+
+def _critic_grid_plane_count_from_dim(
+    central_obs_dim: int,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+    critic_architecture: str,
+) -> int:
+    grid_area = int(obs_height) * int(obs_width)
+    if grid_area <= 0:
+        raise ValueError("critic_obs_height and critic_obs_width must be positive.")
+    grid_feature_dim = int(central_obs_dim) - _critic_entity_dim(num_ants=num_ants)
+    if grid_feature_dim % grid_area != 0:
+        raise ValueError(
+            f"{critic_architecture} critic central_obs_dim {central_obs_dim} "
+            "does not match its grid shape."
+        )
+    grid_plane_count = grid_feature_dim // grid_area
+    if grid_plane_count not in (3, 4):
+        raise ValueError(
+            f"{critic_architecture} critic expected 3 or 4 grid planes, "
+            f"got {grid_plane_count}."
+        )
+    return grid_plane_count
 
 
 def _strided_cnn_output_size(size: int) -> int:
@@ -774,20 +842,18 @@ def init_agent_params(
                 "resnet_cnn critic requires critic_num_ants, critic_obs_height, "
                 "and critic_obs_width."
             )
-        expected_dim = central_obs_dim_with_ants_count(
+        grid_plane_count = _critic_grid_plane_count_from_dim(
+            central_obs_dim,
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            critic_architecture="resnet_cnn",
         )
-        if int(central_obs_dim) != expected_dim:
-            raise ValueError(
-                f"resnet_cnn critic expected central_obs_dim {expected_dim}, "
-                f"got {central_obs_dim}."
-            )
         keys = jax.random.split(key, 5)
         critic_body, value_head = init_resnet_cnn_critic(
             keys[4],
             num_ants=critic_num_ants,
+            spatial_channels=grid_plane_count + 1,
         )
     elif architecture == "strided_cnn":
         if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
@@ -795,22 +861,20 @@ def init_agent_params(
                 "strided_cnn critic requires critic_num_ants, critic_obs_height, "
                 "and critic_obs_width."
             )
-        expected_dim = central_obs_dim_with_ants_count(
+        grid_plane_count = _critic_grid_plane_count_from_dim(
+            central_obs_dim,
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            critic_architecture="strided_cnn",
         )
-        if int(central_obs_dim) != expected_dim:
-            raise ValueError(
-                f"strided_cnn critic expected central_obs_dim {expected_dim}, "
-                f"got {central_obs_dim}."
-            )
         keys = jax.random.split(key, 5)
         critic_body, value_head = init_strided_cnn_critic(
             keys[4],
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            spatial_channels=grid_plane_count + 1,
         )
     elif architecture == "structured_mlp":
         if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
@@ -818,18 +882,17 @@ def init_agent_params(
                 "structured_mlp critic requires critic_num_ants, critic_obs_height, "
                 "and critic_obs_width."
             )
-        expected_dim = central_obs_dim_with_ants_count(
+        grid_plane_count = _critic_grid_plane_count_from_dim(
+            central_obs_dim,
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            critic_architecture="structured_mlp",
         )
-        if int(central_obs_dim) != expected_dim:
-            raise ValueError(
-                f"structured_mlp critic expected central_obs_dim {expected_dim}, "
-                f"got {central_obs_dim}."
-            )
         keys = jax.random.split(key, 5)
-        grid_feature_dim = 3 * int(critic_obs_height) * int(critic_obs_width)
+        grid_feature_dim = (
+            grid_plane_count * int(critic_obs_height) * int(critic_obs_width)
+        )
         critic_body, value_head = init_structured_mlp_critic(
             keys[4],
             grid_feature_dim=grid_feature_dim,
@@ -917,16 +980,13 @@ def _split_central_observation_for_cnn(
     leading_shape = central_obs.shape[:-1]
     flat = central_obs.reshape((-1, central_obs.shape[-1]))
     grid_area = int(obs_height) * int(obs_width)
-    expected_dim = central_obs_dim_with_ants_count(
+    grid_plane_count = _critic_grid_plane_count_from_dim(
+        int(central_obs.shape[-1]),
         num_ants=num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        critic_architecture=critic_architecture,
     )
-    if int(central_obs.shape[-1]) != expected_dim:
-        raise ValueError(
-            f"{critic_architecture} critic expected central_obs_dim {expected_dim}, "
-            f"got {central_obs.shape[-1]}."
-        )
 
     ants_pos_width = 2 * int(num_ants)
     ants_carrying_width = int(num_ants)
@@ -935,14 +995,25 @@ def _split_central_observation_for_cnn(
     ants_carrying_end = ants_pos_end + ants_carrying_width
     ants_facing_end = ants_carrying_end + ants_facing_width
     ants_count_end = ants_facing_end + grid_area
-    food_end = ants_count_end + grid_area
+    dead_ants_count_end = ants_count_end
+    if grid_plane_count == 4:
+        dead_ants_count_end = ants_count_end + grid_area
+    food_end = dead_ants_count_end + grid_area
     bytes_end = food_end + grid_area
     hub_end = bytes_end + 2
 
     ants_count = flat[:, ants_facing_end:ants_count_end].reshape(
         (-1, int(obs_height), int(obs_width))
     )
-    food = flat[:, ants_count_end:food_end].reshape((-1, int(obs_height), int(obs_width)))
+    spatial_maps = [ants_count]
+    if grid_plane_count == 4:
+        dead_ants_count = flat[:, ants_count_end:dead_ants_count_end].reshape(
+            (-1, int(obs_height), int(obs_width))
+        )
+        spatial_maps.append(dead_ants_count)
+    food = flat[:, dead_ants_count_end:food_end].reshape(
+        (-1, int(obs_height), int(obs_width))
+    )
     bytes_grid = flat[:, food_end:bytes_end].reshape(
         (-1, int(obs_height), int(obs_width))
     )
@@ -962,7 +1033,7 @@ def _split_central_observation_for_cnn(
         (flat.shape[0], int(obs_height), int(obs_width)),
         dtype=jnp.float32,
     ).at[batch_index, hub_y, hub_x].set(1.0)
-    spatial = jnp.stack([ants_count, food, bytes_grid, hub_grid], axis=-1)
+    spatial = jnp.stack([*spatial_maps, food, bytes_grid, hub_grid], axis=-1)
     entity = jnp.concatenate(
         [
             flat[:, :ants_pos_end],
@@ -985,16 +1056,13 @@ def _split_central_observation_for_structured_mlp(
     leading_shape = central_obs.shape[:-1]
     flat = central_obs.reshape((-1, central_obs.shape[-1]))
     grid_area = int(obs_height) * int(obs_width)
-    expected_dim = central_obs_dim_with_ants_count(
+    grid_plane_count = _critic_grid_plane_count_from_dim(
+        int(central_obs.shape[-1]),
         num_ants=num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        critic_architecture="structured_mlp",
     )
-    if int(central_obs.shape[-1]) != expected_dim:
-        raise ValueError(
-            f"structured_mlp critic expected central_obs_dim {expected_dim}, "
-            f"got {central_obs.shape[-1]}."
-        )
 
     ants_pos_width = 2 * int(num_ants)
     ants_carrying_width = int(num_ants)
@@ -1002,15 +1070,13 @@ def _split_central_observation_for_structured_mlp(
     ants_pos_end = ants_pos_width
     ants_carrying_end = ants_pos_end + ants_carrying_width
     ants_facing_end = ants_carrying_end + ants_facing_width
-    ants_count_end = ants_facing_end + grid_area
-    food_end = ants_count_end + grid_area
-    bytes_end = food_end + grid_area
+    maps_end = ants_facing_end + grid_plane_count * grid_area
 
-    grid_features = flat[:, ants_facing_end:bytes_end]
+    grid_features = flat[:, ants_facing_end:maps_end]
     entity_features = jnp.concatenate(
         [
             flat[:, :ants_facing_end],
-            flat[:, bytes_end:],
+            flat[:, maps_end:],
         ],
         axis=-1,
     )

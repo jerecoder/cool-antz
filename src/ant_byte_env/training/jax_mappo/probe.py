@@ -22,8 +22,8 @@ from ant_byte_env.training.jax_mappo.core import (
     build_central_observations,
     critic_forward_kwargs_from_args,
     flatten_agent_actions,
-    food_observation_scale,
     get_action_and_value,
+    visible_food_observation_scale,
 )
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
@@ -152,10 +152,7 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
     finally:
         env.close()
     obs_batch = _obs_batch(obs)
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     central_obs = build_central_observations(
         obs_batch,
         food_scale=food_scale,
@@ -353,10 +350,7 @@ def _select_actions_from_batch(
     key: jax.Array,
     deterministic: bool,
 ) -> jax.Array:
-    food_scale = food_observation_scale(
-        food_count=args.food_count,
-        food_sources=getattr(args, "food_sources", None),
-    )
+    food_scale = visible_food_observation_scale(args)
     central_obs = build_central_observations(
         obs_batch,
         food_scale=food_scale,
