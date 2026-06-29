@@ -753,6 +753,24 @@ def test_evaluation_matrix_reports_step_progress_when_requested() -> None:
     assert all("max_steps" in event[3] for event in progress_events)
 
 
+def test_evaluation_matrix_accepts_fixed_layout_positions() -> None:
+    args = _small_args(["--eval-episodes", "1"])
+    env = _env(max_steps=args.max_steps)
+    params, opponent_params, *_ = _params_for_args(args, env)
+
+    metrics = evaluate_matrix(
+        params=params,
+        opponent_params=opponent_params,
+        args=args,
+        env=env,
+        fixed_hub_positions=[[1, 1], [3, 1]],
+        fixed_food_positions=[[2, 1]],
+    )
+
+    assert metrics["eval_learner_vs_frozen_mean_hub_pair_distance"] == pytest.approx(2.0)
+    assert metrics["eval_learner_vs_frozen_mean_food_midpoint_distance"] == pytest.approx(0.0)
+
+
 def test_evaluation_uses_actor_only_actions() -> None:
     args = _small_args(["--eval-episodes", "1", "--max-steps", "2"])
     env = _env(max_steps=args.max_steps)
@@ -802,6 +820,18 @@ def test_checkpoint_evaluation_and_render_helpers_use_saved_adversarial_checkpoi
     )
     assert rollout_path.exists()
     assert rollout_path.stat().st_size > 0
+
+    fixed_rollout_path = render_adversarial_rollout(
+        checkpoint_path,
+        tmp_path / "fixed_rollout.mp4",
+        argv=argv,
+        max_frames=2,
+        tile_size=8,
+        fixed_hub_positions=[[1, 1], [3, 1]],
+        fixed_food_positions=[[2, 1]],
+    )
+    assert fixed_rollout_path.exists()
+    assert fixed_rollout_path.stat().st_size > 0
 
 
 def test_adversarial_runner_resumes_checkpoint_between_food_stages(tmp_path: Path) -> None:

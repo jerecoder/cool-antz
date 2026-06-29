@@ -128,6 +128,8 @@ def evaluate_checkpoint_matrix(
     eval_max_steps: int | None = None,
     progress_callback: EvaluationProgressCallback | None = None,
     progress_step_interval: int | None = None,
+    fixed_hub_positions: Sequence[Sequence[int]] | None = None,
+    fixed_food_positions: Sequence[Sequence[int]] | None = None,
 ) -> dict[str, float]:
     bundle = load_checkpoint_for_evaluation(checkpoint_path, argv=argv, args=args)
     eval_args = bundle.args
@@ -145,6 +147,8 @@ def evaluate_checkpoint_matrix(
         env=bundle.env,
         progress_callback=progress_callback,
         progress_step_interval=progress_step_interval,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
     )
 
 

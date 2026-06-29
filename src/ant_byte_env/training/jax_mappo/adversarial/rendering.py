@@ -9,6 +9,7 @@ from typing import Any
 
 import imageio.v2 as imageio
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 from ant_byte_env.env import (
@@ -268,13 +269,21 @@ def render_adversarial_rollout(
     seed_offset: int = 900_000,
     deterministic: bool = True,
     action_mode: str | None = None,
+    fixed_hub_positions: Sequence[Sequence[int]] | None = None,
+    fixed_food_positions: Sequence[Sequence[int]] | None = None,
 ) -> Path:
     bundle = load_checkpoint_for_evaluation(checkpoint_path, argv=argv, args=args)
     render_args = argparse.Namespace(**{**vars(bundle.args), "num_envs": 1})
     resolved_action_mode = action_mode or ("deterministic" if deterministic else "sampled")
     frame_limit = _frame_limit(render_args, max_frames=max_frames)
     key = jax.random.PRNGKey(int(render_args.seed) + int(seed_offset))
-    states, obs = reset_batch(args=render_args, env=bundle.env, key=key)
+    states, obs = _reset_render_batch(
+        args=render_args,
+        env=bundle.env,
+        key=key,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
+    )
     max_byte_value = (1 << int(render_args.write_bits)) - 1
     food_scale = food_observation_scale(
         food_count=render_args.food_count,
@@ -338,6 +347,37 @@ def render_adversarial_rollout(
     finally:
         writer.close()
     return output_path
+
+
+def _reset_render_batch(
+    *,
+    args: argparse.Namespace,
+    env: Any,
+    key: jax.Array,
+    fixed_hub_positions: Sequence[Sequence[int]] | None,
+    fixed_food_positions: Sequence[Sequence[int]] | None,
+) -> tuple[Any, Mapping[str, Any]]:
+    if fixed_hub_positions is None and fixed_food_positions is None:
+        return reset_batch(args=args, env=env, key=key)
+
+    hub_pos = (
+        None
+        if fixed_hub_positions is None
+        else jnp.asarray(fixed_hub_positions, dtype=jnp.int32)
+    )
+    food_positions = (
+        None
+        if fixed_food_positions is None
+        else jnp.asarray(fixed_food_positions, dtype=jnp.int32)
+    )
+    state, obs, _ = env.reset(
+        key,
+        hub_pos=hub_pos,
+        food_positions=food_positions,
+    )
+    batched_state = jax.tree_util.tree_map(lambda value: value[None, ...], state)
+    batched_obs = {name: value[None, ...] for name, value in obs.items()}
+    return batched_state, batched_obs
 
 
 def _frame_limit(args: argparse.Namespace, *, max_frames: int | None) -> int:

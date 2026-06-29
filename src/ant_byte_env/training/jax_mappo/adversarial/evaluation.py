@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
 import jax
@@ -39,6 +39,8 @@ def evaluate_matrix(
     env: JaxAdversarialAntByteEnv | None = None,
     progress_callback: EvaluationProgressCallback | None = None,
     progress_step_interval: int | None = None,
+    fixed_hub_positions: Sequence[Sequence[int]] | None = None,
+    fixed_food_positions: Sequence[Sequence[int]] | None = None,
 ) -> dict[str, float]:
     if int(args.eval_episodes) <= 0:
         return {}
@@ -55,6 +57,8 @@ def evaluate_matrix(
         progress_name="frozen_vs_frozen",
         progress_callback=progress_callback,
         progress_step_interval=progress_step_interval,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
     )
     learner_frozen = evaluate_matchup(
         learner_params=params,
@@ -68,6 +72,8 @@ def evaluate_matrix(
         progress_name="learner_vs_frozen",
         progress_callback=progress_callback,
         progress_step_interval=progress_step_interval,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
     )
     frozen_learner = evaluate_matchup(
         learner_params=params,
@@ -81,6 +87,8 @@ def evaluate_matrix(
         progress_name="frozen_vs_learner",
         progress_callback=progress_callback,
         progress_step_interval=progress_step_interval,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
     )
     random_frozen = evaluate_matchup(
         learner_params=None,
@@ -94,6 +102,8 @@ def evaluate_matrix(
         progress_name="random_vs_frozen",
         progress_callback=progress_callback,
         progress_step_interval=progress_step_interval,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
     )
     learner_random = evaluate_matchup(
         learner_params=params,
@@ -107,6 +117,8 @@ def evaluate_matrix(
         progress_name="learner_vs_random",
         progress_callback=progress_callback,
         progress_step_interval=progress_step_interval,
+        fixed_hub_positions=fixed_hub_positions,
+        fixed_food_positions=fixed_food_positions,
     )
     metrics = {}
     for prefix, payload in (
@@ -141,6 +153,8 @@ def evaluate_matchup(
     progress_name: str | None = None,
     progress_callback: EvaluationProgressCallback | None = None,
     progress_step_interval: int | None = None,
+    fixed_hub_positions: Sequence[Sequence[int]] | None = None,
+    fixed_food_positions: Sequence[Sequence[int]] | None = None,
 ) -> dict[str, float]:
     eval_args = argparse.Namespace(**{**vars(args), "num_envs": 1})
     key = jax.random.PRNGKey(int(eval_args.seed) + int(seed_offset))
@@ -161,6 +175,8 @@ def evaluate_matchup(
     step_interval = None if progress_step_interval is None else int(progress_step_interval)
     if step_interval is not None and step_interval <= 0:
         raise ValueError("progress_step_interval must be positive when provided.")
+    fixed_hub_pos = _fixed_positions_array(fixed_hub_positions, shape=(2, 2))
+    fixed_food_pos = _fixed_positions_array(fixed_food_positions, shape=(-1, 2))
     step_fn = jax.jit(
         lambda current_states, current_obs, action_key: _evaluation_step(
             env=env,
@@ -179,7 +195,13 @@ def evaluate_matchup(
 
     for episode_index in range(int(eval_args.eval_episodes)):
         key, reset_key = jax.random.split(key)
-        states, obs = reset_batch(args=eval_args, env=env, key=reset_key)
+        states, obs = _reset_eval_batch(
+            args=eval_args,
+            env=env,
+            key=reset_key,
+            fixed_hub_positions=fixed_hub_pos,
+            fixed_food_positions=fixed_food_pos,
+        )
         placement_stats = _placement_stats(states)
         hub_pair_distances.append(placement_stats["hub_pair_distance"])
         food_midpoint_distances.append(placement_stats["food_midpoint_distance"])
@@ -245,6 +267,39 @@ def evaluate_matchup(
         "mean_hub_pair_distance": float(np.mean(hub_pair_distances)),
         "mean_food_midpoint_distance": float(np.mean(food_midpoint_distances)),
     }
+
+
+def _fixed_positions_array(
+    positions: Sequence[Sequence[int]] | None,
+    *,
+    shape: tuple[int, int],
+) -> jax.Array | None:
+    if positions is None:
+        return None
+    return jnp.asarray(positions, dtype=jnp.int32).reshape(shape)
+
+
+def _reset_eval_batch(
+    *,
+    args: argparse.Namespace,
+    env: JaxAdversarialAntByteEnv,
+    key: jax.Array,
+    fixed_hub_positions: jax.Array | None,
+    fixed_food_positions: jax.Array | None,
+) -> tuple[Any, dict[str, jax.Array]]:
+    if fixed_hub_positions is None and fixed_food_positions is None:
+        return reset_batch(args=args, env=env, key=key)
+    if int(args.num_envs) != 1:
+        raise ValueError("fixed evaluation layouts require num_envs=1.")
+    state, obs, _ = env.reset(
+        key,
+        hub_pos=fixed_hub_positions,
+        food_positions=fixed_food_positions,
+    )
+    return (
+        jax.tree_util.tree_map(lambda value: value[None, ...], state),
+        {name: value[None, ...] for name, value in obs.items()},
+    )
 
 
 def _placement_stats(states: Any) -> dict[str, float]:
