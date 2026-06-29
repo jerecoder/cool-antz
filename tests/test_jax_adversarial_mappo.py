@@ -437,6 +437,82 @@ def test_one_update_adversarial_training_leaves_frozen_opponent_params_unchanged
         np.testing.assert_allclose(np.asarray(actual), np.asarray(expected))
 
 
+def test_freeze_actor_update_only_changes_critic_params() -> None:
+    train_args = _small_args()
+    freeze_args = _small_args(["--freeze-actor"])
+    env = _env(max_steps=train_args.max_steps)
+    params, opponent_params, states, obs, _, _ = _params_for_args(train_args, env)
+
+    _, _, rollout = collect_rollout(
+        args=train_args,
+        env=env,
+        learner_params=params,
+        opponent_params=opponent_params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(22),
+    )
+    trained_params, trained_opt_state, _ = update_agent(
+        args=train_args,
+        params=params,
+        opt_state=init_adam_state(params),
+        rollout=rollout,
+        learning_rate=train_args.learning_rate,
+        key=jax.random.PRNGKey(23),
+    )
+    _, _, freeze_rollout = collect_rollout(
+        args=freeze_args,
+        env=env,
+        learner_params=trained_params,
+        opponent_params=opponent_params,
+        states=states,
+        obs=obs,
+        key=jax.random.PRNGKey(24),
+    )
+    updated_params, updated_opt_state, _ = update_agent(
+        args=freeze_args,
+        params=trained_params,
+        opt_state=trained_opt_state,
+        rollout=freeze_rollout,
+        learning_rate=freeze_args.learning_rate,
+        key=jax.random.PRNGKey(25),
+    )
+
+    for actual, expected in zip(
+        jax.tree_util.tree_leaves(
+            (
+                updated_params.actor_body,
+                updated_params.move_head,
+                updated_params.write_head,
+            )
+        ),
+        jax.tree_util.tree_leaves(
+            (trained_params.actor_body, trained_params.move_head, trained_params.write_head)
+        ),
+    ):
+        np.testing.assert_allclose(np.asarray(actual), np.asarray(expected))
+    for value in jax.tree_util.tree_leaves(
+        (
+            updated_opt_state.m.actor_body,
+            updated_opt_state.m.move_head,
+            updated_opt_state.m.write_head,
+            updated_opt_state.v.actor_body,
+            updated_opt_state.v.move_head,
+            updated_opt_state.v.write_head,
+        )
+    ):
+        np.testing.assert_allclose(np.asarray(value), np.zeros_like(np.asarray(value)))
+
+    critic_changed = any(
+        not np.allclose(np.asarray(actual), np.asarray(expected))
+        for actual, expected in zip(
+            jax.tree_util.tree_leaves((updated_params.critic_body, updated_params.value_head)),
+            jax.tree_util.tree_leaves((trained_params.critic_body, trained_params.value_head)),
+        )
+    )
+    assert critic_changed
+
+
 def test_evaluation_matrix_reports_required_matchups() -> None:
     args = _small_args(["--eval-episodes", "1"])
     env = _env(max_steps=args.max_steps)

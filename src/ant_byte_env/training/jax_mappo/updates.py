@@ -110,6 +110,32 @@ def _global_norm(tree: Any) -> jax.Array:
     return jnp.sqrt(sum(jnp.sum(jnp.square(leaf)) for leaf in leaves))
 
 
+def _freeze_actor_grads(grads: JaxMAPPOParams) -> JaxMAPPOParams:
+    return grads._replace(
+        actor_body=jax.tree_util.tree_map(jnp.zeros_like, grads.actor_body),
+        move_head=jax.tree_util.tree_map(jnp.zeros_like, grads.move_head),
+        write_head=jax.tree_util.tree_map(jnp.zeros_like, grads.write_head),
+    )
+
+
+def _freeze_actor_opt_state(state: AdamState) -> AdamState:
+    return state._replace(
+        m=_freeze_actor_grads(state.m),
+        v=_freeze_actor_grads(state.v),
+    )
+
+
+def _restore_actor_params(
+    params: JaxMAPPOParams,
+    actor_source: JaxMAPPOParams,
+) -> JaxMAPPOParams:
+    return params._replace(
+        actor_body=actor_source.actor_body,
+        move_head=actor_source.move_head,
+        write_head=actor_source.write_head,
+    )
+
+
 def init_adam_state(params: JaxMAPPOParams) -> AdamState:
     return AdamState(
         count=jnp.asarray(0, dtype=jnp.int32),
@@ -218,6 +244,9 @@ def update_agent(
             args=args,
         )
         del loss
+        if getattr(args, "freeze_actor", False):
+            grads = _freeze_actor_grads(grads)
+            current_opt_state = _freeze_actor_opt_state(current_opt_state)
         next_params, next_opt_state, grad_norm = adam_update(
             current_params,
             grads,
@@ -225,6 +254,9 @@ def update_agent(
             learning_rate=learning_rate,
             max_grad_norm=args.max_grad_norm,
         )
+        if getattr(args, "freeze_actor", False):
+            next_params = _restore_actor_params(next_params, current_params)
+            next_opt_state = _freeze_actor_opt_state(next_opt_state)
         return (next_params, next_opt_state), metrics._replace(grad_norm=grad_norm)
 
     def epoch_step(

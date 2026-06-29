@@ -38,6 +38,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-size", type=int, default=128)
     parser.add_argument("--training-rollout-temperature", type=float, default=1.0)
+    parser.add_argument("--freeze-actor", action="store_true")
 
     parser.add_argument("--width", type=int, default=5)
     parser.add_argument("--height", type=int, default=5)
