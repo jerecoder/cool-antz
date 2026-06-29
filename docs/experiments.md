@@ -40,6 +40,7 @@ jupyter notebook notebooks/curriculum/forage.ipynb
 | `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50.json` | `notebooks/scaling/full_layout_8ants_half_food_50x50.ipynb` | Full-layout 8-ant half-food continuation on unrestricted 50x50 random layouts. | `runs/notebooks/exploration_to_forage_proximity_sources_full_layout...` |
 | `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50_64env.json` | same family | 64-env continuation of the full-layout 8-ant half-food run. | `runs/notebooks/...64env...` |
 | `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50_shared_writes.json` | `notebooks/scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb` | Full-layout continuation with unrestricted shared write values. | `runs/notebooks/...shared_writes...` |
+| `experiments/adversarial_frozen_opponent_shared_writes_8ants.json` | `notebooks/adversarial/frozen_opponent.ipynb` | CPU-fast frozen-opponent adversarial MAPPO actor-warm-started from the best 8-ant shared-write checkpoint, tuned for the local 12-thread CPU while matching source seed and policy-shape hyperparams. | `runs/notebooks/adversarial_frozen_opponent/warmstart_shared_writes_8ants_cpu_fast/...` |
 | `experiments/exploration_to_forage_full_layout_16ants_half_food_8types_50x50_from_shared_writes.json` | scaling family | 16-ant continuation with 8 per-ant write-channel types from the shared-write checkpoint. | `runs/notebooks/...16ants_half_food_8types...` |
 
 ## Historical Experiments To Preserve

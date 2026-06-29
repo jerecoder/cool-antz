@@ -22,6 +22,10 @@ For the maintained config, artifact, and result map, see
 
 - `communication/bit_curriculum.ipynb` - communication-bit curriculum.
 
+## Adversarial
+
+- `adversarial/frozen_opponent.ipynb` - frozen-opponent adversarial MAPPO probe.
+
 ## Historical
 
 - `historical/map_ant_gated_mlp_curriculum.ipynb` - gated map-and-ant MLP curriculum evidence.

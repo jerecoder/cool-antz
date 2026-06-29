@@ -374,35 +374,59 @@ def _run_train_workflow(
 ) -> int:
     if args.backend != "jax":
         raise ValueError("workflow experiment configs are currently supported for JAX only.")
-    if workflow != "map_ant_gated_curriculum":
-        raise ValueError(f"unknown training workflow {workflow!r}.")
-
-    from ant_byte_env.workflows import map_ant
-
     training_argv = resolve_training_argv(args.config, overrides)
     if not args.dry_run and "--run-dir" not in training_argv:
         run_dir = prepare_run_dir(args.run_root, spec.name)
         training_argv.extend(["--run-dir", str(run_dir)])
 
-    parsed = map_ant.parse_args(training_argv)
-    if args.dry_run:
-        print(
-            json.dumps(
-                map_ant.dry_run_payload(
-                    config_path=args.config,
-                    experiment=spec.name,
-                    argv=training_argv,
-                    args=parsed,
-                ),
-                indent=2,
-                sort_keys=True,
+    if workflow == "map_ant_gated_curriculum":
+        from ant_byte_env.workflows import map_ant
+
+        parsed = map_ant.parse_args(training_argv)
+        if args.dry_run:
+            print(
+                json.dumps(
+                    map_ant.dry_run_payload(
+                        config_path=args.config,
+                        experiment=spec.name,
+                        argv=training_argv,
+                        args=parsed,
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                )
             )
-        )
+            return 0
+
+        result = map_ant.execute_curriculum(parsed)
+        print(json.dumps(map_ant.jsonable(result), indent=2, sort_keys=True))
+        return 0 if result["status"] == "passed" else map_ant.GATE_FAILURE_EXIT_CODE
+
+    if workflow == "adversarial_frozen_opponent":
+        from ant_byte_env.training.jax_mappo.adversarial import cli as adversarial_cli
+        from ant_byte_env.training.jax_mappo.adversarial import runner as adversarial_runner
+
+        parsed = adversarial_cli.parse_args(training_argv)
+        if args.dry_run:
+            print(
+                json.dumps(
+                    adversarial_cli.dry_run_payload(
+                        config_path=args.config,
+                        experiment=spec.name,
+                        argv=training_argv,
+                        args=parsed,
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        metrics = adversarial_runner.main(training_argv)
+        print(json.dumps(_jsonable_metrics(metrics), sort_keys=True))
         return 0
 
-    result = map_ant.execute_curriculum(parsed)
-    print(json.dumps(map_ant.jsonable(result), indent=2, sort_keys=True))
-    return 0 if result["status"] == "passed" else map_ant.GATE_FAILURE_EXIT_CODE
+    raise ValueError(f"unknown training workflow {workflow!r}.")
 
 
 def _backend_parse_args(backend: str) -> Any:
