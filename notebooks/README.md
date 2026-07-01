@@ -31,6 +31,7 @@ walking up to `pyproject.toml`.
 - `scaling/full_layout_8ants_half_food_50x50.ipynb` - larger 8-ant full-layout experiment.
 - `scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb` - 8-ant full-layout continuation with unrestricted write values for every ant.
 - `scaling/full_layout_8ants_half_food_shared_writes_write_cost_50x50.ipynb` - shared-write continuation with a small trainer-side cost for set write bits.
+- `scaling/full_layout_8ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb` - 8-bit shared-write continuation from the best write-cost checkpoint.
 
 ## Baselines
 

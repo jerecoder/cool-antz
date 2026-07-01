@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -77,6 +79,7 @@ def test_checkpoint_training_videos_use_update_specific_seed_offsets(
     tmp_path: Path,
 ) -> None:
     captured_offsets: list[int] = []
+    captured_render_kwargs: list[dict[str, object]] = []
 
     def fake_render_checkpoint(
         checkpoint: Path,
@@ -85,6 +88,7 @@ def test_checkpoint_training_videos_use_update_specific_seed_offsets(
     ) -> Path:
         assert checkpoint.exists()
         captured_offsets.append(int(kwargs["seed_offset"]))
+        captured_render_kwargs.append(dict(kwargs))
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"mp4")
         return output_path
@@ -122,6 +126,18 @@ def test_checkpoint_training_videos_use_update_specific_seed_offsets(
         lambda label, total_updates: FakeProgress(),
     )
     monkeypatch.setattr(training_helpers, "render_checkpoint", fake_render_checkpoint)
+    def fake_save_checkpoint(path: Path, **kwargs: object) -> None:
+        del kwargs
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_bytes(b"checkpoint")
+
+    fake_checkpointing = types.ModuleType("ant_byte_env.training.jax_mappo.checkpointing")
+    fake_checkpointing.save_checkpoint = fake_save_checkpoint
+    monkeypatch.setitem(
+        sys.modules,
+        "ant_byte_env.training.jax_mappo.checkpointing",
+        fake_checkpointing,
+    )
 
     result = training_helpers.run_jax_checkpoint_training(
         run_dir=tmp_path / "run",
@@ -130,6 +146,8 @@ def test_checkpoint_training_videos_use_update_specific_seed_offsets(
         global_update_cap=4,
         train_main=fake_train_main,
         checkpoint_video_interval_updates=2,
+        checkpoint_video_render_style="big_scale_old_three_color",
+        checkpoint_video_show_vision=False,
     )
 
     assert captured_offsets == [
@@ -140,3 +158,7 @@ def test_checkpoint_training_videos_use_update_specific_seed_offsets(
         "model_update_000002_rollout.mp4",
         "model_update_000004_rollout.mp4",
     ]
+    assert {kwargs["render_style"] for kwargs in captured_render_kwargs} == {
+        "big_scale_old_three_color"
+    }
+    assert {kwargs["show_vision"] for kwargs in captured_render_kwargs} == {False}

@@ -51,6 +51,8 @@ def render_rollout_suite(
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
     policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    render_style: str | None = None,
+    show_vision: bool = True,
     reuse_existing: bool = False,
     wandb_project: str | None = None,
     wandb_entity: str | None = None,
@@ -80,16 +82,23 @@ def render_rollout_suite(
     for rollout_index, checkpoint in enumerate(tqdm(checkpoints, desc=progress_desc)):
         seed_offset = NOTEBOOK_ROLLOUT_SEED_OFFSET + rollout_index
         rollout_seed_offsets.append(seed_offset)
+        render_kwargs: dict[str, Any] = {
+            "backend": "jax",
+            "seed_offset": seed_offset,
+            "reuse_existing": reuse_existing,
+            "max_frames": max_frames,
+            "tile_size": tile_size,
+            "policy_temperature": policy_temperature,
+        }
+        if render_style is not None:
+            render_kwargs["render_style"] = render_style
+        if not show_vision:
+            render_kwargs["show_vision"] = False
         rollout_paths.append(
             render_checkpoint(
                 checkpoint,
                 rollout_path_for_checkpoint(checkpoint, media_dir),
-                backend="jax",
-                seed_offset=seed_offset,
-                reuse_existing=reuse_existing,
-                max_frames=max_frames,
-                tile_size=tile_size,
-                policy_temperature=policy_temperature,
+                **render_kwargs,
             )
         )
     wandb_video_keys = _log_rollout_videos_to_wandb(
@@ -110,6 +119,8 @@ def render_rollout_suite(
             "rollout_paths": [str(path) for path in rollout_paths],
             "render_max_frames": max_frames,
             "render_tile_size": tile_size,
+            "render_style": render_style,
+            "render_show_vision": show_vision,
             "rollout_policy_temperature": policy_temperature,
             "reuse_existing": reuse_existing,
         },
@@ -123,6 +134,8 @@ def render_rollout_suite(
             **metadata,
             "render_max_frames": max_frames,
             "render_tile_size": tile_size,
+            "render_style": render_style,
+            "render_show_vision": show_vision,
             "rollout_policy_temperature": policy_temperature,
             "reuse_existing": reuse_existing,
             "wandb_video_keys": wandb_video_keys,
@@ -150,6 +163,8 @@ def render_jax_checkpoint_rollout(
     max_frames: int | None = None,
     tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
     policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+    render_style: str | None = None,
+    show_vision: bool = True,
     reuse_existing: bool = True,
     wandb_project: str | None = None,
     wandb_entity: str | None = None,
@@ -165,14 +180,21 @@ def render_jax_checkpoint_rollout(
         name="policy_temperature",
     )
     media_dir.mkdir(parents=True, exist_ok=True)
+    render_kwargs = {
+        "backend": "jax",
+        "reuse_existing": reuse_existing,
+        "max_frames": max_frames,
+        "tile_size": tile_size,
+        "policy_temperature": policy_temperature,
+    }
+    if render_style is not None:
+        render_kwargs["render_style"] = render_style
+    if not show_vision:
+        render_kwargs["show_vision"] = False
     rollout_path = render_checkpoint(
         checkpoint_path,
         media_dir / rollout_filename,
-        backend="jax",
-        reuse_existing=reuse_existing,
-        max_frames=max_frames,
-        tile_size=tile_size,
-        policy_temperature=policy_temperature,
+        **render_kwargs,
     )
     tracker = WandbTracker(
         project=wandb_project,
@@ -198,6 +220,8 @@ def render_jax_checkpoint_rollout(
             "checkpoint_path": str(checkpoint_path),
             "rollout_path": str(rollout_path),
             "rollout_policy_temperature": policy_temperature,
+            "render_style": render_style,
+            "render_show_vision": show_vision,
             **dict(metadata),
         },
     )

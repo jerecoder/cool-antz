@@ -130,6 +130,8 @@ def test_render_jax_checkpoint_rollout_logs_single_video(
         wandb_mode="offline",
         wandb_video_key="videos/course/policy",
         wandb_step=123,
+        render_style="big_scale_old_three_color",
+        show_vision=False,
     )
 
     rollout_path = tmp_path / "run" / "media" / "policy.mp4"
@@ -140,11 +142,15 @@ def test_render_jax_checkpoint_rollout_logs_single_video(
             "max_frames": None,
             "tile_size": rollout_helpers.NOTEBOOK_ROLLOUT_TILE_SIZE,
             "policy_temperature": 0.5,
+            "render_style": "big_scale_old_three_color",
+            "show_vision": False,
         }
     ]
     assert captured_vault_metadata["checkpoint_path"] == str(checkpoint_path)
     assert captured_vault_metadata["rollout_path"] == str(rollout_path)
     assert captured_vault_metadata["stage"] == "25x25"
+    assert captured_vault_metadata["render_style"] == "big_scale_old_three_color"
+    assert captured_vault_metadata["render_show_vision"] is False
     assert result["rollout_path"] == rollout_path
     assert result["vault_entry_path"] == tmp_path / "run" / "vault" / "entry.md"
     assert result["wandb_video_key"] == "videos/course/policy"

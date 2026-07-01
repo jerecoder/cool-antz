@@ -16,6 +16,7 @@ from ant_byte_env.env import (
     AntByteForagingEnv,
     ObsType,
     max_write_value,
+    normalize_render_style,
     write_value_count,
 )
 
@@ -53,8 +54,10 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         write_while_moving: bool = False,
         per_ant_write_channels: bool = False,
         actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
+        render_style: str | None = None,
         seed: int | None = None,
     ) -> None:
+        normalized_render_style = normalize_render_style(render_style)
         stage_food_count = (
             int(cookies_per_stage) * int(food_source_count) if food_count is None else food_count
         )
@@ -83,6 +86,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
         self.food_count = int(stage_food_count)
         self.food_source_count = int(food_source_count)
         self.render_mode = render_mode
+        self.render_style = normalized_render_style
         self.tile_size = int(tile_size)
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
@@ -312,6 +316,7 @@ class AntByteAutoCurriculumEnv(gym.Env[ObsType, np.ndarray]):
             write_bits=self.write_bits,
             write_while_moving=self.write_while_moving,
             per_ant_write_channels=self.per_ant_write_channels,
+            render_style=self.render_style,
         )
         stage_seed = int(self.np_random.integers(0, np.iinfo(np.int32).max))
         return self._env.reset(seed=stage_seed, options=stage_options)

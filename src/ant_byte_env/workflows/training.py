@@ -30,6 +30,8 @@ def run_jax_checkpoint_training(
     checkpoint_video_tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
     checkpoint_video_policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
     checkpoint_video_wandb_key_prefix: str | None = None,
+    checkpoint_video_render_style: str | None = None,
+    checkpoint_video_show_vision: bool = True,
 ) -> dict[str, Any]:
     checkpoint_path = run_dir / "checkpoints" / checkpoint_name
     stage_metrics: list[dict[str, Any]] = []
@@ -124,6 +126,8 @@ def run_jax_checkpoint_training(
             max_frames=checkpoint_video_max_frames,
             tile_size=checkpoint_video_tile_size,
             policy_temperature=checkpoint_video_policy_temperature,
+            render_style=checkpoint_video_render_style,
+            show_vision=checkpoint_video_show_vision,
         )
         checkpoint_video_checkpoint_paths.append(checkpoint_file)
         checkpoint_video_paths.append(rollout_path)

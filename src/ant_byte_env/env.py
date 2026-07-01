@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Literal
 
 import gymnasium as gym
 import numpy as np
@@ -21,12 +21,31 @@ from ant_byte_env.sprites import load_sprites
 
 
 ObsType = dict[str, np.ndarray]
+RenderStyle = Literal["sprite", "big_scale_old_three_color"]
 
 FOOD_COUNT_COLOR = (255, 250, 235)
 CARRIED_FOOD_COLOR = (188, 112, 45)
 CARRIED_FOOD_HIGHLIGHT = (239, 167, 82)
 OBSTACLE_COLOR = (54, 61, 65)
 OBSTACLE_EDGE_COLOR = (34, 39, 43)
+DEFAULT_RENDER_STYLE: RenderStyle = "sprite"
+BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE: RenderStyle = "big_scale_old_three_color"
+RENDER_STYLE_ALIASES = {
+    "default": DEFAULT_RENDER_STYLE,
+    "sprite": DEFAULT_RENDER_STYLE,
+    "sprites": DEFAULT_RENDER_STYLE,
+    "big_scale_old_three_color": BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE,
+    "original_three_color": BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE,
+    "original_style_three_color_only": BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE,
+}
+OLD_STYLE_BACKGROUND_COLOR = np.array((215, 207, 181), dtype=np.float32)
+OLD_STYLE_NORMAL_ANT_COLOR = (196, 122, 44)
+OLD_STYLE_CARRYING_ANT_COLOR = (239, 201, 82)
+OLD_STYLE_FOOD_OUTER_COLOR = (255, 246, 175)
+OLD_STYLE_FOOD_CENTER_COLOR = (232, 180, 78)
+OLD_STYLE_COLONY_COLOR = (91, 78, 156)
+OLD_STYLE_MARKER_RADIUS_CELLS = 3
+OLD_STYLE_MARKER_CENTER_RADIUS_CELLS = 1
 DEFAULT_WRITE_BITS = 1
 MAX_WRITE_BITS = 8
 WRITE_VALUE_COUNT = 2
@@ -99,6 +118,21 @@ def food_alpha(remaining: int, initial: int) -> int:
         return 0
     ratio = min(1.0, max(0.0, remaining / initial))
     return int(72 + 183 * ratio)
+
+
+def normalize_render_style(render_style: str | None) -> RenderStyle:
+    """Return the canonical renderer style name."""
+
+    if render_style is None:
+        return DEFAULT_RENDER_STYLE
+    key = str(render_style).strip().lower().replace("-", "_")
+    try:
+        return RENDER_STYLE_ALIASES[key]
+    except KeyError as exc:
+        supported = ", ".join(sorted(RENDER_STYLE_ALIASES))
+        raise ValueError(
+            f"Unsupported render_style: {render_style!r}. Supported styles: {supported}."
+        ) from exc
 
 
 def facing_rotation_degrees(facing: int) -> int:
@@ -175,8 +209,10 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         maze_wall_width: int = 1,
         maze_seed: int = 0,
         maze_layout_count: int = 64,
+        render_style: str | None = DEFAULT_RENDER_STYLE,
         seed: int | None = None,
     ) -> None:
+        normalized_render_style = normalize_render_style(render_style)
         self._validate_constructor_args(
             width=width,
             height=height,
@@ -205,6 +241,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.food_source_count = food_source_count
         self.max_steps = max_steps
         self.render_mode = render_mode
+        self.render_style = normalized_render_style
         self.tile_size = tile_size
         self.random_food = random_food
         self.random_hub = bool(random_hub)
@@ -437,6 +474,21 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
     def render(self) -> np.ndarray | None:
         if self.render_mode is None:
             return None
+        if self.render_style == BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE:
+            frame_array = self._draw_big_scale_old_three_color_frame()
+            if self.render_mode == "human":
+                self._init_flat_rendering()
+                assert self._window is not None
+                assert self._clock is not None
+                pygame.event.pump()
+                surface = pygame.surfarray.make_surface(
+                    np.transpose(frame_array, axes=(1, 0, 2))
+                )
+                self._window.blit(surface, (0, 0))
+                pygame.display.flip()
+                self._clock.tick(self.metadata["render_fps"])
+                return None
+            return frame_array
         self._init_rendering()
         frame = self._draw_frame()
 
@@ -853,6 +905,88 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             self._window = pygame.display.set_mode(size)
             pygame.display.set_caption("AntByteForaging-v0")
             self._clock = pygame.time.Clock()
+
+    def _init_flat_rendering(self) -> None:
+        if self._window is not None and self._clock is not None:
+            return
+        pygame.init()
+        size = (self.width * self.tile_size, self.height * self.tile_size)
+        if self.render_mode == "human":
+            self._window = pygame.display.set_mode(size)
+            pygame.display.set_caption("AntByteForaging-v0")
+            self._clock = pygame.time.Clock()
+
+    def _draw_big_scale_old_three_color_frame(self) -> np.ndarray:
+        grid = np.broadcast_to(
+            OLD_STYLE_BACKGROUND_COLOR,
+            (self.height, self.width, 3),
+        ).copy()
+        self._draw_old_style_byte_overlay(grid)
+        grid[self.obstacles] = np.array(OBSTACLE_COLOR, dtype=np.float32)
+        self._draw_old_style_marker(
+            grid,
+            self.hub_pos,
+            color=OLD_STYLE_COLONY_COLOR,
+            radius_cells=OLD_STYLE_MARKER_RADIUS_CELLS,
+        )
+        for y_pos, x_pos in np.argwhere(self.food > 0):
+            position = np.array([int(x_pos), int(y_pos)], dtype=np.int32)
+            self._draw_old_style_marker(
+                grid,
+                position,
+                color=OLD_STYLE_FOOD_OUTER_COLOR,
+                radius_cells=OLD_STYLE_MARKER_RADIUS_CELLS,
+            )
+            self._draw_old_style_marker(
+                grid,
+                position,
+                color=OLD_STYLE_FOOD_CENTER_COLOR,
+                radius_cells=OLD_STYLE_MARKER_CENTER_RADIUS_CELLS,
+            )
+        for position, carrying in zip(self.ants_pos, self.ants_carrying):
+            x_pos, y_pos = int(position[0]), int(position[1])
+            if not (0 <= x_pos < self.width and 0 <= y_pos < self.height):
+                continue
+            grid[y_pos, x_pos] = (
+                OLD_STYLE_CARRYING_ANT_COLOR if carrying else OLD_STYLE_NORMAL_ANT_COLOR
+            )
+        frame = np.repeat(np.repeat(grid, self.tile_size, axis=0), self.tile_size, axis=1)
+        return np.clip(frame, 0, 255).astype(np.uint8)
+
+    def _draw_old_style_byte_overlay(self, grid: np.ndarray) -> None:
+        byte_values = self.bytes.astype(np.float32)
+        mask = byte_values > 0
+        if not np.any(mask):
+            return
+        ratio = byte_values / max(float(self.max_write_value), 1.0)
+        overlay = np.stack(
+            (
+                40.0 + 180.0 * ratio,
+                np.full_like(ratio, 92.0),
+                255.0 - 120.0 * ratio,
+            ),
+            axis=-1,
+        )
+        alpha = 96.0 / 255.0
+        grid[mask] = grid[mask] * (1.0 - alpha) + overlay[mask] * alpha
+
+    def _draw_old_style_marker(
+        self,
+        grid: np.ndarray,
+        position: np.ndarray,
+        *,
+        color: tuple[int, int, int],
+        radius_cells: int,
+    ) -> None:
+        x_pos, y_pos = int(position[0]), int(position[1])
+        radius = int(radius_cells)
+        x0 = max(0, x_pos - radius)
+        x1 = min(self.width, x_pos + radius + 1)
+        y0 = max(0, y_pos - radius)
+        y1 = min(self.height, y_pos + radius + 1)
+        if x0 >= x1 or y0 >= y1:
+            return
+        grid[y0:y1, x0:x1] = np.array(color, dtype=np.float32)
 
     def _draw_frame(self) -> pygame.Surface:
         assert self._canvas is not None

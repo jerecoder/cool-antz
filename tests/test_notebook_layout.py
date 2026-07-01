@@ -14,6 +14,7 @@ EXPECTED_NOTEBOOKS = {
     Path("scaling/full_layout_8ants_half_food_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_shared_writes_write_cost_50x50.ipynb"),
+    Path("scaling/full_layout_8ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb"),
     Path("source_layouts/padded_sources_50x50.ipynb"),
     Path("source_layouts/proximity_sources_50x50.ipynb"),
     Path("source_layouts/scratch_smooth_sources_50x50.ipynb"),
