@@ -44,7 +44,10 @@ def load_checkpoint_for_training(
 ) -> dict[str, Any]:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
     checkpoint = read_checkpoint(path)
-    source_args = checkpoint.get("args", {})
+    target_args = _checkpoint_args_mapping(checkpoint.get("args", {}))
+    source_args = _checkpoint_args_mapping(
+        checkpoint.get("transfer_source_args", target_args)
+    )
     params = checkpoint["params"]
     params, params_changed = adapt_movement_head(params)
     source_critic_architecture = str(source_args.get("critic_architecture", "mlp"))
@@ -106,11 +109,18 @@ def load_checkpoint_for_training(
         target_bits=target_write_bits,
         actor_vision_radius=source_actor_vision_radius,
         source_includes_ants_count=source_shape["include_ants_count"],
+        source_includes_dead_ants=source_shape["include_dead_ants"],
         source_includes_orientation=source_shape["include_orientation"],
         source_includes_agent_identity=source_shape["include_agent_identity"],
         source_layout=source_shape["layout"],
         source_num_ants=source_num_ants,
         target_num_ants=target_num_ants,
+        target_includes_dead_ants=_actor_obs_includes_dead_ants(
+            actor_obs_dim,
+            write_bits=target_write_bits,
+            actor_vision_radius=actor_vision_radius,
+            num_ants=target_num_ants,
+        ),
         write_head_transfer=write_head_transfer,
     )
     params = resize_params_for_actor_vision_radius(
@@ -126,6 +136,12 @@ def load_checkpoint_for_training(
         write_bits=target_write_bits,
         actor_vision_radius=actor_vision_radius,
         num_ants=target_num_ants,
+        include_dead_ants=_actor_obs_includes_dead_ants(
+            actor_obs_dim,
+            write_bits=target_write_bits,
+            actor_vision_radius=actor_vision_radius,
+            num_ants=target_num_ants,
+        ),
     )
     if target_dim + actor_vision_patch_size(actor_vision_radius) == actor_obs_dim:
         params = insert_dead_ant_actor_channel(
@@ -143,7 +159,7 @@ def load_checkpoint_for_training(
         "central_obs_dim": central_obs_dim,
         "actor_obs_dim": actor_obs_dim,
         "args": {
-            **source_args,
+            **target_args,
             "write_bits": target_write_bits,
             "actor_vision_radius": actor_vision_radius,
             "num_ants": target_num_ants,
@@ -151,6 +167,37 @@ def load_checkpoint_for_training(
             "write_head_transfer": write_head_transfer,
         },
     }
+
+
+def _checkpoint_args_mapping(args: Any) -> dict[str, Any]:
+    if isinstance(args, dict):
+        return dict(args)
+    return dict(vars(args))
+
+
+def _actor_obs_includes_dead_ants(
+    actor_obs_dim: int,
+    *,
+    write_bits: int,
+    actor_vision_radius: int,
+    num_ants: int,
+) -> bool:
+    base_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=actor_vision_radius,
+        num_ants=num_ants,
+    )
+    dead_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=actor_vision_radius,
+        num_ants=num_ants,
+        include_dead_ants=True,
+    )
+    if int(actor_obs_dim) == dead_dim:
+        return True
+    if int(actor_obs_dim) == base_dim:
+        return False
+    return False
 
 
 def validate_write_head_transfer(mode: str) -> str:
@@ -166,6 +213,7 @@ def actor_obs_dim_for_bits(
     actor_vision_radius: int,
     num_ants: int = 1,
     include_ants_count: bool = True,
+    include_dead_ants: bool = False,
     include_orientation: bool = True,
     include_agent_identity: bool = True,
     include_current_row: bool = True,
@@ -178,6 +226,8 @@ def actor_obs_dim_for_bits(
     if not include_current_row:
         patch_size = DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius
     grid_channels = write_bits + (4 if include_ants_count else 3)
+    if include_dead_ants:
+        grid_channels += 1
     orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
     identity_features = agent_identity_feature_count(
         num_ants,
@@ -213,6 +263,7 @@ def source_actor_obs_dim(
     actor_vision_radius: int,
     num_ants: int,
     include_ants_count: bool,
+    include_dead_ants: bool,
     include_orientation: bool,
     include_agent_identity: bool,
     source_layout: str,
@@ -222,6 +273,8 @@ def source_actor_obs_dim(
         source_layout=source_layout,
     )
     grid_channels = write_bits + (4 if include_ants_count else 3)
+    if include_dead_ants:
+        grid_channels += 1
     orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
     identity_features = agent_identity_feature_count(
         num_ants,
@@ -247,29 +300,33 @@ def _actor_obs_source_shape(
         ("forward_only", DEFAULT_ACTOR_VISION_WIDTH * actor_vision_radius, False),
     )
     for include_ants_count in (True, False):
-        for include_orientation in (True, False):
-            for include_agent_identity in (True, False):
-                for layout, patch_size, include_current_row in source_layouts:
-                    grid_channels = write_bits + (4 if include_ants_count else 3)
-                    orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
-                    identity_features = agent_identity_feature_count(
-                        num_ants,
-                        include_agent_identity=include_agent_identity,
-                    )
-                    expected_dim = (
-                        patch_size * grid_channels
-                        + identity_features
-                        + 1
-                        + orientation_features
-                    )
-                    if actor_obs_dim == expected_dim:
-                        return {
-                            "include_ants_count": include_ants_count,
-                            "include_orientation": include_orientation,
-                            "include_agent_identity": include_agent_identity,
-                            "include_current_row": include_current_row,
-                            "layout": layout,
-                        }
+        for include_dead_ants in (True, False):
+            for include_orientation in (True, False):
+                for include_agent_identity in (True, False):
+                    for layout, patch_size, include_current_row in source_layouts:
+                        grid_channels = write_bits + (4 if include_ants_count else 3)
+                        if include_dead_ants:
+                            grid_channels += 1
+                        orientation_features = FACING_FEATURE_COUNT if include_orientation else 0
+                        identity_features = agent_identity_feature_count(
+                            num_ants,
+                            include_agent_identity=include_agent_identity,
+                        )
+                        expected_dim = (
+                            patch_size * grid_channels
+                            + identity_features
+                            + 1
+                            + orientation_features
+                        )
+                        if actor_obs_dim == expected_dim:
+                            return {
+                                "include_ants_count": include_ants_count,
+                                "include_dead_ants": include_dead_ants,
+                                "include_orientation": include_orientation,
+                                "include_agent_identity": include_agent_identity,
+                                "include_current_row": include_current_row,
+                                "layout": layout,
+                            }
     return None
 
 
@@ -827,11 +884,13 @@ def expand_params_for_write_bits(
     target_bits: int,
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
+    source_includes_dead_ants: bool = False,
     source_includes_orientation: bool = False,
     source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
     source_num_ants: int = 1,
     target_num_ants: int = 1,
+    target_includes_dead_ants: bool = False,
     write_head_transfer: str = "repeat",
 ) -> JaxMAPPOParams:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
@@ -843,6 +902,7 @@ def expand_params_for_write_bits(
     if (
         target_bits == old_bits
         and source_includes_ants_count
+        and source_includes_dead_ants == target_includes_dead_ants
         and source_includes_orientation
         and source_identity_features == target_identity_features
         and source_layout == "centered"
@@ -858,11 +918,13 @@ def expand_params_for_write_bits(
                 target_bits=target_bits,
                 actor_vision_radius=actor_vision_radius,
                 source_includes_ants_count=source_includes_ants_count,
+                source_includes_dead_ants=source_includes_dead_ants,
                 source_includes_orientation=source_includes_orientation,
                 source_includes_agent_identity=source_includes_agent_identity,
                 source_layout=source_layout,
                 source_num_ants=source_num_ants,
                 target_num_ants=target_num_ants,
+                target_includes_dead_ants=target_includes_dead_ants,
             ),
             params.actor_body[1],
         ),
@@ -988,11 +1050,13 @@ def expand_actor_input_layer(
     target_bits: int,
     actor_vision_radius: int,
     source_includes_ants_count: bool = True,
+    source_includes_dead_ants: bool = False,
     source_includes_orientation: bool = False,
     source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
     source_num_ants: int = 1,
     target_num_ants: int = 1,
+    target_includes_dead_ants: bool = False,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     target_patch_size = actor_vision_patch_size(actor_vision_radius)
@@ -1005,6 +1069,7 @@ def expand_actor_input_layer(
         actor_vision_radius=actor_vision_radius,
         num_ants=source_num_ants,
         include_ants_count=source_includes_ants_count,
+        include_dead_ants=source_includes_dead_ants,
         include_orientation=source_includes_orientation,
         include_agent_identity=source_includes_agent_identity,
         source_layout=source_layout,
@@ -1013,6 +1078,7 @@ def expand_actor_input_layer(
         write_bits=target_bits,
         actor_vision_radius=actor_vision_radius,
         num_ants=target_num_ants,
+        include_dead_ants=target_includes_dead_ants,
     )
     if old_weight.shape[0] != expected_old_dim:
         raise ValueError(
@@ -1023,17 +1089,23 @@ def expand_actor_input_layer(
     old_food = slice(0, source_patch_size)
     if source_includes_ants_count:
         old_ants_count = slice(source_patch_size, 2 * source_patch_size)
-        old_bits_start = 2 * source_patch_size
+        old_dead_ants_count = (
+            slice(2 * source_patch_size, 3 * source_patch_size)
+            if source_includes_dead_ants
+            else None
+        )
+        old_bits_start = (2 + int(source_includes_dead_ants)) * source_patch_size
         old_hub = slice(
-            source_patch_size * (2 + old_bits),
-            source_patch_size * (3 + old_bits),
+            source_patch_size * (2 + int(source_includes_dead_ants) + old_bits),
+            source_patch_size * (3 + int(source_includes_dead_ants) + old_bits),
         )
         old_border = slice(
-            source_patch_size * (3 + old_bits),
-            source_patch_size * (4 + old_bits),
+            source_patch_size * (3 + int(source_includes_dead_ants) + old_bits),
+            source_patch_size * (4 + int(source_includes_dead_ants) + old_bits),
         )
     else:
         old_ants_count = None
+        old_dead_ants_count = None
         old_bits_start = source_patch_size
         old_hub = slice(
             source_patch_size * (1 + old_bits),
@@ -1051,22 +1123,32 @@ def expand_actor_input_layer(
         for bit_index in range(old_bits)
     ]
     new_ants_count = slice(target_patch_size, 2 * target_patch_size)
+    new_dead_ants_count = (
+        slice(2 * target_patch_size, 3 * target_patch_size)
+        if target_includes_dead_ants
+        else None
+    )
+    new_bits_start = (2 + int(target_includes_dead_ants)) * target_patch_size
     new_bits_slices = [
         slice(
-            target_patch_size * (2 + bit_index),
-            target_patch_size * (3 + bit_index),
+            new_bits_start + bit_index * target_patch_size,
+            new_bits_start + (bit_index + 1) * target_patch_size,
         )
         for bit_index in range(old_bits)
     ]
     new_hub = slice(
-        target_patch_size * (2 + target_bits),
-        target_patch_size * (3 + target_bits),
+        target_patch_size * (2 + int(target_includes_dead_ants) + target_bits),
+        target_patch_size * (3 + int(target_includes_dead_ants) + target_bits),
     )
     new_border = slice(
-        target_patch_size * (3 + target_bits),
-        target_patch_size * (4 + target_bits),
+        target_patch_size * (3 + int(target_includes_dead_ants) + target_bits),
+        target_patch_size * (4 + int(target_includes_dead_ants) + target_bits),
     )
-    old_tail_start = source_patch_size * (old_bits + (4 if source_includes_ants_count else 3))
+    old_tail_start = source_patch_size * (
+        old_bits
+        + (4 if source_includes_ants_count else 3)
+        + int(source_includes_dead_ants)
+    )
     old_identity_width = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
@@ -1078,7 +1160,9 @@ def expand_actor_input_layer(
         if source_includes_orientation
         else None
     )
-    new_tail_start = target_patch_size * (target_bits + 4)
+    new_tail_start = target_patch_size * (
+        target_bits + 4 + int(target_includes_dead_ants)
+    )
     new_identity_width = agent_identity_feature_count(target_num_ants)
     new_identity = slice(new_tail_start, new_tail_start + new_identity_width)
     new_carrying = slice(new_identity.stop, new_identity.stop + 1)
@@ -1101,6 +1185,15 @@ def expand_actor_input_layer(
             old_weight,
             source=old_ants_count,
             target=new_ants_count,
+            actor_vision_radius=actor_vision_radius,
+            source_layout=source_layout,
+        )
+    if old_dead_ants_count is not None and new_dead_ants_count is not None:
+        new_weight = copy_actor_patch_channel(
+            new_weight,
+            old_weight,
+            source=old_dead_ants_count,
+            target=new_dead_ants_count,
             actor_vision_radius=actor_vision_radius,
             source_layout=source_layout,
         )

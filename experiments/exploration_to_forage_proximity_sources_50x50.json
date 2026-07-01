@@ -83,7 +83,7 @@
       "50x50_clusters_01_r00_sources_001"
     ],
     "wandb_preview_rollout_count": 2,
-    "rollout_policy_temperature": 0.75,
+    "rollout_policy_temperature": 0.1,
     "wandb_video_max_frames": 1200,
     "reward_scales": {
       "delivery_at_colony": 1.0,

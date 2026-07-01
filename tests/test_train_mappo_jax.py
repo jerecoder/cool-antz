@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import pickle
 import types
 from pathlib import Path
 
@@ -2698,6 +2699,127 @@ def test_jax_strided_cnn_checkpoint_transfer_can_increase_ant_count(tmp_path) ->
         ],
         np.zeros((target_num_ants - source_num_ants, hidden_size), dtype=np.float32),
     )
+    assert checkpoint["central_obs_dim"] == target_central_dim
+    assert checkpoint["actor_obs_dim"] == target_actor_obs_dim
+
+
+def test_jax_strided_cnn_rollout_checkpoint_uses_source_args_for_transfer(
+    tmp_path,
+) -> None:
+    write_bits = 4
+    radius = 1
+    hidden_size = 8
+    source_num_ants = 4
+    target_num_ants = 8
+    obs_height = 8
+    obs_width = 8
+    patch_size = actor_vision_patch_size(radius)
+    source_central_dim = central_obs_dim_with_ants_count(
+        num_ants=source_num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        include_dead_ants=True,
+    )
+    target_central_dim = central_obs_dim_with_ants_count(
+        num_ants=target_num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        include_dead_ants=True,
+    )
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+        num_ants=source_num_ants,
+        include_dead_ants=True,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+        num_ants=target_num_ants,
+        include_dead_ants=True,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=source_central_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+        critic_architecture="strided_cnn",
+        critic_num_ants=source_num_ants,
+        critic_obs_height=obs_height,
+        critic_obs_width=obs_width,
+    )
+    source_path = tmp_path / "rollout_target_ant_count.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=radius,
+            width=obs_width,
+            height=obs_height,
+            obs_width=obs_width,
+            obs_height=obs_height,
+            num_ants=source_num_ants,
+            critic_architecture="strided_cnn",
+            save_model=source_path,
+        ),
+        central_obs_dim=source_central_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="rollout_target_ant_count",
+        metrics={},
+    )
+    with source_path.open("rb") as checkpoint_file:
+        raw_checkpoint = pickle.load(checkpoint_file)
+    source_args = dict(raw_checkpoint["args"])
+    raw_checkpoint["transfer_source_args"] = source_args
+    raw_checkpoint["args"] = {
+        **source_args,
+        "num_ants": target_num_ants,
+        "max_steps": 5000,
+        "food_termination": False,
+    }
+    with source_path.open("wb") as checkpoint_file:
+        pickle.dump(raw_checkpoint, checkpoint_file)
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=target_central_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=write_bits,
+        actor_vision_radius=radius,
+        target_num_ants=target_num_ants,
+        target_critic_architecture="strided_cnn",
+    )
+
+    transferred = checkpoint["params"]
+    source_actor_weight = np.asarray(source_params.actor_body[0].weight)
+    target_actor_weight = np.asarray(transferred.actor_body[0].weight)
+    source_dead = slice(2 * patch_size, 3 * patch_size)
+    target_dead = slice(2 * patch_size, 3 * patch_size)
+    identity_start = patch_size * (write_bits + 5)
+
+    assert transferred.critic_body.entity_dense.weight.shape == (
+        7 * target_num_ants + 4,
+        128,
+    )
+    assert target_actor_weight.shape == (target_actor_obs_dim, hidden_size)
+    np.testing.assert_allclose(
+        target_actor_weight[target_dead],
+        source_actor_weight[source_dead],
+    )
+    np.testing.assert_allclose(
+        target_actor_weight[identity_start : identity_start + source_num_ants],
+        source_actor_weight[identity_start : identity_start + source_num_ants],
+    )
+    np.testing.assert_allclose(
+        target_actor_weight[
+            identity_start + source_num_ants : identity_start + target_num_ants
+        ],
+        np.zeros((target_num_ants - source_num_ants, hidden_size), dtype=np.float32),
+    )
+    assert checkpoint["args"]["num_ants"] == target_num_ants
     assert checkpoint["central_obs_dim"] == target_central_dim
     assert checkpoint["actor_obs_dim"] == target_actor_obs_dim
 
