@@ -89,6 +89,8 @@ def parent_loop(args: argparse.Namespace) -> None:
     for child in (renders_dir, logs_dir):
         child.mkdir(parents=True, exist_ok=True)
     stop_file = out_dir / "STOP"
+    summary_path = out_dir / "summary.jsonl"
+    resume_from_cycle = latest_recorded_cycle(summary_path)
     write_json(
         out_dir / "state.json",
         {
@@ -96,6 +98,7 @@ def parent_loop(args: argparse.Namespace) -> None:
             "interval_seconds": int(args.interval_seconds),
             "max_frames": int(args.max_frames),
             "tile_size": int(args.tile_size),
+            "resume_from_cycle": int(resume_from_cycle),
             "wandb_project": args.wandb_project,
             "wandb_run_id": args.wandb_run_id,
             "wandb_run_name": args.wandb_run_name,
@@ -114,12 +117,14 @@ def parent_loop(args: argparse.Namespace) -> None:
 
     wandb_run = init_wandb(args, out_dir=out_dir, targets=targets)
     try:
-        cycle = 0
-        while args.max_cycles is None or cycle < int(args.max_cycles):
+        cycle = resume_from_cycle
+        cycles_this_run = 0
+        while args.max_cycles is None or cycles_this_run < int(args.max_cycles):
             if stop_file.exists():
                 print("[videos] STOP file found; exiting.", flush=True)
                 break
             cycle += 1
+            cycles_this_run += 1
             cycle_started = time.monotonic()
             for target_index, (target_name, target) in enumerate(targets.items()):
                 if stop_file.exists():
@@ -140,7 +145,7 @@ def parent_loop(args: argparse.Namespace) -> None:
                     logs_dir=logs_dir,
                     stop_file=stop_file,
                 )
-                append_jsonl(out_dir / "summary.jsonl", record)
+                append_jsonl(summary_path, record)
                 if record["status"] == "rendered":
                     upload_video(
                         wandb_run=wandb_run,
@@ -151,7 +156,7 @@ def parent_loop(args: argparse.Namespace) -> None:
                     prune_old_videos(renders_dir, keep=int(args.keep_local_videos))
             elapsed = time.monotonic() - cycle_started
             sleep_for = max(0.0, float(args.interval_seconds) - elapsed)
-            if args.max_cycles is not None and cycle >= int(args.max_cycles):
+            if args.max_cycles is not None and cycles_this_run >= int(args.max_cycles):
                 break
             print(
                 f"[videos] cycle={cycle} elapsed={elapsed:.1f}s sleep={sleep_for:.1f}s",
@@ -300,6 +305,9 @@ def run_render_child(
             code = process.poll()
             if code is not None:
                 return int(code)
+            if output.exists() and metadata.exists():
+                terminate_process_group(process)
+                return 0
             if stop_file.exists():
                 terminate_process_group(process)
                 return 143
@@ -506,6 +514,24 @@ def write_json(path: Path, payload: Any) -> None:
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def latest_recorded_cycle(path: Path) -> int:
+    if not path.exists():
+        return 0
+    latest = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        try:
+            latest = max(latest, int(record.get("cycle", 0)))
+        except (TypeError, ValueError):
+            continue
+    return latest
 
 
 def now_iso() -> str:
