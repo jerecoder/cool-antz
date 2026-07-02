@@ -389,7 +389,7 @@ def main() -> None:
     parser.add_argument("--wandb-entity", default=WANDB_ENTITY)
     parser.add_argument("--wandb-group", default="overnight-efficiency-sweep")
     parser.add_argument("--wandb-name", default="cleanup-temperature-schedule-loop")
-    parser.add_argument("--video-every-seeds", type=int, default=5)
+    parser.add_argument("--video-every-seeds", type=int, default=2)
     parser.add_argument("--video-tile-size", type=int, default=16)
     parser.add_argument("--video-max-frames", type=int, default=1200)
     parser.add_argument("--video-timeout-seconds", type=int, default=900)
