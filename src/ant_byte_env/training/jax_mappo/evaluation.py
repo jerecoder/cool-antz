@@ -22,7 +22,6 @@ from ant_byte_env.training.jax_mappo.core import (
     flatten_agent_actions,
     food_observation_scale,
     get_action_logits,
-    get_action_and_value,
 )
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
@@ -50,6 +49,11 @@ def evaluate_params(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    cleanup_move_temperature: float | None = None,
+    cleanup_fraction_threshold: float = 0.95,
+    stall_cleanup_move_temperature: float | None = None,
+    stall_cleanup_fraction_threshold: float = 0.90,
+    stall_cleanup_patience_steps: int = 100,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     if num_episodes <= 0:
@@ -74,9 +78,29 @@ def evaluate_params(
         write_temperature,
         name="write_temperature",
     )
+    if cleanup_move_temperature is not None:
+        cleanup_move_temperature = _validate_evaluation_temperature(
+            cleanup_move_temperature,
+            name="cleanup_move_temperature",
+        )
+        cleanup_fraction_threshold = _validate_cleanup_fraction_threshold(
+            cleanup_fraction_threshold,
+            name="cleanup_fraction_threshold",
+        )
+    if stall_cleanup_move_temperature is not None:
+        stall_cleanup_move_temperature = _validate_evaluation_temperature(
+            stall_cleanup_move_temperature,
+            name="stall_cleanup_move_temperature",
+        )
+        stall_cleanup_fraction_threshold = _validate_cleanup_fraction_threshold(
+            stall_cleanup_fraction_threshold,
+            name="stall_cleanup_fraction_threshold",
+        )
+        if int(stall_cleanup_patience_steps) < 0:
+            raise ValueError("stall_cleanup_patience_steps must be non-negative.")
     key = jax.random.PRNGKey(eval_args.seed + seed_offset)
     step_fn = jax.jit(
-        lambda current_state, current_obs, action_key: _evaluation_step(
+        lambda current_state, current_obs, action_key, active_move_temperature: _evaluation_step(
             env=env,
             args=eval_args,
             params=params,
@@ -84,7 +108,7 @@ def evaluate_params(
             obs=current_obs,
             key=action_key,
             action_mode=resolved_action_mode,
-            move_temperature=move_temperature,
+            move_temperature=active_move_temperature,
             write_temperature=write_temperature,
         )
     )
@@ -112,15 +136,46 @@ def evaluate_params(
         episode_return = 0.0
         episode_length = int(eval_args.max_steps)
         episode_terminated = False
+        last_delivered = float(np.asarray(state.delivered_food)[0])
+        steps_since_delivery = 0
 
         for step_index in range(int(eval_args.max_steps)):
+            current_delivered = float(np.asarray(state.delivered_food)[0])
+            if current_delivered > last_delivered:
+                last_delivered = current_delivered
+                steps_since_delivery = 0
+            active_move_temperature = move_temperature
+            delivered_fraction = current_delivered / max(
+                float(eval_args.food_count),
+                1.0,
+            )
+            if cleanup_move_temperature is not None:
+                if delivered_fraction >= cleanup_fraction_threshold:
+                    active_move_temperature = cleanup_move_temperature
+            if stall_cleanup_move_temperature is not None:
+                stalled = int(steps_since_delivery) >= int(
+                    stall_cleanup_patience_steps
+                )
+                if stalled and delivered_fraction >= stall_cleanup_fraction_threshold:
+                    active_move_temperature = stall_cleanup_move_temperature
             key, action_key = jax.random.split(key)
-            state, obs, reward, terminated, truncated = step_fn(state, obs, action_key)
+            state, obs, reward, terminated, truncated = step_fn(
+                state,
+                obs,
+                action_key,
+                jnp.asarray(active_move_temperature, dtype=jnp.float32),
+            )
             episode_return += float(np.asarray(reward)[0])
             episode_terminated = bool(np.asarray(terminated)[0])
             if episode_terminated or bool(np.asarray(truncated)[0]):
                 episode_length = step_index + 1
                 break
+            next_delivered = float(np.asarray(state.delivered_food)[0])
+            if next_delivered > current_delivered:
+                last_delivered = next_delivered
+                steps_since_delivery = 0
+            else:
+                steps_since_delivery += 1
 
         delivered = float(np.asarray(state.delivered_food)[0])
         delivered_denominator = max(delivered, 1.0)
@@ -182,6 +237,7 @@ def _evaluation_step(
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -219,6 +275,11 @@ def evaluate_checkpoint(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    cleanup_move_temperature: float | None = None,
+    cleanup_fraction_threshold: float = 0.95,
+    stall_cleanup_move_temperature: float | None = None,
+    stall_cleanup_fraction_threshold: float = 0.90,
+    stall_cleanup_patience_steps: int = 100,
     shuffle_positions: bool = True,
 ) -> dict[str, float]:
     raw_checkpoint = read_checkpoint(checkpoint_path)
@@ -231,6 +292,7 @@ def evaluate_checkpoint(
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
         target_num_ants=args.num_ants,
+        target_agent_identity_types=getattr(args, "agent_identity_types", None),
         target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
     )
     return evaluate_params(
@@ -242,6 +304,11 @@ def evaluate_checkpoint(
         action_mode=action_mode,
         move_temperature=move_temperature,
         write_temperature=write_temperature,
+        cleanup_move_temperature=cleanup_move_temperature,
+        cleanup_fraction_threshold=cleanup_fraction_threshold,
+        stall_cleanup_move_temperature=stall_cleanup_move_temperature,
+        stall_cleanup_fraction_threshold=stall_cleanup_fraction_threshold,
+        stall_cleanup_patience_steps=stall_cleanup_patience_steps,
         shuffle_positions=shuffle_positions,
     )
 
@@ -260,21 +327,12 @@ def _evaluation_actions_for_mode(
     critic_obs_height: int | None = None,
     critic_obs_width: int | None = None,
 ) -> jax.Array:
-    if action_mode in {"deterministic", "sampled"}:
-        actions, _, _, _ = get_action_and_value(
-            params,
-            actor_obs,
-            central_obs,
-            key,
-            deterministic=action_mode == "deterministic",
-            critic_architecture=critic_architecture,
-            critic_num_ants=critic_num_ants,
-            critic_obs_height=critic_obs_height,
-            critic_obs_width=critic_obs_width,
-        )
-        return actions
-
-    move_mode, write_mode = _split_hybrid_action_mode(action_mode)
+    if action_mode == "deterministic":
+        move_mode, write_mode = "greedy", "greedy"
+    elif action_mode == "sampled":
+        move_mode, write_mode = "sampled", "sampled"
+    else:
+        move_mode, write_mode = _split_hybrid_action_mode(action_mode)
     move_logits, write_logits = get_action_logits(params, actor_obs)
     move_key, write_key = jax.random.split(key)
     move_actions = _head_actions_for_mode(
@@ -302,7 +360,8 @@ def _head_actions_for_mode(
     if mode == "greedy":
         return jnp.argmax(logits, axis=-1)
     if mode == "sampled":
-        return jax.random.categorical(key, logits / float(temperature), axis=-1)
+        temperature_value = jnp.asarray(temperature, dtype=logits.dtype)
+        return jax.random.categorical(key, logits / temperature_value, axis=-1)
     if mode == "zero":
         return jnp.zeros(logits.shape[:-1], dtype=jnp.int32)
     raise ValueError(f"unknown evaluation action head mode {mode!r}.")
@@ -336,6 +395,13 @@ def _validate_evaluation_temperature(value: float, *, name: str) -> float:
     if temperature <= 0.0:
         raise ValueError(f"{name} must be positive.")
     return temperature
+
+
+def _validate_cleanup_fraction_threshold(value: float, *, name: str) -> float:
+    threshold = float(value)
+    if threshold < 0.0 or threshold > 1.0:
+        raise ValueError(f"{name} must be in [0, 1].")
+    return threshold
 
 
 def _evaluation_action_mode_default(
@@ -373,6 +439,7 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
