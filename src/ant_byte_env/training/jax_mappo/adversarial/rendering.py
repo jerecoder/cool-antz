@@ -40,7 +40,9 @@ from ant_byte_env.training.jax_mappo.observations import (
 
 import pygame
 
-TEAM_COLORS = ((37, 99, 235), (220, 38, 38))
+FROZEN_OPPONENT_COLOR = (37, 99, 235)
+TRAINED_LEARNER_COLOR = (220, 38, 38)
+TEAM_COLORS = (FROZEN_OPPONENT_COLOR, TRAINED_LEARNER_COLOR)
 
 
 def draw_adversarial_frame(
@@ -48,6 +50,8 @@ def draw_adversarial_frame(
     *,
     tile_size: int = 22,
     max_write_value: int = 1,
+    learner_team: int | None = None,
+    show_role_legend: bool = True,
 ) -> np.ndarray:
     food = np.asarray(obs["food"])
     bytes_grid = np.asarray(obs["bytes"])
@@ -64,6 +68,8 @@ def draw_adversarial_frame(
     canvas = pygame.Surface((width * tile_size, height * tile_size))
     sprites = load_sprites(tile_size)
     font = pygame.font.Font(None, max(10, tile_size // 2))
+    legend_font = pygame.font.Font(None, max(14, int(tile_size * 0.7)))
+    learner_team = None if learner_team is None else int(learner_team)
 
     canvas.fill((215, 207, 181))
 
@@ -89,7 +95,14 @@ def draw_adversarial_frame(
             )
 
     for team, position in enumerate(hubs):
-        _draw_team_hub(canvas, sprites["hub"], np.asarray(position), team, tile_size)
+        _draw_team_hub(
+            canvas,
+            sprites["hub"],
+            np.asarray(position),
+            team,
+            tile_size,
+            learner_team=learner_team,
+        )
 
     for y in range(height):
         for x in range(width):
@@ -120,6 +133,7 @@ def draw_adversarial_frame(
             facing=int(facing[ant_indices[0]]),
             team=team,
             tile_size=tile_size,
+            learner_team=learner_team,
         )
         if np.any(carrying[ant_indices]):
             _draw_carried_food_marker(canvas, position, tile_size)
@@ -131,7 +145,11 @@ def draw_adversarial_frame(
                 count=len(ant_indices),
                 team=team,
                 tile_size=tile_size,
+                learner_team=learner_team,
             )
+
+    if learner_team is not None and show_role_legend:
+        _draw_role_legend(canvas, legend_font, tile_size, learner_team=learner_team)
 
     return np.transpose(pygame.surfarray.array3d(canvas), axes=(1, 0, 2)).copy()
 
@@ -171,8 +189,10 @@ def _draw_team_hub(
     position: np.ndarray,
     team: int,
     tile_size: int,
+    *,
+    learner_team: int | None,
 ) -> None:
-    color = TEAM_COLORS[team % len(TEAM_COLORS)]
+    color = _team_color(team, learner_team=learner_team)
     rect = _tile_rect(position, tile_size)
     pygame.draw.rect(
         canvas,
@@ -199,8 +219,9 @@ def _draw_team_ant(
     facing: int,
     team: int,
     tile_size: int,
+    learner_team: int | None,
 ) -> None:
-    color = TEAM_COLORS[team % len(TEAM_COLORS)]
+    color = _team_color(team, learner_team=learner_team)
     rect = _tile_rect(position, tile_size)
     center = rect.center
     pygame.draw.circle(
@@ -235,8 +256,9 @@ def _draw_stack_count_badge(
     count: int,
     team: int,
     tile_size: int,
+    learner_team: int | None,
 ) -> None:
-    color = TEAM_COLORS[team % len(TEAM_COLORS)]
+    color = _team_color(team, learner_team=learner_team)
     x_pos, y_pos = int(position[0]), int(position[1])
     radius = max(4, tile_size // 5)
     center = (
@@ -247,6 +269,56 @@ def _draw_stack_count_badge(
     label = font.render(str(count), True, (255, 255, 255))
     label_rect = label.get_rect(center=center)
     canvas.blit(label, label_rect)
+
+
+def _team_color(team: int, *, learner_team: int | None) -> tuple[int, int, int]:
+    if learner_team is None:
+        return TEAM_COLORS[int(team) % len(TEAM_COLORS)]
+    if int(team) == int(learner_team):
+        return TRAINED_LEARNER_COLOR
+    return FROZEN_OPPONENT_COLOR
+
+
+def _draw_role_legend(
+    canvas: pygame.Surface,
+    font: pygame.font.Font,
+    tile_size: int,
+    *,
+    learner_team: int,
+) -> None:
+    opponent_team = 1 - int(learner_team)
+    pad = max(5, tile_size // 4)
+    swatch = max(8, tile_size // 2)
+    line_height = max(swatch + 2, font.get_height() + 2)
+    labels = (
+        (TRAINED_LEARNER_COLOR, f"red: trained learner (team {learner_team})"),
+        (FROZEN_OPPONENT_COLOR, f"blue: frozen opponent (team {opponent_team})"),
+    )
+    rendered = [font.render(text, True, (24, 31, 36)) for _, text in labels]
+    width = max(label.get_width() for label in rendered) + swatch + 3 * pad
+    height = len(labels) * line_height + 2 * pad
+    panel = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.rect(panel, (250, 248, 239, 232), panel.get_rect(), border_radius=4)
+    pygame.draw.rect(
+        panel,
+        (54, 48, 38, 210),
+        panel.get_rect(),
+        max(1, tile_size // 20),
+        border_radius=4,
+    )
+    for row, ((color, _), label) in enumerate(zip(labels, rendered, strict=True)):
+        y_pos = pad + row * line_height
+        pygame.draw.rect(
+            panel,
+            color,
+            pygame.Rect(pad, y_pos + (line_height - swatch) // 2, swatch, swatch),
+            border_radius=2,
+        )
+        panel.blit(
+            label,
+            (2 * pad + swatch, y_pos + (line_height - label.get_height()) // 2),
+        )
+    canvas.blit(panel, (pad, pad))
 
 
 def _tile_rect(position: np.ndarray, tile_size: int) -> pygame.Rect:
@@ -302,6 +374,7 @@ def render_adversarial_rollout(
                 states=states,
                 tile_size=tile_size,
                 max_write_value=max_byte_value,
+                learner_team=learner_team,
             )
         )
 
@@ -340,6 +413,7 @@ def render_adversarial_rollout(
                     states=states,
                     tile_size=tile_size,
                     max_write_value=max_byte_value,
+                    learner_team=learner_team,
                 )
             )
             if bool(np.asarray(terminated)[0]) or bool(np.asarray(truncated)[0]):
@@ -395,6 +469,7 @@ def _frame_from_batched_obs(
     states: Any | None = None,
     tile_size: int,
     max_write_value: int = 1,
+    learner_team: int | None = None,
 ) -> np.ndarray:
     frame_obs = {name: np.asarray(value)[0] for name, value in obs.items()}
     if states is not None:
@@ -403,6 +478,7 @@ def _frame_from_batched_obs(
         frame_obs,
         tile_size=tile_size,
         max_write_value=max_write_value,
+        learner_team=learner_team,
     )
 
 

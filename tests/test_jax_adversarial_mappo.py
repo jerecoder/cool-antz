@@ -714,6 +714,13 @@ def test_evaluation_matrix_reports_required_matchups() -> None:
     assert "eval_learner_vs_frozen_mean_hub_pair_distance" in metrics
     assert "eval_learner_vs_frozen_mean_food_midpoint_distance" in metrics
     assert "eval_side_swapped_score_gap" in metrics
+    assert "eval_learner_vs_frozen_side_swap_adjusted_delivery_difference" in metrics
+    assert metrics[
+        "eval_learner_vs_frozen_side_swap_adjusted_delivery_difference"
+    ] == pytest.approx(
+        metrics["eval_learner_vs_frozen_mean_delivery_difference"]
+        - 0.5 * metrics["eval_side_swapped_score_gap"]
+    )
     assert [event[0] for event in progress_events] == [
         "frozen_vs_frozen",
         "learner_vs_frozen",
@@ -915,7 +922,7 @@ def test_adversarial_runner_can_select_best_checkpoint_by_eval_matrix(
                 "--best-model-selection",
                 "eval",
                 "--best-model-metric",
-                "eval_learner_vs_frozen_mean_delivery_difference",
+                "eval_learner_vs_frozen_side_swap_adjusted_delivery_difference",
                 "--best-eval-episodes",
                 "1",
                 "--best-eval-interval",
@@ -928,7 +935,7 @@ def test_adversarial_runner_can_select_best_checkpoint_by_eval_matrix(
     summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
     assert checkpoint["metrics"]["best_model_selection"] == "eval"
     assert checkpoint["metrics"]["best_model_metric_value"] == checkpoint["metrics"][
-        "eval_learner_vs_frozen_mean_delivery_difference"
+        "eval_learner_vs_frozen_side_swap_adjusted_delivery_difference"
     ]
     assert "eval_frozen_vs_frozen_mean_delivery_difference" in checkpoint["metrics"]
     assert summary["best_checkpoint_path"] == str(best_path)
@@ -995,6 +1002,62 @@ def test_adversarial_frame_uses_shared_sprite_renderer() -> None:
     assert np.any(np.all(frame == np.array([37, 99, 235], dtype=np.uint8), axis=-1))
     assert np.any(np.all(frame == np.array([220, 38, 38], dtype=np.uint8), axis=-1))
     assert not np.all(frame == frame[0, 0])
+
+
+def test_adversarial_frame_colors_trained_learner_by_role() -> None:
+    tile_size = 14
+    obs = {
+        "food": np.zeros((4, 4), dtype=np.int32),
+        "bytes": np.zeros((4, 4), dtype=np.int32),
+        "hub_pos": np.array([[1, 1], [2, 1]], dtype=np.int32),
+        "ants_pos": np.array([[1, 2], [2, 2]], dtype=np.int32),
+        "ants_carrying": np.zeros((2,), dtype=bool),
+        "ants_facing": np.full((2,), ACTION_RIGHT, dtype=np.int32),
+    }
+    red = np.array([220, 38, 38], dtype=np.uint8)
+    blue = np.array([37, 99, 235], dtype=np.uint8)
+
+    learner_team0 = draw_adversarial_frame(
+        obs,
+        tile_size=tile_size,
+        learner_team=0,
+        show_role_legend=False,
+    )
+    team0_tile = learner_team0[
+        tile_size : 2 * tile_size,
+        tile_size : 2 * tile_size,
+    ]
+    team1_tile = learner_team0[
+        tile_size : 2 * tile_size,
+        2 * tile_size : 3 * tile_size,
+    ]
+    assert np.sum(np.all(team0_tile == red, axis=-1)) > np.sum(
+        np.all(team0_tile == blue, axis=-1)
+    )
+    assert np.sum(np.all(team1_tile == blue, axis=-1)) > np.sum(
+        np.all(team1_tile == red, axis=-1)
+    )
+
+    learner_team1 = draw_adversarial_frame(
+        obs,
+        tile_size=tile_size,
+        learner_team=1,
+        show_role_legend=False,
+    )
+    team0_tile = learner_team1[
+        tile_size : 2 * tile_size,
+        tile_size : 2 * tile_size,
+    ]
+    team1_tile = learner_team1[
+        tile_size : 2 * tile_size,
+        2 * tile_size : 3 * tile_size,
+    ]
+    assert np.sum(np.all(team0_tile == blue, axis=-1)) > np.sum(
+        np.all(team0_tile == red, axis=-1)
+    )
+    assert np.sum(np.all(team1_tile == red, axis=-1)) > np.sum(
+        np.all(team1_tile == blue, axis=-1)
+    )
 
 
 def test_adversarial_frame_groups_stacked_team_ants() -> None:

@@ -29,6 +29,7 @@ from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams
 
 PolicyKind = Literal["model", "random"]
 EvaluationProgressCallback = Callable[[str, int, int, dict[str, float]], None]
+SIDE_SWAP_SELECTION_GAP_WEIGHT = 0.5
 
 
 def evaluate_matrix(
@@ -136,6 +137,10 @@ def evaluate_matrix(
     metrics["eval_side_swapped_signed_score_gap"] = (
         learner_frozen["mean_delivery_difference"]
         - frozen_learner["mean_delivery_difference"]
+    )
+    metrics["eval_learner_vs_frozen_side_swap_adjusted_delivery_difference"] = (
+        learner_frozen["mean_delivery_difference"]
+        - SIDE_SWAP_SELECTION_GAP_WEIGHT * metrics["eval_side_swapped_score_gap"]
     )
     return metrics
 
