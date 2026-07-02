@@ -42,34 +42,28 @@ SCHEDULES: tuple[dict[str, float | None | str], ...] = (
         "cleanup_fraction_threshold": 0.95,
     },
     {
-        "name": "cleanup0475_at095",
-        "base_move_temperature": 0.525,
-        "cleanup_move_temperature": 0.475,
-        "cleanup_fraction_threshold": 0.95,
-    },
-    {
         "name": "cleanup050_at095",
         "base_move_temperature": 0.525,
         "cleanup_move_temperature": 0.50,
         "cleanup_fraction_threshold": 0.95,
     },
     {
-        "name": "stall_cleanup050_frac090_pat100",
+        "name": "cleanup050_at093",
         "base_move_temperature": 0.525,
-        "cleanup_move_temperature": None,
-        "cleanup_fraction_threshold": 0.95,
-        "stall_cleanup_move_temperature": 0.50,
-        "stall_cleanup_fraction_threshold": 0.90,
-        "stall_cleanup_patience_steps": 100,
+        "cleanup_move_temperature": 0.50,
+        "cleanup_fraction_threshold": 0.93,
     },
     {
-        "name": "stall_cleanup0475_frac090_pat100",
+        "name": "cleanup050_at097",
         "base_move_temperature": 0.525,
-        "cleanup_move_temperature": None,
+        "cleanup_move_temperature": 0.50,
+        "cleanup_fraction_threshold": 0.97,
+    },
+    {
+        "name": "cleanup0515_at095",
+        "base_move_temperature": 0.525,
+        "cleanup_move_temperature": 0.515,
         "cleanup_fraction_threshold": 0.95,
-        "stall_cleanup_move_temperature": 0.475,
-        "stall_cleanup_fraction_threshold": 0.90,
-        "stall_cleanup_patience_steps": 100,
     },
 )
 DEFAULT_OUT_DIR = (
@@ -77,7 +71,7 @@ DEFAULT_OUT_DIR = (
     / "runs"
     / "overnight_efficiency_sweep"
     / "sweep_20260702_003029"
-    / "cleanup_schedule_loop"
+    / "cleanup_focused_schedule_loop"
 )
 
 
