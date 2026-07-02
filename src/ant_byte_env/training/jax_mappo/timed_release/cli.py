@@ -13,10 +13,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--release-interval", type=int, default=150)
     parser.add_argument("--initial-active-ants", type=int, default=1)
+    parser.add_argument("--actor-only-warm-start", action="store_true")
     timed_args, remaining = parser.parse_known_args(argv)
     args = parse_base_args(remaining)
     args.release_interval = int(timed_args.release_interval)
     args.initial_active_ants = int(timed_args.initial_active_ants)
+    args.actor_only_warm_start = bool(timed_args.actor_only_warm_start)
     return _validate_args(args)
 
 

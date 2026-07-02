@@ -34,7 +34,10 @@ from ant_byte_env.training.jax_mappo.timed_release.evaluation import (
     evaluate_params as evaluate_timed_release_params,
 )
 from ant_byte_env.training.jax_mappo.timed_release.rollout import collect_rollout
-from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
+from ant_byte_env.training.jax_mappo.transfer import (
+    load_checkpoint_for_training,
+    warm_start_actor_params,
+)
 from ant_byte_env.training.jax_mappo.updates import init_adam_state, update_agent
 
 
@@ -137,18 +140,30 @@ def main(
     )
     opt_state = init_adam_state(params)
     if args.load_model is not None:
-        checkpoint = load_checkpoint_for_training(
-            args.load_model,
-            central_obs_dim=central_obs_dim,
-            actor_obs_dim=actor_obs_dim,
-            target_write_bits=args.write_bits,
-            actor_vision_radius=args.actor_vision_radius,
-            target_num_ants=args.num_ants,
-            write_head_transfer=args.write_head_transfer,
-            target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
-        )
-        params = checkpoint["params"]
-        opt_state = checkpoint["opt_state"]
+        if bool(getattr(args, "actor_only_warm_start", False)):
+            params = warm_start_actor_params(
+                params,
+                args.load_model,
+                actor_obs_dim=actor_obs_dim,
+                target_write_bits=args.write_bits,
+                actor_vision_radius=args.actor_vision_radius,
+                target_num_ants=args.num_ants,
+                write_head_transfer=args.write_head_transfer,
+            )
+            opt_state = init_adam_state(params)
+        else:
+            checkpoint = load_checkpoint_for_training(
+                args.load_model,
+                central_obs_dim=central_obs_dim,
+                actor_obs_dim=actor_obs_dim,
+                target_write_bits=args.write_bits,
+                actor_vision_radius=args.actor_vision_radius,
+                target_num_ants=args.num_ants,
+                write_head_transfer=args.write_head_transfer,
+                target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
+            )
+            params = checkpoint["params"]
+            opt_state = checkpoint["opt_state"]
 
     tracker = WandbTracker(
         project=args.wandb_project,

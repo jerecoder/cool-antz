@@ -41,6 +41,7 @@ jupyter notebook notebooks/curriculum/forage.ipynb
 | `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50_64env.json` | same family | 64-env continuation of the full-layout 8-ant half-food run. | `runs/notebooks/...64env...` |
 | `experiments/exploration_to_forage_full_layout_8ants_half_food_50x50_shared_writes.json` | `notebooks/scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb` | Full-layout continuation with unrestricted shared write values. | `runs/notebooks/...shared_writes...` |
 | `experiments/exploration_to_forage_full_layout_16ants_half_food_8types_50x50_from_shared_writes.json` | scaling family | 16-ant continuation with 8 per-ant write-channel types from the shared-write checkpoint. | `runs/notebooks/...16ants_half_food_8types...` |
+| `experiments/timed_release_roles_8ants_shared_writes.json` | `notebooks/timed_release/roles.ipynb` | Timed-release cooperative roles probe warm-started from the 8-ant shared-writes checkpoint; see `docs/timed_release_roles.md`. | `runs/notebooks/timed_release_roles_8ants_shared_writes/...` |
 
 ## Historical Experiments To Preserve
 

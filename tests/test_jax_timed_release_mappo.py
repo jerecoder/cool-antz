@@ -178,6 +178,8 @@ def test_timed_release_config_dry_run_validates_workflow(capsys) -> None:
     assert exit_code == 0
     assert payload["workflow"] == "timed_release_roles"
     assert payload["resolved_args"]["release_interval"] == 150
+    assert payload["resolved_args"]["critic_architecture"] == "mlp"
+    assert payload["resolved_args"]["actor_only_warm_start"] is True
     assert payload["release_schedule"]["release_steps"][-1] == 1050
 
 

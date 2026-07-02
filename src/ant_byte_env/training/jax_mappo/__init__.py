@@ -51,6 +51,7 @@ _EXPORTS = {
     "reset_batch": ("curriculum", "reset_batch"),
     "save_checkpoint": ("checkpointing", "save_checkpoint"),
     "update_agent": ("updates", "update_agent"),
+    "warm_start_actor_params": ("transfer", "warm_start_actor_params"),
 }
 
 __all__ = sorted([*_EXPORTS, "write_value_count"])

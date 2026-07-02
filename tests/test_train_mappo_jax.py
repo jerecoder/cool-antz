@@ -51,6 +51,7 @@ from ant_byte_env.training.jax_mappo import (
     reset_batch,
     save_checkpoint,
     write_value_count,
+    warm_start_actor_params,
 )
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.layout_audit import LayoutAuditTracker
@@ -1683,6 +1684,88 @@ def test_jax_checkpoint_load_rejects_critic_architecture_mismatch(tmp_path) -> N
             target_num_ants=args.num_ants,
             target_critic_architecture="resnet_cnn",
         )
+
+
+def test_jax_actor_only_warm_start_keeps_target_critic(tmp_path) -> None:
+    source_args = _rollout_args(["--critic-architecture", "strided_cnn"])
+    source_env = JaxAntByteForagingEnv(
+        width=source_args.width,
+        height=source_args.height,
+        num_ants=source_args.num_ants,
+        food_count=source_args.food_count,
+        food_source_count=source_args.food_sources,
+        max_steps=source_args.max_steps,
+        random_food=source_args.random_food,
+        write_bits=source_args.write_bits,
+    )
+    source_params, _, source_obs = _params_for_args(source_args, source_env)
+    central_obs = build_central_observations(
+        source_obs,
+        food_scale=source_args.food_count,
+        write_bits=source_args.write_bits,
+        obs_width=source_args.obs_width,
+        obs_height=source_args.obs_height,
+    )
+    actor_obs = build_actor_observations(
+        source_obs,
+        food_scale=source_args.food_count,
+        actor_vision_radius=source_args.actor_vision_radius,
+        write_bits=source_args.write_bits,
+        obs_width=source_args.obs_width,
+        obs_height=source_args.obs_height,
+    )
+    checkpoint_path = tmp_path / "strided_actor_source.pkl"
+    save_checkpoint(
+        checkpoint_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=source_args,
+        central_obs_dim=int(central_obs.shape[-1]),
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        run_name="source",
+        metrics={},
+    )
+
+    target_args = _rollout_args(["--critic-architecture", "mlp"])
+    target_params = init_agent_params(
+        jax.random.PRNGKey(99),
+        central_obs_dim=int(central_obs.shape[-1]),
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        hidden_size=target_args.hidden_size,
+        write_value_count=write_value_count(target_args.write_bits),
+        critic_architecture="mlp",
+    )
+    warmed = warm_start_actor_params(
+        target_params,
+        checkpoint_path,
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        target_write_bits=target_args.write_bits,
+        actor_vision_radius=target_args.actor_vision_radius,
+        target_num_ants=target_args.num_ants,
+    )
+
+    for warmed_leaf, source_leaf in zip(
+        jax.tree_util.tree_leaves(warmed.actor_body),
+        jax.tree_util.tree_leaves(source_params.actor_body),
+    ):
+        np.testing.assert_allclose(np.asarray(warmed_leaf), np.asarray(source_leaf))
+    np.testing.assert_allclose(
+        np.asarray(warmed.move_head.weight),
+        np.asarray(source_params.move_head.weight),
+    )
+    np.testing.assert_allclose(
+        np.asarray(warmed.write_head.weight),
+        np.asarray(source_params.write_head.weight),
+    )
+    for warmed_leaf, target_leaf in zip(
+        jax.tree_util.tree_leaves(warmed.critic_body),
+        jax.tree_util.tree_leaves(target_params.critic_body),
+    ):
+        np.testing.assert_allclose(np.asarray(warmed_leaf), np.asarray(target_leaf))
+    np.testing.assert_allclose(
+        np.asarray(warmed.value_head.weight),
+        np.asarray(target_params.value_head.weight),
+    )
 
 
 def test_jax_checkpoint_transfer_expands_write_bits(tmp_path) -> None:
