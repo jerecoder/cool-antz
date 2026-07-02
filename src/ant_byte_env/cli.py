@@ -374,6 +374,35 @@ def _run_train_workflow(
 ) -> int:
     if args.backend != "jax":
         raise ValueError("workflow experiment configs are currently supported for JAX only.")
+    if workflow == "timed_release_roles":
+        from ant_byte_env.training.jax_mappo.timed_release import cli as timed_cli
+        from ant_byte_env.training.jax_mappo.timed_release import runner as timed_runner
+
+        training_argv = resolve_training_argv(args.config, overrides)
+        if not args.dry_run and "--run-dir" not in training_argv:
+            run_dir = prepare_run_dir(args.run_root, spec.name)
+            training_argv.extend(["--run-dir", str(run_dir)])
+
+        parsed = timed_cli.parse_args(training_argv)
+        if args.dry_run:
+            print(
+                json.dumps(
+                    timed_cli.dry_run_payload(
+                        config_path=args.config,
+                        experiment=spec.name,
+                        argv=training_argv,
+                        args=parsed,
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        metrics = timed_runner.main(training_argv)
+        print(json.dumps(_jsonable_metrics(metrics), sort_keys=True))
+        return 0
+
     if workflow != "map_ant_gated_curriculum":
         raise ValueError(f"unknown training workflow {workflow!r}.")
 

@@ -85,6 +85,7 @@ def _flatten_rollout(rollout: Rollout, *, args: argparse.Namespace) -> TrainingB
         actor_obs=rollout.actor_obs.reshape(batch_size, args.num_ants, -1),
         central_obs=rollout.central_obs.reshape(batch_size, -1),
         actions=rollout.actions.reshape(batch_size, args.num_ants, 2),
+        agent_masks=rollout.agent_masks.reshape(batch_size, args.num_ants),
         old_logprobs=rollout.logprobs.reshape(batch_size, args.num_ants),
         advantages=advantages.reshape(batch_size),
         returns=returns.reshape(batch_size),
@@ -172,6 +173,11 @@ def _ppo_loss(
     agent_advantages = advantages[:, None]
     logratio = new_logprobs - batch.old_logprobs
     ratio = jnp.exp(logratio)
+    agent_masks = batch.agent_masks.astype(jnp.float32)
+    mask_denominator = jnp.maximum(jnp.sum(agent_masks), 1.0)
+
+    def masked_mean(values: jax.Array) -> jax.Array:
+        return jnp.sum(values * agent_masks) / mask_denominator
 
     policy_loss_1 = -agent_advantages * ratio
     policy_loss_2 = -agent_advantages * jnp.clip(
@@ -179,12 +185,12 @@ def _ppo_loss(
         1.0 - args.clip_coef,
         1.0 + args.clip_coef,
     )
-    policy_loss = jnp.mean(jnp.maximum(policy_loss_1, policy_loss_2))
+    policy_loss = masked_mean(jnp.maximum(policy_loss_1, policy_loss_2))
     value_loss = 0.5 * jnp.mean(jnp.square(values - batch.returns))
-    entropy_mean = jnp.mean(entropy)
+    entropy_mean = masked_mean(entropy)
     loss = policy_loss + args.vf_coef * value_loss - args.ent_coef * entropy_mean
-    approx_kl = jnp.mean((ratio - 1.0) - logratio)
-    clipfrac = jnp.mean((jnp.abs(ratio - 1.0) > args.clip_coef).astype(jnp.float32))
+    approx_kl = masked_mean((ratio - 1.0) - logratio)
+    clipfrac = masked_mean((jnp.abs(ratio - 1.0) > args.clip_coef).astype(jnp.float32))
     return loss, UpdateMetrics(
         loss=loss,
         policy_loss=policy_loss,

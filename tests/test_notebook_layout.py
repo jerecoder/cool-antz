@@ -17,6 +17,7 @@ EXPECTED_NOTEBOOKS = {
     Path("source_layouts/padded_sources_50x50.ipynb"),
     Path("source_layouts/proximity_sources_50x50.ipynb"),
     Path("source_layouts/scratch_smooth_sources_50x50.ipynb"),
+    Path("timed_release/roles.ipynb"),
 }
 
 

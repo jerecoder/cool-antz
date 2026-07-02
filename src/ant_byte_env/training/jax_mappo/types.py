@@ -68,6 +68,7 @@ class Transition(NamedTuple):
     actor_obs: jax.Array
     central_obs: jax.Array
     actions: jax.Array
+    agent_masks: jax.Array
     logprobs: jax.Array
     rewards: jax.Array
     dones: jax.Array
@@ -108,6 +109,7 @@ class Rollout(NamedTuple):
     actor_obs: jax.Array
     central_obs: jax.Array
     actions: jax.Array
+    agent_masks: jax.Array
     logprobs: jax.Array
     rewards: jax.Array
     dones: jax.Array
@@ -148,6 +150,7 @@ class TrainingBatch(NamedTuple):
     actor_obs: jax.Array
     central_obs: jax.Array
     actions: jax.Array
+    agent_masks: jax.Array
     old_logprobs: jax.Array
     advantages: jax.Array
     returns: jax.Array
@@ -161,4 +164,3 @@ class UpdateMetrics(NamedTuple):
     approx_kl: jax.Array
     clipfrac: jax.Array
     grad_norm: jax.Array
-
