@@ -18,9 +18,11 @@ from ant_byte_env import (
 )
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.core import (
+    CRITIC_GLOBAL_FEATURE_DIM,
     JaxMAPPOParams,
     LinearParams,
     ResNetCriticParams,
+    SetCNNCriticParams,
     StridedCNNCriticParams,
     StructuredMLPCriticParams,
     init_adam_state,
@@ -28,6 +30,7 @@ from ant_byte_env.training.jax_mappo.core import (
 
 WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
 FACING_FEATURE_COUNT = MOVEMENT_ACTION_COUNT - 1
+LEGACY_GLOBAL_FEATURE_DIM = 4
 
 
 def load_checkpoint_for_training(
@@ -38,8 +41,10 @@ def load_checkpoint_for_training(
     target_write_bits: int,
     actor_vision_radius: int,
     target_num_ants: int = 1,
+    target_agent_identity_types: int | None = None,
     write_head_transfer: str = "repeat",
     target_critic_architecture: str = "mlp",
+    reset_optimizer: bool = False,
 ) -> dict[str, Any]:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
     checkpoint = read_checkpoint(path)
@@ -58,6 +63,15 @@ def load_checkpoint_for_training(
         raise ValueError("Checkpoint actor observation dimension does not match this run.")
     if target_write_bits > MAX_WRITE_BITS:
         raise ValueError(f"target_write_bits must be at most {MAX_WRITE_BITS}.")
+    target_args = {
+        **source_args,
+        "write_bits": target_write_bits,
+        "actor_vision_radius": actor_vision_radius,
+        "num_ants": target_num_ants,
+        "agent_identity_types": target_agent_identity_types,
+        "transfer_source_checkpoint": str(path),
+        "write_head_transfer": write_head_transfer,
+    }
     if int(checkpoint["central_obs_dim"]) != central_obs_dim:
         if target_critic_architecture == "mlp":
             params = expand_critic_input_for_ants_count(
@@ -73,7 +87,7 @@ def load_checkpoint_for_training(
             )
         params_changed = True
     if int(checkpoint["actor_obs_dim"]) == actor_obs_dim:
-        if not params_changed:
+        if not params_changed and not reset_optimizer:
             return checkpoint
         return {
             **checkpoint,
@@ -81,16 +95,19 @@ def load_checkpoint_for_training(
             "opt_state": init_adam_state(params),
             "central_obs_dim": central_obs_dim,
             "actor_obs_dim": actor_obs_dim,
+            "args": target_args,
         }
 
     source_actor_obs_dim = int(checkpoint["actor_obs_dim"])
     source_actor_vision_radius = int(source_args.get("actor_vision_radius", actor_vision_radius))
     source_num_ants = int(source_args.get("num_ants", 1))
+    source_agent_identity_types = source_args.get("agent_identity_types")
     source_shape = _actor_obs_source_shape(
         actor_obs_dim=source_actor_obs_dim,
         write_bits=source_write_bits,
         actor_vision_radius=source_actor_vision_radius,
         num_ants=source_num_ants,
+        agent_identity_types=source_agent_identity_types,
     )
     if source_shape is None:
         raise ValueError(
@@ -107,7 +124,9 @@ def load_checkpoint_for_training(
         source_includes_agent_identity=source_shape["include_agent_identity"],
         source_layout=source_shape["layout"],
         source_num_ants=source_num_ants,
+        source_agent_identity_types=source_agent_identity_types,
         target_num_ants=target_num_ants,
+        target_agent_identity_types=target_agent_identity_types,
         write_head_transfer=write_head_transfer,
     )
     params = resize_params_for_actor_vision_radius(
@@ -117,12 +136,15 @@ def load_checkpoint_for_training(
         target_actor_vision_radius=actor_vision_radius,
         source_num_ants=target_num_ants,
         target_num_ants=target_num_ants,
+        source_agent_identity_types=target_agent_identity_types,
+        target_agent_identity_types=target_agent_identity_types,
         source_includes_agent_identity=True,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_write_bits,
         actor_vision_radius=actor_vision_radius,
         num_ants=target_num_ants,
+        agent_identity_types=target_agent_identity_types,
     )
     if target_dim != actor_obs_dim:
         raise ValueError("Transferred actor observation dimension does not match this run.")
@@ -133,14 +155,7 @@ def load_checkpoint_for_training(
         "opt_state": init_adam_state(params),
         "central_obs_dim": central_obs_dim,
         "actor_obs_dim": actor_obs_dim,
-        "args": {
-            **source_args,
-            "write_bits": target_write_bits,
-            "actor_vision_radius": actor_vision_radius,
-            "num_ants": target_num_ants,
-            "transfer_source_checkpoint": str(path),
-            "write_head_transfer": write_head_transfer,
-        },
+        "args": target_args,
     }
 
 
@@ -160,6 +175,7 @@ def actor_obs_dim_for_bits(
     include_orientation: bool = True,
     include_agent_identity: bool = True,
     include_current_row: bool = True,
+    agent_identity_types: int | None = None,
 ) -> int:
     if actor_vision_radius < 0:
         raise ValueError("actor_vision_radius must be non-negative.")
@@ -173,6 +189,7 @@ def actor_obs_dim_for_bits(
     identity_features = agent_identity_feature_count(
         num_ants,
         include_agent_identity=include_agent_identity,
+        agent_identity_types=agent_identity_types,
     )
     return patch_size * grid_channels + identity_features + 1 + orientation_features
 
@@ -181,11 +198,18 @@ def agent_identity_feature_count(
     num_ants: int,
     *,
     include_agent_identity: bool = True,
+    agent_identity_types: int | None = None,
 ) -> int:
     if not include_agent_identity:
         return 0
-    count = int(num_ants)
-    return count if count > 1 else 0
+    if int(num_ants) <= 1:
+        return 0
+    if agent_identity_types is None:
+        return int(num_ants)
+    count = int(agent_identity_types)
+    if count <= 0:
+        raise ValueError("agent_identity_types must be positive.")
+    return count
 
 
 def source_actor_patch_size(*, actor_vision_radius: int, source_layout: str) -> int:
@@ -207,6 +231,7 @@ def source_actor_obs_dim(
     include_orientation: bool,
     include_agent_identity: bool,
     source_layout: str,
+    agent_identity_types: int | None = None,
 ) -> int:
     patch_size = source_actor_patch_size(
         actor_vision_radius=actor_vision_radius,
@@ -217,6 +242,7 @@ def source_actor_obs_dim(
     identity_features = agent_identity_feature_count(
         num_ants,
         include_agent_identity=include_agent_identity,
+        agent_identity_types=agent_identity_types,
     )
     return patch_size * grid_channels + identity_features + 1 + orientation_features
 
@@ -227,6 +253,7 @@ def _actor_obs_source_shape(
     write_bits: int,
     actor_vision_radius: int,
     num_ants: int = 1,
+    agent_identity_types: int | None = None,
 ) -> dict[str, bool | str] | None:
     source_layouts = (
         ("centered", actor_vision_patch_size(actor_vision_radius), True),
@@ -246,6 +273,7 @@ def _actor_obs_source_shape(
                     identity_features = agent_identity_feature_count(
                         num_ants,
                         include_agent_identity=include_agent_identity,
+                        agent_identity_types=agent_identity_types,
                     )
                     expected_dim = (
                         patch_size * grid_channels
@@ -270,10 +298,11 @@ def central_obs_dim_with_ants_count(
     obs_height: int,
     obs_width: int,
     include_orientation: bool = True,
+    global_feature_dim: int = CRITIC_GLOBAL_FEATURE_DIM,
 ) -> int:
     grid_area = obs_height * obs_width
     orientation_features = FACING_FEATURE_COUNT * num_ants if include_orientation else 0
-    return 3 * num_ants + orientation_features + 3 * grid_area + 4
+    return 3 * num_ants + orientation_features + 3 * grid_area + int(global_feature_dim)
 
 
 def legacy_central_obs_dim(*, num_ants: int, obs_height: int, obs_width: int) -> int:
@@ -300,6 +329,13 @@ def expand_critic_input_for_ants_count(
         obs_height=source_height,
         obs_width=source_width,
         include_orientation=False,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
+    )
+    old_current_dim = central_obs_dim_with_ants_count(
+        num_ants=source_num_ants,
+        obs_height=source_height,
+        obs_width=source_width,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
     )
     current_dim = central_obs_dim_with_ants_count(
         num_ants=source_num_ants,
@@ -323,6 +359,13 @@ def expand_critic_input_for_ants_count(
         )
     elif old_weight.shape[0] == no_orientation_dim:
         current_first_layer = expand_central_input_layer_for_orientation(
+            first_layer,
+            num_ants=source_num_ants,
+            obs_height=source_height,
+            obs_width=source_width,
+        )
+    elif old_weight.shape[0] == old_current_dim:
+        current_first_layer = expand_central_input_layer_for_aux_features(
             first_layer,
             num_ants=source_num_ants,
             obs_height=source_height,
@@ -357,11 +400,12 @@ def _infer_num_ants_for_current_central_dim(
     obs_width: int,
 ) -> int:
     grid_area = obs_height * obs_width
-    non_ant_dim = 3 * grid_area + 4
-    ant_dim = int(central_obs_dim) - non_ant_dim
-    if ant_dim <= 0 or ant_dim % 7 != 0:
-        raise ValueError("Checkpoint central observation dimension does not match this run.")
-    return ant_dim // 7
+    for global_feature_dim in (CRITIC_GLOBAL_FEATURE_DIM, LEGACY_GLOBAL_FEATURE_DIM):
+        non_ant_dim = 3 * grid_area + global_feature_dim
+        ant_dim = int(central_obs_dim) - non_ant_dim
+        if ant_dim > 0 and ant_dim % 7 == 0:
+            return ant_dim // 7
+    raise ValueError("Checkpoint central observation dimension does not match this run.")
 
 
 def resize_central_input_layer_for_num_ants(
@@ -385,7 +429,7 @@ def resize_central_input_layer_for_num_ants(
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected central input dim {source_dim}, got {old_weight.shape[0]}.")
-    if source_dim == target_dim:
+    if source_dim == target_dim and int(source_num_ants) == int(target_num_ants):
         return layer
 
     grid_area = obs_height * obs_width
@@ -435,6 +479,35 @@ def resize_central_input_layer_for_num_ants(
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
+def expand_central_input_layer_for_aux_features(
+    layer: LinearParams,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> LinearParams:
+    old_weight = jnp.asarray(layer.weight)
+    old_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
+    )
+    current_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    if old_weight.shape[0] != old_dim:
+        raise ValueError(f"Expected central input dim {old_dim}, got {old_weight.shape[0]}.")
+    if old_dim == current_dim:
+        return layer
+
+    new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
+    new_weight = new_weight.at[:old_dim, :].set(old_weight)
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
 def resize_critic_entity_input_layer_for_num_ants(
     layer: LinearParams,
     *,
@@ -442,11 +515,15 @@ def resize_critic_entity_input_layer_for_num_ants(
     target_num_ants: int,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
-    source_dim = 7 * int(source_num_ants) + 4
-    target_dim = 7 * int(target_num_ants) + 4
-    if old_weight.shape[0] != source_dim:
-        raise ValueError(f"Expected critic entity input dim {source_dim}, got {old_weight.shape[0]}.")
-    if source_dim == target_dim:
+    source_ant_dim = 7 * int(source_num_ants)
+    source_tail_width = int(old_weight.shape[0]) - source_ant_dim
+    target_dim = 7 * int(target_num_ants) + CRITIC_GLOBAL_FEATURE_DIM
+    if source_tail_width <= 0:
+        raise ValueError(
+            "Checkpoint critic entity input dimension does not match its ant count "
+            f"({old_weight.shape[0]} for {source_num_ants} ants)."
+        )
+    if old_weight.shape[0] == target_dim and int(source_num_ants) == int(target_num_ants):
         return layer
 
     shared_ants = min(int(source_num_ants), int(target_num_ants))
@@ -473,7 +550,16 @@ def resize_critic_entity_input_layer_for_num_ants(
             :,
         ]
     )
-    new_weight = new_weight.at[target_facing_end:, :].set(old_weight[source_facing_end:, :])
+    shared_tail_width = min(source_tail_width, CRITIC_GLOBAL_FEATURE_DIM)
+    new_weight = new_weight.at[
+        target_facing_end : target_facing_end + shared_tail_width,
+        :,
+    ].set(
+        old_weight[
+            source_facing_end : source_facing_end + shared_tail_width,
+            :,
+        ]
+    )
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
@@ -518,6 +604,8 @@ def resize_non_mlp_critic_for_ants_count(
         resized_body = critic_body._replace(
             entity_body=(resized_first, critic_body.entity_body[1])
         )
+    elif isinstance(critic_body, SetCNNCriticParams):
+        resized_body = critic_body
     else:
         raise ValueError(
             "Non-MLP critic checkpoint central observation dimension does not match this run."
@@ -561,13 +649,17 @@ def expand_central_input_layer_for_ants_count(
     old_tail = slice(prefix_dim + 2 * grid_area, legacy_dim)
     new_food = slice(new_prefix_dim + grid_area, new_prefix_dim + 2 * grid_area)
     new_bytes = slice(new_prefix_dim + 2 * grid_area, new_prefix_dim + 3 * grid_area)
-    new_tail = slice(new_prefix_dim + 3 * grid_area, current_dim)
+    new_tail_start = new_prefix_dim + 3 * grid_area
+    copied_tail_width = min(old_tail.stop - old_tail.start, current_dim - new_tail_start)
 
     new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
     new_weight = new_weight.at[:prefix_dim, :].set(old_weight[:prefix_dim, :])
     new_weight = new_weight.at[new_food, :].set(old_weight[old_food, :])
     new_weight = new_weight.at[new_bytes, :].set(old_weight[old_bytes, :])
-    new_weight = new_weight.at[new_tail, :].set(old_weight[old_tail, :])
+    new_weight = new_weight.at[
+        new_tail_start : new_tail_start + copied_tail_width,
+        :,
+    ].set(old_weight[old_tail.start : old_tail.start + copied_tail_width, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
@@ -585,6 +677,7 @@ def expand_central_input_layer_for_orientation(
         obs_height=obs_height,
         obs_width=obs_width,
         include_orientation=False,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
     )
     current_dim = central_obs_dim_with_ants_count(
         num_ants=num_ants,
@@ -598,8 +691,12 @@ def expand_central_input_layer_for_orientation(
 
     prefix_dim = 3 * num_ants
     orientation_dim = FACING_FEATURE_COUNT * num_ants
-    old_maps_and_tail = slice(prefix_dim, no_orientation_dim)
-    new_maps_and_tail = slice(prefix_dim + orientation_dim, current_dim)
+    grid_and_old_tail_width = 3 * grid_area + LEGACY_GLOBAL_FEATURE_DIM
+    old_maps_and_tail = slice(prefix_dim, prefix_dim + grid_and_old_tail_width)
+    new_maps_and_tail = slice(
+        prefix_dim + orientation_dim,
+        prefix_dim + orientation_dim + grid_and_old_tail_width,
+    )
 
     new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
     new_weight = new_weight.at[:prefix_dim, :].set(old_weight[:prefix_dim, :])
@@ -625,15 +722,21 @@ def expand_params_for_write_bits(
     source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
     source_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
     target_num_ants: int = 1,
+    target_agent_identity_types: int | None = None,
     write_head_transfer: str = "repeat",
 ) -> JaxMAPPOParams:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
     source_identity_features = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
-    target_identity_features = agent_identity_feature_count(target_num_ants)
+    target_identity_features = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     if (
         target_bits == old_bits
         and source_includes_ants_count
@@ -656,7 +759,9 @@ def expand_params_for_write_bits(
                 source_includes_agent_identity=source_includes_agent_identity,
                 source_layout=source_layout,
                 source_num_ants=source_num_ants,
+                source_agent_identity_types=source_agent_identity_types,
                 target_num_ants=target_num_ants,
+                target_agent_identity_types=target_agent_identity_types,
             ),
             params.actor_body[1],
         ),
@@ -682,13 +787,19 @@ def resize_params_for_actor_vision_radius(
     target_actor_vision_radius: int,
     source_num_ants: int = 1,
     target_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
+    target_agent_identity_types: int | None = None,
     source_includes_agent_identity: bool = True,
 ) -> JaxMAPPOParams:
     source_identity_features = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
-    target_identity_features = agent_identity_feature_count(target_num_ants)
+    target_identity_features = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     if (
         source_actor_vision_radius == target_actor_vision_radius
         and source_identity_features == target_identity_features
@@ -703,6 +814,8 @@ def resize_params_for_actor_vision_radius(
                 target_actor_vision_radius=target_actor_vision_radius,
                 source_num_ants=source_num_ants,
                 target_num_ants=target_num_ants,
+                source_agent_identity_types=source_agent_identity_types,
+                target_agent_identity_types=target_agent_identity_types,
                 source_includes_agent_identity=source_includes_agent_identity,
             ),
             params.actor_body[1],
@@ -756,7 +869,9 @@ def expand_actor_input_layer(
     source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
     source_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
     target_num_ants: int = 1,
+    target_agent_identity_types: int | None = None,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     target_patch_size = actor_vision_patch_size(actor_vision_radius)
@@ -772,11 +887,13 @@ def expand_actor_input_layer(
         include_orientation=source_includes_orientation,
         include_agent_identity=source_includes_agent_identity,
         source_layout=source_layout,
+        agent_identity_types=source_agent_identity_types,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_bits,
         actor_vision_radius=actor_vision_radius,
         num_ants=target_num_ants,
+        agent_identity_types=target_agent_identity_types,
     )
     if old_weight.shape[0] != expected_old_dim:
         raise ValueError(
@@ -834,6 +951,7 @@ def expand_actor_input_layer(
     old_identity_width = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
     old_identity = slice(old_tail_start, old_tail_start + old_identity_width)
     old_carrying = slice(old_identity.stop, old_identity.stop + 1)
@@ -843,7 +961,10 @@ def expand_actor_input_layer(
         else None
     )
     new_tail_start = target_patch_size * (target_bits + 4)
-    new_identity_width = agent_identity_feature_count(target_num_ants)
+    new_identity_width = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     new_identity = slice(new_tail_start, new_tail_start + new_identity_width)
     new_carrying = slice(new_identity.stop, new_identity.stop + 1)
     new_orientation = slice(
@@ -918,6 +1039,8 @@ def resize_actor_input_layer_for_vision_radius(
     target_actor_vision_radius: int,
     source_num_ants: int = 1,
     target_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
+    target_agent_identity_types: int | None = None,
     source_includes_agent_identity: bool = True,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
@@ -926,11 +1049,13 @@ def resize_actor_input_layer_for_vision_radius(
         actor_vision_radius=source_actor_vision_radius,
         num_ants=source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
         actor_vision_radius=target_actor_vision_radius,
         num_ants=target_num_ants,
+        agent_identity_types=target_agent_identity_types,
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected actor input dim {source_dim}, got {old_weight.shape[0]}.")
@@ -962,8 +1087,12 @@ def resize_actor_input_layer_for_vision_radius(
     source_identity_width = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
-    target_identity_width = agent_identity_feature_count(target_num_ants)
+    target_identity_width = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     if source_identity_width > 0 and target_identity_width > 0:
         shared_identity_width = min(source_identity_width, target_identity_width)
         new_weight = new_weight.at[

@@ -10,6 +10,7 @@ import jax.numpy as jnp
 
 from ant_byte_env import write_value_count
 from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
+from ant_byte_env.jax_distance_autocurriculum_env import JaxAntByteDistanceCurriculumEnv
 from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
 from ant_byte_env.wandb_tracking import WandbTracker
@@ -44,6 +45,8 @@ def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
         "approx_kl": float(metrics.approx_kl),
         "clipfrac": float(metrics.clipfrac),
         "grad_norm": float(metrics.grad_norm),
+        "actor_grad_norm": float(metrics.actor_grad_norm),
+        "critic_grad_norm": float(metrics.critic_grad_norm),
     }
 
 
@@ -130,7 +133,9 @@ def _rollout_stats(rollout: Rollout) -> dict[str, float]:
     return stats
 
 
-def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
+def _make_env(
+    args: Any,
+) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv | JaxAntByteDistanceCurriculumEnv:
     common_kwargs = {
         "width": args.width,
         "height": args.height,
@@ -156,6 +161,24 @@ def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
             start_size=args.autocurriculum_start_size,
             success_cookies=args.autocurriculum_success_cookies,
         )
+    if bool(getattr(args, "distance_autocurriculum", False)):
+        return JaxAntByteDistanceCurriculumEnv(
+            **common_kwargs,
+            start_distance=int(getattr(args, "distance_autocurriculum_start_distance", 2)),
+            max_distance=int(getattr(args, "distance_autocurriculum_max_distance", 128)),
+            distance_multiplier=int(getattr(args, "distance_autocurriculum_multiplier", 2)),
+            success_cookies=(
+                int(args.distance_autocurriculum_success_cookies)
+                if int(getattr(args, "distance_autocurriculum_success_cookies", 0)) > 0
+                else None
+            ),
+            layout_margin=int(getattr(args, "layout_margin", 0)),
+            hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
+            maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
+            maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
+            maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
+            maze_seed=int(getattr(args, "maze_seed", 0)),
+        )
     return JaxAntByteForagingEnv(
         **common_kwargs,
         layout_margin=int(getattr(args, "layout_margin", 0)),
@@ -170,16 +193,41 @@ def _make_env(args: Any) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
 
 
 def _autocurriculum_state_stats(states: Any) -> dict[str, float]:
-    if not hasattr(states, "active_size"):
-        return {}
-    return {
-        "autocurriculum_mean_active_size": float(jnp.mean(states.active_size.astype(jnp.float32))),
-        "autocurriculum_max_active_size": float(jnp.max(states.active_size)),
-        "autocurriculum_mean_stage_delivered_food": float(
-            jnp.mean(states.stage_delivered_food.astype(jnp.float32))
-        ),
-        "autocurriculum_completed_stages": float(jnp.sum(states.completed_stages)),
-    }
+    stats: dict[str, float] = {}
+    if hasattr(states, "active_size"):
+        stats.update(
+            {
+                "autocurriculum_mean_active_size": float(
+                    jnp.mean(states.active_size.astype(jnp.float32))
+                ),
+                "autocurriculum_max_active_size": float(jnp.max(states.active_size)),
+                "autocurriculum_mean_stage_delivered_food": float(
+                    jnp.mean(states.stage_delivered_food.astype(jnp.float32))
+                ),
+                "autocurriculum_completed_stages": float(jnp.sum(states.completed_stages)),
+            }
+        )
+    if hasattr(states, "stage_distance"):
+        stats.update(
+            {
+                "distance_curriculum_mean_stage_distance": float(
+                    jnp.mean(states.stage_distance.astype(jnp.float32))
+                ),
+                "distance_curriculum_min_stage_distance": float(
+                    jnp.min(states.stage_distance)
+                ),
+                "distance_curriculum_max_stage_distance": float(
+                    jnp.max(states.stage_distance)
+                ),
+                "distance_curriculum_mean_stage_delivered_food": float(
+                    jnp.mean(states.stage_delivered_food.astype(jnp.float32))
+                ),
+                "distance_curriculum_completed_stages": float(
+                    jnp.sum(states.completed_stages)
+                ),
+            }
+        )
+    return stats
 
 
 def _should_report_update(*, update: int, num_updates: int, log_interval: int) -> bool:
@@ -272,6 +320,7 @@ def main(
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -297,8 +346,10 @@ def main(
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
             target_num_ants=args.num_ants,
+            target_agent_identity_types=getattr(args, "agent_identity_types", None),
             write_head_transfer=args.write_head_transfer,
             target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
+            reset_optimizer=bool(getattr(args, "reset_optimizer_on_load", False)),
         )
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]
@@ -352,6 +403,9 @@ def main(
 
     try:
         for update in range(1, num_updates + 1):
+            if bool(getattr(args, "reset_env_each_update", False)):
+                key, reset_key = jax.random.split(key)
+                states, obs = reset_fn(reset_key)
             key, rollout_key, update_key = jax.random.split(key, 3)
             states, obs, rollout = rollout_fn(params, states, obs, rollout_key)
             learning_rate = args.learning_rate

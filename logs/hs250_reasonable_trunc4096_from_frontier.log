@@ -1,0 +1,47 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run a9dcpq6w
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in runs/training/hs250_reasonable_trunc4096_from_frontier/overnight-20260703T0245Z/wandb/run-20260703_132538-a9dcpq6w
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run hs250-reasonable-trunc4096-from-frontier-overnight
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/a9dcpq6w
+wandb: uploading artifact jax-mappo-checkpoint; uploading artifact jax-mappo-best-checkpoint; updating run metadata
+wandb: uploading artifact jax-mappo-checkpoint; uploading artifact jax-mappo-best-checkpoint
+wandb: uploading artifact jax-mappo-checkpoint; uploading artifact jax-mappo-best-checkpoint; uploading wandb-summary.json; uploading config.yaml
+wandb: uploading artifact jax-mappo-checkpoint; uploading artifact jax-mappo-best-checkpoint; uploading history steps 613-615, summary
+wandb: uploading artifact jax-mappo-checkpoint; uploading artifact jax-mappo-best-checkpoint
+wandb: uploading data
+wandb:
+wandb: Run history:
+wandb:                      actor_grad_norm ▃▁▃▄▂▂▃▁▃▃▃▂▃▂▆▃▃▃▅▂▃▅▄▃▂▁▃▁▄▄▅▅▅▅▄▅▃▆▄█
+wandb:    applied_write_action_nonzero_rate ▂▂▁▃▃▄▃▃▄▄▄▄▄▅▄▄▄▅▅▅▅▅▆▆▆▇▇▇▇███████████
+wandb:                            approx_kl ▁▂▁▁▂▂▂▂▂▂▂▁▂▁▂▁▂▂▁▃▂▃▂▂▃▂▂█▂▂▂▂▃▃▂▄▇▆▄▂
+wandb:              best_model_metric_value ▁▂▂▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▄▄▄▄▄█████
+wandb:   carrying_write_action_nonzero_rate ▁▂▂▂▂▃▄▄▄▄▄▄▄▄▄▅▅▅▅▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇█████
+wandb:                             clipfrac ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                   completed_episodes ▁▁▁▁█▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁
+wandb:                     critic_grad_norm ▁▁▁▁▁▁▂▁▁▁▁▁▁▁▂▁▁▁▂▁▃▁▁▁▁▁▁▁▅▁▁▂▁▂▁▁█▁▁▁
+wandb:                      delivery_events ▇▂▁▂▁▁▂▁▄▁▁▁▂▁▃▁▁▂▁▁▂▂▂█▂▃▁▂▁▁▁▁▁▁▁▂▂▁▂▂
+wandb: distance_curriculum_completed_stages ▁▁▁█▁▁█▁█▁██▁██████▁█▁▁███▁▁█▁▁▁█▁█▁█▁█▁
+wandb:                                  +44 ...
+wandb:
+wandb: Run summary:
+wandb:                      actor_grad_norm 0.05948
+wandb:    applied_write_action_nonzero_rate 0.77156
+wandb:                            approx_kl 1e-05
+wandb:              best_model_metric_value 685
+wandb:   carrying_write_action_nonzero_rate 0.73625
+wandb:                             clipfrac 0
+wandb:                   completed_episodes 1
+wandb:                     critic_grad_norm 19.80608
+wandb:                      delivery_events 13
+wandb: distance_curriculum_completed_stages 0
+wandb:                                  +44 ...
+wandb:
+wandb: 🚀 View run hs250-reasonable-trunc4096-from-frontier-overnight at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/a9dcpq6w
+wandb: ⭐️ View project at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: Synced 4 W&B file(s), 0 media file(s), 4 artifact file(s) and 0 other file(s)
+wandb: Find logs at: runs/training/hs250_reasonable_trunc4096_from_frontier/overnight-20260703T0245Z/wandb/run-20260703_132538-a9dcpq6w/logs
+{"actor_grad_norm": 0.059482231736183167, "applied_write_action_nonzero_rate": 0.7715625166893005, "approx_kl": 5.3216922424326185e-06, "carrying_write_action_nonzero_rate": 0.736248254776001, "clipfrac": 0.0, "completed_episodes": 1.0, "critic_grad_norm": 19.806076049804688, "delivery_events": 13.0, "distance_curriculum_completed_stages": 0.0, "distance_curriculum_max_stage_distance": 8.0, "distance_curriculum_mean_stage_delivered_food": 0.0, "distance_curriculum_mean_stage_distance": 8.0, "distance_curriculum_min_stage_distance": 8.0, "empty_write_action_nonzero_rate": 0.7939262986183167, "entropy": 3.641805648803711, "env_return": 13.0, "episode_return": 6.558750152587891, "final_mean_border_moat_cost": 0.0, "final_mean_nonzero_byte_fraction": 0.0706079974770546, "final_mean_nonzero_byte_tiles": 4413.0, "final_mean_remaining_food": 4577.0, "final_mean_viewed_cell_count": 7064.0, "final_mean_viewed_cell_fraction": 0.11302399635314941, "final_mean_visible_border_cells": 69.0, "final_mean_visited_cell_count": 6232.0, "final_mean_visited_cell_fraction": 0.09971199929714203, "global_step": 786432.0, "grad_norm": 19.806304931640625, "learning_rate": 2.5e-05, "loss": 0.031712889671325684, "mean_border_moat_cost": 0.0, "mean_carrying_ants": 193.83203125, "mean_nonzero_byte_fraction": 0.06957900524139404, "mean_nonzero_byte_tiles": 4348.6875, "mean_overwrites_per_env_step": 41.984375, "mean_viewed_cell_count": 6984.27734375, "mean_viewed_cell_fraction": 0.11174843460321426, "mean_visible_border_cells": 68.24609375, "mean_visited_cell_count": 6154.84765625, "mean_visited_cell_fraction": 0.0984775573015213, "mean_write_action_value": 2.8867735862731934, "mean_write_attempts_per_env_step": 499.79296875, "nonzero_writes_per_delivery": 7596.92333984375, "pickup_events": 4.0, "policy_loss": -3.254413968534209e-05, "terminated_episodes": 0.0, "truncated_episodes": 1.0, "value_loss": 0.42670848965644836, "viewed_cell_events": 170.0, "visited_cell_events": 163.0, "write_action_nonzero_rate": 0.7715625166893005}

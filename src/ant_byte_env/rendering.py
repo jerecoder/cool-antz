@@ -290,6 +290,7 @@ def render_jax_checkpoint(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -300,6 +301,7 @@ def render_jax_checkpoint(
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
             target_num_ants=int(getattr(args, "num_ants", 1)),
+            target_agent_identity_types=getattr(args, "agent_identity_types", None),
             target_critic_architecture=_target_critic_architecture(critic_kwargs),
         )
         params = jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
@@ -431,6 +433,7 @@ def _compile_jax_action_selector(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )

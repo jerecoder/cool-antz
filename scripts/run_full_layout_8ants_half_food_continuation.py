@@ -134,6 +134,7 @@ def verify_first_stage(plan: dict[str, Any]) -> dict[str, Any]:
         target_write_bits=parsed_args.write_bits,
         actor_vision_radius=parsed_args.actor_vision_radius,
         target_num_ants=parsed_args.num_ants,
+        target_agent_identity_types=getattr(parsed_args, "agent_identity_types", None),
         write_head_transfer=parsed_args.write_head_transfer,
         target_critic_architecture=parsed_args.critic_architecture,
     )

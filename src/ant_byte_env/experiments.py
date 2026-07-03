@@ -55,8 +55,9 @@ def config_args_to_argv(args: dict[str, Any]) -> list[str]:
             argv.append(option)
             continue
         if isinstance(value, list):
-            for item in value:
-                argv.extend([option, str(item)])
+            if value:
+                argv.append(option)
+                argv.extend(str(item) for item in value)
             continue
         argv.extend([option, str(value)])
     return argv

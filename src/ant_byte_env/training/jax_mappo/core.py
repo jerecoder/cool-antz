@@ -28,6 +28,11 @@ from ant_byte_env.env import (
 from ant_byte_env.jax_env import JaxObs
 
 
+CRITIC_AUX_FEATURE_DIM = 12
+CRITIC_GLOBAL_FEATURE_DIM = 4 + CRITIC_AUX_FEATURE_DIM
+SET_CNN_ANT_FEATURE_DIM = 7
+
+
 class LinearParams(NamedTuple):
     weight: jax.Array
     bias: jax.Array
@@ -64,6 +69,16 @@ class StridedCNNCriticParams(NamedTuple):
     spatial_dense: LinearParams
     entity_dense: LinearParams
     fusion_dense: LinearParams
+
+
+class SetCNNCriticParams(NamedTuple):
+    conv_5x5: ConvParams
+    conv_3x3_a: ConvParams
+    conv_3x3_b: ConvParams
+    spatial_dense: LinearParams
+    ant_encoder: tuple[LinearParams, LinearParams]
+    global_dense: LinearParams
+    fusion_body: tuple[LinearParams, LinearParams]
 
 
 class StructuredMLPCriticParams(NamedTuple):
@@ -183,6 +198,14 @@ class UpdateMetrics(NamedTuple):
     approx_kl: jax.Array
     clipfrac: jax.Array
     grad_norm: jax.Array
+    actor_grad_norm: jax.Array
+    critic_grad_norm: jax.Array
+
+
+class GradientNorms(NamedTuple):
+    global_norm: jax.Array
+    actor_norm: jax.Array
+    critic_norm: jax.Array
 
 
 def _normalize_positions(positions: jax.Array, *, height: int, width: int) -> jax.Array:
@@ -209,16 +232,29 @@ def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
     )
 
 
-def _agent_identity_features(ants_pos: jax.Array) -> jax.Array:
+def _agent_identity_features(
+    ants_pos: jax.Array,
+    *,
+    agent_identity_types: int | None = None,
+) -> jax.Array:
     batch_size, num_agents = ants_pos.shape[:2]
     if num_agents <= 1:
         return jnp.zeros((batch_size, num_agents, 0), dtype=jnp.float32)
+    if agent_identity_types is None:
+        identity_count = num_agents
+    else:
+        identity_count = int(agent_identity_types)
+        if identity_count <= 0:
+            raise ValueError("agent_identity_types must be positive.")
     identity = jax.nn.one_hot(
-        jnp.arange(num_agents),
-        num_agents,
+        jnp.arange(num_agents) % identity_count,
+        identity_count,
         dtype=jnp.float32,
     )
-    return jnp.broadcast_to(identity[None, :, :], (batch_size, num_agents, num_agents))
+    return jnp.broadcast_to(
+        identity[None, :, :],
+        (batch_size, num_agents, identity_count),
+    )
 
 
 def _ants_facing_or_default(obs: JaxObs) -> jax.Array:
@@ -267,6 +303,108 @@ def _pad_grid(grid: jax.Array, *, height: int, width: int) -> jax.Array:
         return grid
     padded = jnp.zeros((grid.shape[0], height, width), dtype=grid.dtype)
     return padded.at[:, : grid.shape[1], : grid.shape[2]].set(grid)
+
+
+def _obs_scalar_column(obs: JaxObs, key: str, *, batch_size: int) -> jax.Array:
+    value = obs.get(key)
+    if value is None:
+        return jnp.zeros((batch_size, 1), dtype=jnp.float32)
+    array = jnp.asarray(value, dtype=jnp.float32).reshape((batch_size, -1))
+    return array[:, :1]
+
+
+def _critic_aux_features(
+    obs: JaxObs,
+    *,
+    food: jax.Array,
+    bytes_grid: jax.Array,
+    ants_pos: jax.Array,
+    ants_carrying: jax.Array,
+    hub_pos: jax.Array,
+    food_scale: int | float,
+    target_height: int,
+    target_width: int,
+) -> jax.Array:
+    batch_size, current_height, current_width = food.shape
+    map_distance = max(float(target_width + target_height - 2), 1.0)
+    stage_distance = jnp.clip(
+        _obs_scalar_column(
+            obs,
+            "distance_curriculum_stage_distance",
+            batch_size=batch_size,
+        )
+        / map_distance,
+        0.0,
+        1.0,
+    )
+    stage_index = jnp.clip(
+        _obs_scalar_column(
+            obs,
+            "distance_curriculum_stage_index",
+            batch_size=batch_size,
+        )
+        / 16.0,
+        0.0,
+        1.0,
+    )
+
+    food_mass = jnp.sum(food, axis=(1, 2), keepdims=False)[:, None]
+    remaining_food = jnp.clip(food_mass / max(float(food_scale), 1.0), 0.0, 1.0)
+    carrier_fraction = jnp.mean(ants_carrying.astype(jnp.float32), axis=1, keepdims=True)
+    nonzero_byte_fraction = (
+        jnp.sum((bytes_grid > 0).astype(jnp.float32), axis=(1, 2), keepdims=False)[:, None]
+        / max(float(current_height * current_width), 1.0)
+    )
+
+    normalized_ant_distances = (
+        jnp.sum(jnp.abs(ants_pos - hub_pos[:, None, :]), axis=-1) / 2.0
+    )
+    mean_ant_hub_distance = jnp.mean(normalized_ant_distances, axis=1, keepdims=True)
+    carrier_weights = ants_carrying.astype(jnp.float32)
+    carrier_count = jnp.sum(carrier_weights, axis=1, keepdims=True)
+    mean_carrier_hub_distance = (
+        jnp.sum(normalized_ant_distances * carrier_weights, axis=1, keepdims=True)
+        / jnp.maximum(carrier_count, 1.0)
+    )
+    mean_carrier_hub_distance = jnp.where(
+        carrier_count > 0.0,
+        mean_carrier_hub_distance,
+        0.0,
+    )
+
+    x_coords = jnp.linspace(0.0, 1.0, current_width, dtype=jnp.float32)[None, None, :]
+    y_coords = jnp.linspace(0.0, 1.0, current_height, dtype=jnp.float32)[None, :, None]
+    safe_food_mass = jnp.maximum(food_mass, 1.0)
+    food_centroid_x = (
+        jnp.sum(food * x_coords, axis=(1, 2), keepdims=False)[:, None] / safe_food_mass
+    )
+    food_centroid_y = (
+        jnp.sum(food * y_coords, axis=(1, 2), keepdims=False)[:, None] / safe_food_mass
+    )
+    has_food = food_mass > 0.0
+    food_centroid_x = jnp.where(has_food, food_centroid_x, hub_pos[:, 0:1])
+    food_centroid_y = jnp.where(has_food, food_centroid_y, hub_pos[:, 1:2])
+    food_hub_abs_dx = jnp.abs(food_centroid_x - hub_pos[:, 0:1])
+    food_hub_abs_dy = jnp.abs(food_centroid_y - hub_pos[:, 1:2])
+    food_hub_manhattan = (food_hub_abs_dx + food_hub_abs_dy) / 2.0
+
+    return jnp.concatenate(
+        [
+            stage_distance,
+            stage_index,
+            remaining_food,
+            carrier_fraction,
+            nonzero_byte_fraction,
+            mean_ant_hub_distance,
+            mean_carrier_hub_distance,
+            food_centroid_x,
+            food_centroid_y,
+            food_hub_abs_dx,
+            food_hub_abs_dy,
+            food_hub_manhattan,
+        ],
+        axis=-1,
+    ).astype(jnp.float32)
 
 
 def _ants_count_grid(obs: JaxObs, *, height: int, width: int) -> jax.Array:
@@ -332,6 +470,17 @@ def build_central_observations(
         [max(float(target_width), 1.0), max(float(target_height), 1.0)],
         dtype=jnp.float32,
     )
+    critic_aux = _critic_aux_features(
+        obs,
+        food=food,
+        bytes_grid=bytes_grid,
+        ants_pos=ants_pos,
+        ants_carrying=ants_carrying,
+        hub_pos=hub_pos,
+        food_scale=food_scale,
+        target_height=target_height,
+        target_width=target_width,
+    )
     return jnp.concatenate(
         [
             ants_pos.reshape(batch_size, -1),
@@ -342,6 +491,7 @@ def build_central_observations(
             bytes_norm.reshape(batch_size, -1),
             hub_pos.reshape(batch_size, -1),
             grid_size,
+            critic_aux,
         ],
         axis=-1,
     )
@@ -353,6 +503,7 @@ def build_actor_observations(
     food_scale: int = 1,
     actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     write_bits: int = DEFAULT_WRITE_BITS,
+    agent_identity_types: int | None = None,
     obs_width: int | None = None,
     obs_height: int | None = None,
 ) -> jax.Array:
@@ -423,7 +574,10 @@ def build_actor_observations(
         local_byte_bits,
         local_hub,
         local_border,
-        _agent_identity_features(obs["ants_pos"]),
+        _agent_identity_features(
+            obs["ants_pos"],
+            agent_identity_types=agent_identity_types,
+        ),
         own_carrying,
         own_facing,
     ]
@@ -622,7 +776,7 @@ def init_residual_block(key: jax.Array, channels: int) -> ResidualBlockParams:
 
 
 def _critic_entity_dim(*, num_ants: int) -> int:
-    return 7 * int(num_ants) + 4
+    return 7 * int(num_ants) + CRITIC_GLOBAL_FEATURE_DIM
 
 
 def central_obs_dim_with_ants_count(
@@ -632,7 +786,7 @@ def central_obs_dim_with_ants_count(
     obs_width: int,
 ) -> int:
     grid_area = int(obs_height) * int(obs_width)
-    return 7 * int(num_ants) + 3 * grid_area + 4
+    return 7 * int(num_ants) + 3 * grid_area + CRITIC_GLOBAL_FEATURE_DIM
 
 
 def _strided_cnn_output_size(size: int) -> int:
@@ -716,6 +870,41 @@ def init_strided_cnn_critic(
         fusion_dense=init_layer(keys[5], 384, 256),
     )
     return critic_body, init_layer(keys[6], 256, 1, scale=1.0)
+
+
+def init_set_cnn_critic(
+    key: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+    spatial_channels: int = 4,
+) -> tuple[SetCNNCriticParams, LinearParams]:
+    if num_ants <= 0:
+        raise ValueError("critic_num_ants must be positive.")
+    if obs_height <= 0 or obs_width <= 0:
+        raise ValueError("critic_obs_height and critic_obs_width must be positive.")
+    keys = jax.random.split(key, 10)
+    critic_body = SetCNNCriticParams(
+        conv_5x5=init_conv_layer(keys[0], spatial_channels, 32, kernel_size=5),
+        conv_3x3_a=init_conv_layer(keys[1], 32, 64),
+        conv_3x3_b=init_conv_layer(keys[2], 64, 64),
+        spatial_dense=init_layer(
+            keys[3],
+            _strided_cnn_flatten_dim(obs_height=obs_height, obs_width=obs_width),
+            256,
+        ),
+        ant_encoder=(
+            init_layer(keys[4], SET_CNN_ANT_FEATURE_DIM, 64),
+            init_layer(keys[5], 64, 64),
+        ),
+        global_dense=init_layer(keys[6], CRITIC_GLOBAL_FEATURE_DIM, 64),
+        fusion_body=(
+            init_layer(keys[7], 448, 256),
+            init_layer(keys[8], 256, 256),
+        ),
+    )
+    return critic_body, init_layer(keys[9], 256, 1, scale=1.0)
 
 
 def init_structured_mlp_critic(
@@ -812,6 +1001,29 @@ def init_agent_params(
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
         )
+    elif architecture == "set_cnn":
+        if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
+            raise ValueError(
+                "set_cnn critic requires critic_num_ants, critic_obs_height, "
+                "and critic_obs_width."
+            )
+        expected_dim = central_obs_dim_with_ants_count(
+            num_ants=critic_num_ants,
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
+        if int(central_obs_dim) != expected_dim:
+            raise ValueError(
+                f"set_cnn critic expected central_obs_dim {expected_dim}, "
+                f"got {central_obs_dim}."
+            )
+        keys = jax.random.split(key, 5)
+        critic_body, value_head = init_set_cnn_critic(
+            keys[4],
+            num_ants=critic_num_ants,
+            obs_height=critic_obs_height,
+            obs_width=critic_obs_width,
+        )
     elif architecture == "structured_mlp":
         if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
             raise ValueError(
@@ -838,7 +1050,7 @@ def init_agent_params(
     else:
         raise ValueError(
             "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
-            "or 'resnet_cnn'."
+            "'set_cnn', or 'resnet_cnn'."
         )
     return JaxMAPPOParams(
         actor_body=(
@@ -975,6 +1187,78 @@ def _split_central_observation_for_cnn(
     return spatial, entity, leading_shape
 
 
+def _split_central_observation_for_set_cnn(
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> tuple[jax.Array, jax.Array, jax.Array, tuple[int, ...]]:
+    leading_shape = central_obs.shape[:-1]
+    flat = central_obs.reshape((-1, central_obs.shape[-1]))
+    grid_area = int(obs_height) * int(obs_width)
+    expected_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    if int(central_obs.shape[-1]) != expected_dim:
+        raise ValueError(
+            f"set_cnn critic expected central_obs_dim {expected_dim}, "
+            f"got {central_obs.shape[-1]}."
+        )
+
+    ants_pos_width = 2 * int(num_ants)
+    ants_carrying_width = int(num_ants)
+    ants_facing_width = (MOVEMENT_ACTION_COUNT - 1) * int(num_ants)
+    ants_pos_end = ants_pos_width
+    ants_carrying_end = ants_pos_end + ants_carrying_width
+    ants_facing_end = ants_carrying_end + ants_facing_width
+    ants_count_end = ants_facing_end + grid_area
+    food_end = ants_count_end + grid_area
+    bytes_end = food_end + grid_area
+    hub_end = bytes_end + 2
+
+    ants_count = flat[:, ants_facing_end:ants_count_end].reshape(
+        (-1, int(obs_height), int(obs_width))
+    )
+    food = flat[:, ants_count_end:food_end].reshape((-1, int(obs_height), int(obs_width)))
+    bytes_grid = flat[:, food_end:bytes_end].reshape(
+        (-1, int(obs_height), int(obs_width))
+    )
+    hub_pos = flat[:, bytes_end:hub_end]
+    batch_index = jnp.arange(flat.shape[0])
+    hub_x = jnp.clip(
+        jnp.rint(hub_pos[:, 0] * max(int(obs_width) - 1, 1)).astype(jnp.int32),
+        0,
+        int(obs_width) - 1,
+    )
+    hub_y = jnp.clip(
+        jnp.rint(hub_pos[:, 1] * max(int(obs_height) - 1, 1)).astype(jnp.int32),
+        0,
+        int(obs_height) - 1,
+    )
+    hub_grid = jnp.zeros(
+        (flat.shape[0], int(obs_height), int(obs_width)),
+        dtype=jnp.float32,
+    ).at[batch_index, hub_y, hub_x].set(1.0)
+    spatial = jnp.stack([ants_count, food, bytes_grid, hub_grid], axis=-1)
+
+    ant_positions = flat[:, :ants_pos_end].reshape((-1, int(num_ants), 2))
+    ant_carrying = flat[:, ants_pos_end:ants_carrying_end].reshape(
+        (-1, int(num_ants), 1)
+    )
+    ant_facing = flat[:, ants_carrying_end:ants_facing_end].reshape(
+        (-1, int(num_ants), MOVEMENT_ACTION_COUNT - 1)
+    )
+    ant_features = jnp.concatenate(
+        [ant_positions, ant_carrying, ant_facing],
+        axis=-1,
+    )
+    global_features = flat[:, bytes_end:]
+    return spatial, ant_features, global_features, leading_shape
+
+
 def _split_central_observation_for_structured_mlp(
     central_obs: jax.Array,
     *,
@@ -1093,6 +1377,51 @@ def _forward_strided_cnn_critic(
     return value.reshape(leading_shape)
 
 
+def _forward_set_cnn_critic(
+    critic_body: SetCNNCriticParams,
+    value_head: LinearParams,
+    central_obs: jax.Array,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> jax.Array:
+    spatial, ant_features, global_features, leading_shape = (
+        _split_central_observation_for_set_cnn(
+            central_obs,
+            num_ants=num_ants,
+            obs_height=obs_height,
+            obs_width=obs_width,
+        )
+    )
+    hidden = _activation(_conv2d(critic_body.conv_5x5, spatial, stride=2))
+    hidden = _activation(_conv2d(critic_body.conv_3x3_a, hidden, stride=2))
+    hidden = _activation(_conv2d(critic_body.conv_3x3_b, hidden, stride=2))
+    spatial_features = hidden.reshape((hidden.shape[0], -1))
+    spatial_embedding = _activation(
+        _linear(critic_body.spatial_dense, spatial_features)
+    )
+
+    ant_hidden = _activation(_linear(critic_body.ant_encoder[0], ant_features))
+    ant_hidden = _activation(_linear(critic_body.ant_encoder[1], ant_hidden))
+    ant_embedding = jnp.concatenate(
+        [
+            jnp.mean(ant_hidden, axis=1),
+            jnp.max(ant_hidden, axis=1),
+        ],
+        axis=-1,
+    )
+    global_embedding = _activation(_linear(critic_body.global_dense, global_features))
+    fused = jnp.concatenate(
+        [spatial_embedding, ant_embedding, global_embedding],
+        axis=-1,
+    )
+    fused = _activation(_linear(critic_body.fusion_body[0], fused))
+    fused = _activation(_linear(critic_body.fusion_body[1], fused))
+    value = jnp.squeeze(_linear(value_head, fused), axis=-1)
+    return value.reshape(leading_shape)
+
+
 def _forward_structured_mlp_critic(
     critic_body: StructuredMLPCriticParams,
     value_head: LinearParams,
@@ -1122,10 +1451,10 @@ def critic_forward_kwargs_from_args(args: argparse.Namespace) -> dict[str, int |
     architecture = str(getattr(args, "critic_architecture", "mlp"))
     if architecture == "mlp":
         return {}
-    if architecture not in {"structured_mlp", "strided_cnn", "resnet_cnn"}:
+    if architecture not in {"structured_mlp", "strided_cnn", "set_cnn", "resnet_cnn"}:
         raise ValueError(
             "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
-            "or 'resnet_cnn'."
+            "'set_cnn', or 'resnet_cnn'."
         )
     return {
         "critic_architecture": architecture,
@@ -1186,6 +1515,27 @@ def get_value(
                 critic_architecture="strided_cnn",
             ),
         )
+    if architecture == "set_cnn":
+        return _forward_set_cnn_critic(
+            params.critic_body,
+            params.value_head,
+            central_obs,
+            num_ants=_require_cnn_critic_field(
+                "critic_num_ants",
+                critic_num_ants,
+                critic_architecture="set_cnn",
+            ),
+            obs_height=_require_cnn_critic_field(
+                "critic_obs_height",
+                critic_obs_height,
+                critic_architecture="set_cnn",
+            ),
+            obs_width=_require_cnn_critic_field(
+                "critic_obs_width",
+                critic_obs_width,
+                critic_architecture="set_cnn",
+            ),
+        )
     if architecture == "structured_mlp":
         return _forward_structured_mlp_critic(
             params.critic_body,
@@ -1206,7 +1556,7 @@ def get_value(
         )
     raise ValueError(
         "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
-        "or 'resnet_cnn'."
+        "'set_cnn', or 'resnet_cnn'."
     )
 
 
@@ -1326,6 +1676,7 @@ def compute_forage_curriculum_rewards(
     actions: jax.Array | None = None,
     pickup_bonus: float,
     distance_bonus: float = 0.0,
+    distance_progress_normalizer: str = "map",
     carrying_hub_distance_bonus: float = 0.0,
     newly_visited_cells: jax.Array | None = None,
     visited_cell_fraction: jax.Array | None = None,
@@ -1351,57 +1702,73 @@ def compute_forage_curriculum_rewards(
 ) -> jax.Array:
     """Add trainer-side forage shaping without changing actor observations."""
 
+    uses_delivery_byte_trail_bonus = delivery_byte_trail_bonus > 0.0
+    uses_byte_follow_bonus = byte_follow_bonus > 0.0
+    uses_carrying_byte_write_bonus = carrying_byte_write_bonus > 0.0
     uses_byte_shaping = (
-        delivery_byte_trail_bonus > 0.0
-        or byte_follow_bonus > 0.0
-        or carrying_byte_write_bonus > 0.0
+        uses_delivery_byte_trail_bonus
+        or uses_byte_follow_bonus
+        or uses_carrying_byte_write_bonus
     )
     if uses_byte_shaping:
         previous_bytes = previous_obs["bytes"]
     else:
         previous_bytes = jnp.zeros_like(previous_obs["food"], dtype=jnp.uint8)
     _, previous_height, previous_width = previous_bytes.shape
-    previous_active_size = _active_grid_size(
-        previous_obs,
-        fallback_height=previous_height,
-        fallback_width=previous_width,
+    previous_active_size = (
+        _active_grid_size(
+            previous_obs,
+            fallback_height=previous_height,
+            fallback_width=previous_width,
+        )
+        if uses_delivery_byte_trail_bonus
+        else jnp.zeros((previous_obs["food"].shape[0], 2), dtype=jnp.float32)
     )
     previous_carrying = previous_obs["ants_carrying"].astype(jnp.bool_)
     next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
     previous_positions = previous_obs["ants_pos"].astype(jnp.int32)
     next_positions = next_obs["ants_pos"].astype(jnp.int32)
 
-    if actions is None:
-        applied_write_values = jnp.zeros(previous_carrying.shape, dtype=jnp.uint32)
-    else:
-        applied_write_values = _applied_write_values(
-            actions,
-            write_while_moving=write_while_moving,
-            per_ant_write_channels=per_ant_write_channels,
-            write_bits=write_bits,
+    target_bytes = jnp.zeros(previous_carrying.shape, dtype=previous_bytes.dtype)
+    if uses_byte_follow_bonus or uses_carrying_byte_write_bonus:
+        target_bytes = _grid_values_at_positions(previous_bytes, next_positions)
+
+    fresh_carrying_writes = jnp.zeros(previous_carrying.shape, dtype=jnp.bool_)
+    if uses_carrying_byte_write_bonus:
+        if actions is None:
+            applied_write_values = jnp.zeros(previous_carrying.shape, dtype=jnp.uint32)
+        else:
+            applied_write_values = _applied_write_values(
+                actions,
+                write_while_moving=write_while_moving,
+                per_ant_write_channels=per_ant_write_channels,
+                write_bits=write_bits,
+            )
+        target_food = _grid_values_at_positions(previous_obs["food"], next_positions)
+        target_is_hub = jnp.all(
+            next_positions == previous_obs["hub_pos"][:, None, :],
+            axis=-1,
+        )
+        fresh_carrying_writes = (
+            previous_carrying
+            & (applied_write_values > 0)
+            & (target_bytes == 0)
+            & (target_food <= 0)
+            & jnp.logical_not(target_is_hub)
         )
 
-    target_bytes = _grid_values_at_positions(previous_bytes, next_positions)
-    target_food = _grid_values_at_positions(previous_obs["food"], next_positions)
-    target_is_hub = jnp.all(next_positions == previous_obs["hub_pos"][:, None, :], axis=-1)
-    fresh_carrying_writes = (
-        previous_carrying
-        & (applied_write_values > 0)
-        & (target_bytes == 0)
-        & (target_food <= 0)
-        & jnp.logical_not(target_is_hub)
-    )
-
-    moved = jnp.any(next_positions != previous_positions, axis=-1)
-    previous_food_distance = _nearest_food_distances(previous_obs["food"], previous_positions)
-    next_food_distance = _nearest_food_distances(previous_obs["food"], next_positions)
-    byte_follow_events = (
-        jnp.logical_not(previous_carrying)
-        & jnp.logical_not(next_carrying)
-        & moved
-        & (target_bytes > 0)
-        & (next_food_distance < previous_food_distance)
-    )
+    byte_follow_events = jnp.zeros(previous_carrying.shape, dtype=jnp.bool_)
+    if uses_byte_follow_bonus:
+        moved = jnp.any(next_positions != previous_positions, axis=-1)
+        previous_food_distance = _nearest_food_distances(previous_obs["food"], previous_positions)
+        next_food_distance = _nearest_food_distances(previous_obs["food"], next_positions)
+        byte_follow_events = (
+            jnp.logical_not(previous_carrying)
+            & jnp.logical_not(next_carrying)
+            & moved
+            & (target_bytes > 0)
+            & (next_food_distance < previous_food_distance)
+        )
 
     def one_env(
         previous_carrying: jax.Array,
@@ -1509,18 +1876,28 @@ def compute_forage_curriculum_rewards(
         )
         shaped_rewards -= float(border_moat_penalty) * moat_cost
     if distance_bonus > 0.0:
-        progress = _forage_distance_progress(previous_obs=previous_obs, next_obs=next_obs)
+        progress = _forage_distance_progress(
+            previous_obs=previous_obs,
+            next_obs=next_obs,
+            normalizer_mode=distance_progress_normalizer,
+        )
         shaped_rewards += float(distance_bonus) * progress
     if carrying_hub_distance_bonus > 0.0:
         carrying_progress = _carrying_hub_distance_progress(
             previous_obs=previous_obs,
             next_obs=next_obs,
+            normalizer_mode=distance_progress_normalizer,
         )
         shaped_rewards += float(carrying_hub_distance_bonus) * carrying_progress
     return shaped_rewards
 
 
-def _forage_distance_progress(*, previous_obs: JaxObs, next_obs: JaxObs) -> jax.Array:
+def _forage_distance_progress(
+    *,
+    previous_obs: JaxObs,
+    next_obs: JaxObs,
+    normalizer_mode: str = "map",
+) -> jax.Array:
     previous_carrying = previous_obs["ants_carrying"].astype(jnp.bool_)
     next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
     same_target_mode = previous_carrying == next_carrying
@@ -1541,8 +1918,13 @@ def _forage_distance_progress(*, previous_obs: JaxObs, next_obs: JaxObs) -> jax.
         next_hub_distance,
         next_food_distance,
     )
-    height, width = food.shape[1:]
-    normalizer = jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
+    _, height, width = food.shape
+    normalizer = _distance_progress_normalizer(
+        previous_obs,
+        height=height,
+        width=width,
+        mode=normalizer_mode,
+    )
     progress = (previous_distance - next_distance) / normalizer
     progress = jnp.where(same_target_mode, progress, 0.0)
     return jnp.sum(progress, axis=-1).astype(jnp.float32)
@@ -1552,6 +1934,7 @@ def _carrying_hub_distance_progress(
     *,
     previous_obs: JaxObs,
     next_obs: JaxObs,
+    normalizer_mode: str = "map",
 ) -> jax.Array:
     previous_carrying = previous_obs["ants_carrying"].astype(jnp.bool_)
     next_carrying = next_obs["ants_carrying"].astype(jnp.bool_)
@@ -1559,10 +1942,37 @@ def _carrying_hub_distance_progress(
     previous_distance = _hub_distances(previous_obs["hub_pos"], previous_obs["ants_pos"])
     next_distance = _hub_distances(previous_obs["hub_pos"], next_obs["ants_pos"])
     _, height, width = previous_obs["food"].shape
-    normalizer = jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
+    normalizer = _distance_progress_normalizer(
+        previous_obs,
+        height=height,
+        width=width,
+        mode=normalizer_mode,
+    )
     progress = (previous_distance - next_distance) / normalizer
     progress = jnp.where(stayed_carrying, progress, 0.0)
     return jnp.sum(progress, axis=-1).astype(jnp.float32)
+
+
+def _distance_progress_normalizer(
+    obs: JaxObs,
+    *,
+    height: int,
+    width: int,
+    mode: str,
+) -> jax.Array:
+    if mode == "map":
+        return jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
+    if mode != "stage":
+        raise ValueError("distance_progress_normalizer must be 'map' or 'stage'.")
+    stage_distance = obs.get("distance_curriculum_stage_distance")
+    if stage_distance is None:
+        return jnp.asarray(max(height + width - 2, 1), dtype=jnp.float32)
+    normalizer = jnp.asarray(stage_distance, dtype=jnp.float32)
+    if normalizer.ndim == 0:
+        normalizer = normalizer[None]
+    while normalizer.ndim < 2:
+        normalizer = normalizer[..., None]
+    return jnp.maximum(normalizer, 1.0)
 
 
 def _nearest_food_distances(food: jax.Array, ants_pos: jax.Array) -> jax.Array:
@@ -1803,6 +2213,47 @@ def _global_norm(tree: Any) -> jax.Array:
     return jnp.sqrt(sum(jnp.sum(jnp.square(leaf)) for leaf in leaves))
 
 
+def _clip_tree_by_norm(tree: Any, *, norm: jax.Array, max_norm: float | None) -> Any:
+    if max_norm is None or float(max_norm) <= 0.0:
+        return tree
+    scale = jnp.minimum(1.0, float(max_norm) / (norm + 1e-6))
+    return jax.tree_util.tree_map(lambda grad: grad * scale, tree)
+
+
+def _clip_actor_critic_gradients(
+    grads: JaxMAPPOParams,
+    *,
+    actor_max_grad_norm: float | None,
+    critic_max_grad_norm: float | None,
+) -> tuple[JaxMAPPOParams, GradientNorms]:
+    actor_grads = (grads.actor_body, grads.move_head, grads.write_head)
+    critic_grads = (grads.critic_body, grads.value_head)
+    actor_norm = _global_norm(actor_grads)
+    critic_norm = _global_norm(critic_grads)
+    clipped_actor_body, clipped_move_head, clipped_write_head = _clip_tree_by_norm(
+        actor_grads,
+        norm=actor_norm,
+        max_norm=actor_max_grad_norm,
+    )
+    clipped_critic_body, clipped_value_head = _clip_tree_by_norm(
+        critic_grads,
+        norm=critic_norm,
+        max_norm=critic_max_grad_norm,
+    )
+    clipped_grads = JaxMAPPOParams(
+        actor_body=clipped_actor_body,
+        move_head=clipped_move_head,
+        write_head=clipped_write_head,
+        critic_body=clipped_critic_body,
+        value_head=clipped_value_head,
+    )
+    return clipped_grads, GradientNorms(
+        global_norm=_global_norm(grads),
+        actor_norm=actor_norm,
+        critic_norm=critic_norm,
+    )
+
+
 def init_adam_state(params: JaxMAPPOParams) -> AdamState:
     return AdamState(
         count=jnp.asarray(0, dtype=jnp.int32),
@@ -1818,14 +2269,34 @@ def adam_update(
     *,
     learning_rate: float | jax.Array,
     max_grad_norm: float,
+    actor_max_grad_norm: float | None = None,
+    critic_max_grad_norm: float | None = None,
     beta1: float = 0.9,
     beta2: float = 0.999,
     eps: float = 1e-5,
-) -> tuple[JaxMAPPOParams, AdamState, jax.Array]:
-    grad_norm = _global_norm(grads)
-    if max_grad_norm > 0:
-        scale = jnp.minimum(1.0, float(max_grad_norm) / (grad_norm + 1e-6))
-        grads = jax.tree_util.tree_map(lambda grad: grad * scale, grads)
+) -> tuple[JaxMAPPOParams, AdamState, GradientNorms]:
+    if actor_max_grad_norm is None and critic_max_grad_norm is None:
+        grad_norm = _global_norm(grads)
+        actor_norm = _global_norm((grads.actor_body, grads.move_head, grads.write_head))
+        critic_norm = _global_norm((grads.critic_body, grads.value_head))
+        if max_grad_norm > 0:
+            scale = jnp.minimum(1.0, float(max_grad_norm) / (grad_norm + 1e-6))
+            grads = jax.tree_util.tree_map(lambda grad: grad * scale, grads)
+        norms = GradientNorms(
+            global_norm=grad_norm,
+            actor_norm=actor_norm,
+            critic_norm=critic_norm,
+        )
+    else:
+        if actor_max_grad_norm is None:
+            actor_max_grad_norm = max_grad_norm
+        if critic_max_grad_norm is None:
+            critic_max_grad_norm = max_grad_norm
+        grads, norms = _clip_actor_critic_gradients(
+            grads,
+            actor_max_grad_norm=actor_max_grad_norm,
+            critic_max_grad_norm=critic_max_grad_norm,
+        )
 
     count = state.count + 1
     m = jax.tree_util.tree_map(lambda old, grad: beta1 * old + (1.0 - beta1) * grad, state.m, grads)
@@ -1842,7 +2313,7 @@ def adam_update(
         m_hat,
         v_hat,
     )
-    return next_params, AdamState(count=count, m=m, v=v), grad_norm
+    return next_params, AdamState(count=count, m=m, v=v), norms
 
 
 def _ppo_loss(
@@ -1886,6 +2357,8 @@ def _ppo_loss(
         approx_kl=approx_kl,
         clipfrac=clipfrac,
         grad_norm=jnp.asarray(0.0, dtype=jnp.float32),
+        actor_grad_norm=jnp.asarray(0.0, dtype=jnp.float32),
+        critic_grad_norm=jnp.asarray(0.0, dtype=jnp.float32),
     )
 
 
@@ -1911,14 +2384,23 @@ def update_agent(
             args=args,
         )
         del loss
-        next_params, next_opt_state, grad_norm = adam_update(
+        next_params, next_opt_state, grad_norms = adam_update(
             current_params,
             grads,
             current_opt_state,
             learning_rate=learning_rate,
             max_grad_norm=args.max_grad_norm,
+            actor_max_grad_norm=getattr(args, "actor_max_grad_norm", None),
+            critic_max_grad_norm=getattr(args, "critic_max_grad_norm", None),
         )
-        return (next_params, next_opt_state), metrics._replace(grad_norm=grad_norm)
+        return (
+            next_params,
+            next_opt_state,
+        ), metrics._replace(
+            grad_norm=grad_norms.global_norm,
+            actor_grad_norm=grad_norms.actor_norm,
+            critic_grad_norm=grad_norms.critic_norm,
+        )
 
     def epoch_step(
         carry: tuple[JaxMAPPOParams, AdamState],

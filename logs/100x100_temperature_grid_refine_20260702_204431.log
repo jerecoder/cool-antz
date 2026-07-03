@@ -1,0 +1,7 @@
+[eval-grid] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/temp_grid_refine_20260702_204431
+[result] target=bridge_mid250_best temp=0.4625 delivered=206.6 frac=0.826 success=0.250 primary=0.744758
+[result] target=bridge_mid250_best temp=0.475 delivered=230.0 frac=0.920 success=0.375 primary=1.04863
+[result] target=bridge_mid250_best temp=0.4875 delivered=219.8 frac=0.879 success=0.531 primary=0.993522
+[result] target=bridge_mid250_best temp=0.5 delivered=231.1 frac=0.924 success=0.344 primary=0.889151
+[result] target=bridge_mid250_best temp=0.5125 delivered=219.3 frac=0.877 success=0.344 primary=0.83001
+[result] target=bridge_mid250_best temp=0.525 delivered=221.0 frac=0.884 success=0.250 primary=1.00653

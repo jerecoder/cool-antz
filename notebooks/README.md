@@ -10,6 +10,7 @@ walking up to `pyproject.toml`.
 - `curriculum/exploration.ipynb` - exploration-only curriculum.
 - `curriculum/maze_exploration.ipynb` - maze exploration curriculum.
 - `curriculum/autocurriculum.ipynb` - single-policy autocurriculum.
+- `curriculum/distance_autocurriculum_250x250.ipynb` - 250x250 distance-autocurriculum healthy-reset recipe from the sudden-drop investigation.
 
 ## Exploration To Forage
 
@@ -32,6 +33,8 @@ walking up to `pyproject.toml`.
 - `scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb` - 8-ant full-layout continuation with unrestricted write values for every ant.
 - `scaling/full_layout_8ants_half_food_shared_writes_write_cost_50x50.ipynb` - shared-write continuation with a small trainer-side cost for set write bits.
 - `scaling/full_layout_8ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb` - 8-bit shared-write continuation from the best write-cost checkpoint.
+- `scaling/full_layout_60ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb` - 60-ant stabilization from the preserved best 8-bit shared-write write-cost checkpoint, with 8 repeating one-hot actor identity types and fresh optimizer state.
+- `experiments/exploration_to_forage_full_layout_60ants_half_food_50x50_shared_writes_write_cost_8bits_stabilize_from_60best.json` - clean 60-ant stabilization config from the preserved best checkpoint with entropy disabled, fresh Adam state, and frequent eval.
 
 ## Baselines
 

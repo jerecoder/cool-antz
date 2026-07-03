@@ -157,6 +157,7 @@ def collect_rollout(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -329,6 +330,11 @@ def collect_rollout(
                 actions=actions_for_env,
                 pickup_bonus=args.pickup_bonus,
                 distance_bonus=args.distance_bonus,
+                distance_progress_normalizer=getattr(
+                    args,
+                    "distance_progress_normalizer",
+                    "map",
+                ),
                 carrying_hub_distance_bonus=getattr(args, "carrying_hub_distance_bonus", 0.0),
                 newly_visited_cells=newly_visited_cells,
                 visited_cell_fraction=visited_cell_fraction,

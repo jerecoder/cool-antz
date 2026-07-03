@@ -1,0 +1,336 @@
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=1 target=bridge_mid250_best temp=0.475 seed_offset=10000000
+[videos] result cycle=1 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000001_bridge_mid250_best_20260702_233311.mp4
+[videos] render cycle=1 target=continue_hard375_best temp=0.525 seed_offset=10000001
+[videos] result cycle=1 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000001_continue_hard375_best_20260702_233329.mp4
+[videos] cycle=1 elapsed=38.2s sleep=261.8s
+[videos] render cycle=2 target=bridge_mid250_best temp=0.475 seed_offset=10001000
+[videos] result cycle=2 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000002_bridge_mid250_best_20260702_233811.mp4
+[videos] render cycle=2 target=continue_hard375_best temp=0.525 seed_offset=10001001
+[videos] result cycle=2 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000002_continue_hard375_best_20260702_233831.mp4
+[videos] cycle=2 elapsed=40.0s sleep=260.0s
+[videos] render cycle=3 target=bridge_mid250_best temp=0.475 seed_offset=10002000
+[videos] result cycle=3 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000003_bridge_mid250_best_20260702_234311.mp4
+[videos] render cycle=3 target=continue_hard375_best temp=0.525 seed_offset=10002001
+[videos] result cycle=3 target=continue_hard375_best status=render_failed code=124 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000003_continue_hard375_best_20260702_234331.mp4
+[videos] cycle=3 elapsed=275.0s sleep=25.0s
+[videos] render cycle=4 target=bridge_mid250_best temp=0.475 seed_offset=10003000
+[videos] result cycle=4 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000004_bridge_mid250_best_20260702_234811.mp4
+[videos] render cycle=4 target=continue_hard375_best temp=0.525 seed_offset=10003001
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coolantz100x100progressvideos
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in /home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_205103-coolantz100x100progressvideos
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run 100x100 fixed progress videos
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=1 target=bridge_mid250_best temp=0.475 seed_offset=10000000
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coolantz100x100progressvideos
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in /home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_205311-coolantz100x100progressvideos
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run 100x100 fixed progress videos
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=5 target=bridge_mid250_best temp=0.475 seed_offset=10004000
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coolantz100x100progressvideos
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in /home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_205553-coolantz100x100progressvideos
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run 100x100 fixed progress videos
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=5 target=bridge_mid250_best temp=0.475 seed_offset=10004000
+[videos] result cycle=5 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000005_bridge_mid250_best_20260702_235554.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=5 target=continue_hard375_best temp=0.525 seed_offset=10004001
+[videos] result cycle=5 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000005_continue_hard375_best_20260702_235627.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=5 elapsed=51.2s sleep=248.8s
+[videos] render cycle=6 target=bridge_mid250_best temp=0.475 seed_offset=10005000
+[videos] result cycle=6 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000006_bridge_mid250_best_20260703_000054.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=6 target=continue_hard375_best temp=0.525 seed_offset=10005001
+[videos] result cycle=6 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000006_continue_hard375_best_20260703_000127.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=6 elapsed=66.0s sleep=234.0s
+[videos] render cycle=7 target=bridge_mid250_best temp=0.475 seed_offset=10006000
+[videos] result cycle=7 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000007_bridge_mid250_best_20260703_000554.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=7 target=continue_hard375_best temp=0.525 seed_offset=10006001
+[videos] result cycle=7 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000007_continue_hard375_best_20260703_000629.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=7 elapsed=68.0s sleep=232.0s
+[videos] render cycle=8 target=bridge_mid250_best temp=0.475 seed_offset=10007000
+[videos] result cycle=8 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000008_bridge_mid250_best_20260703_001054.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=8 target=continue_hard375_best temp=0.525 seed_offset=10007001
+[videos] result cycle=8 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000008_continue_hard375_best_20260703_001127.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=8 elapsed=66.0s sleep=234.0s
+[videos] render cycle=9 target=bridge_mid250_best temp=0.475 seed_offset=10008000
+[videos] result cycle=9 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000009_bridge_mid250_best_20260703_001554.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=9 target=continue_hard375_best temp=0.525 seed_offset=10008001
+[videos] result cycle=9 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000009_continue_hard375_best_20260703_001627.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=9 elapsed=66.0s sleep=234.0s
+[videos] STOP file found; exiting.
+wandb: updating run metadata
+wandb: uploading wandb-summary.json; uploading config.yaml; uploading output.log
+wandb: uploading history steps 7-7, summary, console lines 56-56
+wandb:
+wandb: Run history:
+wandb:               meta/bridge_mid250_best/cycle ▁▃▅▆█
+wandb:    meta/bridge_mid250_best/move_temperature ▁▁▁▁▁
+wandb:      meta/bridge_mid250_best/render_seconds ▁▃█▂▄
+wandb:         meta/bridge_mid250_best/seed_offset ▁▃▅▆█
+wandb:       meta/bridge_mid250_best/video_size_mb ▁▁▅▇█
+wandb:            meta/continue_hard375_best/cycle ▁▃▅▆█
+wandb: meta/continue_hard375_best/move_temperature ▁▁▁▁▁
+wandb:   meta/continue_hard375_best/render_seconds ▂▁█▃▆
+wandb:      meta/continue_hard375_best/seed_offset ▁▃▅▆█
+wandb:    meta/continue_hard375_best/video_size_mb ▁▂▂█▃
+wandb:
+wandb: Run summary:
+wandb:    latest_bridge_mid250_best_seed_offset 10008000
+wandb:          latest_bridge_mid250_best_video /home/jerefigo/Docum...
+wandb: latest_continue_hard375_best_seed_offset 10008001
+wandb:       latest_continue_hard375_best_video /home/jerefigo/Docum...
+wandb:                       latest_video_cycle 9
+wandb:            meta/bridge_mid250_best/cycle 9
+wandb: meta/bridge_mid250_best/move_temperature 0.475
+wandb:   meta/bridge_mid250_best/render_seconds 16.895
+wandb:      meta/bridge_mid250_best/seed_offset 10008000
+wandb:    meta/bridge_mid250_best/video_size_mb 0.27927
+wandb:                                       +5 ...
+wandb:
+wandb: 🚀 View run 100x100 fixed progress videos at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+wandb: ⭐️ View project at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: Synced 5 W&B file(s), 10 media file(s), 0 artifact file(s) and 20 other file(s)
+wandb: Find logs at: ./runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_205553-coolantz100x100progressvideos/logs
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coolantz100x100progressvideos
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in /home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_211738-coolantz100x100progressvideos
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run 100x100 fixed progress videos
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=10 target=bridge_mid250_best temp=0.475 seed_offset=10009000
+[videos] result cycle=10 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000010_bridge_mid250_best_20260703_001740.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=10 target=continue_hard375_best temp=0.525 seed_offset=10009001
+[videos] result cycle=10 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000010_continue_hard375_best_20260703_001758.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=10 elapsed=49.2s sleep=550.8s
+[videos] render cycle=11 target=bridge_mid250_best temp=0.475 seed_offset=10010000
+[videos] result cycle=11 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000011_bridge_mid250_best_20260703_002740.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=11 target=continue_hard375_best temp=0.525 seed_offset=10010001
+[videos] result cycle=11 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000011_continue_hard375_best_20260703_002813.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=11 elapsed=49.0s sleep=551.0s
+[videos] STOP file found; exiting.
+wandb: updating run metadata
+wandb: uploading history steps 9-9, summary, console lines 23-23
+wandb:
+wandb: Run history:
+wandb:               meta/bridge_mid250_best/cycle ▁█
+wandb:    meta/bridge_mid250_best/move_temperature ▁▁
+wandb:      meta/bridge_mid250_best/render_seconds █▁
+wandb:         meta/bridge_mid250_best/seed_offset ▁█
+wandb:       meta/bridge_mid250_best/video_size_mb ▁█
+wandb:            meta/continue_hard375_best/cycle ▁█
+wandb: meta/continue_hard375_best/move_temperature ▁▁
+wandb:   meta/continue_hard375_best/render_seconds █▁
+wandb:      meta/continue_hard375_best/seed_offset ▁█
+wandb:    meta/continue_hard375_best/video_size_mb █▁
+wandb:
+wandb: Run summary:
+wandb:    latest_bridge_mid250_best_seed_offset 10010000
+wandb:          latest_bridge_mid250_best_video /home/jerefigo/Docum...
+wandb: latest_continue_hard375_best_seed_offset 10010001
+wandb:       latest_continue_hard375_best_video /home/jerefigo/Docum...
+wandb:                       latest_video_cycle 11
+wandb:            meta/bridge_mid250_best/cycle 11
+wandb: meta/bridge_mid250_best/move_temperature 0.475
+wandb:   meta/bridge_mid250_best/render_seconds 15.984
+wandb:      meta/bridge_mid250_best/seed_offset 10010000
+wandb:    meta/bridge_mid250_best/video_size_mb 0.30054
+wandb:                                       +5 ...
+wandb:
+wandb: 🚀 View run 100x100 fixed progress videos at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+wandb: ⭐️ View project at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: Synced 5 W&B file(s), 4 media file(s), 0 artifact file(s) and 8 other file(s)
+wandb: Find logs at: ./runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_211738-coolantz100x100progressvideos/logs
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coolantz100x100progressvideos
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in /home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_213210-coolantz100x100progressvideos
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run 100x100 fixed progress videos
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=12 target=bridge_mid250_best temp=0.475 seed_offset=10011000
+[videos] result cycle=12 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000012_bridge_mid250_best_20260703_003213.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Tried to log to step 12 that is less than the current step 13. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=12 target=continue_hard375_best temp=0.5 seed_offset=10011001
+[videos] result cycle=12 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000012_continue_hard375_best_20260703_003248.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Tried to log to step 12 that is less than the current step 13. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=12 elapsed=66.3s sleep=533.7s
+[videos] STOP file found; exiting.
+wandb: updating run metadata
+wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
+wandb: uploading summary, console lines 32-32
+wandb:
+wandb: Run summary:
+wandb:    latest_bridge_mid250_best_seed_offset 10011000
+wandb:          latest_bridge_mid250_best_video /home/jerefigo/Docum...
+wandb: latest_continue_hard375_best_seed_offset 10011001
+wandb:       latest_continue_hard375_best_video /home/jerefigo/Docum...
+wandb:      latest_video_archive_backfill_count 8
+wandb:      latest_video_archive_backfill_cycle 11
+wandb:                       latest_video_cycle 12
+wandb:            meta/bridge_mid250_best/cycle 11
+wandb: meta/bridge_mid250_best/move_temperature 0.475
+wandb:   meta/bridge_mid250_best/render_seconds 15.984
+wandb:                                      +19 ...
+wandb:
+wandb: 🚀 View run 100x100 fixed progress videos at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+wandb: ⭐️ View project at: https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: Synced 5 W&B file(s), 6 media file(s), 6 artifact file(s) and 4 other file(s)
+wandb: Find logs at: ./runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_213210-coolantz100x100progressvideos/logs
+[videos] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos
+[videos] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/STOP
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coolantz100x100progressvideos
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in /home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/wandb/run-20260702_213530-coolantz100x100progressvideos
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run 100x100 fixed progress videos
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] wandb_url=https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/coolantz100x100progressvideos
+[videos] render cycle=13 target=bridge_mid250_best temp=0.475 seed_offset=10012000
+[videos] result cycle=13 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000013_bridge_mid250_best_20260703_003533.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=13 target=continue_hard375_best temp=0.5 seed_offset=10012001
+[videos] result cycle=13 target=continue_hard375_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000013_continue_hard375_best_20260703_003552.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] cycle=13 elapsed=36.6s sleep=563.4s
+[videos] render cycle=14 target=bridge_mid250_best temp=0.475 seed_offset=10013000
+[videos] result cycle=14 target=bridge_mid250_best status=rendered code=0 video=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/progress_videos/renders/cycle_000014_bridge_mid250_best_20260703_004533.mp4
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING `fps` argument does not affect the frame rate of the video when providing a file path or raw bytes.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[videos] render cycle=14 target=continue_hard375_best temp=0.5 seed_offset=10013001

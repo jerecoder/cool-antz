@@ -8,6 +8,7 @@ from pathlib import Path
 from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
 
 WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
+DISTANCE_PROGRESS_NORMALIZERS = ("map", "stage")
 EVALUATION_ACTION_MODES = (
     "deterministic",
     "sampled",
@@ -19,7 +20,7 @@ EVALUATION_ACTION_MODES = (
     "sampled_move_zero_write",
 )
 REWARD_MODES = ("forage", "explore")
-CRITIC_ARCHITECTURES = ("mlp", "structured_mlp", "strided_cnn", "resnet_cnn")
+CRITIC_ARCHITECTURES = ("mlp", "structured_mlp", "strided_cnn", "set_cnn", "resnet_cnn")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -79,8 +80,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "to greedy argmax while write actions stay sampled."
         ),
     )
+    parser.add_argument(
+        "--reset-env-each-update",
+        action="store_true",
+        help="Reset all vectorized environments before each PPO rollout.",
+    )
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
+    parser.add_argument(
+        "--actor-max-grad-norm",
+        type=float,
+        default=None,
+        help=(
+            "Optional actor-only gradient clipping threshold. If omitted, "
+            "--max-grad-norm is used globally unless --critic-max-grad-norm is set."
+        ),
+    )
+    parser.add_argument(
+        "--critic-max-grad-norm",
+        type=float,
+        default=None,
+        help=(
+            "Optional critic-only gradient clipping threshold. Use with "
+            "--actor-max-grad-norm to stop large value gradients from shrinking "
+            "policy updates."
+        ),
+    )
     parser.add_argument("--hidden-size", type=int, default=128)
     parser.add_argument(
         "--critic-architecture",
@@ -89,8 +114,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Centralized value-function architecture. 'mlp' preserves the original "
             "dense critic; 'structured_mlp' splits flattened grid and entity features; "
-            "'strided_cnn' uses a lightweight downsampling CNN; 'resnet_cnn' uses a "
-            "compact residual CNN critic."
+            "'strided_cnn' uses a lightweight downsampling CNN; 'set_cnn' combines "
+            "that spatial path with per-ant set pooling; 'resnet_cnn' uses a compact "
+            "residual CNN critic."
         ),
     )
 
@@ -106,12 +132,41 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--autocurriculum-start-size", type=int, default=4)
     parser.add_argument("--autocurriculum-success-cookies", type=int, default=6)
     parser.add_argument(
+        "--distance-autocurriculum",
+        action="store_true",
+        help=(
+            "Keep the full grid size fixed but advance the food-source Manhattan "
+            "distance from the hub after enough deliveries in the current stage."
+        ),
+    )
+    parser.add_argument("--distance-autocurriculum-start-distance", type=int, default=2)
+    parser.add_argument("--distance-autocurriculum-max-distance", type=int, default=128)
+    parser.add_argument("--distance-autocurriculum-multiplier", type=int, default=2)
+    parser.add_argument(
+        "--distance-autocurriculum-success-cookies",
+        type=int,
+        default=0,
+        help=(
+            "Deliveries needed before advancing distance stages. Use 0 to require "
+            "all food in the current stage."
+        ),
+    )
+    parser.add_argument(
         "--actor-vision-radius",
         type=int,
         default=DEFAULT_ACTOR_VISION_DEPTH,
         help="Centered local actor-grid radius; the default radius 1 is a 3x3 grid.",
     )
     parser.add_argument("--num-ants", type=int, default=2)
+    parser.add_argument(
+        "--agent-identity-types",
+        type=int,
+        default=None,
+        help=(
+            "When set with multiple ants, repeat this many actor identity one-hot "
+            "types instead of assigning one unique identity slot per ant."
+        ),
+    )
     parser.add_argument("--food-count", type=int, default=4)
     parser.add_argument("--food-sources", type=int, default=1)
     parser.add_argument(
@@ -292,6 +347,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--distance-progress-normalizer",
+        choices=DISTANCE_PROGRESS_NORMALIZERS,
+        default="map",
+        help=(
+            "Scale trainer-side Manhattan progress by the full map span ('map') or "
+            "by distance-autocurriculum stage distance when available ('stage')."
+        ),
+    )
+    parser.add_argument(
         "--carrying-hub-distance-bonus",
         type=float,
         default=0.0,
@@ -469,6 +533,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.set_defaults(best_eval_shuffle_positions=True)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
+        "--reset-optimizer-on-load",
+        action="store_true",
+        help=(
+            "When loading a checkpoint, warm-start policy/value parameters but "
+            "discard the saved Adam optimizer state."
+        ),
+    )
+    parser.add_argument(
         "--run-dir",
         type=Path,
         default=None,
@@ -536,6 +608,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--log-interval must be positive.")
     if args.training_rollout_temperature <= 0.0:
         raise ValueError("--training-rollout-temperature must be positive.")
+    if args.max_grad_norm < 0.0:
+        raise ValueError("--max-grad-norm must be non-negative.")
+    if args.actor_max_grad_norm is not None and args.actor_max_grad_norm < 0.0:
+        raise ValueError("--actor-max-grad-norm must be non-negative.")
+    if args.critic_max_grad_norm is not None and args.critic_max_grad_norm < 0.0:
+        raise ValueError("--critic-max-grad-norm must be non-negative.")
     if args.layout_audit_snapshot_interval < 0:
         raise ValueError("--layout-audit-snapshot-interval must be non-negative.")
     if args.layout_audit_snapshot_interval > 0 and args.layout_audit_dir is None:
@@ -593,12 +671,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             raise ValueError(
                 "--food-count must equal --autocurriculum-success-cookies * --food-sources."
             )
+    if args.distance_autocurriculum:
+        if args.autocurriculum:
+            raise ValueError("--distance-autocurriculum cannot be combined with --autocurriculum.")
+        if args.distance_autocurriculum_start_distance <= 0:
+            raise ValueError("--distance-autocurriculum-start-distance must be positive.")
+        if (
+            args.distance_autocurriculum_max_distance
+            < args.distance_autocurriculum_start_distance
+        ):
+            raise ValueError(
+                "--distance-autocurriculum-max-distance must be at least the start distance."
+            )
+        if args.distance_autocurriculum_multiplier <= 1:
+            raise ValueError("--distance-autocurriculum-multiplier must be greater than 1.")
+        if args.distance_autocurriculum_success_cookies < 0:
+            raise ValueError("--distance-autocurriculum-success-cookies must be non-negative.")
+        if args.distance_autocurriculum_success_cookies > args.food_count:
+            raise ValueError(
+                "--distance-autocurriculum-success-cookies cannot exceed --food-count."
+            )
+        if args.food_sources != 1:
+            raise ValueError("--distance-autocurriculum currently uses exactly one food source.")
     if args.obs_width is not None and args.obs_width < args.width:
         raise ValueError("--obs-width must be at least --width.")
     if args.obs_height is not None and args.obs_height < args.height:
         raise ValueError("--obs-height must be at least --height.")
     if args.actor_vision_radius < 0:
         raise ValueError("--actor-vision-radius must be non-negative.")
+    if args.agent_identity_types is not None and args.agent_identity_types <= 0:
+        raise ValueError("--agent-identity-types must be positive.")
     if args.random_ant_spawn_radius is not None and args.random_ant_spawn_radius < 0:
         raise ValueError("--random-ant-spawn-radius must be non-negative.")
     if args.layout_margin < 0:
@@ -615,14 +717,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--maze-wall-width must be positive.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
-    if args.autocurriculum and not args.food_termination:
-        raise ValueError("--no-food-termination is only supported for non-autocurriculum runs.")
-    if args.autocurriculum and args.terminate_on_full_coverage:
+    if (args.autocurriculum or args.distance_autocurriculum) and not args.food_termination:
+        raise ValueError("--no-food-termination is only supported for non-curriculum runs.")
+    if (args.autocurriculum or args.distance_autocurriculum) and args.terminate_on_full_coverage:
         raise ValueError(
-            "--terminate-on-full-coverage is only supported for non-autocurriculum runs."
+            "--terminate-on-full-coverage is only supported for non-curriculum runs."
         )
     if args.autocurriculum and args.maze_obstacles:
-        raise ValueError("--maze-obstacles is only supported for non-autocurriculum runs.")
+        raise ValueError("--maze-obstacles is only supported for non-distance autocurriculum runs.")
     if args.write_bit_penalty < 0.0:
         raise ValueError("--write-bit-penalty must be non-negative.")
     if not 0.0 <= args.write_bit_penalty_decay <= 1.0:

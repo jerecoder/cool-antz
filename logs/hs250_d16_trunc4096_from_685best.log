@@ -1,0 +1,9 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/jerefigo/.netrc.
+wandb: Currently logged in as: jerefigueiredo (jerefigueiredo-universidad-de-san-andr-s) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run r0foylxd
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in runs/training/hs250_d16_trunc4096_from_685best/continuation-20260703T1455Z/wandb/run-20260703_145640-r0foylxd
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run hs250-d16-trunc4096-from-685best
+wandb: ⭐️ View project at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz
+wandb: 🚀 View run at https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/r0foylxd

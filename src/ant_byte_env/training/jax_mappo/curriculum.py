@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -317,9 +318,11 @@ def reset_batch(
     key: jax.Array,
     previous_obs: JaxObs | None = None,
     previous_food: jax.Array | None = None,
-) -> tuple[JaxAntState, JaxObs]:
+) -> tuple[Any, JaxObs]:
     reset_keys = jax.random.split(key, args.num_envs)
-    if bool(getattr(args, "autocurriculum", False)):
+    if bool(getattr(args, "autocurriculum", False)) or bool(
+        getattr(args, "distance_autocurriculum", False)
+    ):
         states, obs, _ = jax.vmap(env.reset)(reset_keys)
         return states, obs
 

@@ -1,0 +1,15 @@
+[sweep] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/sweep_20260702_222315
+[sweep] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/sweep_20260702_222315/STOP
+[candidate] idx=0 name=bridge_0000_easy_mt0525_lr1e5_u8 task=easy125_2src lr=1e-05 temp=0.525 updates=8
+[result] name=bridge_0000_easy_mt0525_lr1e5_u8 eval_mean_delivered_food_per_1000_ant_steps=0.701368 frac=0.770 success=0.438 status=alive
+[candidate] idx=1 name=bridge_0001_easy_mt050_lr1e5_u8 task=easy125_2src lr=1e-05 temp=0.5 updates=8
+[result] name=bridge_0001_easy_mt050_lr1e5_u8 eval_mean_delivered_food_per_1000_ant_steps=0.632543 frac=0.857 success=0.438 status=alive
+[candidate] idx=2 name=bridge_0002_easy_mt060_lr1e5_u8 task=easy125_2src lr=1e-05 temp=0.6 updates=8
+[result] name=bridge_0002_easy_mt060_lr1e5_u8 eval_mean_delivered_food_per_1000_ant_steps=0.999143 frac=0.866 success=0.438 status=alive
+[candidate] idx=3 name=bridge_0003_easy_mt0525_lr5e6_u16 task=easy125_2src lr=5e-06 temp=0.525 updates=16
+[result] name=bridge_0003_easy_mt0525_lr5e6_u16 eval_mean_delivered_food_per_1000_ant_steps=0.559397 frac=0.673 success=0.438 status=alive
+[candidate] idx=4 name=bridge_0004_mid_mt0525_lr1e5_u10 task=mid250_4src lr=1e-05 temp=0.525 updates=10
+[result] name=bridge_0004_mid_mt0525_lr1e5_u10 eval_mean_delivered_food_per_1000_ant_steps=0.999667 frac=0.875 success=0.312 status=alive
+[candidate] idx=5 name=bridge_0005_mid_mt050_lr1e5_u10 task=mid250_4src lr=1e-05 temp=0.5 updates=10
+[result] name=bridge_0005_mid_mt050_lr1e5_u10 eval_mean_delivered_food_per_1000_ant_steps=1.02759 frac=0.902 success=0.625 status=alive
+[sweep] parent loop ended.

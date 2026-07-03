@@ -1,0 +1,8 @@
+label,critic,ants,delivered_food,food_total,delivered_fraction,success_rate,write_nonzero_rate,note
+eficiente 50x50,MLP,4,21.5,48,0.44791666666666674,0.0,0.01507568359375,default critic
+proximidad positiva,strided CNN,4,40.875,250,0.1635,0.0,0.92669677734375,spatial critic
+full layout,strided CNN,4,17.625,250,0.07050000000000001,0.0,0.9410400390625,"final, peak was higher"
+8 ants long3,strided CNN,8,43.875,125,0.351,0.0,0.95184326171875,half food
+8 ants shared write,strided CNN,8,45.25,125,0.362,0.0,0.9312362670898438,shared writes
+8 ants write cost,strided CNN,8,69.375,125,0.5549999999999999,0.125,0.9434051513671875,best 8-ant local result
+60 ants confirmado,strided CNN,60,123.90625,125,0.99125,0.90625,0.9980143904685974,"64 eval episodes, saturated writes"

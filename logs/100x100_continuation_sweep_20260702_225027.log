@@ -1,0 +1,11 @@
+[sweep] dir=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/continue_20260702_225027
+[sweep] stop_file=/home/jerefigo/Documents/fun/cool-antz/runs/bridge_100x100_sweep/continue_20260702_225027/STOP
+[candidate] idx=0 name=continue_0000_mid250_from_best_mt050_lr5e6_u24 task=mid250_4src lr=5e-06 temp=0.5 updates=24
+[result] name=continue_0000_mid250_from_best_mt050_lr5e6_u24 eval_mean_delivered_food_per_1000_ant_steps=0.788105 frac=0.852 success=0.250 status=evaluated
+[candidate] idx=1 name=continue_0001_mid250_from_best_mt0525_lr5e6_u24 task=mid250_4src lr=5e-06 temp=0.525 updates=24
+[result] name=continue_0001_mid250_from_best_mt0525_lr5e6_u24 eval_mean_delivered_food_per_1000_ant_steps=0.862672 frac=0.865 success=0.417 status=evaluated
+[candidate] idx=2 name=continue_0002_mid250_from_best_mt060_lr5e6_u16 task=mid250_4src lr=5e-06 temp=0.6 updates=16
+[result] name=continue_0002_mid250_from_best_mt060_lr5e6_u16 eval_mean_delivered_food_per_1000_ant_steps=1.03318 frac=0.868 success=0.375 status=evaluated
+[candidate] idx=3 name=continue_0003_hard375_from_best_mt050_lr5e6_u16 task=hard375_6src lr=5e-06 temp=0.5 updates=16
+[result] name=continue_0003_hard375_from_best_mt050_lr5e6_u16 eval_mean_delivered_food_per_1000_ant_steps=0.972745 frac=0.869 success=0.292 status=alive
+[sweep] parent loop ended.
