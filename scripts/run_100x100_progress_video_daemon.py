@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import datetime as dt
-import html
 import json
 import os
 import subprocess
@@ -18,8 +16,8 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PYTHON = "/home/jerefigo/miniconda3/envs/tp1-rl/bin/python"
 WANDB_PROJECT = "cool-antz"
-WANDB_RUN_ID = "coolantz100x100progressvideos"
-WANDB_RUN_NAME = "100x100 fixed progress videos"
+WANDB_RUN_ID = "coolantz100x100progressvideossingle"
+WANDB_RUN_NAME = "100x100 progress videos"
 WANDB_STEP_OFFSET = 100_000
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "bridge_mid250_best": {
@@ -129,6 +127,7 @@ def parent_loop(args: argparse.Namespace) -> None:
             cycle += 1
             cycles_this_run += 1
             cycle_started = time.monotonic()
+            rendered_records: list[dict[str, Any]] = []
             for target_index, (target_name, target) in enumerate(targets.items()):
                 if stop_file.exists():
                     break
@@ -150,15 +149,16 @@ def parent_loop(args: argparse.Namespace) -> None:
                 )
                 append_jsonl(summary_path, record)
                 if record["status"] == "rendered":
-                    upload_video(
-                        wandb_run=wandb_run,
-                        target_name=target_name,
-                        cycle=cycle,
-                        record=record,
-                        summary_path=summary_path,
-                        archive_limit=int(args.keep_local_videos),
-                    )
+                    rendered_records.append(record)
                     prune_old_videos(renders_dir, keep=int(args.keep_local_videos))
+            if rendered_records:
+                upload_cycle_videos(
+                    wandb_run=wandb_run,
+                    cycle=cycle,
+                    records=rendered_records,
+                    summary_path=summary_path,
+                    archive_limit=int(args.keep_local_videos),
+                )
             elapsed = time.monotonic() - cycle_started
             sleep_for = max(0.0, float(args.interval_seconds) - elapsed)
             if args.max_cycles is not None and cycles_this_run >= int(args.max_cycles):
@@ -408,12 +408,11 @@ def init_wandb(
     return run
 
 
-def upload_video(
+def upload_cycle_videos(
     *,
     wandb_run: Any | None,
-    target_name: str,
     cycle: int,
-    record: dict[str, Any],
+    records: list[dict[str, Any]],
     summary_path: Path,
     archive_limit: int,
 ) -> None:
@@ -421,45 +420,27 @@ def upload_video(
         return
     import wandb
 
-    video_path = Path(record["video"])
-    metadata_path = Path(record["metadata"])
-    archive_key = f"video_archive/cycle_{cycle:06d}/{target_name}"
-    payload: dict[str, Any] = {
-        f"latest/{target_name}": wandb.Video(str(video_path), fps=8, format="mp4"),
-        archive_key: wandb.Video(str(video_path), fps=8, format="mp4"),
-        f"meta/{target_name}/cycle": int(cycle),
-        f"meta/{target_name}/move_temperature": float(record["move_temperature"]),
-        f"meta/{target_name}/seed_offset": int(record["seed_offset"]),
-    }
-    archive_table = build_video_archive_table(
+    video_table = build_video_archive_table(
         wandb,
         summary_path=summary_path,
         limit=archive_limit,
     )
-    if archive_table is not None:
-        payload["video_archive/recent_table"] = archive_table
-    site_html_path = build_current_video_site(summary_path=summary_path)
-    if site_html_path is not None:
-        payload["video_site/current_html"] = wandb.Html(str(site_html_path))
-    if "render_metadata" in record:
-        payload[f"meta/{target_name}/render_seconds"] = float(
-            record["render_metadata"].get("elapsed_seconds", 0.0)
-        )
-        payload[f"meta/{target_name}/video_size_mb"] = float(
-            record["render_metadata"].get("size_bytes", 0)
-        ) / 1_000_000.0
+    if video_table is None:
+        return
+    payload: dict[str, Any] = {
+        "progress_videos": video_table,
+        "progress_video_cycle": int(cycle),
+        "progress_video_targets": len(records),
+    }
     wandb_run.log(payload, step=wandb_step_for_cycle(cycle))
-    wandb_run.save(str(video_path), base_path=str(video_path.parent))
-    if metadata_path.exists():
-        wandb_run.save(str(metadata_path), base_path=str(metadata_path.parent))
-    if site_html_path is not None:
-        wandb_run.save(str(site_html_path), base_path=str(site_html_path.parent))
     wandb_run.summary["latest_video_cycle"] = int(cycle)
     wandb_run.summary["latest_video_wandb_step"] = wandb_step_for_cycle(cycle)
-    wandb_run.summary[f"latest_{target_name}_video"] = str(video_path)
-    wandb_run.summary[f"latest_{target_name}_seed_offset"] = int(record["seed_offset"])
-    if site_html_path is not None:
-        wandb_run.summary["current_video_site"] = str(site_html_path)
+    wandb_run.summary["latest_video_targets"] = [
+        str(record["target"]) for record in records
+    ]
+    wandb_run.summary["latest_video_paths"] = [
+        str(record["video"]) for record in records
+    ]
 
 
 def build_video_archive_table(
@@ -495,79 +476,6 @@ def build_video_archive_table(
             wandb_module.Video(str(Path(record["video"])), fps=8, format="mp4"),
         )
     return table
-
-
-def build_current_video_site(*, summary_path: Path) -> Path | None:
-    records = [
-        record
-        for record in read_jsonl(summary_path)
-        if record.get("status") == "rendered" and Path(str(record.get("video", ""))).exists()
-    ]
-    if not records:
-        return None
-    latest_by_target: dict[str, dict[str, Any]] = {}
-    for record in records:
-        latest_by_target[str(record["target"])] = record
-
-    cards: list[str] = []
-    for target_name in sorted(latest_by_target):
-        record = latest_by_target[target_name]
-        video_path = Path(str(record["video"]))
-        encoded = base64.b64encode(video_path.read_bytes()).decode("ascii")
-        cards.append(
-            "\n".join(
-                [
-                    '<section class="card">',
-                    f"<h2>{html.escape(target_name)}</h2>",
-                    "<p>"
-                    f"cycle {int(record['cycle'])} | "
-                    f"temp {float(record['move_temperature']):g} | "
-                    f"seed {int(record['seed_offset'])} | "
-                    f"{html.escape(str(record['finished_at']))}"
-                    "</p>",
-                    (
-                        '<video controls preload="metadata" '
-                        f'src="data:video/mp4;base64,{encoded}"></video>'
-                    ),
-                    f'<p class="path">local: {html.escape(str(video_path))}</p>',
-                    "</section>",
-                ]
-            )
-        )
-
-    site_path = summary_path.parent / "current_progress_video_site.html"
-    site_path.write_text(
-        "\n".join(
-            [
-                "<!doctype html>",
-                '<html><head><meta charset="utf-8">',
-                "<title>100x100 progress videos</title>",
-                "<style>",
-                (
-                    "body{font-family:Inter,system-ui,sans-serif;margin:0;padding:24px;"
-                    "background:#101114;color:#f4f4f5}"
-                ),
-                "h1{margin:0 0 8px;font-size:28px}",
-                ".meta{color:#b7bac2;margin-bottom:24px}",
-                (
-                    ".grid{display:grid;grid-template-columns:repeat(auto-fit,"
-                    "minmax(420px,1fr));gap:20px}"
-                ),
-                ".card{background:#1b1d22;border:1px solid #343841;border-radius:8px;padding:16px}",
-                "h2{margin:0 0 6px;font-size:18px}",
-                "p{color:#c9ccd4;margin:0 0 12px;font-size:13px}",
-                "video{width:100%;border-radius:6px;background:#000}",
-                ".path{margin-top:10px;word-break:break-all;color:#8e95a3}",
-                "</style></head><body>",
-                "<h1>100x100 Progress Videos</h1>",
-                f'<div class="meta">Generated {html.escape(now_iso())}</div>',
-                f'<div class="grid">{"".join(cards)}</div>',
-                "</body></html>",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    return site_path
 
 
 def parse_targets(values: list[list[str]] | None) -> dict[str, dict[str, Any]]:
@@ -630,7 +538,7 @@ def resolve_path(path: Path) -> Path:
 
 
 def default_out_dir() -> Path:
-    return PROJECT_ROOT / "runs" / "bridge_100x100_sweep" / "progress_videos"
+    return PROJECT_ROOT / "runs" / "bridge_100x100_sweep" / "progress_videos_single"
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
