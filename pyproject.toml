@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-  { name = "cool-antz contributors" }
+  { name = "Jeremías Figueiredo Paschmann" },
+  { name = "Francisco Nattero" },
+  { name = "Juan Kaplan" }
 ]
 dependencies = [
   "gymnasium>=0.29",

@@ -32,20 +32,6 @@
   const ACTION_DOWN = 3;
   const ACTION_LEFT = 4;
   const DEFAULT_FACING = ACTION_RIGHT;
-  const defaultFoodSources = [
-    [4, 4],
-    [20, 4],
-    [4, 20],
-    [20, 20],
-    [12, 3],
-    [3, 12],
-    [21, 12],
-    [12, 21],
-    [7, 7],
-    [17, 7],
-    [7, 17],
-    [17, 17],
-  ];
   const spritePaths = {
     ant: "report-site/assets/sprites/ant.png",
     food: "report-site/assets/sprites/food.png",
@@ -56,6 +42,7 @@
   let state = null;
   let running = false;
   let placementMode = "food";
+  const defaultFoodSources = buildDefaultFoodSources();
   let foodSources = defaultFoodSources.slice(0, env.food_sources).map(copyPosition);
   let hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
   let rngState = 0x5eed1234;
@@ -65,6 +52,27 @@
 
   function copyPosition(position) {
     return [Number(position[0]), Number(position[1])];
+  }
+
+  function buildDefaultFoodSources() {
+    const candidates = [
+      [0.22, 0.22],
+      [0.78, 0.78],
+      [0.22, 0.78],
+      [0.78, 0.22],
+      [0.5, 0.18],
+      [0.18, 0.5],
+      [0.82, 0.5],
+      [0.5, 0.82],
+      [0.35, 0.35],
+      [0.65, 0.35],
+      [0.35, 0.65],
+      [0.65, 0.65],
+    ];
+    return candidates.slice(0, env.food_sources).map(([xRatio, yRatio]) => [
+      Math.max(0, Math.min(env.width - 1, Math.round((env.width - 1) * xRatio))),
+      Math.max(0, Math.min(env.height - 1, Math.round((env.height - 1) * yRatio))),
+    ]);
   }
 
   function makeGrid(fillValue) {
@@ -160,7 +168,7 @@
     if (!running) {
       return;
     }
-    const steps = Math.max(1, Math.min(12, Number(speedInput.value) || 1));
+    const steps = Math.max(1, Math.min(6, Number(speedInput.value) || 1));
     for (let index = 0; index < steps && running; index += 1) {
       stepPolicy();
     }
@@ -237,7 +245,7 @@
     return inBounds(x, y) ? grid[y][x] : 0;
   }
 
-  function localPatch(position, valueAt, invalidValue = 0) {
+  function legacyLocalPatch(position, valueAt, invalidValue = 0) {
     const radius = env.actor_vision_radius;
     const values = [];
     for (let dy = -radius; dy <= radius; dy += 1) {
@@ -250,24 +258,108 @@
     return values;
   }
 
-  function buildActorObs(antIndex) {
+  function localOffsets(facing) {
+    const radius = env.actor_vision_radius;
+    const offsets = [];
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        if (facing === ACTION_DOWN) {
+          offsets.push([-dy, dx]);
+        } else if (facing === ACTION_LEFT) {
+          offsets.push([-dx, -dy]);
+        } else if (facing === ACTION_UP) {
+          offsets.push([dy, -dx]);
+        } else {
+          offsets.push([dx, dy]);
+        }
+      }
+    }
+    return offsets;
+  }
+
+  function localPatch(position, facing, valueAt, invalidValue = 0) {
+    return localOffsets(facing).map(([dx, dy]) => {
+      const x = position[0] + dx;
+      const y = position[1] + dy;
+      return inBounds(x, y) ? valueAt(x, y) : invalidValue;
+    });
+  }
+
+  function antsCountGrid() {
+    const grid = makeGrid(0);
+    state.ants.forEach(([x, y]) => {
+      grid[y][x] += 1;
+    });
+    return grid;
+  }
+
+  function identityFeatures(antIndex) {
+    if (env.num_ants <= 1) {
+      return [];
+    }
+    const width = Number(env.agent_identity_types || env.num_ants);
+    return Array.from({ length: width }, (_, index) =>
+      index === antIndex % width ? 1 : 0,
+    );
+  }
+
+  function facingOneHot(facing) {
+    const index = Math.max(0, Math.min(3, facing - 1));
+    return Array.from({ length: 4 }, (_, itemIndex) => (itemIndex === index ? 1 : 0));
+  }
+
+  function buildLegacyActorObs(antIndex) {
     const position = state.ants[antIndex];
     const values = [];
     values.push(
-      ...localPatch(position, (x, y) => gridValue(state.food, x, y) / env.food_scale),
+      ...legacyLocalPatch(position, (x, y) => gridValue(state.food, x, y) / env.food_scale),
     );
     for (let bit = 0; bit < env.write_bits; bit += 1) {
       values.push(
-        ...localPatch(position, (x, y) => (gridValue(state.bytes, x, y) >> bit) & 1),
+        ...legacyLocalPatch(position, (x, y) => (gridValue(state.bytes, x, y) >> bit) & 1),
       );
     }
     values.push(
-      ...localPatch(position, (x, y) => (x === state.hub[0] && y === state.hub[1] ? 1 : 0)),
+      ...legacyLocalPatch(
+        position,
+        (x, y) => (x === state.hub[0] && y === state.hub[1] ? 1 : 0),
+      ),
+    );
+    values.push(...legacyLocalPatch(position, () => 0, 1));
+    values.push(state.carrying[antIndex] ? 1 : 0);
+    return values;
+  }
+
+  function buildActorObs(antIndex) {
+    if (actor.observation_layout[0].startsWith("legacy")) {
+      return buildLegacyActorObs(antIndex);
+    }
+    const position = state.ants[antIndex];
+    const facing = state.facing[antIndex];
+    const antCounts = state.currentAntCounts || antsCountGrid();
+    const values = [];
+    values.push(
+      ...localPatch(position, facing, (x, y) => gridValue(state.food, x, y) / env.food_scale),
     );
     values.push(
-      ...localPatch(position, () => 0, 1),
+      ...localPatch(position, facing, (x, y) => gridValue(antCounts, x, y) / env.num_ants),
     );
+    for (let bit = 0; bit < env.write_bits; bit += 1) {
+      values.push(
+        ...localPatch(position, facing, (x, y) => (gridValue(state.bytes, x, y) >> bit) & 1),
+      );
+    }
+    values.push(
+      ...localPatch(
+        position,
+        facing,
+        (x, y) => (x === state.hub[0] && y === state.hub[1] ? 1 : 0),
+      ),
+    );
+    values.push(...localPatch(position, facing, () => 0, 1));
+    values.push(...identityFeatures(antIndex));
     values.push(state.carrying[antIndex] ? 1 : 0);
+    values.push(...facingOneHot(facing));
     return values;
   }
 
@@ -350,7 +442,9 @@
       setRunning(false);
       return;
     }
+    state.currentAntCounts = antsCountGrid();
     const actions = state.ants.map((_, antIndex) => chooseAction(antIndex));
+    state.currentAntCounts = null;
     actions.forEach((action, antIndex) => applyAntAction(antIndex, action));
     state.step += 1;
     if (remainingFood() <= 0 || state.step >= env.max_steps) {

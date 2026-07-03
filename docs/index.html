@@ -20,7 +20,9 @@
         External Memory
       </h1>
       <div class="authors">
-        <span class="author">Jere Figo</span>
+        <span class="author">Jeremías Figueiredo Paschmann</span>,
+        <span class="author">Francisco Nattero</span>,
+        <span class="author">Juan Kaplan</span>
       </div>
       <div class="notes">
         <span class="institution">Project final for reinforcement learning</span>
@@ -92,9 +94,9 @@
         <h2>Interactive policy sandbox</h2>
         <p class="summary">
           This runner uses exported actor weights from
-          <code>runs/notebooks/ant_count_25x25_3_bits/4_ants/checkpoints/model.pkl</code>.
+          <code>runs/notebooks/fl50_60ants_half_food_sw_wc_8bits_stabilize_from_60best/checkpoints/best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl</code>.
           Click the grid to place the colony or food sources, then run the
-          four-ant policy in the browser.
+          actual 50x50 frontier policy in the browser.
         </p>
 
         <div class="runner-shell">
@@ -103,15 +105,16 @@
               id="runner-canvas"
               width="600"
               height="600"
-              aria-label="Interactive 25x25 ant policy sandbox"
+              aria-label="Interactive 50x50 ant policy sandbox"
             ></canvas>
           </div>
           <aside class="runner-panel">
-            <h3>25x25 / 4 ants / 3 bits</h3>
+            <h3>50x50 / 60 ants / 8 bits</h3>
             <p class="caption">
-              Static export of a JAX MAPPO actor. The legacy 151-dimensional
-              observation is food patch, byte-bit patches, hub patch, border
-              patch, and carrying flag.
+              Static export of the actual trained 50x50 actor used by the
+              frontier rollout. The 313-dimensional actor input is facing-aware:
+              food, ant count, byte bits, hub, border, identity, carrying, and
+              facing features.
             </p>
 
             <div class="control-block">
@@ -139,22 +142,22 @@
               </select>
 
               <label for="runner-speed">steps per frame</label>
-              <input id="runner-speed" type="range" min="1" max="12" value="4">
+              <input id="runner-speed" type="range" min="1" max="6" value="1">
             </div>
 
             <dl class="metrics-list runner-metrics">
               <dt>step</dt>
-              <dd id="runner-step">0 / 2500</dd>
+              <dd id="runner-step">0 / 2000</dd>
               <dt>delivered</dt>
-              <dd id="runner-delivered">0 / 23</dd>
+              <dd id="runner-delivered">0 / 125</dd>
               <dt>remaining</dt>
-              <dd id="runner-remaining">23</dd>
+              <dd id="runner-remaining">125</dd>
               <dt>carrying</dt>
-              <dd id="runner-carrying">0 / 4</dd>
+              <dd id="runner-carrying">0 / 60</dd>
               <dt>nonzero bytes</dt>
               <dd id="runner-bytes">0 tiles</dd>
               <dt>food sources</dt>
-              <dd id="runner-sources">12 / 12</dd>
+              <dd id="runner-sources">2 / 2</dd>
               <dt>status</dt>
               <dd id="runner-status">loading</dd>
             </dl>
@@ -399,7 +402,7 @@
         <h2>BibTeX-style citation</h2>
         <pre><code>@misc{figo2026coolantz,
   title = {Cool Antz: Multi-Agent Foraging With External Memory},
-  author = {Figo, Jere},
+  author = {Figueiredo Paschmann, Jeremías and Nattero, Francisco and Kaplan, Juan},
   year = {2026},
   note = {Reinforcement learning project report and local experiment chronology}
 }</code></pre>
@@ -414,7 +417,7 @@
     </footer>
 
     <script src="report-site/site.js"></script>
-    <script src="report-site/assets/data/policy-runner-25x25-4ants.js"></script>
+    <script src="report-site/assets/data/policy-runner-50x50-frontier.js"></script>
     <script src="report-site/runner.js"></script>
   </body>
 </html>
