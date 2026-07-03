@@ -122,6 +122,7 @@ def main() -> None:
     parser.add_argument("--min-disk-free-gb", type=float, default=2.0)
     parser.add_argument("--mem-fraction", default="0.34")
     parser.add_argument("--num-ants", type=int, default=DEFAULT_NUM_ANTS)
+    parser.add_argument("--source-checkpoint", type=Path, default=SOURCE_CHECKPOINT)
     args = parser.parse_args()
 
     if args.worker == "train":
@@ -145,6 +146,9 @@ def parent_loop(args: argparse.Namespace) -> None:
     python = os.environ.get("ANTZ_PYTHON", DEFAULT_PYTHON)
     if int(args.num_ants) <= 0:
         raise ValueError("--num-ants must be positive")
+    source_checkpoint = resolve_project_path(args.source_checkpoint)
+    if not source_checkpoint.exists():
+        raise FileNotFoundError(f"source checkpoint does not exist: {source_checkpoint}")
     sweep_dir = (args.sweep_dir or default_sweep_dir()).resolve()
     for child in ("configs", "logs", "evals"):
         (sweep_dir / child).mkdir(parents=True, exist_ok=True)
@@ -156,11 +160,14 @@ def parent_loop(args: argparse.Namespace) -> None:
         sweep_dir / "state.json",
         {
             "base_sweep": str(BASE_SWEEP),
-            "source_checkpoint": str(SOURCE_CHECKPOINT),
+            "source_checkpoint": str(source_checkpoint),
             "num_ants": int(args.num_ants),
             "primary_metric": PRIMARY_METRIC,
             "started_at": now_iso(),
-            "candidates": public_candidates(num_ants=int(args.num_ants)),
+            "candidates": public_candidates(
+                num_ants=int(args.num_ants),
+                source_checkpoint=source_checkpoint,
+            ),
             "tasks": TASKS,
         },
     )
@@ -174,7 +181,12 @@ def parent_loop(args: argparse.Namespace) -> None:
             print("[stop] STOP file found; exiting loop cleanly.", flush=True)
             break
         prepare_disk_space(PROJECT_ROOT, args.min_disk_free_gb)
-        candidate = candidate_for_index(index, sweep_dir, num_ants=int(args.num_ants))
+        candidate = candidate_for_index(
+            index,
+            sweep_dir,
+            num_ants=int(args.num_ants),
+            source_checkpoint=source_checkpoint,
+        )
         config_path = write_candidate_config(candidate, sweep_dir)
         train_result_path = candidate["run_dir"] / "train_result.json"
         eval_result_path = sweep_dir / "evals" / f"{candidate['name']}.json"
@@ -310,7 +322,13 @@ def worker_train(config_path: Path, result_path: Path) -> None:
     write_json(result_path, result)
 
 
-def candidate_for_index(index: int, sweep_dir: Path, *, num_ants: int) -> dict[str, Any]:
+def candidate_for_index(
+    index: int,
+    sweep_dir: Path,
+    *,
+    num_ants: int,
+    source_checkpoint: Path,
+) -> dict[str, Any]:
     base = CANDIDATES[index]
     name = f"continue{int(num_ants)}_{index:04d}_{base['stem']}"
     return {
@@ -318,6 +336,7 @@ def candidate_for_index(index: int, sweep_dir: Path, *, num_ants: int) -> dict[s
         "index": index,
         "name": name,
         "num_ants": int(num_ants),
+        "source_checkpoint": source_checkpoint,
         "run_dir": sweep_dir / name,
     }
 
@@ -480,9 +499,16 @@ def public_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def public_candidates(*, num_ants: int) -> list[dict[str, Any]]:
+def public_candidates(*, num_ants: int, source_checkpoint: Path = SOURCE_CHECKPOINT) -> list[dict[str, Any]]:
     return [
-        public_candidate({**candidate, "index": index, "num_ants": int(num_ants)})
+        public_candidate(
+            {
+                **candidate,
+                "index": index,
+                "num_ants": int(num_ants),
+                "source_checkpoint": source_checkpoint,
+            }
+        )
         for index, candidate in enumerate(CANDIDATES)
     ]
 
