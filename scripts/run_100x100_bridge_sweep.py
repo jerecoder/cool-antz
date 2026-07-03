@@ -26,6 +26,7 @@ SOURCE_CHECKPOINT = (
     / "best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl"
 )
 WANDB_PROJECT = "cool-antz"
+DEFAULT_NUM_ANTS = 120
 PRIMARY_METRIC = "eval_mean_delivered_food_per_1000_ant_steps"
 EVAL_KEYS = (
     PRIMARY_METRIC,
@@ -128,6 +129,7 @@ def main() -> None:
     parser.add_argument("--eval-timeout-seconds", type=int, default=1200)
     parser.add_argument("--min-disk-free-gb", type=float, default=2.0)
     parser.add_argument("--mem-fraction", default="0.34")
+    parser.add_argument("--num-ants", type=int, default=DEFAULT_NUM_ANTS)
     args = parser.parse_args()
 
     if args.worker == "prepare":
@@ -154,6 +156,8 @@ def main() -> None:
 
 def parent_loop(args: argparse.Namespace) -> None:
     python = os.environ.get("ANTZ_PYTHON", DEFAULT_PYTHON)
+    if int(args.num_ants) <= 0:
+        raise ValueError("--num-ants must be positive")
     sweep_dir = args.sweep_dir or default_sweep_dir()
     sweep_dir = sweep_dir.resolve()
     for child in ("configs", "logs", "evals", "warmstarts"):
@@ -168,9 +172,10 @@ def parent_loop(args: argparse.Namespace) -> None:
         {
             "sweep_dir": str(sweep_dir),
             "source_checkpoint": str(SOURCE_CHECKPOINT),
+            "num_ants": int(args.num_ants),
             "primary_metric": PRIMARY_METRIC,
             "started_at": now_iso(),
-            "candidates": CANDIDATES,
+            "candidates": public_candidates(num_ants=int(args.num_ants)),
             "tasks": TASKS,
         },
     )
@@ -184,7 +189,7 @@ def parent_loop(args: argparse.Namespace) -> None:
             print("[stop] STOP file found; exiting loop cleanly.", flush=True)
             break
         prepare_disk_space(PROJECT_ROOT, args.min_disk_free_gb)
-        candidate = candidate_for_index(index, sweep_dir)
+        candidate = candidate_for_index(index, sweep_dir, num_ants=int(args.num_ants))
         config_path = write_candidate_config(candidate, sweep_dir)
         train_result_path = candidate["run_dir"] / "train_result.json"
         eval_result_path = sweep_dir / "evals" / f"{candidate['name']}.json"
@@ -452,6 +457,7 @@ def prepare_actor_warm_start(config_path: Path) -> dict[str, Any]:
     )
     source = read_checkpoint(source_checkpoint)
     source_params = source["params"]
+    source_args = source.get("args", {})
     if tuple(source_params.actor_body[0].weight.shape) != tuple(
         target_params.actor_body[0].weight.shape
     ):
@@ -493,6 +499,8 @@ def prepare_actor_warm_start(config_path: Path) -> dict[str, Any]:
     return {
         "path": str(warm_start_path),
         "source_checkpoint": str(source_checkpoint),
+        "source_num_ants": int(source_args.get("num_ants", args.num_ants)),
+        "target_num_ants": int(args.num_ants),
         "reused": False,
         "source_central_obs_dim": int(source["central_obs_dim"]),
         "target_central_obs_dim": int(central_obs.shape[-1]),
@@ -502,14 +510,15 @@ def prepare_actor_warm_start(config_path: Path) -> dict[str, Any]:
     }
 
 
-def candidate_for_index(index: int, sweep_dir: Path) -> dict[str, Any]:
+def candidate_for_index(index: int, sweep_dir: Path, *, num_ants: int) -> dict[str, Any]:
     base = CANDIDATES[index]
-    name = f"bridge_{index:04d}_{base['stem']}"
+    name = f"bridge{int(num_ants)}_{index:04d}_{base['stem']}"
     run_dir = sweep_dir / name
     return {
         **base,
         "index": index,
         "name": name,
+        "num_ants": int(num_ants),
         "run_dir": run_dir,
         "warm_start_checkpoint": sweep_dir / "warmstarts" / f"{name}_actor_warm_start.pkl",
     }
@@ -544,7 +553,7 @@ def write_candidate_config(candidate: dict[str, Any], sweep_dir: Path) -> Path:
         "layout_margin": 0,
         "hub_center_window_size": 48,
         "actor_vision_radius": 2,
-        "num_ants": 60,
+        "num_ants": int(candidate["num_ants"]),
         "agent_identity_types": 8,
         "food_count": int(task["food_count"]),
         "food_sources": int(task["food_sources"]),
@@ -591,11 +600,13 @@ def write_candidate_config(candidate: dict[str, Any], sweep_dir: Path) -> Path:
             "100x100",
             "bridge-sweep",
             "actor-warm-start",
+            f"{int(candidate['num_ants'])}-ants",
             candidate["task"],
         ],
         "wandb_notes": (
             "100x100 bridge candidate: copy the stabilized 50x50 actor heads into "
-            "a target-shaped checkpoint with a fresh 100x100 strided-CNN critic."
+            f"a {int(candidate['num_ants'])}-ant target-shaped checkpoint with a fresh "
+            "100x100 strided-CNN critic."
         ),
     }
     payload = {
@@ -603,7 +614,7 @@ def write_candidate_config(candidate: dict[str, Any], sweep_dir: Path) -> Path:
         "backend": "jax",
         "description": (
             "Actor-only warm-start bridge from the stabilized 50x50 60-ant policy "
-            "to a 100x100 random full-layout task."
+            f"to a 100x100 random full-layout task with {int(candidate['num_ants'])} ants."
         ),
         "args": args,
         "metadata": {
@@ -625,6 +636,7 @@ def public_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
         "index",
         "stem",
         "task",
+        "num_ants",
         "learning_rate",
         "training_rollout_temperature",
         "move_temperature",
@@ -632,6 +644,13 @@ def public_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
         "seed",
     )
     return {key: candidate[key] for key in keys if key in candidate}
+
+
+def public_candidates(*, num_ants: int) -> list[dict[str, Any]]:
+    return [
+        public_candidate({**candidate, "index": index, "num_ants": int(num_ants)})
+        for index, candidate in enumerate(CANDIDATES)
+    ]
 
 
 def run_child(
