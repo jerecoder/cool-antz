@@ -62,6 +62,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--width", type=int, default=1000)
     parser.add_argument("--height", type=int, default=1000)
+    parser.add_argument("--num-ants", type=int, default=None)
+    parser.add_argument("--food-count", type=int, default=None)
+    parser.add_argument("--food-sources", type=int, default=None)
     parser.add_argument("--inner-window-size", type=int, default=250)
     parser.add_argument("--layout-margin", type=int, default=None)
     parser.add_argument("--hub-center-window-size", type=int, default=None)
@@ -484,6 +487,12 @@ def _apply_bigmap_overrides(train_args: argparse.Namespace, cli_args: argparse.N
         raise ValueError("inner-window-size must fit inside width/height.")
     train_args.width = int(cli_args.width)
     train_args.height = int(cli_args.height)
+    if cli_args.num_ants is not None:
+        train_args.num_ants = int(cli_args.num_ants)
+    if cli_args.food_count is not None:
+        train_args.food_count = int(cli_args.food_count)
+    if cli_args.food_sources is not None:
+        train_args.food_sources = int(cli_args.food_sources)
     train_args.max_steps = int(cli_args.max_steps)
     train_args.layout_margin = (
         default_margin if cli_args.layout_margin is None else int(cli_args.layout_margin)
