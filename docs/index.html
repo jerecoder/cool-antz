@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cool Antz: Multi-Agent Foraging With External Memory</title>
+    <meta
+      name="description"
+      content="Project page for Cool Antz, a multi-agent reinforcement learning foraging experiment with external grid memory."
+    >
+    <link rel="stylesheet" href="report-site/styles.css">
+  </head>
+  <body>
+    <header>
+      <h1>
+        Cool Antz:<br>
+        Multi-Agent<br>
+        Foraging With<br>
+        External Memory
+      </h1>
+      <div class="authors">
+        <span class="author">Jere Figo</span>
+      </div>
+      <div class="notes">
+        <span class="institution">Project final for reinforcement learning</span>
+      </div>
+      <div class="links">
+        <span class="link">
+          <a class="button" href="report-site/assets/report-draft.pdf">Paper draft</a>
+        </span>
+        <span class="link">
+          <a class="button" href="planning/complete-experiment-chronology.md">Full chronology</a>
+        </span>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>Actual policy rollouts</h2>
+        <p class="summary">
+          All videos below are real rendered rollouts from local checkpoints or
+          evaluation artifacts. They are not a JavaScript toy simulation.
+        </p>
+
+        <div class="video-grid">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/forage-25x25-4ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>25x25 sampled unlock.</strong> Four ants with distance
+              shaping solve the 23-bite delivery task under sampled movement.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/frontier-50x50.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>50x50 frontier.</strong> 60 ants, 8 write bits, selected
+              continuation, spatial critic, and high write saturation.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/bridge-100x100.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>100x100 bridge.</strong> A 120-ant continuation on the
+              hard 375-food / 6-source bridge task.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/frontier-250x250.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>250x250 diagnostic frontier.</strong> Actor-only bigmap
+              render from the half-scale branch. This is progress, not a solved
+              scale.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="abstract">
+        <h2>Abstract</h2>
+        <p>
+          This project studies cooperative foraging in a gridworld where ants
+          observe local patches, carry food back to a hub, and optionally write
+          discrete byte values into the environment. The central result is not
+          that byte communication has been causally proven. The clearer result
+          is a map of what made the task learnable: a corrected delivery-only
+          contract, distance shaping, enough ant coverage, sampled deployment,
+          and a major shift from flat MLP critics to spatial centralized
+          critics. The best 25x25 policies solve the full delivery task under
+          sampled movement. The best 50x50 branch reaches strong behavior, but
+          mixes many interventions. The 250x250 branch shows why shaped return
+          and byte activity must be separated from raw deliveries.
+        </p>
+      </section>
+
+      <section>
+        <h2>Environment and method</h2>
+        <p>
+          The environment state contains grid geometry, hub location, an
+          integer food grid, ant positions, facing, carrying flags, occupancy,
+          and a writable byte grid. For <code>N</code> ants and
+          <code>B</code> write bits, the joint action is:
+        </p>
+        <pre><code>MultiDiscrete([5, 2^B] * N)</code></pre>
+        <p>
+          Each ant chooses a movement action and a write value. During
+          deployment the actor is local. During training, MAPPO uses centralized
+          critics, which makes critic architecture part of the causal story:
+          <code>mlp</code>, <code>strided_cnn</code>, <code>set_cnn</code>, and
+          <code>resnet_cnn</code> are not interchangeable footnotes.
+        </p>
+      </section>
+
+      <section>
+        <h2>Learning and evaluation curves</h2>
+        <p>
+          These plots are generated from local <code>metrics.jsonl</code> and
+          sweep summary files. The most important habit is to keep raw
+          deliveries separate from shaped return.
+        </p>
+        <div class="figure-grid">
+          <figure>
+            <img src="report-site/assets/curves/curve_25x25_ant_count.svg" alt="25x25 training return by ant count">
+            <figcaption>
+              Increasing ant count improves early 25x25 training return more
+              reliably than simply increasing write bits.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/curves/curve_50x50_efficient.svg" alt="50x50 efficient branch learning curve">
+            <figcaption>
+              The early 50x50 MLP branch shows partial delivery but remains far
+              from the later spatial-critic frontier.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/curves/curve_50x50_efficiency_sweep.svg" alt="50x50 efficiency sweep evaluation results">
+            <figcaption>
+              Overnight 50x50 efficiency candidates are evaluated by delivered
+              food and delivery rate, not only by training return.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/curves/curve_100x100_bridge.svg" alt="100x100 bridge continuation evaluation results">
+            <figcaption>
+              The 100x100 bridge continuation gets close to full delivery, but
+              it is still a continuation and selection story.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/curves/curve_250x250_reset.svg" alt="250x250 raw delivery and shaped return curve">
+            <figcaption>
+              The 250x250 branch makes the diagnostic warning visible: shaped
+              return and raw deliveries can move differently.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>Compiled report figures</h2>
+        <div class="figure-grid">
+          <figure>
+            <img src="report-site/assets/plots/fig_25x25_modes.png" alt="25x25 action mode comparison">
+            <figcaption>
+              Sampled and greedy deployment are different evaluation regimes.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/plots/fig_bits_vs_ants.png" alt="Write bits versus ant count comparison">
+            <figcaption>
+              Early runs point toward ant coverage, not bit count alone.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/plots/fig_rare_50x50.png" alt="Rare 50x50 navigation vector comparison">
+            <figcaption>
+              Rare-source 50x50 needs discovery help before memory claims are
+              meaningful.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/plots/fig_critic_50x50.png" alt="50x50 critic architecture boundary">
+            <figcaption>
+              The spatial critic transition is a causal boundary in the story.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/plots/fig_250x250_diagnostics.png" alt="250x250 diagnostics">
+            <figcaption>
+              250x250 diagnostics separate delivery, pickup, return, and byte
+              activity.
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="report-site/assets/plots/fig_behavior_montage.jpg" alt="Qualitative behavior montage">
+            <figcaption>
+              Qualitative behavior montage from local rollout videos.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>Actual policy viewer</h2>
+        <p>
+          Selecting a policy changes the real rollout video and the measured
+          contract beside it: grid size, number of ants, food count, sources,
+          critic, write bits, delivered food, success rate, and the main caveat.
+        </p>
+
+        <div class="policy-viewer">
+          <div>
+            <h3 id="policy-title">50x50 frontier policy</h3>
+            <video id="policy-video" controls autoplay loop muted playsinline preload="metadata">
+              <source id="policy-source" src="report-site/assets/videos/frontier-50x50.mp4" type="video/mp4">
+            </video>
+            <p id="policy-caption" class="caption">
+              60-ant 50x50 checkpoint, rendered from the actual policy.
+            </p>
+          </div>
+          <aside>
+            <div class="policy-tabs" role="tablist" aria-label="Policy rollout choices">
+              <button type="button" class="active" data-policy="frontier50">50x50</button>
+              <button type="button" data-policy="unlock25">25x25</button>
+              <button type="button" data-policy="bridge100">100x100</button>
+              <button type="button" data-policy="frontier250">250x250</button>
+            </div>
+            <dl id="policy-metrics" class="metrics-list"></dl>
+            <p id="policy-caveat" class="caveat"></p>
+          </aside>
+        </div>
+      </section>
+
+      <section>
+        <h2>Main empirical story</h2>
+        <ol>
+          <li>
+            <strong>Define the task correctly.</strong> The target is delivered
+            food from depleting sources, not pickup activity.
+          </li>
+          <li>
+            <strong>Make sparse foraging learnable.</strong> Distance shaping,
+            four ants, and sampled movement unlock 25x25.
+          </li>
+          <li>
+            <strong>Name the critic boundary.</strong> The 50x50 progress line
+            changes from flat MLP critics to spatial centralized critics.
+          </li>
+          <li>
+            <strong>Treat bytes as a hypothesis.</strong> Saturated writes and
+            videos with trails are not proof of causal communication.
+          </li>
+          <li>
+            <strong>Separate real delivery from shaped activity.</strong> This
+            is especially important in the 250x250 branch.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Representative quantitative results</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Branch</th>
+              <th>Contract</th>
+              <th>Result</th>
+              <th>Caveat</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>25x25 unlock</td>
+              <td>4 ants, 23 food, 6 sources, MLP critic</td>
+              <td>23/23 sampled, success 1.0</td>
+              <td>Greedy deployment remains weaker.</td>
+            </tr>
+            <tr>
+              <td>50x50 frontier</td>
+              <td>60 ants, 125 food, 2 sources, 8 bits, strided CNN critic</td>
+              <td>123.906/125, success 0.906</td>
+              <td>Many interventions move together.</td>
+            </tr>
+            <tr>
+              <td>100x100 bridge</td>
+              <td>120 ants, 375 food, 6 sources, continuation branch</td>
+              <td>372/375, success 0.625</td>
+              <td>Continuation and temperature selection matter.</td>
+            </tr>
+            <tr>
+              <td>250x250 reset branch</td>
+              <td>500 ants, 5000 food, one rich source, set CNN critic</td>
+              <td>local delivery progress, best-train around 1003 deliveries</td>
+              <td>Not a solved general 250x250 task.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>What remains open</h2>
+        <p>
+          The next clean experiments should be matched ablations: no-write,
+          byte-shuffle, no-byte-read, same write-cost across 4 and 8 bits, and
+          MLP versus spatial critic under the same source geometry. Until then,
+          the strongest claim is behavior engineering and experiment diagnosis,
+          not proven emergent language.
+        </p>
+      </section>
+
+      <section>
+        <h2>BibTeX-style citation</h2>
+        <pre><code>@misc{figo2026coolantz,
+  title = {Cool Antz: Multi-Agent Foraging With External Memory},
+  author = {Figo, Jere},
+  year = {2026},
+  note = {Reinforcement learning project report and local experiment chronology}
+}</code></pre>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Built from local commits, configs, metrics, videos, generated figures,
+        and the report draft.
+      </p>
+    </footer>
+
+    <script src="report-site/site.js"></script>
+  </body>
+</html>

@@ -1,0 +1,336 @@
+body {
+  max-width: 60em;
+  margin: 0 auto;
+  padding: 20px;
+  color: #333;
+  font-family:
+    Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia,
+    serif;
+  line-height: 1.6;
+}
+
+header {
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0.7em 0 0.35em;
+  color: #2c3e50;
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+h2,
+h3,
+h4 {
+  color: #34495e;
+}
+
+h2 {
+  margin-top: 0;
+  text-align: center;
+}
+
+a {
+  color: #20638f;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #aa551c;
+}
+
+code {
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  padding: 2px 4px;
+}
+
+pre {
+  overflow-x: auto;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  padding: 10px;
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+section {
+  padding: 0 1em;
+}
+
+section + section {
+  margin: 2.2em 0 0;
+  border-top: 2px solid #eee;
+  padding-top: 1.25em;
+}
+
+footer {
+  margin-top: 3em;
+  border-top: 2px solid #eee;
+  padding: 1em;
+  color: #666;
+  text-align: center;
+}
+
+.authors {
+  margin-bottom: 0.5ex;
+  font-size: 15pt;
+}
+
+.author {
+  font-weight: bold;
+}
+
+.notes {
+  margin-bottom: 1ex;
+  color: #555;
+  font-size: 13pt;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.8em;
+  margin-top: 20px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbdbdb;
+  border-radius: 290486px;
+  background-color: #363636;
+  color: #fff;
+  padding: calc(0.5em - 1px) calc(1.25em - 1px);
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button:hover {
+  background-color: #4a4a4a;
+  color: #fff;
+}
+
+.summary,
+.caption,
+figcaption {
+  color: #555;
+}
+
+.summary {
+  max-width: 48em;
+  margin: 0 auto 1.25em;
+  text-align: center;
+}
+
+.abstract {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1em 2em;
+  text-align: justify;
+}
+
+.abstract h2 {
+  margin-bottom: 0;
+  color: #1a1a1a;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2em;
+}
+
+.video-grid figure,
+.figure-grid figure {
+  margin: 0;
+}
+
+.video-grid video {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 0;
+  background: #f4f4f4;
+  object-fit: contain;
+}
+
+.video-grid figcaption,
+.figure-grid figcaption {
+  width: 92%;
+  margin: 0.7em auto 0;
+  font-size: 0.95em;
+  text-align: center;
+}
+
+.figure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4em 1.2em;
+}
+
+.figure-grid img {
+  width: 100%;
+  margin: 0;
+}
+
+.policy-viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(16em, 0.7fr);
+  gap: 1.4em;
+  align-items: start;
+}
+
+.policy-viewer h3 {
+  margin-top: 0;
+  text-align: center;
+}
+
+.policy-viewer video {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 0;
+  background: #f4f4f4;
+  object-fit: contain;
+}
+
+.policy-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5em;
+  margin-bottom: 1em;
+}
+
+.policy-tabs button {
+  border: 1px solid #cfcfcf;
+  border-radius: 290486px;
+  background: #f7f7f7;
+  color: #333;
+  cursor: pointer;
+  padding: 0.55em 0.75em;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.policy-tabs button:hover,
+.policy-tabs button.active {
+  background: #363636;
+  color: #fff;
+}
+
+.metrics-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4em 0.8em;
+  margin: 0;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  padding: 0.8em 0;
+}
+
+.metrics-list dt {
+  color: #555;
+  font-weight: bold;
+}
+
+.metrics-list dd {
+  margin: 0;
+}
+
+.caveat {
+  margin: 1em 0 0;
+  color: #666;
+  font-size: 0.95em;
+  font-style: italic;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+th,
+td {
+  border-bottom: 1px solid #ddd;
+  padding: 0.55em 0.45em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: #34495e;
+}
+
+ol {
+  padding-left: 1.4em;
+}
+
+li + li {
+  margin-top: 0.45em;
+}
+
+@media (max-width: 760px) {
+  body {
+    padding: 14px;
+    overflow-x: hidden;
+  }
+
+  section {
+    padding: 0;
+  }
+
+  .abstract {
+    margin: 1em 0;
+  }
+
+  .video-grid,
+  .figure-grid,
+  .policy-viewer {
+    grid-template-columns: 1fr;
+  }
+
+  .policy-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .policy-tabs button {
+    padding: 0.45em 0.35em;
+    font-size: 0.82rem;
+  }
+
+  h1 {
+    max-width: 100%;
+    margin-right: auto;
+    margin-left: auto;
+    font-size: clamp(1.75rem, 7.5vw, 2.1rem);
+  }
+
+  .summary,
+  .caption,
+  figcaption {
+    max-width: 33ch;
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}
