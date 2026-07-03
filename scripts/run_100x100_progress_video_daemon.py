@@ -18,6 +18,7 @@ DEFAULT_PYTHON = "/home/jerefigo/miniconda3/envs/tp1-rl/bin/python"
 WANDB_PROJECT = "cool-antz"
 WANDB_RUN_ID = "coolantz100x100progressvideos"
 WANDB_RUN_NAME = "100x100 fixed progress videos"
+WANDB_STEP_OFFSET = 100_000
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "bridge_mid250_best": {
         "checkpoint": PROJECT_ROOT
@@ -38,7 +39,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         / "continue_0003_hard375_from_best_mt050_lr5e6_u16"
         / "checkpoints"
         / "continue_0003_hard375_from_best_mt050_lr5e6_u16_best.pkl",
-        "move_temperature": 0.525,
+        "move_temperature": 0.5,
         "label": "Best continuation 100x100 hard375 checkpoint",
     },
 }
@@ -152,6 +153,8 @@ def parent_loop(args: argparse.Namespace) -> None:
                         target_name=target_name,
                         cycle=cycle,
                         record=record,
+                        summary_path=summary_path,
+                        archive_limit=int(args.keep_local_videos),
                     )
                     prune_old_videos(renders_dir, keep=int(args.keep_local_videos))
             elapsed = time.monotonic() - cycle_started
@@ -409,6 +412,8 @@ def upload_video(
     target_name: str,
     cycle: int,
     record: dict[str, Any],
+    summary_path: Path,
+    archive_limit: int,
 ) -> None:
     if wandb_run is None:
         return
@@ -416,12 +421,21 @@ def upload_video(
 
     video_path = Path(record["video"])
     metadata_path = Path(record["metadata"])
+    archive_key = f"video_archive/cycle_{cycle:06d}/{target_name}"
     payload: dict[str, Any] = {
-        f"videos/{target_name}": wandb.Video(str(video_path), fps=8, format="mp4"),
+        f"latest/{target_name}": wandb.Video(str(video_path), fps=8, format="mp4"),
+        archive_key: wandb.Video(str(video_path), fps=8, format="mp4"),
         f"meta/{target_name}/cycle": int(cycle),
         f"meta/{target_name}/move_temperature": float(record["move_temperature"]),
         f"meta/{target_name}/seed_offset": int(record["seed_offset"]),
     }
+    archive_table = build_video_archive_table(
+        wandb,
+        summary_path=summary_path,
+        limit=archive_limit,
+    )
+    if archive_table is not None:
+        payload["video_archive/recent_table"] = archive_table
     if "render_metadata" in record:
         payload[f"meta/{target_name}/render_seconds"] = float(
             record["render_metadata"].get("elapsed_seconds", 0.0)
@@ -429,13 +443,49 @@ def upload_video(
         payload[f"meta/{target_name}/video_size_mb"] = float(
             record["render_metadata"].get("size_bytes", 0)
         ) / 1_000_000.0
-    wandb_run.log(payload, step=int(cycle))
+    wandb_run.log(payload, step=wandb_step_for_cycle(cycle))
     wandb_run.save(str(video_path), base_path=str(video_path.parent))
     if metadata_path.exists():
         wandb_run.save(str(metadata_path), base_path=str(metadata_path.parent))
     wandb_run.summary["latest_video_cycle"] = int(cycle)
+    wandb_run.summary["latest_video_wandb_step"] = wandb_step_for_cycle(cycle)
     wandb_run.summary[f"latest_{target_name}_video"] = str(video_path)
     wandb_run.summary[f"latest_{target_name}_seed_offset"] = int(record["seed_offset"])
+
+
+def build_video_archive_table(
+    wandb_module: Any,
+    *,
+    summary_path: Path,
+    limit: int,
+) -> Any | None:
+    records = [
+        record
+        for record in read_jsonl(summary_path)
+        if record.get("status") == "rendered" and Path(str(record.get("video", ""))).exists()
+    ]
+    if not records:
+        return None
+    table = wandb_module.Table(
+        columns=[
+            "cycle",
+            "target",
+            "move_temperature",
+            "seed_offset",
+            "finished_at",
+            "video",
+        ]
+    )
+    for record in records[-max(1, int(limit)) :]:
+        table.add_data(
+            int(record["cycle"]),
+            str(record["target"]),
+            float(record["move_temperature"]),
+            int(record["seed_offset"]),
+            str(record["finished_at"]),
+            wandb_module.Video(str(Path(record["video"])), fps=8, format="mp4"),
+        )
+    return table
 
 
 def parse_targets(values: list[list[str]] | None) -> dict[str, dict[str, Any]]:
@@ -507,6 +557,16 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
         handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -532,6 +592,10 @@ def latest_recorded_cycle(path: Path) -> int:
         except (TypeError, ValueError):
             continue
     return latest
+
+
+def wandb_step_for_cycle(cycle: int) -> int:
+    return WANDB_STEP_OFFSET + int(cycle)
 
 
 def now_iso() -> str:
