@@ -65,6 +65,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inner-window-size", type=int, default=250)
     parser.add_argument("--layout-margin", type=int, default=None)
     parser.add_argument("--hub-center-window-size", type=int, default=None)
+    parser.add_argument(
+        "--hub-pos",
+        default=None,
+        help="Optional explicit hub position as x,y.",
+    )
+    parser.add_argument(
+        "--food-position",
+        action="append",
+        default=None,
+        help="Optional explicit food source as x,y. May be repeated.",
+    )
     parser.add_argument("--seed-offset", type=int, default=214_000_000)
     parser.add_argument("--max-steps", type=int, default=120_000)
     parser.add_argument("--frame-stride", type=int, default=15)
@@ -129,6 +140,7 @@ def main() -> int:
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
     reset_seed = int(getattr(train_args, "seed", 0)) + int(cli_args.seed_offset)
+    reset_options = _reset_options_from_cli(cli_args)
     frame_capacity = int(cli_args.max_steps) // int(cli_args.frame_stride) + 1
     state = StateRecorder(
         frame_capacity=frame_capacity,
@@ -166,7 +178,7 @@ def main() -> int:
     action_mode = str(cli_args.action_mode)
     try:
         _log("resetting big-map environment")
-        obs, _ = env.reset(seed=reset_seed)
+        obs, _ = env.reset(seed=reset_seed, options=reset_options)
         _log("writing initial frame")
         state.capture_frame(step=0, obs=obs, env=env)
         writer.append_data(_render_frame(env))
@@ -271,6 +283,7 @@ def main() -> int:
         truncated=truncated,
         env=env,
         state=state,
+        reset_options=reset_options,
         elapsed=elapsed,
         jax_devices=jax_devices,
     )
@@ -482,8 +495,32 @@ def _apply_bigmap_overrides(train_args: argparse.Namespace, cli_args: argparse.N
     )
     train_args.random_food = True
     train_args.random_hub = True
+    if cli_args.food_position:
+        train_args.random_food = False
+    if cli_args.hub_pos:
+        train_args.random_hub = False
     train_args.random_ant_spawn = False
     train_args.food_termination = False
+
+
+def _reset_options_from_cli(
+    cli_args: argparse.Namespace,
+) -> dict[str, tuple[int, int] | list[tuple[int, int]]] | None:
+    options: dict[str, tuple[int, int] | list[tuple[int, int]]] = {}
+    if cli_args.hub_pos:
+        options["hub_pos"] = _parse_xy(cli_args.hub_pos)
+    if cli_args.food_position:
+        options["food_positions"] = [
+            _parse_xy(position) for position in cli_args.food_position
+        ]
+    return options or None
+
+
+def _parse_xy(raw_value: str) -> tuple[int, int]:
+    parts = [part.strip() for part in str(raw_value).split(",")]
+    if len(parts) != 2:
+        raise ValueError(f"expected x,y position, got {raw_value!r}")
+    return int(parts[0]), int(parts[1])
 
 
 def _base_offsets(radius: int) -> np.ndarray:
@@ -594,6 +631,7 @@ def _metadata(
     truncated: bool,
     env: Any,
     state: StateRecorder,
+    reset_options: dict[str, tuple[int, int] | list[tuple[int, int]]] | None,
     elapsed: float,
     jax_devices: list[str],
 ) -> dict[str, Any]:
@@ -688,6 +726,7 @@ def _metadata(
             "random_ant_spawn": bool(train_args.random_ant_spawn),
             "food_termination": bool(train_args.food_termination),
         },
+        "reset_options": _jsonable_reset_options(reset_options),
         "critic_architecture": _target_critic_architecture(
             critic_forward_kwargs_from_safe_args(train_args)
         ),
@@ -746,6 +785,22 @@ def _jsonable_args(args: dict[str, Any]) -> dict[str, Any]:
     for key, value in sorted(args.items()):
         if isinstance(value, (str, int, float, bool)) or value is None:
             result[key] = value
+    return result
+
+
+def _jsonable_reset_options(
+    reset_options: dict[str, tuple[int, int] | list[tuple[int, int]]] | None,
+) -> dict[str, Any] | None:
+    if reset_options is None:
+        return None
+    result: dict[str, Any] = {}
+    if "hub_pos" in reset_options:
+        result["hub_pos"] = [int(value) for value in reset_options["hub_pos"]]
+    if "food_positions" in reset_options:
+        result["food_positions"] = [
+            [int(value) for value in position]
+            for position in reset_options["food_positions"]
+        ]
     return result
 
 
