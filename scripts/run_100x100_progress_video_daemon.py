@@ -67,6 +67,11 @@ def main() -> None:
     parser.add_argument("--wandb-mode", choices=("online", "offline", "disabled"), default="online")
     parser.add_argument("--wandb-run-id", default=WANDB_RUN_ID)
     parser.add_argument("--wandb-run-name", default=WANDB_RUN_NAME)
+    parser.add_argument(
+        "--wandb-finish-each-cycle",
+        action="store_true",
+        help="Close and reopen the same W&B run after each upload so media/table pointers flush.",
+    )
     parser.add_argument("--render-style", default="sprite")
     parser.add_argument("--show-vision", action="store_true")
     parser.add_argument("--target", action="append", nargs=3, metavar=("NAME", "CHECKPOINT", "MOVE_TEMP"))
@@ -116,7 +121,7 @@ def parent_loop(args: argparse.Namespace) -> None:
     print(f"[videos] dir={out_dir}", flush=True)
     print(f"[videos] stop_file={stop_file}", flush=True)
 
-    wandb_run = init_wandb(args, out_dir=out_dir, targets=targets)
+    wandb_run = None if args.wandb_finish_each_cycle else init_wandb(args, out_dir=out_dir, targets=targets)
     try:
         cycle = resume_from_cycle
         cycles_this_run = 0
@@ -152,6 +157,8 @@ def parent_loop(args: argparse.Namespace) -> None:
                     rendered_records.append(record)
                     prune_old_videos(renders_dir, keep=int(args.keep_local_videos))
             if rendered_records:
+                if wandb_run is None:
+                    wandb_run = init_wandb(args, out_dir=out_dir, targets=targets)
                 upload_cycle_videos(
                     wandb_run=wandb_run,
                     cycle=cycle,
@@ -159,6 +166,10 @@ def parent_loop(args: argparse.Namespace) -> None:
                     summary_path=summary_path,
                     archive_limit=int(args.keep_local_videos),
                 )
+                if args.wandb_finish_each_cycle and wandb_run is not None:
+                    print(f"[videos] finishing wandb upload cycle={cycle}", flush=True)
+                    wandb_run.finish()
+                    wandb_run = None
             elapsed = time.monotonic() - cycle_started
             sleep_for = max(0.0, float(args.interval_seconds) - elapsed)
             if args.max_cycles is not None and cycles_this_run >= int(args.max_cycles):
