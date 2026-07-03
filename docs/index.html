@@ -8,6 +8,7 @@
       name="description"
       content="Project page for Cool Antz, a multi-agent reinforcement learning foraging experiment with external grid memory."
     >
+    <link rel="icon" href="report-site/assets/sprites/ant.png">
     <link rel="stylesheet" href="report-site/styles.css">
   </head>
   <body>
@@ -39,7 +40,8 @@
         <h2>Actual policy rollouts</h2>
         <p class="summary">
           All videos below are real rendered rollouts from local checkpoints or
-          evaluation artifacts. They are not a JavaScript toy simulation.
+          evaluation artifacts. Labels distinguish task geometry from render
+          resolution when those are not the same thing.
         </p>
 
         <div class="video-grid">
@@ -48,8 +50,9 @@
               <source src="report-site/assets/videos/forage-25x25-4ants.mp4" type="video/mp4">
             </video>
             <figcaption>
-              <strong>25x25 sampled unlock.</strong> Four ants with distance
-              shaping solve the 23-bite delivery task under sampled movement.
+              <strong>25x25 ant-count curriculum.</strong> Four ants, 3 write
+              bits, 800x800 MP4 rollout from the local ant-count vault. This is
+              not the separate DISTANCE_CAP4 23/23 evaluation row.
             </figcaption>
           </figure>
           <figure>
@@ -57,8 +60,9 @@
               <source src="report-site/assets/videos/frontier-50x50.mp4" type="video/mp4">
             </video>
             <figcaption>
-              <strong>50x50 frontier.</strong> 60 ants, 8 write bits, selected
-              continuation, spatial critic, and high write saturation.
+              <strong>50x50 frontier.</strong> 60 ants, 8 write bits, sprite
+              render, 800x800 MP4. The matching 64-episode confirmation reports
+              123.906/125 delivered.
             </figcaption>
           </figure>
           <figure>
@@ -66,8 +70,9 @@
               <source src="report-site/assets/videos/bridge-100x100.mp4" type="video/mp4">
             </video>
             <figcaption>
-              <strong>100x100 bridge.</strong> A 120-ant continuation on the
-              hard 375-food / 6-source bridge task.
+              <strong>1000x1000 bridge bigmap.</strong> 500 ants and 5000 food
+              in a 1000x1000 render grid, encoded as a 1008x1008 MP4. The
+              policy checkpoint comes from the 100x100 hard375 continuation.
             </figcaption>
           </figure>
           <figure>
@@ -75,11 +80,85 @@
               <source src="report-site/assets/videos/frontier-250x250.mp4" type="video/mp4">
             </video>
             <figcaption>
-              <strong>250x250 diagnostic frontier.</strong> Actor-only bigmap
-              render from the half-scale branch. This is progress, not a solved
-              scale.
+              <strong>1000x1000 half-scale bigmap.</strong> Actor-only render
+              with 500 ants, 5000 food, one source, and a 250x250 active inner
+              window. This is progress, not a solved scale.
             </figcaption>
           </figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>Interactive policy sandbox</h2>
+        <p class="summary">
+          This runner uses exported actor weights from
+          <code>runs/notebooks/ant_count_25x25_3_bits/4_ants/checkpoints/model.pkl</code>.
+          Click the grid to place the colony or food sources, then run the
+          four-ant policy in the browser.
+        </p>
+
+        <div class="runner-shell">
+          <div class="runner-stage">
+            <canvas
+              id="runner-canvas"
+              width="600"
+              height="600"
+              aria-label="Interactive 25x25 ant policy sandbox"
+            ></canvas>
+          </div>
+          <aside class="runner-panel">
+            <h3>25x25 / 4 ants / 3 bits</h3>
+            <p class="caption">
+              Static export of a JAX MAPPO actor. The legacy 151-dimensional
+              observation is food patch, byte-bit patches, hub patch, border
+              patch, and carrying flag.
+            </p>
+
+            <div class="control-block">
+              <span class="control-label">place</span>
+              <div class="policy-tabs runner-tabs" role="tablist" aria-label="Placement mode">
+                <button type="button" data-place-mode="hub">Hub</button>
+                <button type="button" class="active" data-place-mode="food">Food</button>
+                <button type="button" data-place-mode="erase">Erase</button>
+              </div>
+            </div>
+
+            <div class="runner-controls">
+              <button type="button" id="runner-run">Run</button>
+              <button type="button" id="runner-step-once">Step</button>
+              <button type="button" id="runner-reset-run">Reset run</button>
+              <button type="button" id="runner-reset-layout">Reset layout</button>
+            </div>
+
+            <div class="runner-form">
+              <label for="runner-action-mode">action mode</label>
+              <select id="runner-action-mode">
+                <option value="sampled_move_greedy_write">sampled move / greedy write</option>
+                <option value="greedy_move_greedy_write">greedy move / greedy write</option>
+                <option value="sampled_move_sampled_write">sampled move / sampled write</option>
+              </select>
+
+              <label for="runner-speed">steps per frame</label>
+              <input id="runner-speed" type="range" min="1" max="12" value="4">
+            </div>
+
+            <dl class="metrics-list runner-metrics">
+              <dt>step</dt>
+              <dd id="runner-step">0 / 2500</dd>
+              <dt>delivered</dt>
+              <dd id="runner-delivered">0 / 23</dd>
+              <dt>remaining</dt>
+              <dd id="runner-remaining">23</dd>
+              <dt>carrying</dt>
+              <dd id="runner-carrying">0 / 4</dd>
+              <dt>nonzero bytes</dt>
+              <dd id="runner-bytes">0 tiles</dd>
+              <dt>food sources</dt>
+              <dd id="runner-sources">12 / 12</dd>
+              <dt>status</dt>
+              <dd id="runner-status">loading</dd>
+            </dl>
+          </aside>
         </div>
       </section>
 
@@ -209,11 +288,11 @@
       </section>
 
       <section>
-        <h2>Actual policy viewer</h2>
+        <h2>Artifact viewer</h2>
         <p>
-          Selecting a policy changes the real rollout video and the measured
-          contract beside it: grid size, number of ants, food count, sources,
-          critic, write bits, delivered food, success rate, and the main caveat.
+          Selecting an artifact changes the rollout video and the audited
+          provenance beside it. When an evaluation task and a render grid differ,
+          they are listed separately.
         </p>
 
         <div class="policy-viewer">
@@ -230,8 +309,8 @@
             <div class="policy-tabs" role="tablist" aria-label="Policy rollout choices">
               <button type="button" class="active" data-policy="frontier50">50x50</button>
               <button type="button" data-policy="unlock25">25x25</button>
-              <button type="button" data-policy="bridge100">100x100</button>
-              <button type="button" data-policy="frontier250">250x250</button>
+              <button type="button" data-policy="bridge100">1000 bridge</button>
+              <button type="button" data-policy="frontier250">1000 half</button>
             </div>
             <dl id="policy-metrics" class="metrics-list"></dl>
             <p id="policy-caveat" class="caveat"></p>
@@ -335,5 +414,7 @@
     </footer>
 
     <script src="report-site/site.js"></script>
+    <script src="report-site/assets/data/policy-runner-25x25-4ants.js"></script>
+    <script src="report-site/runner.js"></script>
   </body>
 </html>

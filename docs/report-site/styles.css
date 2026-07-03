@@ -46,6 +46,7 @@ code {
   border-radius: 4px;
   background-color: #f0f0f0;
   padding: 2px 4px;
+  overflow-wrap: anywhere;
 }
 
 pre {
@@ -56,7 +57,8 @@ pre {
 }
 
 img,
-video {
+video,
+canvas {
   display: block;
   max-width: 100%;
   height: auto;
@@ -195,7 +197,30 @@ figcaption {
   align-items: start;
 }
 
+.runner-shell {
+  display: grid;
+  grid-template-columns: minmax(18em, 1fr) minmax(17em, 0.78fr);
+  gap: 1.4em;
+  align-items: start;
+}
+
+.runner-stage {
+  width: 100%;
+}
+
+#runner-canvas {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #d7cfb5;
+  cursor: crosshair;
+}
+
 .policy-viewer h3 {
+  margin-top: 0;
+  text-align: center;
+}
+
+.runner-panel h3 {
   margin-top: 0;
   text-align: center;
 }
@@ -230,6 +255,71 @@ figcaption {
 .policy-tabs button.active {
   background: #363636;
   color: #fff;
+}
+
+.control-block {
+  margin-top: 1em;
+}
+
+.control-label,
+.runner-form label {
+  display: block;
+  margin-bottom: 0.35em;
+  color: #555;
+  font-size: 0.9em;
+  font-weight: bold;
+  text-transform: lowercase;
+}
+
+.runner-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.runner-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5em;
+  margin: 1em 0;
+}
+
+.runner-controls button {
+  border: 1px solid #cfcfcf;
+  border-radius: 290486px;
+  background: #f7f7f7;
+  color: #333;
+  cursor: pointer;
+  padding: 0.55em 0.55em;
+  font-family: inherit;
+  font-size: 0.92rem;
+}
+
+.runner-controls button:hover {
+  background: #363636;
+  color: #fff;
+}
+
+.runner-form {
+  display: grid;
+  gap: 0.4em;
+  margin-bottom: 1em;
+}
+
+.runner-form select,
+.runner-form input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.runner-form select {
+  border: 1px solid #cfcfcf;
+  border-radius: 4px;
+  background: #fff;
+  padding: 0.45em 0.5em;
+}
+
+.runner-metrics {
+  font-size: 0.93em;
 }
 
 .metrics-list {
@@ -301,12 +391,17 @@ li + li {
 
   .video-grid,
   .figure-grid,
-  .policy-viewer {
+  .policy-viewer,
+  .runner-shell {
     grid-template-columns: 1fr;
   }
 
   .policy-tabs {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .runner-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .policy-tabs button {
