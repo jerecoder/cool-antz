@@ -1126,6 +1126,12 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         if not np.any(~obstacle_grid):
             raise ValueError("maze obstacle layout must contain at least one open cell.")
         self.obstacles = obstacle_grid.copy()
+        if not np.any(self.obstacles):
+            flat_indices = np.arange(self.width * self.height, dtype=np.int32)
+            self.open_flat_indices = flat_indices
+            self.nearest_open_flat = flat_indices
+            self.open_cell_count = int(flat_indices.size)
+            return
         self.open_flat_indices = open_flat_indices(self.obstacles)
         self.nearest_open_flat = nearest_open_flat_lookup(self.obstacles)
         self.open_cell_count = int(self.open_flat_indices.size)

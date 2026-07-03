@@ -285,6 +285,17 @@ def test_random_ant_spawn_radius_limits_random_spawn_near_hub() -> None:
     env.close()
 
 
+def test_empty_obstacle_grid_uses_identity_nearest_open_lookup() -> None:
+    env = AntByteForagingEnv(width=8, height=7, num_ants=1, food_count=0)
+
+    expected = np.arange(env.width * env.height, dtype=np.int32)
+
+    assert env.open_cell_count == env.width * env.height
+    np.testing.assert_array_equal(env.open_flat_indices, expected)
+    np.testing.assert_array_equal(env.nearest_open_flat, expected)
+    env.close()
+
+
 def test_maze_obstacles_block_movement_and_appear_in_observation() -> None:
     env = AntByteForagingEnv(
         width=10,
