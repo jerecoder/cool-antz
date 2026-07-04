@@ -25,6 +25,18 @@
   const modeButtons = Array.from(document.querySelectorAll("[data-place-mode]"));
   const actionMode = document.querySelector("#runner-action-mode");
   const speedInput = document.querySelector("#runner-speed");
+  const configControls = {
+    gridSize: document.querySelector("#runner-grid-size"),
+    antCount: document.querySelector("#runner-ant-count"),
+    foodCount: document.querySelector("#runner-food-count"),
+    sourceCount: document.querySelector("#runner-source-count"),
+  };
+  const configLimits = {
+    gridSize: { min: 15, max: 120 },
+    antCount: { min: 1, max: 500 },
+    foodCount: { min: 1, max: 5000 },
+    sourceCount: { min: 1, max: 64 },
+  };
   const uiText = {
     run: "Ejecutar",
     pause: "Pausar",
@@ -67,9 +79,8 @@
   let state = null;
   let running = false;
   let placementMode = "food";
-  const defaultFoodSources = buildDefaultFoodSources();
-  let foodSources = defaultFoodSources.slice(0, env.food_sources).map(copyPosition);
   let hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
+  let foodSources = buildDefaultFoodSources();
   let rngState = 0x5eed1234;
   let animationFrame = 0;
   let canvasCssSize = 0;
@@ -77,6 +88,49 @@
 
   function copyPosition(position) {
     return [Number(position[0]), Number(position[1])];
+  }
+
+  function clampInteger(value, min, max, fallback) {
+    const parsed = Number.isFinite(value) ? Math.round(value) : fallback;
+    return Math.max(min, Math.min(max, parsed));
+  }
+
+  function maxSourceCountFor(gridSize, foodCount) {
+    const usableCells = Math.max(1, gridSize * gridSize - 1);
+    return Math.max(1, Math.min(configLimits.sourceCount.max, usableCells, foodCount));
+  }
+
+  function readIntegerControl(control, limits, fallback, maxOverride = limits.max) {
+    const raw = control ? Number.parseInt(control.value, 10) : fallback;
+    return clampInteger(raw, limits.min, maxOverride, fallback);
+  }
+
+  function writeIntegerControl(control, value, maxOverride = null) {
+    if (!control) {
+      return;
+    }
+    if (maxOverride !== null) {
+      control.max = String(maxOverride);
+    }
+    control.value = String(value);
+  }
+
+  function syncConfigControls() {
+    const sourceMax = maxSourceCountFor(env.width, env.food_count);
+    writeIntegerControl(configControls.gridSize, env.width);
+    writeIntegerControl(configControls.antCount, env.num_ants);
+    writeIntegerControl(configControls.foodCount, env.food_count);
+    writeIntegerControl(configControls.sourceCount, env.food_sources, sourceMax);
+    updateSandboxTitle();
+  }
+
+  function scalePosition(position, fromWidth, fromHeight, toWidth, toHeight) {
+    const xScale = fromWidth > 1 ? (toWidth - 1) / (fromWidth - 1) : 0;
+    const yScale = fromHeight > 1 ? (toHeight - 1) / (fromHeight - 1) : 0;
+    return [
+      Math.max(0, Math.min(toWidth - 1, Math.round(position[0] * xScale))),
+      Math.max(0, Math.min(toHeight - 1, Math.round(position[1] * yScale))),
+    ];
   }
 
   function buildDefaultFoodSources() {
@@ -94,10 +148,91 @@
       [0.35, 0.65],
       [0.65, 0.65],
     ];
-    return candidates.slice(0, env.food_sources).map(([xRatio, yRatio]) => [
+    const gridSide = Math.ceil(Math.sqrt(env.food_sources + 1));
+    for (let yIndex = 1; yIndex <= gridSide; yIndex += 1) {
+      for (let xIndex = 1; xIndex <= gridSide; xIndex += 1) {
+        candidates.push([xIndex / (gridSide + 1), yIndex / (gridSide + 1)]);
+      }
+    }
+    const scaled = candidates.map(([xRatio, yRatio]) => [
       Math.max(0, Math.min(env.width - 1, Math.round((env.width - 1) * xRatio))),
       Math.max(0, Math.min(env.height - 1, Math.round((env.height - 1) * yRatio))),
     ]);
+    const scaledSources = uniqueSources(scaled);
+    if (scaledSources.length >= env.food_sources) {
+      return scaledSources;
+    }
+    const fallback = [];
+    for (let y = 0; y < env.height; y += 1) {
+      for (let x = 0; x < env.width; x += 1) {
+        fallback.push([x, y]);
+      }
+    }
+    return uniqueSources([...scaledSources, ...fallback]);
+  }
+
+  function completeFoodSources(sources) {
+    const cleaned = uniqueSources(sources);
+    if (cleaned.length >= env.food_sources) {
+      return cleaned;
+    }
+    return uniqueSources([...cleaned, ...buildDefaultFoodSources()]);
+  }
+
+  function updateSandboxTitle() {
+    const antWord = env.num_ants === 1 ? "hormiga" : "hormigas";
+    setText(
+      ".runner-panel h3",
+      `Actor 50x50 en sandbox ${env.width}x${env.height} / ${env.num_ants} ${antWord}`,
+    );
+    canvas.setAttribute(
+      "aria-label",
+      `Sandbox interactivo de la política de hormigas en grilla ${env.width}x${env.height}`,
+    );
+  }
+
+  function applySandboxConfig() {
+    setRunning(false);
+    const previousWidth = env.width;
+    const previousHeight = env.height;
+    const gridSize = readIntegerControl(
+      configControls.gridSize,
+      configLimits.gridSize,
+      env.width,
+    );
+    const antCount = readIntegerControl(
+      configControls.antCount,
+      configLimits.antCount,
+      env.num_ants,
+    );
+    const foodCount = readIntegerControl(
+      configControls.foodCount,
+      configLimits.foodCount,
+      env.food_count,
+    );
+    const sourceMax = maxSourceCountFor(gridSize, foodCount);
+    const sourceCount = readIntegerControl(
+      configControls.sourceCount,
+      configLimits.sourceCount,
+      env.food_sources,
+      sourceMax,
+    );
+
+    env.width = gridSize;
+    env.height = gridSize;
+    env.num_ants = antCount;
+    env.food_count = foodCount;
+    env.food_sources = sourceCount;
+    syncConfigControls();
+
+    if (previousWidth !== env.width || previousHeight !== env.height) {
+      hub = scalePosition(hub, previousWidth, previousHeight, env.width, env.height);
+      foodSources = foodSources.map((source) =>
+        scalePosition(source, previousWidth, previousHeight, env.width, env.height),
+      );
+    }
+    foodSources = completeFoodSources(foodSources);
+    resetRun();
   }
 
   function makeGrid(fillValue) {
@@ -170,9 +305,9 @@
   }
 
   function resetLayout() {
-    running = false;
+    setRunning(false);
     hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
-    foodSources = defaultFoodSources.slice(0, env.food_sources).map(copyPosition);
+    foodSources = buildDefaultFoodSources();
     resetRun();
   }
 
@@ -319,10 +454,10 @@
   }
 
   function identityFeatures(antIndex) {
-    if (env.num_ants <= 1) {
+    const width = Number(env.agent_identity_types || 0);
+    if (width <= 0) {
       return [];
     }
-    const width = Number(env.agent_identity_types || env.num_ants);
     return Array.from({ length: width }, (_, index) =>
       index === antIndex % width ? 1 : 0,
     );
@@ -651,7 +786,9 @@
       if (!samePosition(position, hub)) {
         const exists = foodSources.some((source) => samePosition(source, position));
         if (!exists) {
-          foodSources = uniqueSources([...foodSources, position]);
+          const roomForNewSource = uniqueSources(foodSources).length < env.food_sources;
+          const baseSources = roomForNewSource ? foodSources : foodSources.slice(0, -1);
+          foodSources = uniqueSources([...baseSources, position]);
         }
       }
     } else if (placementMode === "erase") {
@@ -697,14 +834,27 @@
   }
 
   function localizeUi() {
-    setText(".runner-panel h3", "50x50 / 60 hormigas / 8 bits");
+    updateSandboxTitle();
     setText(
       ".runner-panel .caption",
-      "La entrada exportada del actor tiene 313 dimensiones: parche de comida orientado por dirección, parche de cantidad de hormigas, parches de bits de bytes, hormiguero, borde, rasgos de identidad repetidos, bandera de carga y dirección one-hot.",
+      "Los pesos no cambian: es el actor entrenado en 50x50. Los controles modifican el entorno simulado para explorar generalización local, no para declarar una política reentrenada en otro tamaño.",
     );
     setText(".control-label", "colocar");
     setText("label[for='runner-action-mode']", "modo de acción");
     setText("label[for='runner-speed']", "pasos por cuadro");
+    const configLabels = [
+      [configControls.gridSize, "tamaño de grilla"],
+      [configControls.antCount, "hormigas"],
+      [configControls.foodCount, "cookies en el mapa"],
+      [configControls.sourceCount, "posiciones de cookies"],
+    ];
+    configLabels.forEach(([control, label]) => {
+      const labelElement = control ? control.closest("label") : null;
+      const span = labelElement ? labelElement.querySelector("span") : null;
+      if (span) {
+        span.textContent = label;
+      }
+    });
     setDefinitionLabel("#runner-step", "paso");
     setDefinitionLabel("#runner-delivered", "entregado");
     setDefinitionLabel("#runner-remaining", "restante");
@@ -712,7 +862,6 @@
     setDefinitionLabel("#runner-bytes", "bytes no cero");
     setDefinitionLabel("#runner-sources", "fuentes de comida");
     setDefinitionLabel("#runner-status", "estado");
-    canvas.setAttribute("aria-label", "Sandbox interactivo de la política de hormigas 50x50");
     const placementTabs = document.querySelector(".policy-tabs.runner-tabs");
     if (placementTabs) {
       placementTabs.setAttribute("aria-label", "Modo de colocación");
@@ -733,6 +882,7 @@
     stepButton.textContent = uiText.step;
     resetRunButton.textContent = uiText.resetRun;
     resetLayoutButton.textContent = uiText.resetLayout;
+    syncConfigControls();
     setStatus(uiText.loading);
   }
 
@@ -753,6 +903,19 @@
     resetRun();
   });
   resetLayoutButton.addEventListener("click", resetLayout);
+  Object.values(configControls).forEach((control) => {
+    if (!control) {
+      return;
+    }
+    control.addEventListener("change", applySandboxConfig);
+    control.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        control.blur();
+        applySandboxConfig();
+      }
+    });
+  });
   window.addEventListener("resize", render);
 
   setPlacementMode("food");

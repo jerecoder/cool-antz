@@ -1661,8 +1661,10 @@
             <h2>Sandbox interactivo: política real 50x50</h2>
             <p>
               Este sandbox usa los pesos exportados del actor del punto guardado
-              entrenado para 50x50. Podés mover el hormiguero y las fuentes de
-              comida, y correr la política en el navegador.
+              entrenado para 50x50. Podés cambiar el tamaño de la grilla, la
+              cantidad de hormigas, la comida total y cuántas posiciones tienen
+              cookies; después podés mover el hormiguero y las fuentes, y correr
+              la política en el navegador.
             </p>
           </div>
         </div>
@@ -1684,9 +1686,9 @@
           <aside class="runner-panel">
             <h3>50x50 / 60 hormigas / 8 bits</h3>
             <p class="caption">
-              La entrada exportada del actor tiene 313 dimensiones: parches de
-              comida, cantidad de hormigas y bits, más hormiguero, borde,
-              identidad repetida, carga y orientación.
+              Los pesos no cambian: es el actor entrenado en 50x50. Los controles
+              modifican el entorno simulado para explorar generalización local,
+              no para declarar una política reentrenada en otro tamaño.
             </p>
 
             <div class="control-block">
@@ -1712,6 +1714,25 @@
                 <option value="greedy_move_greedy_write">movimiento greedy / escritura greedy</option>
                 <option value="sampled_move_sampled_write">movimiento muestreado / escritura muestreada</option>
               </select>
+
+              <div class="runner-config-grid">
+                <label>
+                  <span>tamaño de grilla</span>
+                  <input id="runner-grid-size" type="number" min="15" max="120" step="1" value="50" inputmode="numeric">
+                </label>
+                <label>
+                  <span>hormigas</span>
+                  <input id="runner-ant-count" type="number" min="1" max="500" step="1" value="60" inputmode="numeric">
+                </label>
+                <label>
+                  <span>cookies en el mapa</span>
+                  <input id="runner-food-count" type="number" min="1" max="5000" step="1" value="125" inputmode="numeric">
+                </label>
+                <label>
+                  <span>posiciones de cookies</span>
+                  <input id="runner-source-count" type="number" min="1" max="64" step="1" value="2" inputmode="numeric">
+                </label>
+              </div>
 
               <label for="runner-speed">pasos por cuadro</label>
               <input id="runner-speed" type="range" min="1" max="6" value="1">

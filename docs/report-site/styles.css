@@ -892,6 +892,23 @@ figcaption {
   margin-bottom: 1em;
 }
 
+.runner-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.65em 0.75em;
+  margin: 0.35em 0 0.5em;
+}
+
+.runner-config-grid label {
+  margin: 0;
+}
+
+.runner-config-grid span {
+  display: block;
+  min-height: 2.5em;
+  line-height: 1.25;
+}
+
 .runner-form select,
 .runner-form input {
   width: 100%;
@@ -899,11 +916,16 @@ figcaption {
   font: inherit;
 }
 
-.runner-form select {
+.runner-form select,
+.runner-form input[type="number"] {
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--panel);
   padding: 0.45em 0.5em;
+}
+
+.runner-form input[type="range"] {
+  accent-color: var(--accent);
 }
 
 .runner-metrics {
