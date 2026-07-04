@@ -34,7 +34,7 @@
 \maketitle
 
 \begin{abstract}
-Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el umbral de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de puntos guardados, escritura compartida y penalizaciones de escritura. También hubo ramas que no deben desaparecer de la historia: autocurrículos que avanzaban sin entrega real, un flujo de laberintos sin resultado preservado comparable y barridos de memoria que aumentaban escritura sin probar comunicación útil. En 250x250 apareció una lección negativa: el retorno moldeado puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
+Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el umbral de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de puntos guardados, escritura compartida y penalizaciones de escritura. También hubo ramas que no deben desaparecer de la historia: autocurrículos que avanzaban sin entrega real, laberintos entrenados como exploración pero no como forrajeo comparable, pruebas de estrés de transferencia que fallaron sin recogidas y barridos de memoria que aumentaban escritura sin probar comunicación útil. En 250x250 apareció una lección negativa: el retorno moldeado puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
 \end{abstract}
 
 \section{Motivación}
@@ -90,7 +90,9 @@ Esta separación es central. Si una corrida 50x50 mejora después de pasar de \r
 
 Cada corrida se leyó como un conjunto de artefactos, no como una captura aislada. El contrato de tarea queda en \run{experiments/*.json} o en el notebook que arma la corrida. La traza temporal queda en \run{metrics.jsonl}. El cierre queda en \run{summary.json}. Los pesos quedan en checkpoints finales y, cuando se activó selección, en checkpoints ``best''. Los videos de W\&B o locales sirven como evidencia cualitativa sincronizada con updates o checkpoints, pero no reemplazan las métricas de tarea.
 
-Esta trazabilidad importa porque ``best checkpoint'' no significa ``último checkpoint''. El runner puede seleccionar por una métrica de entrenamiento o de evaluación, en modo máximo o mínimo, y las evaluaciones pueden usar semillas desplazadas, layouts barajados y modos de acción como movimiento muestreado con escritura greedy. Por eso el informe separa cuatro niveles: configuración, curva de entrenamiento, evaluación seleccionada y video. El sandbox del sitio web debe leerse igual: exporta el actor 50x50 a JavaScript, sin crítico, sin JAX y sin entrenamiento. Es una herramienta de inspección de la política local, no una nueva corrida de entrenamiento.
+Esta trazabilidad importa porque ``best checkpoint'' no significa ``último checkpoint''. El runner puede seleccionar por una métrica de entrenamiento o de evaluación, en modo máximo o mínimo, y las evaluaciones pueden usar semillas desplazadas, layouts barajados y modos de acción como movimiento muestreado con escritura greedy. Por eso el informe separa cuatro niveles: configuración, curva de entrenamiento, evaluación seleccionada y video. El sitio web que acompaña al informe agrega una quinta capa de inspección: un visor de artefactos y un simulador interactivo del actor 50x50 exportado a JavaScript. Ese simulador permite cambiar tamaño de grilla, cantidad de hormigas, unidades de comida, posiciones de fuente y paleta visual, pero sigue siendo ejecución solo-actor: sin crítico, sin JAX y sin entrenamiento. Sirve para inspeccionar una política local ya entrenada, no para crear una nueva corrida comparable.
+
+La misma regla se aplica a los videos nuevos del sitio. Cada video debe indicar de qué checkpoint viene, qué modo de acción usa y si el entorno cambia el contrato original. En mapas con paredes, las paredes se pasan al actor por el canal local de borde/obstáculo, implementado como \run{local_border = max(border, obstacles)}. Por lo tanto, un fracaso en laberinto no significa automáticamente que el actor no observe paredes; puede significar que una política entrenada en forrajeo abierto no aprendió el comportamiento necesario para navegar pasillos internos.
 
 \begin{table}[h]
 \centering
@@ -187,7 +189,9 @@ También existió una rama lateral \run{origin/lethal_cookies}. Allí el cuadern
 
 Para el sitio web se recuperó el video correcto desde W\&B, correspondiente al run terminado \run{8ebnjq9f} y a la clave \run{videos/maze_exploration/50x50}. Ese artefacto sí viene de la política entrenada para laberintos: 50x50, una hormiga, 48 unidades de comida, 12 fuentes, 2 bits, radio 1, \metric{reward_mode}=\run{explore}, pasillos de ancho 3, paredes de ancho 1 y semilla 17. El MP4 tiene 600 fotogramas, \(800\times800\) píxeles, 8 fps y 75 segundos. El summary final reporta \metric{episode_return}=26.125, \metric{final_mean_remaining_food}=45.5/48 y \metric{completed_episodes}=0. La colección de modelos recuperable conserva checkpoints de laberinto hasta \run{jax_mappo_maze_explore_24x24.pkl}; para la etapa 50x50 quedó preservado el video, no el checkpoint local.
 
-Por eso el laberinto debe contarse como rama entrenada de exploración, no como resultado comparable de forrajeo cooperativo. La infraestructura de obstáculos funcionó y produjo evidencia visual, pero el contrato de recompensa no medía entrega; la decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de comida recolectada.
+Después del cierre inicial del sitio se agregó una prueba de estrés no entrenada para laberinto: el actor estabilizado 50x50 de 60 hormigas se desplegó como solo-actor en un laberinto 100x100 con una sola fuente lejana. Se usó \run{sampled_move_greedy_write}, temperatura de movimiento \(0.525\) y escritura greedy. El hub quedó en \([6,5]\), la fuente efectiva en \([81,70]\), y en el layout seleccionado la distancia por pasillos fue 172. Las paredes sí entraron al actor por el mismo canal local de borde/obstáculo. Aun así, en 60000 pasos no hubo recogidas ni entregas: \(0/125\) entregado, \(125/125\) restante, 887 celdas visitadas y 886 celdas con bytes no-cero. Esta prueba no contradice el video entrenado de W\&B; muestra que el actor abierto de 60 hormigas no transfiere directamente a paredes internas aunque pueda observarlas.
+
+Por eso el laberinto debe contarse como rama entrenada de exploración, no como resultado comparable de forrajeo cooperativo. La prueba 100x100 debe contarse como fallo de transferencia solo-actor, no como fallo de percepción de paredes. La infraestructura de obstáculos funcionó y produjo evidencia visual, pero el contrato entrenado de laberinto no medía entrega; la decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de comida recolectada.
 
 \subsection{Memoria y autoresearch: escribir no basta}
 
@@ -244,7 +248,7 @@ Escritura compartida y costo & 8 hormigas 50x50 con escritura compartida y penal
 Sondeo de comunicación & Evaluación del checkpoint con costo de escritura. & determinista \(18.5/125\), muestreado \(22.25/125\). & Los bytes existen, pero la lectura causal sigue débil. \\
 Costo de escritura x300 / 6 fuentes & Costo severo y fuentes más numerosas. & primer eval \(68.375/125\), final \(19.625/125\). & Reducir escritura puede degradar la política si el contrato cambia demasiado. \\
 250x250 trunc4096 & Continuación desde frontera con horizonte truncado. & mejor train \(685\), final \(13\). & Hubo picos, pero no estabilidad final. \\
-Directa / exploración / laberinto & Líneas base e infraestructura lateral. & sin resultado local preservado comparable. & Se incluyen como decisiones de historia, no como evidencia de éxito. \\
+Directa / exploración / laberinto & Líneas base e infraestructura lateral. & video W\&B 50x50; prueba 100x100: 0 recogidas, 0 entregas. & La rama entrenada era exploración; la prueba solo-actor muestra no-transferencia al laberinto. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -292,7 +296,7 @@ Las continuaciones posteriores refuerzan esa lectura. \run{byte-decay} redujo oc
 
 \section{Evolución cualitativa del comportamiento}
 
-Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retorno estable. Después, los rollouts preservados del currículo 25x25 muestran cómo cambia el comportamiento al pasar por 2, 3, 4, 6 y 8 hormigas: la cobertura deja de ser un detalle y se vuelve parte del mecanismo. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. Las visualizaciones grandes deben leerse con cuidado: 100x100 es una continuación seleccionada, 250x250 muestra una recuperación local por reset-boundary, y 1000x1000 es un despliegue solo-actor de una política ya entrenada, no entrenamiento de punta a punta en ese entorno.
+Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retorno estable. Después, los rollouts preservados del currículo 25x25 muestran cómo cambia el comportamiento al pasar por 2, 3, 4, 6 y 8 hormigas: la cobertura deja de ser un detalle y se vuelve parte del mecanismo. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. Las visualizaciones grandes deben leerse con cuidado: 100x100 es una continuación seleccionada, 250x250 muestra una recuperación local por reset-boundary, y 1000x1000 es un despliegue solo-actor de una política ya entrenada, no entrenamiento de punta a punta en ese entorno. La prueba 100x100 de laberinto agrega una evidencia negativa visualmente útil: hay exploración local y escritura de bytes, pero no aparece el ciclo recogida--retorno que define el forrajeo.
 
 \begin{figure}[h]
 \centering
@@ -327,7 +331,7 @@ No funcionó o no quedó demostrado:
 \begin{itemize}
     \item aumentar bits como único mecanismo de escala;
     \item los autocurrículos como solución general: podían avanzar o acumular retorno moldeado sin entrega real;
-    \item el flujo de laberintos como evidencia empírica comparable: hubo implementación y tests, pero no una corrida preservada con métricas finales;
+    \item el flujo de laberintos como evidencia comparable de forrajeo: hubo video W\&B de exploración 50x50 y una prueba de estrés 100x100, pero ninguna muestra entrega cooperativa entrenada en laberinto;
     \item las ramas R8--R12 de memoria como prueba de comunicación: algunas aumentaron dependencia de bytes, pero no mejoraron simultáneamente la tarea;
     \item despliegue determinista como criterio único de éxito;
     \item interpretar retorno moldeado como entrega real;
@@ -342,7 +346,7 @@ La segunda limitación es semántica. La memoria externa existe y se usa en el s
 
 La tercera limitación es de escala. El resultado 60-ant 50x50 es muy bueno, pero usa muchos agentes y escritura saturada. Puede ser la dirección de ingeniería correcta, pero no responde por sí solo la pregunta de comunicación compacta.
 
-La cuarta limitación es de trazabilidad negativa. Algunas ramas importantes, como laberintos y cuadernos laterales de prueba de estrés, quedaron mejor representadas por código y commits que por artefactos finales de evaluación. En este informe se incluyen porque explican decisiones del proyecto, pero no se usan como evidencia cuantitativa de desempeño.
+La cuarta limitación es de trazabilidad negativa. Algunas ramas importantes, como laberintos y cuadernos laterales de prueba de estrés, quedaron mejor representadas por código, commits, videos diagnósticos y metadatos que por evaluaciones finales comparables. En este informe se incluyen porque explican decisiones del proyecto, pero no se usan como evidencia cuantitativa de desempeño. El video W\&B de laberinto y la prueba 100x100 muestran comportamiento, no una métrica de forrajeo cooperativo resuelta.
 
 \section{Conclusión}
 
@@ -359,7 +363,7 @@ El informe cierra la historia experimental disponible en el checkout actual. Que
     \item congelar una tabla canónica de runs y checkpoints por familia;
     \item agregar una tabla de hiperparámetros por familia, especialmente \run{critic_architecture}, \run{food_count}, \run{food_sources}, número de hormigas, bits y modo de evaluación;
     \item correr ablaciones emparejadas mínimas para comunicación: sin escritura, bytes permutados y mismo costo entre 4 y 8 bits;
-    \item decidir si el flujo de laberintos se rerunnea como experimento comparable o queda fuera del conjunto empírico final.
+    \item repetir laberintos con contrato de forrajeo comparable si se quiere convertir la prueba de estrés en experimento principal: misma plantilla de métricas, 60 hormigas, fuente lejana, recogidas, entregas, eficiencia y tiempo de convergencia.
 \end{enumerate}
 
 \bibliographystyle{plain}
