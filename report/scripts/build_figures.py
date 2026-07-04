@@ -593,7 +593,9 @@ def make_behavior_montage() -> list[dict[str, Any]]:
     items = [
         VideoItem("Azar: sin retorno estable", "docs/report-site/assets/videos/random-rollout.mp4", 0.55),
         VideoItem("25x25: 2 hormigas", "docs/report-site/assets/videos/ant-count-25x25-2ants.mp4", 0.52),
+        VideoItem("25x25: 3 hormigas", "docs/report-site/assets/videos/ant-count-25x25-3ants.mp4", 0.52),
         VideoItem("25x25: 4 hormigas", "docs/report-site/assets/videos/forage-25x25-4ants.mp4", 0.62),
+        VideoItem("25x25: 6 hormigas", "docs/report-site/assets/videos/ant-count-25x25-6ants.mp4", 0.52),
         VideoItem("25x25: 8 hormigas", "docs/report-site/assets/videos/ant-count-25x25-8ants.mp4", 0.58),
         VideoItem("50x50: frontera de 60 hormigas", "docs/report-site/assets/videos/frontier-50x50.mp4", 0.55),
         VideoItem("1000x1000: despliegue solo actor", "docs/report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4", 0.45),
@@ -608,7 +610,9 @@ def make_behavior_montage() -> list[dict[str, Any]]:
     cell_w, cell_h = 540, 420
     pad = 18
     panel_font = font(28)
-    montage = Image.new("RGB", (2 * cell_w, 3 * cell_h), "white")
+    columns = 2
+    rows_count = math.ceil(len(items) / columns)
+    montage = Image.new("RGB", (columns * cell_w, rows_count * cell_h), "white")
     draw = ImageDraw.Draw(montage)
     for idx, item in enumerate(items):
         video = rel(item.path)
@@ -616,8 +620,8 @@ def make_behavior_montage() -> list[dict[str, Any]]:
         ok = video.exists() and extract_frame(video, frame_path, item.fraction)
         if not ok:
             raise RuntimeError(f"could not extract montage frame from {item.path}")
-        x0 = (idx % 2) * cell_w
-        y0 = (idx // 2) * cell_h
+        x0 = (idx % columns) * cell_w
+        y0 = (idx // columns) * cell_h
         draw.rectangle([x0, y0, x0 + cell_w, y0 + cell_h], fill="white")
         image = Image.open(frame_path).convert("RGB")
         image.thumbnail((cell_w - 2 * pad, cell_h - 2 * pad), Image.Resampling.LANCZOS)

@@ -117,13 +117,13 @@ El primer cambio grande fue conceptual. La tarea dejó de premiar fuertemente re
 
 Esta frontera invalida comparaciones ingenuas con corridas viejas. Un reward alto bajo pickup reward no significa lo mismo que un reward alto bajo delivery-only reward.
 
-\subsection{Primer enfoque: mapas cada vez más grandes con un solo agente}
+\subsection{Primer enfoque: mapas cada vez más grandes}
 
 La primera línea JAX intentó resolver el problema como un currículo de tamaño: entrenar en mapas chicos y aumentar progresivamente hasta 50x50. El contrato de \run{forage_curriculum.json} era una hormiga, radio local 1, 48 unidades de comida repartidas en 12 fuentes, 1 bit de escritura, 10000 pasos máximos, \run{hidden_size}=128 y etapas explícitas de 4x4 a 50x50. Era una idea razonable: si la política aprende el ciclo fuente-hub en chico, tal vez pueda transferirlo a mapas más grandes.
 
 No alcanzó. El reporte consolidado local registra que el retorno bajaba de \(12.281\) en 4x4 a \(0.719\) en 25x25 y \(0.156\) en 50x50. El patrón observado era compatible con agentes que exploran o cargan comida, pero no convierten eso en ciclos repetidos de entrega.
 
-La causa más plausible no fue falta de bits. Era una mezcla de horizonte largo, recompensa escasa, cobertura insuficiente y crédito débil.
+También quedó preservada una secuencia posterior de checkpoints de tamaño, de 8x8 a 50x50, con 4 hormigas, 1 bit, radio 1 y observación 50x50. Esa secuencia visual es útil porque muestra el contrato experimental creciendo, no porque resuelva la frontera. En esa corrida, el mejor punto evaluado llegó a \(22.5/48\) y \(0.9\) entregas por 1000 pasos-hormiga, pero la familia volvió a oscilar y no quedó como solución robusta. La causa más plausible no fue falta de bits. Era una mezcla de horizonte largo, recompensa escasa, cobertura insuficiente y crédito débil.
 
 \subsection{El desbloqueo 25x25}
 
@@ -142,7 +142,7 @@ Las continuaciones de 25x25 muestran que el problema no era un solo interruptor.
 
 \subsection{Bits contra cobertura}
 
-Los barridos tempranos de bits no muestran un salto claro de capacidad. En una línea 15x15 aproximada, el retorno de entrenamiento sube de \(6.40\) a \(7.36\) al pasar de 2 a 5 bits y luego baja levemente en 8 bits. En la línea anclada a 25x25, el retorno se mantiene bajo. En cambio, aumentar el número de hormigas en 25x25 con 3 bits produce una mejora monotónica de retorno de entrenamiento: \(7.7875\) con 2 hormigas, \(12.545\) con 4 y \(18.2294\) con 8.
+Los barridos tempranos de bits no muestran un salto claro de capacidad. En una línea 15x15 aproximada, el retorno de entrenamiento sube de \(6.40\) a \(7.36\) al pasar de 2 a 5 bits y luego baja levemente en 8 bits. En la línea anclada a 25x25, el retorno se mantiene bajo. En cambio, aumentar el número de hormigas en 25x25 con 3 bits produce una mejora monotónica de retorno de episodio: \(7.7875\) con 2 hormigas, \(10.6987\) con 3, \(12.545\) con 4, \(16.1287\) con 6 y \(18.2294\) con 8.
 
 \begin{figure}[h]
 \centering
@@ -276,12 +276,12 @@ Las continuaciones posteriores refuerzan esa lectura. \run{byte-decay} redujo oc
 
 \section{Evolución cualitativa del comportamiento}
 
-Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retorno estable. Después, los rollouts preservados del currículo 25x25 muestran cómo cambia el comportamiento al pasar de 2 a 4 y 8 hormigas: la cobertura deja de ser un detalle y se vuelve parte del mecanismo. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. Las visualizaciones grandes deben leerse con cuidado: 100x100 es una continuación seleccionada, 250x250 muestra una recuperación local por reset-boundary, y 1000x1000 es un despliegue solo-actor de una política ya entrenada, no entrenamiento de punta a punta en ese entorno.
+Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retorno estable. Después, los rollouts preservados del currículo 25x25 muestran cómo cambia el comportamiento al pasar por 2, 3, 4, 6 y 8 hormigas: la cobertura deja de ser un detalle y se vuelve parte del mecanismo. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. Las visualizaciones grandes deben leerse con cuidado: 100x100 es una continuación seleccionada, 250x250 muestra una recuperación local por reset-boundary, y 1000x1000 es un despliegue solo-actor de una política ya entrenada, no entrenamiento de punta a punta en ese entorno.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\linewidth]{fig_behavior_montage.jpg}
-\caption{Fotogramas extraídos de videos locales. A: línea base aleatoria. B--D: progresión visual del currículo 25x25 con 2, 4 y 8 hormigas. E: frontera 50x50 con 60 hormigas. F: despliegue solo-actor 1000x1000 de la política 50x50. La figura no es evidencia cuantitativa; sirve para interpretar la semántica visual de las métricas.}
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{fig_behavior_montage.jpg}
+\caption{Fotogramas extraídos de videos locales. A: línea base aleatoria. B--F: progresión visual del currículo 25x25 con 2, 3, 4, 6 y 8 hormigas. G: frontera 50x50 con 60 hormigas. H: despliegue solo-actor 1000x1000 de la política 50x50. La figura no es evidencia cuantitativa; sirve para interpretar la semántica visual de las métricas.}
 \label{fig:behavior}
 \end{figure}
 

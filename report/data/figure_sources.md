@@ -16,4 +16,4 @@ Las barras mezclan denominadores solo cuando la figura lo declara: por eso cada 
 ## 250x250 diagnostics
 - filas: 5
 ## behavior montage
-- filas: 6
+- filas: 8
