@@ -1,0 +1,43 @@
+{
+  "name": "vision_range_curriculum",
+  "backend": "jax",
+  "description": "Fixed-map JAX MAPPO curriculum that shrinks actor vision from 51x51 to 3x3.",
+  "args": {
+    "exp_name": "jax_mappo_vision_range",
+    "total_timesteps": 36000,
+    "learning_rate": 0.001,
+    "anneal_lr": false,
+    "clip_coef": 0.2,
+    "num_envs": 1,
+    "num_steps": 32000,
+    "num_minibatches": 4,
+    "update_epochs": 8,
+    "width": 50,
+    "height": 50,
+    "obs_width": 50,
+    "obs_height": 50,
+    "actor_vision_radius": 25,
+    "num_ants": 1,
+    "food_count": 48,
+    "food_sources": 384,
+    "cookie_distance": 24,
+    "max_steps": 10000,
+    "pickup_bonus": 0.25,
+    "distance_bonus": 0.0,
+    "ent_coef": 0.0,
+    "hidden_size": 64,
+    "write_bits": 1,
+    "write_while_moving": true,
+    "seed": 1,
+    "quiet": true,
+    "random_food": true,
+    "random_hub": true
+  },
+  "metadata": {
+    "global_update_cap": 5,
+    "vision_radii": [10],
+    "vision_sides": [21],
+    "render_max_frames": 300,
+    "notes": "The map stays fixed at 50x50. The curriculum changes only actor_vision_radius and warm-starts each smaller-vision stage from the previous checkpoint."
+  }
+}
