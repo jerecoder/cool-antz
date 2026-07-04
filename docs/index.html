@@ -140,58 +140,63 @@
           imágenes son fotogramas reales de rollouts o, donde no existe un video
           específico, la figura auditada del experimento.
         </p>
-        <div class="tree-grid">
-          <a class="tree-node root" href="#world">
-            <img src="report-site/assets/posters/tree-world.jpg" alt="Fotograma del baseline aleatorio">
-            <span class="tree-label">Mundo y métrica</span>
-            <small>entrega, fuentes, bytes</small>
-          </a>
-          <a class="tree-node" href="#small-scale">
-            <img src="report-site/assets/posters/tree-small-scale.jpg" alt="Fotograma 25x25 con 2 hormigas">
-            <span class="tree-label">Primer cuello</span>
-            <small>una colonia chica no cubre</small>
-          </a>
-          <a class="tree-node" href="#unlock25">
-            <img src="report-site/assets/posters/tree-unlock25.jpg" alt="Fotograma 25x25 con 4 hormigas">
-            <span class="tree-label">Desbloqueo 25x25</span>
-            <small>4 hormigas + shaping</small>
-          </a>
-          <a class="tree-node" href="#bits-ants">
-            <img src="report-site/assets/posters/tree-bits-ants.jpg" alt="Fotograma del currículo de cantidad de hormigas">
-            <span class="tree-label">Bytes vs cobertura</span>
-            <small>hipótesis, no conclusión</small>
-          </a>
-          <a class="tree-node" href="#rare50">
-            <img src="report-site/assets/posters/tree-rare50.jpg" alt="Figura del 50x50 raro">
-            <span class="tree-label">50x50 raro</span>
-            <small>descubrir fuentes escasas</small>
-          </a>
-          <a class="tree-node" href="#critic50">
-            <img src="report-site/assets/posters/tree-critic50.jpg" alt="Fotograma del comportamiento 50x50 posterior al cambio de crítico">
-            <span class="tree-label">Cambio de crítico</span>
-            <small>MLP a strided_cnn</small>
-          </a>
-          <a class="tree-node" href="#frontier50">
-            <img src="report-site/assets/posters/tree-frontier50.jpg" alt="Fotograma de la política 50x50 de 60 hormigas">
-            <span class="tree-label">Frontera 60 hormigas</span>
-            <small>123.90625/125</small>
-          </a>
-          <a class="tree-node" href="#large-scale-100">
-            <img src="report-site/assets/posters/tree-large-scale-100.jpg" alt="Fotograma del render 1000x1000 del puente 100x100">
-            <span class="tree-label">Puente 100x100</span>
-            <small>372-373/375</small>
-          </a>
-          <a class="tree-node" href="#large-scale-250">
-            <img src="report-site/assets/posters/tree-large-scale-250.jpg" alt="Fotograma del reset-boundary 250x250">
-            <span class="tree-label">250x250 reset</span>
-            <small>falló, luego entregó</small>
-          </a>
-          <a class="tree-node" href="#bigmap">
-            <img src="report-site/assets/posters/tree-bigmap.jpg" alt="Fotograma del despliegue solo actor 1000x1000">
-            <span class="tree-label">1000x1000 solo actor</span>
-            <small>política 50x50 en prueba de estrés</small>
-          </a>
-        </div>
+        <nav class="experiment-lineage" aria-label="Árbol navegable de experimentos">
+          <div class="tree-trunk" aria-label="Tronco: desde el entorno hasta la frontera 50x50">
+            <a class="tree-node root" href="#world">
+              <img src="report-site/assets/posters/tree-world.jpg" alt="Fotograma del baseline aleatorio">
+              <span class="tree-label">Mundo y métrica</span>
+              <small>entrega, fuentes, bytes</small>
+            </a>
+            <a class="tree-node" href="#small-scale">
+              <img src="report-site/assets/posters/tree-small-scale.jpg" alt="Fotograma 25x25 con 2 hormigas">
+              <span class="tree-label">Primer cuello</span>
+              <small>una colonia chica no cubre</small>
+            </a>
+            <a class="tree-node" href="#unlock25">
+              <img src="report-site/assets/posters/tree-unlock25.jpg" alt="Fotograma 25x25 con 4 hormigas">
+              <span class="tree-label">Desbloqueo 25x25</span>
+              <small>4 hormigas + shaping</small>
+            </a>
+            <a class="tree-node" href="#bits-ants">
+              <img src="report-site/assets/posters/tree-bits-ants.jpg" alt="Fotograma del currículo de cantidad de hormigas">
+              <span class="tree-label">Bytes vs cobertura</span>
+              <small>hipótesis, no conclusión</small>
+            </a>
+            <a class="tree-node" href="#rare50">
+              <img src="report-site/assets/posters/tree-rare50.jpg" alt="Figura del 50x50 raro">
+              <span class="tree-label">50x50 raro</span>
+              <small>descubrir fuentes escasas</small>
+            </a>
+            <a class="tree-node" href="#critic50">
+              <img src="report-site/assets/posters/tree-critic50.jpg" alt="Fotograma del comportamiento 50x50 posterior al cambio de crítico">
+              <span class="tree-label">Cambio de crítico</span>
+              <small>MLP a strided_cnn</small>
+            </a>
+            <a class="tree-node frontier" href="#frontier50">
+              <img src="report-site/assets/posters/tree-frontier50.jpg" alt="Fotograma de la política 50x50 de 60 hormigas">
+              <span class="tree-label">Frontera 60 hormigas</span>
+              <small>123.90625/125</small>
+            </a>
+          </div>
+
+          <div class="tree-branches" aria-label="Ramas de escalado desde la frontera 50x50">
+            <a class="tree-node tree-branch tree-branch-100" href="#large-scale-100">
+              <img src="report-site/assets/posters/tree-large-scale-100.jpg" alt="Fotograma del render 1000x1000 del puente 100x100">
+              <span class="tree-label">Puente 100x100</span>
+              <small>372-373/375</small>
+            </a>
+            <a class="tree-node tree-branch tree-branch-250" href="#large-scale-250">
+              <img src="report-site/assets/posters/tree-large-scale-250.jpg" alt="Fotograma del reset-boundary 250x250">
+              <span class="tree-label">250x250 reset</span>
+              <small>falló, luego entregó</small>
+            </a>
+            <a class="tree-node tree-branch tree-branch-bigmap" href="#bigmap">
+              <img src="report-site/assets/posters/tree-bigmap.jpg" alt="Fotograma del despliegue solo actor 1000x1000">
+              <span class="tree-label">1000x1000 solo actor</span>
+              <small>política 50x50 en prueba de estrés</small>
+            </a>
+          </div>
+        </nav>
       </section>
 
       <section>
