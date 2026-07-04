@@ -56,6 +56,26 @@ def load_csv_rows(path: Path) -> list[dict[str, Any]]:
     return pd.read_csv(path).to_dict("records")
 
 
+def load_jsonl(path: str | Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with rel(path).open() as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def thin_rows(rows: list[dict[str, Any]], max_points: int = 260) -> list[dict[str, Any]]:
+    if len(rows) <= max_points:
+        return rows
+    step = math.ceil(len(rows) / max_points)
+    thinned = rows[::step]
+    if thinned[-1] is not rows[-1]:
+        thinned.append(rows[-1])
+    return thinned
+
+
 def savefig(fig: plt.Figure, name: str) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT / f"{name}.pdf", bbox_inches="tight")
@@ -195,6 +215,97 @@ def figure_bits_vs_ants() -> list[dict[str, Any]]:
     ax.set_xlabel("hormigas")
     style_axes(ax, "retorno de entrenamiento")
     savefig(fig, "fig_bits_vs_ants")
+    return rows
+
+
+def figure_logged_metrics_story() -> list[dict[str, Any]]:
+    sources = [
+        ("50x50 largo", "runs/notebooks/exploration_to_forage_50x50/metrics.jsonl"),
+        ("50x50 eficiente", "runs/notebooks/exploration_to_forage_50x50_efficient/metrics.jsonl"),
+    ]
+    metric_keys = [
+        "update",
+        "global_step",
+        "episode_return",
+        "env_return",
+        "eval_mean_delivered_food",
+        "eval_mean_delivered_food_per_1000_ant_steps",
+        "delivery_events",
+        "pickup_events",
+        "mean_carrying_ants",
+        "final_mean_visited_cell_fraction",
+        "write_action_nonzero_rate",
+        "entropy",
+        "approx_kl",
+        "grad_norm",
+        "value_loss",
+    ]
+    rows: list[dict[str, Any]] = []
+    loaded: dict[str, list[dict[str, Any]]] = {}
+    for label, path in sources:
+        data = load_jsonl(path)
+        loaded[label] = data
+        for row in data:
+            out = {"source": label}
+            for key in metric_keys:
+                value = row.get(key)
+                out[key] = "" if value is None else value
+            rows.append(out)
+    write_csv(DATA / "figure_logged_metrics_story.csv", rows)
+
+    long_rows = thin_rows(loaded["50x50 largo"])
+    efficient_rows = loaded["50x50 eficiente"]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.2, 7.0), constrained_layout=True)
+
+    ax = axes[0][0]
+    xs = [r["update"] for r in long_rows]
+    ax.plot(xs, [r.get("pickup_events", 0.0) for r in long_rows], color=ORANGE, linewidth=1.9, label="pickups")
+    ax.plot(xs, [r.get("delivery_events", 0.0) for r in long_rows], color=BLUE, linewidth=1.9, label="entregas")
+    ax.set_xlabel("actualización")
+    style_axes(ax, "eventos por resumen")
+    ax.legend(frameon=False)
+
+    ax = axes[0][1]
+    xs = [r["update"] for r in efficient_rows]
+    ax.plot(xs, [r.get("eval_mean_delivered_food", 0.0) for r in efficient_rows], color=GREEN, marker="o", linewidth=2.0, label="comida eval.")
+    ax.plot(
+        xs,
+        [r.get("eval_mean_delivered_food_per_1000_ant_steps", 0.0) for r in efficient_rows],
+        color=PURPLE,
+        marker="s",
+        linewidth=2.0,
+        label="entregas / 1000 pasos-hormiga",
+    )
+    ax.set_xlabel("actualización")
+    style_axes(ax, "evaluación held-out")
+    ax.legend(frameon=False)
+
+    ax = axes[1][0]
+    xs = [r["update"] for r in long_rows]
+    ax.plot(xs, [r.get("final_mean_visited_cell_fraction", 0.0) for r in long_rows], color=GREEN, linewidth=1.9, label="cobertura final")
+    ax.plot(xs, [r.get("write_action_nonzero_rate", 0.0) for r in long_rows], color=PURPLE, linewidth=1.9, label="escritura no-cero")
+    ax.set_xlabel("actualización")
+    ax.set_ylim(0, 1.05)
+    style_axes(ax, "fracción / tasa")
+    ax.legend(frameon=False)
+
+    ax = axes[1][1]
+    xs = [r["update"] for r in long_rows]
+    for key, color, label in [
+        ("entropy", BLUE, "entropía"),
+        ("approx_kl", RED, "KL aprox."),
+        ("grad_norm", ORANGE, "norma grad."),
+        ("value_loss", GRAY, "loss valor"),
+    ]:
+        ys = [max(float(r.get(key, 0.0)), 1e-6) for r in long_rows]
+        ax.plot(xs, ys, linewidth=1.6, color=color, label=label)
+    ax.set_xlabel("actualización")
+    ax.set_yscale("log")
+    style_axes(ax, "escala log")
+    ax.legend(frameon=False, ncols=2)
+
+    savefig(fig, "fig_logged_metrics_story")
     return rows
 
 
@@ -481,10 +592,10 @@ def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 def make_behavior_montage() -> list[dict[str, Any]]:
     items = [
         VideoItem("Azar: sin retorno estable", "docs/report-site/assets/videos/random-rollout.mp4", 0.55),
-        VideoItem("25x25: cobertura multi-hormiga", "docs/report-site/assets/videos/forage-25x25-4ants.mp4", 0.62),
+        VideoItem("25x25: 2 hormigas", "docs/report-site/assets/videos/ant-count-25x25-2ants.mp4", 0.52),
+        VideoItem("25x25: 4 hormigas", "docs/report-site/assets/videos/forage-25x25-4ants.mp4", 0.62),
+        VideoItem("25x25: 8 hormigas", "docs/report-site/assets/videos/ant-count-25x25-8ants.mp4", 0.58),
         VideoItem("50x50: frontera de 60 hormigas", "docs/report-site/assets/videos/frontier-50x50.mp4", 0.55),
-        VideoItem("100x100: continuación seleccionada", "docs/report-site/assets/videos/bridge-100x100.mp4", 0.55),
-        VideoItem("250x250: reset-boundary local", "docs/report-site/assets/videos/reset-boundary-250x250.mp4", 0.60),
         VideoItem("1000x1000: despliegue solo actor", "docs/report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4", 0.45),
     ]
     missing_videos = [item for item in items if not rel(item.path).exists()]
@@ -553,6 +664,7 @@ def main() -> None:
     all_rows = {
         "25x25 action modes": figure_25x25_modes(),
         "bits vs ants": figure_bits_vs_ants(),
+        "logged metrics story": figure_logged_metrics_story(),
         "rare 50x50": figure_rare_50x50(),
         "critic 50x50": figure_critic_50x50(),
         "250x250 diagnostics": figure_250x250(),

@@ -23,8 +23,8 @@
         "Comportamiento fuerte, pero mezclado con cantidad de hormigas, bits de escritura, rasgos de identidad, continuación seleccionada, temperatura y escrituras saturadas.",
     },
     unlock25: {
-      label: "25x25",
-      title: "Rollout 25x25 del currículum de cantidad de hormigas",
+      label: "25x25 4h",
+      title: "Rollout 25x25 con 4 hormigas",
       src: "report-site/assets/videos/forage-25x25-4ants.mp4",
       caption:
         "Rollout de cuatro hormigas y 3 bits desde el artefacto del currículum de cantidad de hormigas, renderizado como MP4 800x800.",
@@ -43,8 +43,48 @@
       caveat:
         "Este video es el artefacto del currículum de cantidad de hormigas. El resultado DISTANCE_CAP4 23/23 viene de archivos locales de evaluación separados con una tarea de 6 fuentes.",
     },
+    ant2: {
+      label: "25x25 2h",
+      title: "Rollout 25x25 con 2 hormigas",
+      src: "report-site/assets/videos/ant-count-25x25-2ants.mp4",
+      caption:
+        "Rollout preservado del currículum de cantidad de hormigas: dos hormigas y 3 bits, renderizado como MP4 800x800.",
+      metrics: [
+        ["grilla de tarea", "25x25"],
+        ["video codificado", "800x800"],
+        ["fotogramas", "2501 a 8 fps"],
+        ["hormigas", "2"],
+        ["comida", "23 bocados / 12 fuentes"],
+        ["bits", "3"],
+        ["punto guardado", "ant_count_25x25_3_bits/2_ants"],
+        ["retorno del entorno en entrenamiento", "4.8125"],
+        ["retorno de episodio en entrenamiento", "7.7875"],
+      ],
+      caveat:
+        "Este video muestra el currículo de conteo de hormigas, no el primer avance de una sola hormiga. Para esa etapa no hay MP4 preservado en el checkout.",
+    },
+    ant8: {
+      label: "25x25 8h",
+      title: "Rollout 25x25 con 8 hormigas",
+      src: "report-site/assets/videos/ant-count-25x25-8ants.mp4",
+      caption:
+        "Rollout preservado del currículum de cantidad de hormigas: ocho hormigas y 3 bits, renderizado como MP4 800x800.",
+      metrics: [
+        ["grilla de tarea", "25x25"],
+        ["video codificado", "800x800"],
+        ["fotogramas", "233 a 8 fps"],
+        ["hormigas", "8"],
+        ["comida", "23 bocados / 12 fuentes"],
+        ["bits", "3"],
+        ["punto guardado", "ant_count_25x25_3_bits/8_ants"],
+        ["retorno del entorno en entrenamiento", "10.875"],
+        ["retorno de episodio en entrenamiento", "18.2294"],
+      ],
+      caveat:
+        "La mejora en este currículo apunta a cobertura multi-agente. No prueba por sí sola comunicación causal mediante bytes.",
+    },
     bridge100: {
-      label: "puente 100x100",
+      label: "100x100 en 1000",
       title: "Puente 100x100 en render 1000x1000",
       src: "report-site/assets/videos/bridge-100x100.mp4",
       caption:
@@ -88,6 +128,26 @@
       caveat:
         "Esta rama muestra progreso local real de entrega dentro de la configuración reset/distancia 250x250; no demuestra que el autocurrículo 250x250 general haya quedado resuelto.",
     },
+    auto250fail: {
+      label: "auto 250 fallo",
+      title: "Autocurrículo 250x250: fallo diagnóstico",
+      src: "report-site/assets/videos/autocurriculum-250x250-failure.mp4",
+      caption:
+        "Checkpoint-video de la diagnosis de autocurrículo 250x250: actividad, shaping y bytes sin evidencia suficiente de entrega real.",
+      metrics: [
+        ["grilla de tarea", "250x250"],
+        ["video codificado", "1008x1008"],
+        ["fotogramas", "600 a 8 fps"],
+        ["hormigas", "500"],
+        ["comida", "5000 bocados / 1 fuente"],
+        ["familia", "distance_autocurriculum_source_teacher"],
+        ["crítico", "set_cnn"],
+        ["entregas en diagnosis", "0 en corridas clave"],
+        ["lectura", "actividad visual no equivale a resolver entrega"],
+      ],
+      caveat:
+        "Este video se incluye como evidencia negativa: ayuda a ver por qué no alcanza con retorno moldeado, agentes cargando o bytes activos.",
+    },
     random: {
       label: "azar",
       title: "Rollout línea base aleatoria",
@@ -104,7 +164,7 @@
         "Este ancla visual de línea base muestra la tarea antes de que el entrenamiento entre en la historia.",
     },
     bigmap50: {
-      label: "1000 50x50",
+      label: "stress 1000",
       title: "Política 50x50 en render 1000x1000",
       src: "report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4",
       caption:

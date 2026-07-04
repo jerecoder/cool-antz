@@ -146,6 +146,10 @@ footer {
   overflow-wrap: anywhere;
 }
 
+.authors .author:not(:last-child)::after {
+  content: ",";
+}
+
 .notes {
   margin-bottom: 1ex;
   color: var(--muted);
@@ -306,7 +310,7 @@ figcaption {
 .tree-branches {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: clamp(0.55rem, 1.1vw, 0.9rem);
 }
 
@@ -318,8 +322,8 @@ figcaption {
   content: "";
   position: absolute;
   top: 0.62rem;
-  right: calc(100% / 14);
-  left: calc(100% / 14);
+  right: calc(100% / 16);
+  left: calc(100% / 16);
   height: 4px;
   border-radius: 999px;
   background: linear-gradient(
@@ -352,7 +356,7 @@ figcaption {
 
 .tree-side-branches::before {
   top: -0.35rem;
-  left: calc((100% / 7 * 3) + (100% / 14));
+  left: calc((100% / 8 * 3) + (100% / 16));
   width: 4px;
   height: 2.1rem;
   border-radius: 999px;
@@ -360,15 +364,15 @@ figcaption {
 
 .tree-side-branches::after {
   top: 1.72rem;
-  right: calc(100% / 14);
-  left: calc((100% / 7 * 2) + (100% / 14));
+  right: calc((100% / 8 * 2) + (100% / 16));
+  left: calc((100% / 8 * 2) + (100% / 16));
   height: 4px;
   border-radius: 999px;
 }
 
 .tree-branches::before {
   top: -0.35rem;
-  left: calc(100% - (100% / 14));
+  left: calc(100% - (100% / 16));
   width: 4px;
   height: 2.35rem;
   border-radius: 999px;
@@ -376,22 +380,22 @@ figcaption {
 
 .tree-branches::after {
   top: 1.96rem;
-  right: calc(100% / 14);
-  left: calc((100% / 7 * 4) + (100% / 14));
+  right: calc(100% / 16);
+  left: calc((100% / 8 * 5) + (100% / 16));
   height: 4px;
   border-radius: 999px;
 }
 
 .tree-branch-100 {
-  grid-column: 5;
-}
-
-.tree-branch-250 {
   grid-column: 6;
 }
 
-.tree-branch-bigmap {
+.tree-branch-250 {
   grid-column: 7;
+}
+
+.tree-branch-bigmap {
+  grid-column: 8;
 }
 
 .tree-side-autocurriculum {
@@ -653,6 +657,19 @@ figcaption {
   gap: 1.2em;
 }
 
+.visual-evidence .evidence-pair {
+  margin-top: 1.5em;
+}
+
+.visual-arc-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ant-count-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.4em;
+}
+
 .video-grid figure,
 .figure-grid figure {
   margin: 0;
@@ -790,12 +807,24 @@ figcaption {
   background-image: url("assets/posters/tree-unlock25.jpg");
 }
 
+.policy-tabs button[data-policy="ant2"]::before {
+  background-image: url("assets/posters/tree-small-scale.jpg");
+}
+
+.policy-tabs button[data-policy="ant8"]::before {
+  background-image: url("assets/posters/tree-bits-ants.jpg");
+}
+
 .policy-tabs button[data-policy="bridge100"]::before {
   background-image: url("assets/posters/tree-large-scale-100.jpg");
 }
 
 .policy-tabs button[data-policy="reset250"]::before {
   background-image: url("assets/posters/tree-large-scale-250.jpg");
+}
+
+.policy-tabs button[data-policy="auto250fail"]::before {
+  background-image: url("assets/posters/tree-autocurriculum.svg");
 }
 
 .policy-tabs button[data-policy="bigmap50"]::before {
@@ -1135,10 +1164,19 @@ li + li {
     line-height: 1.45;
   }
 
+  .author {
+    display: block;
+  }
+
+  .authors .author + .author {
+    margin-top: 0.1em;
+  }
+
   .links {
     display: grid;
     grid-template-columns: 1fr;
-    width: min(100%, 18rem);
+    width: 100%;
+    max-width: 18rem;
     margin-right: auto;
     margin-left: auto;
   }
@@ -1146,6 +1184,7 @@ li + li {
   .link,
   .button {
     width: 100%;
+    min-width: 0;
   }
 
   section {

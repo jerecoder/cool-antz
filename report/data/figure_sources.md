@@ -7,6 +7,8 @@ Las barras mezclan denominadores solo cuando la figura lo declara: por eso cada 
 - filas: 12
 ## bits vs ants
 - filas: 13
+## logged metrics story
+- filas: 4144
 ## rare 50x50
 - filas: 5
 ## critic 50x50

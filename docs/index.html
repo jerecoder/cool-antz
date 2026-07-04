@@ -20,8 +20,8 @@
         Memoria Externa
       </h1>
       <div class="authors">
-        <span class="author">Jeremías Figueiredo Paschmann</span>,
-        <span class="author">Francisco Nattero</span>,
+        <span class="author">Jeremías Figueiredo Paschmann</span>
+        <span class="author">Francisco Nattero</span>
         <span class="author">Juan Kaplan</span>
       </div>
       <div class="notes">
@@ -29,10 +29,10 @@
       </div>
       <div class="links">
         <span class="link">
-          <a class="button" href="report-site/assets/report-draft.pdf">Borrador del informe</a>
+          <a class="button" href="report-site/assets/report-draft.pdf">Informe en PDF</a>
         </span>
         <span class="link">
-          <a class="button" href="planning/complete-experiment-chronology.md">Cronología completa</a>
+          <a class="button" href="#tree-title">Árbol de experimentos</a>
         </span>
         <span class="link">
           <a class="button" href="#sandbox">Sandbox de política</a>
@@ -162,6 +162,11 @@
               <span class="tree-label">Bytes vs cobertura</span>
               <small>hipótesis, no conclusión</small>
             </a>
+            <a class="tree-node" href="#source-layouts">
+              <img src="report-site/assets/posters/tree-rare50.jpg" alt="Figura de fuentes escasas y currículos de fuente">
+              <span class="tree-label">Fuentes dispersas</span>
+              <small>de muchas posiciones a 2 fuentes</small>
+            </a>
             <a class="tree-node" href="#rare50">
               <img src="report-site/assets/posters/tree-rare50.jpg" alt="Figura del 50x50 raro">
               <span class="tree-label">50x50 raro</span>
@@ -217,15 +222,184 @@
         </nav>
       </section>
 
+      <section id="visual-evidence" class="story-chapter visual-evidence">
+        <div class="chapter-header">
+          <span class="chapter-number">0</span>
+          <div>
+            <h2>Evidencia visual y métricas registradas</h2>
+            <p>
+              La historia no se entiende con un solo video final. Primero hubo
+              movimiento aleatorio; después apareció un avance parcial con una
+              sola hormiga en 25x25; luego el currículo de cantidad de hormigas
+              mostró por qué la cobertura multi-agente importaba; recién después
+              llegaron los resultados fuertes en 50x50 y los despliegues grandes.
+            </p>
+          </div>
+        </div>
+
+        <div class="video-grid visual-arc-grid">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/random-rollout.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              Línea base aleatoria, 576x576, 301 cuadros. Sirve para ver la tarea
+              antes de que haya ciclos de entrega.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/ant-count-25x25-2ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              Currículo 25x25 con 2 hormigas, 3 bits, 800x800, 2501 cuadros. Es
+              largo porque todavía cuesta cerrar ciclos de forma densa.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/forage-25x25-4ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              Currículo 25x25 con 4 hormigas, 3 bits, 800x800, 321 cuadros. Esta
+              familia conecta con el desbloqueo <code>23/23</code> muestreado.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/ant-count-25x25-8ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              Currículo 25x25 con 8 hormigas, 3 bits, 800x800, 233 cuadros. La
+              cobertura ya domina más claramente el comportamiento visual.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <img
+              src="report-site/assets/plots/fig_logged_metrics_story.png"
+              alt="Métricas registradas de eventos, evaluación, cobertura, escritura y optimización"
+            >
+            <figcaption>
+              <strong>Métricas.</strong> Los logs locales y W&amp;B-style
+              incluyen entregas, pickups, cobertura, escritura, entropía, KL,
+              norma de gradiente, pérdida de valor y eficiencia por pasos-hormiga.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Evitar que el informe cuente solo el mejor retorno o el video más
+                vistoso. El comportamiento se juzga por eventos de tarea,
+                cobertura, estabilidad de optimización y evidencia visual.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto de la línea base</h3>
+              <p>
+                No es un experimento nuevo: es una corrección de lectura. Usamos
+                los logs ya guardados para mostrar más de la señal que realmente
+                se registró durante el proyecto.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Entregas, recogidas, comida media en evaluación, entregas por
+                1000 pasos-hormiga, hormigas cargando, fracción de celdas
+                visitadas, tasa de escritura no-cero, entropía, KL, norma de
+                gradiente y pérdida del crítico.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                La tira de videos muestra la progresión temprana 0, 2, 4 y 8
+                hormigas. El primer avance de una sola hormiga no tiene MP4
+                preservado en el checkout; lo mostramos en la sección 25x25 con
+                la evaluación <code>DISTANCE_SHAPE</code>.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                En 25x25, el retorno de entrenamiento sube de
+                <code>7.7875</code> con 2 hormigas a <code>12.545</code> con 4
+                y <code>18.2294</code> con 8. En 50x50, los logs largos muestran
+                que cobertura, escritura y optimización se movían de forma
+                distinta; por eso no alcanza con una sola métrica final.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="traceability" class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">0b</span>
+          <div>
+            <h2>Cómo leemos una corrida</h2>
+            <p>
+              La evidencia no sale de un único video ni de un único número. Las
+              corridas importantes dejan configuración, métricas por actualización,
+              resumen final, checkpoint final, checkpoint seleccionado y, cuando
+              estaba activado, videos subidos o archivados por etapa.
+            </p>
+          </div>
+        </div>
+
+        <div class="result-columns">
+          <div>
+            <h3>Artefactos</h3>
+            <p>
+              El contrato de tarea vive en <code>experiments/*.json</code> o en
+              el notebook. La traza numérica vive en <code>metrics.jsonl</code>
+              y <code>summary.json</code>. Los videos son evidencia cualitativa
+              sincronizada con updates o checkpoints, no decoración.
+            </p>
+          </div>
+          <div>
+            <h3>Selección</h3>
+            <p>
+              “Mejor checkpoint” no significa “último checkpoint”. Puede estar
+              seleccionado por entrenamiento o evaluación held-out, por entregas,
+              fracción entregada o eficiencia por pasos-hormiga.
+            </p>
+          </div>
+          <div>
+            <h3>Métricas</h3>
+            <p>
+              Además de retorno: <code>delivery_events</code>,
+              <code>pickup_events</code>, <code>mean_carrying_ants</code>,
+              <code>final_mean_visited_cell_fraction</code>,
+              <code>write_action_nonzero_rate</code>, entropía, KL, gradientes y
+              pérdida del crítico.
+            </p>
+          </div>
+          <div>
+            <h3>Despliegue</h3>
+            <p>
+              El sandbox exporta solo el actor 50x50 a JavaScript. No ejecuta
+              JAX, no usa el crítico y no entrena: sirve para inspeccionar la
+              política local real bajo layouts editables.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section>
         <h2>Mapa de lectura</h2>
         <p class="summary">
-          Cada capítulo usa la misma plantilla: Objetivo / hipótesis, cambio
-          respecto del baseline, métricas concretas, evidencia visual y lectura
-          breve. Cuando una métrica no fue medida de forma honesta en ese
-          experimento, lo decimos explícitamente.
+          Cada capítulo mantiene las mismas preguntas de evaluación, pero la
+          lectura avanza como una cronología: qué se intentó, qué cambió, qué se
+          midió, qué se vio y qué conclusión permite sostener ese experimento.
         </p>
         <nav class="story-nav" aria-label="Secciones de la historia experimental">
+          <a href="#visual-evidence">0. Evidencia</a>
+          <a href="#traceability">0b. Trazabilidad</a>
           <a href="#world">1. Mundo</a>
           <a href="#small-scale">2. Cuello</a>
           <a href="#unlock25">3. 25x25</a>
@@ -233,14 +407,15 @@
           <a href="#autocurriculum">4a. Autocurrículos</a>
           <a href="#maze-pipeline">4b. Laberinto</a>
           <a href="#memory-autoresearch">4c. Memoria</a>
-          <a href="#rare50">5. 50x50 raro</a>
-          <a href="#critic50">6. Crítico</a>
-          <a href="#frontier50">7. 60 hormigas</a>
-          <a href="#large-scale-100">8. 100x100</a>
-          <a href="#large-scale-250">9. 250x250</a>
-          <a href="#bigmap">10. 1000x1000</a>
-          <a href="#sandbox">11. Sandbox</a>
-          <a href="#transparency">12. Transparencia</a>
+          <a href="#source-layouts">5. Fuentes</a>
+          <a href="#ablation-ledger">5b. Ablaciones</a>
+          <a href="#rare50">6. 50x50 raro</a>
+          <a href="#critic50">7. Crítico</a>
+          <a href="#frontier50">8. 60 hormigas</a>
+          <a href="#large-scale-100">9. 100x100</a>
+          <a href="#large-scale-250">10. 250x250</a>
+          <a href="#bigmap">11. 1000x1000</a>
+          <a href="#sandbox">12. Sandbox</a>
         </nav>
       </section>
 
@@ -267,9 +442,9 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
-                El baseline visual es una política aleatoria. Frente a eso, toda
+                La línea base visual es una política aleatoria. Frente a eso, toda
                 política entrenada debe producir ciclos fuente-hormiguero.
               </p>
             </div>
@@ -284,7 +459,7 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                El baseline aleatorio muestra movimiento sin entrega confiable.
+                La línea base aleatoria muestra movimiento sin entrega confiable.
                 Es el punto de comparación visual para las políticas entrenadas.
               </p>
             </div>
@@ -302,7 +477,7 @@
               <source src="report-site/assets/videos/random-rollout.mp4" type="video/mp4">
             </video>
             <figcaption>
-              <strong>Video / evidencia visual.</strong> Baseline aleatorio,
+              <strong>Video / evidencia visual.</strong> Línea base aleatoria,
               576x576, 301 cuadros a 12 fps. Sirve para ver la tarea antes de que
               aparezca una política útil.
             </figcaption>
@@ -318,7 +493,9 @@
             <p>
               Antes de escalar, probamos si bastaba con aumentar la capacidad de
               comunicación. La respuesta inicial fue no: la cobertura de la
-              colonia importó más que el alfabeto de bytes.
+              colonia importó más que el alfabeto de bytes. El primer avance
+              visible en 25x25 fue de una sola hormiga con distance shaping, pero
+              todavía no cerraba la tarea de forma robusta.
             </p>
           </div>
         </div>
@@ -326,13 +503,14 @@
         <div class="evidence-pair">
           <figure>
             <img
-              src="report-site/assets/plots/fig_bits_vs_ants.png"
-              alt="Comparación temprana entre sweep de bits y sweep de cantidad de hormigas"
+              src="report-site/assets/plots/fig_25x25_modes.png"
+              alt="Evaluaciones 25x25 que incluyen el primer avance de una sola hormiga"
             >
             <figcaption>
-              <strong>Video / evidencia visual.</strong> Figura de los primeros
-              barridos. No hay un video único para este diagnóstico; la evidencia
-              principal es la comparación de retornos.
+              <strong>Video / evidencia visual.</strong> No hay MP4 preservado
+              para la primera política de una sola hormiga. La evidencia visual
+              honesta es esta figura: <code>DISTANCE_SHAPE</code> llega a
+              <code>13.75/23</code> en greedy y <code>7/23</code> muestreado.
             </figcaption>
           </figure>
           <div class="experiment-template">
@@ -344,7 +522,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 Se barrieron bits de comunicación de 2 a 8 y, por separado, la
                 cantidad de hormigas en 25x25 con 3 bits.
@@ -360,17 +538,18 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                La evidencia visual de esta etapa es la figura de barridos, no
-                un rollout dedicado: compara bits contra cantidad de hormigas.
+                No hay un rollout dedicado preservado para la primera hormiga.
+                Por eso el sitio separa esta figura del video posterior de 4
+                hormigas: no son la misma evidencia.
               </p>
             </div>
             <div>
               <h3>Lectura de resultados</h3>
               <p>
-                Los bits se movieron poco, cerca de <code>0.31</code> a
-                <code>0.44</code> en el ancla 25x25. El sweep de hormigas subió
-                de <code>4.8125</code> con 2 hormigas a <code>10.875</code> con
-                8. La primera mejora fuerte fue cobertura.
+                Una sola hormiga pudo avanzar con shaping, pero no resolver. La
+                mejora fuerte llegó cuando se sumó cobertura: el sweep de
+                hormigas subió de <code>4.8125</code> de retorno de entorno con
+                2 hormigas a <code>10.875</code> con 8.
               </p>
             </div>
           </div>
@@ -423,7 +602,7 @@
             </p>
           </div>
           <div>
-            <h3>Cambio respecto del baseline</h3>
+            <h3>Cambio respecto de la línea base</h3>
             <p>
               Se pasó de una hormiga a 4 hormigas, se usó distance shaping, y se
               comparó despliegue greedy contra muestreado.
@@ -459,8 +638,8 @@
             <tr>
               <th>Experimento</th>
               <th>Configuración</th>
-              <th>Greedy</th>
-              <th>Sampled</th>
+              <th>Determinista</th>
+              <th>Muestreado</th>
               <th>Lectura</th>
             </tr>
           </thead>
@@ -485,6 +664,27 @@
               <td>0/23, éxito 0</td>
               <td>22/23, éxito 0.5</td>
               <td>En 25x25, escribir no parece ser la causa principal del éxito muestreado.</td>
+            </tr>
+            <tr>
+              <td><code>DISTANCE_CAP4_SHARP</code></td>
+              <td>Menor entropía, clip PPO más estricto y más presupuesto alto</td>
+              <td>13/23</td>
+              <td>20.5/23, éxito 0.5</td>
+              <td>Mejora el modo determinista, pero debilita la resolución muestreada.</td>
+            </tr>
+            <tr>
+              <td><code>LONG_CREDIT_GENTLE_GREEDY</code></td>
+              <td>Continuación 25x25 con LR/entropía/clip más suaves y fracción determinista</td>
+              <td>14.75/23, éxito 0.25</td>
+              <td>23/23, éxito 1.0</td>
+              <td>La brecha entre modo determinista y muestreado baja, pero no desaparece.</td>
+            </tr>
+            <tr>
+              <td><code>DISTANCE_VISION2_CAP4</code></td>
+              <td>Radio de visión 2, 4 hormigas, hidden size 256</td>
+              <td>no usado como resultado principal</td>
+              <td>23/23, éxito 1.0</td>
+              <td>Ver más ayuda, pero no sustituye cobertura y shaping.</td>
             </tr>
           </tbody>
         </table>
@@ -511,8 +711,8 @@
             >
             <figcaption>
               <strong>Video / evidencia visual.</strong> Curva del currículo de
-              cantidad de hormigas. La evidencia visual de rollout se reutiliza
-              del video 25x25 porque pertenece a la misma familia.
+              cantidad de hormigas. Debajo se muestran los rollouts preservados
+              de 2, 4 y 8 hormigas de esa misma familia.
             </figcaption>
           </figure>
           <div class="experiment-template">
@@ -524,7 +724,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 Una familia cambió bits de escritura; otra mantuvo 3 bits y
                 aumentó la cantidad de hormigas.
@@ -541,7 +741,7 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                La curva del currículo de hormigas y el rollout 25x25 muestran
+                La curva del currículo de hormigas y los rollouts 2/4/8 muestran
                 la rama donde cobertura produjo la señal más clara.
               </p>
             </div>
@@ -554,6 +754,36 @@
               </p>
             </div>
           </div>
+        </div>
+
+        <div class="video-grid ant-count-grid">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/ant-count-25x25-2ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              2 hormigas, retorno de entorno <code>4.8125</code>, retorno de
+              episodio <code>7.7875</code>. 800x800, 2501 cuadros a 8 fps.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/forage-25x25-4ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              4 hormigas, retorno de entorno <code>7.8125</code>, retorno de
+              episodio <code>12.545</code>. 800x800, 321 cuadros a 8 fps.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/ant-count-25x25-8ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              8 hormigas, retorno de entorno <code>10.875</code>, retorno de
+              episodio <code>18.2294</code>. 800x800, 233 cuadros a 8 fps.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
@@ -574,15 +804,13 @@
 
         <div class="evidence-pair">
           <figure>
-            <img
-              src="report-site/assets/plots/fig_250x250_diagnostics.png"
-              alt="Diagnóstico de autocurrículo 250x250 con entrega, pickup, retorno y bytes"
-            >
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/autocurriculum-250x250-failure.mp4" type="video/mp4">
+            </video>
             <figcaption>
-              <strong>Video / evidencia visual.</strong> No hay un video
-              dedicado conservado para cada autocurrículo fallido. La evidencia
-              visual más honesta es el diagnóstico 250x250, porque separa
-              entrega real de retorno moldeado y actividad de bytes.
+              <strong>Video / evidencia visual.</strong> Autocurrículo 250x250,
+              1008x1008, 600 cuadros a 8 fps. Ilustra actividad, shaping y bytes
+              sin que eso alcance para demostrar entrega real.
             </figcaption>
           </figure>
           <div class="experiment-template">
@@ -596,7 +824,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 En la versión 50x50, el contrato era 1 hormiga, 12 comidas, 2
                 fuentes, 1 bit, radio 1 y una grilla activa de 4x4 a 50x50. En
@@ -617,9 +845,10 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                La figura 250x250 muestra el error de lectura: mirar solo
-                retorno o bytes no alcanza. Hay que mirar entregas y pickups
-                como eventos de tarea.
+                No hay video para todos los autocurrículos, pero sí hay un
+                checkpoint-video útil de la diagnosis 250x250. La figura debajo
+                muestra el error de lectura: mirar solo retorno o bytes no
+                alcanza. Hay que mirar entregas y pickups como eventos de tarea.
               </p>
             </div>
             <div>
@@ -680,7 +909,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 La configuración preservada <code>maze_exploration_curriculum.json</code>
                 usa laberintos generados de 10x10 a 50x50, una hormiga, 48
@@ -758,7 +987,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 Se agregaron pruebas <code>normal</code>,
                 <code>no_byte_read</code> y <code>no_write</code>, además de
@@ -804,9 +1033,196 @@
         </div>
       </section>
 
-      <section id="rare50" class="story-chapter">
+      <section id="source-layouts" class="story-chapter">
         <div class="chapter-header">
           <span class="chapter-number">5</span>
+          <div>
+            <h2>Fuentes dispersas: otra forma de escalar la dificultad</h2>
+            <p>
+              Además de hacer crecer el mapa, probamos hacer cada vez más difícil
+              encontrar comida. Esa línea no era solo “mapa más grande”: mantenía
+              o cambiaba el tamaño de la arena mientras reducía la cantidad de
+              posiciones donde podía aparecer comida.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <img
+              src="report-site/assets/plots/fig_critic_50x50.png"
+              alt="Resultados 50x50 que incluyen ramas de fuentes, proximidad y crítico espacial"
+            >
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> No hay un MP4 dedicado
+              y preservado para cada currículo de fuente. La figura deja visible
+              dónde esta línea empieza a mejorar: proximidad/full-layout con
+              crítico espacial.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Enseñar descubrimiento de comida sin depender solo de distancia
+                al hub: empezar con fuentes más fáciles de encontrar y terminar
+                con pocas fuentes concentradas.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto de la línea base</h3>
+              <p>
+                <code>padded_sources_50x50</code> mantuvo una arena 50x50 pero
+                restringió hub/comida a una ventana interior 20x20 y redujo
+                posiciones de fuente de 12 a 2. <code>scratch_smooth_sources</code>
+                usó arena 80x80 con ventana 50x50 y annealing suave de 250
+                posiciones a 2. <code>proximity_sources</code> usó dos macro
+                fuentes desde el principio, pero redujo el footprint hasta dos
+                celdas finales.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Comida entregada, éxito, eficiencia por pasos-hormiga cuando la
+                evaluación la guardó, actividad de escritura y selección de
+                checkpoint por evaluación held-out.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                Esta rama se entiende mejor como tabla/figura de contratos que
+                como un único video. Un rollout final de 50x50 no separa por sí
+                solo si mejoró el currículo de fuentes, el crítico o el linaje
+                del checkpoint.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                El workflow <code>padded_sources</code> falló en esa forma:
+                alrededor de <code>0.25/18</code>. El currículo de proximidad
+                con <code>strided_cnn</code> llegó a <code>40.875/250</code>.
+                La lectura correcta no es “la dispersión resolvió 50x50”, sino
+                “hacer sparse las fuentes reveló que descubrimiento y crítico
+                espacial eran cuellos distintos”.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Rama</th>
+              <th>Contrato</th>
+              <th>Resultado / lectura</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>forage_curriculum</code></td>
+              <td>1 hormiga, 4x4→50x50, 48 comidas, 12 fuentes, 1 bit</td>
+              <td>Primer enfoque de mapas crecientes; colapsa al crecer.</td>
+            </tr>
+            <tr>
+              <td><code>autocurriculum</code></td>
+              <td>1 hormiga, cuadrado activo 4x4→50x50 tras 6 entregas por etapa</td>
+              <td>Avanza etapas, pero no produce competencia transferible robusta.</td>
+            </tr>
+            <tr>
+              <td><code>padded_sources</code></td>
+              <td>50x50 oculto, ventana interior 20x20, fuentes 12→2, 18 comidas</td>
+              <td><code>0.25/18</code>; flujo útil, resultado débil.</td>
+            </tr>
+            <tr>
+              <td><code>smooth_sources</code></td>
+              <td>80x80 exterior, 50x50 interior, 250 comidas, posiciones 250→2</td>
+              <td>Prueba de annealing suave; no queda como resultado principal.</td>
+            </tr>
+            <tr>
+              <td><code>proximity_sources</code></td>
+              <td>50x50 exterior, 30x30 interior, 4 hormigas, 250 comidas, 2 macro fuentes</td>
+              <td><code>40.875/250</code>; progreso mezclado con <code>strided_cnn</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="ablation-ledger" class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">5b</span>
+          <div>
+            <h2>Ablaciones que cambiaron la interpretación</h2>
+            <p>
+              Varias corridas no son “resultados principales”, pero sí cambian
+              qué afirmaciones podemos hacer. Esta tabla resume las más
+              importantes para no confundir progreso de ingeniería con una
+              conclusión causal.
+            </p>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Ablación / diagnóstico</th>
+              <th>Qué cambió</th>
+              <th>Número clave</th>
+              <th>Lectura</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>DISTANCE_CAP4_NO_WRITE</code></td>
+              <td>25x25 sin escritura</td>
+              <td>muestreado <code>22/23</code>, éxito <code>0.5</code></td>
+              <td>En 25x25, escribir no parece ser la causa principal del solve muestreado.</td>
+            </tr>
+            <tr>
+              <td>R8-R12 memoria</td>
+              <td><code>normal</code> contra <code>no_byte_read</code> y <code>no_write</code></td>
+              <td>R8 <code>394/397/397</code>; R9 <code>124/56/56</code></td>
+              <td>Hubo dependencia causal parcial solo cuando el forrajeo se dañó.</td>
+            </tr>
+            <tr>
+              <td>Escritura compartida y costo</td>
+              <td>8 hormigas 50x50, escritura compartida y penalización por bit</td>
+              <td><code>45.25/125</code> a <code>69.375/125</code></td>
+              <td>Mejora práctica, pero dentro de la rama <code>strided_cnn</code>.</td>
+            </tr>
+            <tr>
+              <td>Sondeo de comunicación</td>
+              <td>Evaluación del checkpoint con costo de escritura</td>
+              <td>det. <code>18.5/125</code>, muestreado <code>22.25/125</code></td>
+              <td>El mapa de bytes existe, pero no alcanza para probar un código robusto.</td>
+            </tr>
+            <tr>
+              <td>Costo de escritura x300 / 6 fuentes</td>
+              <td>Costo severo y fuentes más numerosas</td>
+              <td>primer eval <code>68.375/125</code>, final <code>19.625/125</code></td>
+              <td>Reducir spam de escritura puede destruir la política si cambia demasiado el contrato.</td>
+            </tr>
+            <tr>
+              <td>250x250 trunc4096</td>
+              <td>Continuación desde frontera con horizonte truncado</td>
+              <td>mejor train <code>685</code>, final <code>13</code></td>
+              <td>Había picos, pero no estabilidad final; no reemplaza reset-boundary.</td>
+            </tr>
+            <tr>
+              <td>Directa / exploración / laberinto</td>
+              <td>Líneas base y ramas de infraestructura</td>
+              <td>sin resultado local preservado comparable</td>
+              <td>Se mencionan como historia experimental, no como evidencia de éxito.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="rare50" class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">6</span>
           <div>
             <h2>50x50 raro: primero había que descubrir la fuente</h2>
             <p>
@@ -836,7 +1252,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 Se agregaron señales vectoriales hacia el hormiguero y hacia la
                 comida más cercana, junto con selección de puntos guardados.
@@ -859,7 +1275,7 @@
             <div>
               <h3>Lectura de resultados</h3>
               <p>
-                El baseline raro entregó <code>10.958/23</code>; el vector al
+                La línea base rara entregó <code>10.958/23</code>; el vector al
                 hormiguero llegó a <code>12.328/23</code>; hormiguero más vector
                 a comida llegó a
                 <code>15.203/23</code>; selección held-out llegó a
@@ -878,7 +1294,7 @@
 
       <section id="critic50" class="story-chapter">
         <div class="chapter-header">
-          <span class="chapter-number">6</span>
+          <span class="chapter-number">7</span>
           <div>
             <h2>El límite causal de 50x50 fue el crítico</h2>
             <p>
@@ -910,11 +1326,11 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 La rama eficiente 50x50 usaba crítico MLP. La rama
                 proximity/full-layout pasó a <code>strided_cnn</code> y luego
-                agregó layout completo, shared writes, write cost, 8 bits y más
+                agregó layout completo, escritura compartida, costo de escritura, 8 bits y más
                 hormigas.
               </p>
             </div>
@@ -937,9 +1353,12 @@
               <h3>Lectura de resultados</h3>
               <p>
                 MLP llegó a <code>21.5/48</code>. La rama espacial con 8
-                hormigas y write cost llegó a <code>69.375/125</code>. La rama
-                confirmada de 60 hormigas llegó a <code>123.90625/125</code>.
-                El crítico espacial es una frontera causal de primer orden.
+                hormigas progresó por etapas: <code>43.875/125</code> en
+                <code>long3</code>, <code>45.25/125</code> con shared writes y
+                <code>69.375/125</code> con costo de escritura, éxito
+                <code>0.125</code>. La rama confirmada de 60 hormigas llegó a
+                <code>123.90625/125</code>. El crítico espacial es una frontera
+                causal de primer orden.
               </p>
             </div>
           </div>
@@ -948,7 +1367,7 @@
 
       <section id="frontier50" class="story-chapter">
         <div class="chapter-header">
-          <span class="chapter-number">7</span>
+          <span class="chapter-number">8</span>
           <div>
             <h2>La frontera entrenada: 60 hormigas en 50x50</h2>
             <p>
@@ -978,7 +1397,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 Se partió de la rama full-layout con <code>strided_cnn</code> y
                 se usaron 60 hormigas, 8 bits, identidades repetidas, optimizer
@@ -1017,7 +1436,7 @@
 
       <section id="large-scale" class="story-chapter">
         <div class="chapter-header">
-          <span class="chapter-number">8</span>
+          <span class="chapter-number">9</span>
           <div>
             <h2>Escalado: separar entrenamiento, continuación y prueba de estrés</h2>
             <p>
@@ -1033,7 +1452,7 @@
 
       <section id="large-scale-100" class="story-chapter subchapter">
         <div class="chapter-header">
-          <span class="chapter-number">8a</span>
+          <span class="chapter-number">9a</span>
           <div>
             <h2>100x100 puente: escalado por continuación seleccionada</h2>
           </div>
@@ -1058,7 +1477,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 Se usaron ramas puente con 120 hormigas y selección de
                 punto guardado/temperatura, no entrenamiento desde cero.
@@ -1094,7 +1513,7 @@
 
       <section id="large-scale-250" class="story-chapter subchapter">
         <div class="chapter-header">
-          <span class="chapter-number">8b</span>
+          <span class="chapter-number">9b</span>
           <div>
             <h2>250x250: fracaso útil y recuperación reset-boundary</h2>
           </div>
@@ -1119,7 +1538,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 La rama directa tenía horizontes largos, autocurrículo de
                 distancia y crítico <code>set_cnn</code>. Reset-boundary cambió
@@ -1174,7 +1593,7 @@
 
       <section id="bigmap" class="story-chapter subchapter">
         <div class="chapter-header">
-          <span class="chapter-number">8c</span>
+          <span class="chapter-number">9c</span>
           <div>
             <h2>1000x1000 solo actor: prueba de estrés de la política 50x50</h2>
           </div>
@@ -1199,7 +1618,7 @@
               </p>
             </div>
             <div>
-              <h3>Cambio respecto del baseline</h3>
+              <h3>Cambio respecto de la línea base</h3>
               <p>
                 No se entrenó de punta a punta en 1000x1000. Se reutilizó la política
                 50x50 estabilizada y se renderizó solo con el actor, con más hormigas y
@@ -1237,7 +1656,7 @@
 
       <section id="sandbox" class="story-chapter">
         <div class="chapter-header">
-          <span class="chapter-number">9</span>
+          <span class="chapter-number">10</span>
           <div>
             <h2>Sandbox interactivo: política real 50x50</h2>
             <p>
@@ -1340,83 +1759,18 @@
             <div class="policy-tabs" role="tablist" aria-label="Opciones de rollout">
               <button type="button" class="active" data-policy="frontier50">50x50</button>
               <button type="button" data-policy="unlock25">25x25</button>
-              <button type="button" data-policy="bridge100">1000 puente</button>
+              <button type="button" data-policy="ant2">25x25 2h</button>
+              <button type="button" data-policy="ant8">25x25 8h</button>
+              <button type="button" data-policy="bridge100">100x100 en 1000</button>
+              <button type="button" data-policy="auto250fail">auto 250 fallo</button>
               <button type="button" data-policy="reset250">250 reset</button>
-              <button type="button" data-policy="bigmap50">1000 50x50</button>
+              <button type="button" data-policy="bigmap50">stress 1000</button>
               <button type="button" data-policy="random">azar</button>
             </div>
             <dl id="policy-metrics" class="metrics-list"></dl>
             <p id="policy-caveat" class="caveat"></p>
           </aside>
         </div>
-      </section>
-
-      <section id="transparency" class="story-chapter">
-        <div class="chapter-header">
-          <span class="chapter-number">10</span>
-          <div>
-            <h2>Transparencia de razonamiento</h2>
-            <p>
-              La página intenta mostrar qué evidencia sostiene cada afirmación, qué
-              cambió junto con qué, y qué experimentos todavía faltan.
-            </p>
-          </div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Afirmación</th>
-              <th>Estado</th>
-              <th>Evidencia</th>
-              <th>Riesgo restante</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>25x25 se resuelve bajo movimiento muestreado.</td>
-              <td>Fuerte</td>
-              <td><code>DISTANCE_CAP4</code>: 23/23, éxito 1.0.</td>
-              <td>El despliegue greedy sigue siendo mucho más débil.</td>
-            </tr>
-            <tr>
-              <td>La cobertura importó más que el conteo de bits al principio.</td>
-              <td>Fuerte para las corridas observadas</td>
-              <td>El retorno sube con más hormigas; el sweep de bits mueve poco.</td>
-              <td>Un factorial completo lo haría más limpio.</td>
-            </tr>
-            <tr>
-              <td>La frontera 50x50 pertenece a una rama de crítico espacial.</td>
-              <td>Fuerte</td>
-              <td>MLP y <code>strided_cnn</code> aparecen en ramas y resultados separados.</td>
-              <td>Las mejoras posteriores combinan muchas intervenciones.</td>
-            </tr>
-            <tr>
-              <td>Los bytes causan las mejores políticas.</td>
-              <td>Abierto</td>
-              <td>Hay escritura y a veces saturación, pero no alcanza como prueba causal.</td>
-              <td>Faltan no-write, no-byte-read, byte-shuffle y costos emparejados.</td>
-            </tr>
-            <tr>
-              <td>Los autocurrículos resolvieron el escalado.</td>
-              <td>No demostrado</td>
-              <td>En 250x250 hubo retorno moldeado y muchas hormigas cargando con <code>delivery_events=0</code>.</td>
-              <td>Los umbrales deben depender de entrega real, no solo retorno moldeado o avance de etapa.</td>
-            </tr>
-            <tr>
-              <td>El flujo de laberinto produjo un resultado comparable.</td>
-              <td>No</td>
-              <td>Hay implementación, tests y notebooks, pero no métricas locales preservadas ni MP4 final.</td>
-              <td>Debe citarse como rama exploratoria fallida, no como experimento exitoso.</td>
-            </tr>
-            <tr>
-              <td>250x250 está resuelto en general.</td>
-              <td>Abierto</td>
-              <td>Reset-boundary recupera entregas reales, pero el entrenamiento directo fue inestable.</td>
-              <td>La tarea amplia sigue siendo diagnóstica.</td>
-            </tr>
-          </tbody>
-        </table>
       </section>
 
       <section>
