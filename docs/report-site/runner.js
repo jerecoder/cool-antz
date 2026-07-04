@@ -32,12 +32,14 @@
     antCount: document.querySelector("#runner-ant-count"),
     foodCount: document.querySelector("#runner-food-count"),
     sourceCount: document.querySelector("#runner-source-count"),
+    maxSteps: document.querySelector("#runner-max-steps"),
   };
   const configLimits = {
     gridSize: { min: 15, max: Number.MAX_SAFE_INTEGER },
     antCount: { min: 1, max: Infinity },
     foodCount: { min: 0, max: Infinity },
     sourceCount: { min: 0, max: Number.MAX_SAFE_INTEGER },
+    maxSteps: { min: 1, max: Number.MAX_SAFE_INTEGER },
   };
   const uiText = {
     run: "Ejecutar",
@@ -198,6 +200,7 @@
     writeIntegerControl(configControls.antCount, env.num_ants);
     writeIntegerControl(configControls.foodCount, env.food_count);
     writeIntegerControl(configControls.sourceCount, env.food_sources, sourceMax);
+    writeIntegerControl(configControls.maxSteps, env.max_steps);
     updateSandboxTitle();
   }
 
@@ -366,6 +369,11 @@
       env.food_sources,
       sourceMax,
     );
+    const maxSteps = readIntegerControl(
+      configControls.maxSteps,
+      configLimits.maxSteps,
+      env.max_steps,
+    );
     foodCount = sourceCount === 0 ? 0 : Math.max(foodCount, sourceCount);
 
     env.width = gridSize;
@@ -373,6 +381,7 @@
     env.num_ants = antCount;
     env.food_count = foodCount;
     env.food_sources = sourceCount;
+    env.max_steps = maxSteps;
 
     if (previousWidth !== env.width || previousHeight !== env.height) {
       hub = scalePosition(hub, previousWidth, previousHeight, env.width, env.height);
@@ -1252,6 +1261,7 @@
       [configControls.antCount, "hormigas"],
       [configControls.foodCount, "cookies en el mapa"],
       [configControls.sourceCount, "posiciones de cookies"],
+      [configControls.maxSteps, "límite de truncación"],
     ];
     configLabels.forEach(([control, label]) => {
       const labelElement = control ? control.closest("label") : null;

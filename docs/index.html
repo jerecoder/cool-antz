@@ -2197,8 +2197,9 @@
               Este sandbox usa los pesos exportados del actor del punto guardado
               entrenado para 50x50. Podés cambiar el tamaño de la grilla, la
               cantidad de hormigas, la comida total y cuántas posiciones tienen
-              cookies; después podés mover el hormiguero, las fuentes y las
-              paredes, y correr la política en el navegador.
+              cookies, además del límite de truncación; después podés mover el
+              hormiguero, las fuentes y las paredes, y correr la política en el
+              navegador.
             </p>
           </div>
         </div>
@@ -2275,6 +2276,10 @@
                 <label>
                   <span>posiciones de cookies</span>
                   <input id="runner-source-count" type="number" min="0" step="1" value="2" inputmode="numeric">
+                </label>
+                <label>
+                  <span>límite de truncación</span>
+                  <input id="runner-max-steps" type="number" min="1" step="100" value="2000" inputmode="numeric">
                 </label>
               </div>
 
