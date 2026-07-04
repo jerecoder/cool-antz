@@ -185,7 +185,9 @@ Otra rama exploró laberintos. En la rama actual queda el config \run{maze_explo
 
 También existió una rama lateral \run{origin/lethal_cookies}. Allí el cuaderno de maze preparaba una prueba de estrés 41x41 en forma de L dentro de una arena 50x50, con pasillos de ancho 5, 20 hormigas, una fuente normal al final y, en una variante hermana, bolsillos laterales para fuentes letales. Sin embargo, esa rama no tiene en el checkout actual métricas locales preservadas de entrega, supervivencia, eficiencia o convergencia, y la llamada de entrenamiento del cuaderno de maze estaba comentada.
 
-Por eso el laberinto debe contarse como fracaso de flujo/evidencia, no como fracaso cuantitativo de política. La idea era válida para probar memoria espacial bajo obstáculos, pero no produjo una corrida comparable con las ramas principales. La decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de entrega.
+Para el sitio web se agregó una prueba visual concreta que no existía en los artefactos originales: desplegar el mejor actor 50x50 de 60 hormigas sobre un laberinto 50x50 generado con el mismo sistema de obstáculos. El video \run{labyrinth-50x50-policy-60ants.mp4} usa el checkpoint \run{best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl}, 125 unidades de comida en 2 fuentes, 8 bits, movimiento muestreado con escritura greedy, pasillos de ancho 3, paredes de ancho 1 y semilla 17. En 2400 pasos entregó \(0/125\), dejó 187 celdas con bytes no cero y visitó 188 celdas.
+
+Por eso el laberinto debe contarse como fracaso de flujo/evidencia y, para esta prueba agregada, como fallo de transferencia de la política abierta. La idea era válida para probar memoria espacial bajo obstáculos, pero no produjo una corrida entrenada comparable con las ramas principales. La decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de entrega.
 
 \subsection{Memoria y autoresearch: escribir no basta}
 

@@ -128,9 +128,9 @@
                         id: "maze-pipeline",
                         href: "#maze-pipeline",
                         label: "Laberinto",
-                        small: "mapa real, sin video final",
+                        small: "actor 60h, 0 entregas",
                         poster: "report-site/assets/posters/tree-maze.jpg",
-                        alt: "Layout de laberinto generado desde la configuración preservada",
+                        alt: "Fotograma del actor 50x50 de 60 hormigas desplegado en laberinto",
                         kind: "side",
                       },
                       {
@@ -457,6 +457,32 @@
       ],
       caveat:
         "La geometría del video es 1000x1000 con 500 hormigas y 5000 comida. La etiqueta 100x100 pertenece al linaje del punto guardado y a la tarea de evaluación.",
+    },
+    maze50: {
+      label: "laberinto 50",
+      title: "Actor 50x50 de 60 hormigas en laberinto",
+      src: "report-site/assets/videos/labyrinth-50x50-policy-60ants.mp4",
+      caption:
+        "Despliegue actor-only del mejor checkpoint 50x50 de 60 hormigas sobre un laberinto 50x50 generado con el sistema real de obstáculos, codificado como MP4 800x800.",
+      metrics: [
+        ["política fuente", "best 50x50, 60 hormigas"],
+        ["checkpoint", "best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl"],
+        ["grilla de tarea", "50x50 con obstáculos"],
+        ["video codificado", "800x800"],
+        ["fotogramas", "601 a 24 fps"],
+        ["hormigas", "60"],
+        ["comida", "125 bocados / 2 fuentes"],
+        ["bits", "8"],
+        ["crítico de entrenamiento", "strided_cnn"],
+        ["modo de acción", "movimiento muestreado / escritura greedy"],
+        ["temperatura de movimiento", "1.0"],
+        ["laberinto", "pasillos 3, paredes 1, semilla 17"],
+        ["entregado", "0 / 125 en 2400 pasos"],
+        ["bytes no cero finales", "187 celdas"],
+        ["celdas visitadas", "188"],
+      ],
+      caveat:
+        "No es una política entrenada en laberinto. Es una prueba de transferencia del mejor actor 50x50 abierto, y el resultado es negativo: actividad y escritura no bastan para cerrar entregas en pasillos.",
     },
     reset250: {
       label: "reset 250",

@@ -32,7 +32,7 @@
     sourceCount: document.querySelector("#runner-source-count"),
   };
   const configLimits = {
-    gridSize: { min: 15, max: 120 },
+    gridSize: { min: 15, max: Number.MAX_SAFE_INTEGER },
     antCount: { min: 1, max: 500 },
     foodCount: { min: 0, max: 100000 },
     sourceCount: { min: 0, max: Number.MAX_SAFE_INTEGER },
@@ -112,13 +112,15 @@
     }
     if (maxOverride !== null) {
       control.max = String(maxOverride);
+    } else {
+      control.removeAttribute("max");
     }
     control.value = String(value);
   }
 
   function syncConfigControls() {
     const sourceMax = maxSourceCountFor(env.width);
-    writeIntegerControl(configControls.gridSize, env.width);
+    writeIntegerControl(configControls.gridSize, env.width, null);
     writeIntegerControl(configControls.antCount, env.num_ants);
     writeIntegerControl(configControls.foodCount, env.food_count);
     writeIntegerControl(configControls.sourceCount, env.food_sources, sourceMax);
@@ -899,7 +901,7 @@
     updateSandboxTitle();
     setText(
       ".runner-panel .caption",
-      "Los pesos no cambian: es el actor entrenado en 50x50. Los controles modifican el entorno simulado para explorar generalización local, no para declarar una política reentrenada en otro tamaño.",
+      "Los pesos no cambian: es el actor best 50x50 de 60 hormigas exportado desde el checkpoint estabilizado. Los controles modifican el entorno simulado para explorar generalización local, no para declarar una política reentrenada en otro tamaño.",
     );
     setText(".control-label", "colocar");
     setText("label[for='runner-action-mode']", "modo de acción");

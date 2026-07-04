@@ -21,6 +21,7 @@
 html {
   background: var(--paper);
   color: var(--ink);
+  cursor: url("assets/sprites/ant-cursor.png") 20 20, auto;
   scroll-behavior: smooth;
 }
 
@@ -34,6 +35,16 @@ body {
     Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia,
     serif;
   line-height: 1.6;
+}
+
+a,
+button,
+select,
+input,
+video,
+canvas,
+.tree-link {
+  cursor: url("assets/sprites/ant-cursor.png") 20 20, pointer;
 }
 
 header {
@@ -336,10 +347,6 @@ figcaption {
   stroke: var(--blue-ink);
 }
 
-.tree-link {
-  cursor: pointer;
-}
-
 .tree-node-frame {
   fill: var(--panel);
   stroke: #d8c8aa;
@@ -632,7 +639,6 @@ figcaption {
   aspect-ratio: 1 / 1;
   border: 1px solid var(--line-strong);
   background: #d7cfb5;
-  cursor: crosshair;
 }
 
 .policy-viewer h3 {
@@ -667,7 +673,6 @@ figcaption {
   border-radius: 6px;
   background: var(--panel);
   color: var(--ink);
-  cursor: pointer;
   padding: 0.55em 0.75em;
   font-family: inherit;
   font-size: 0.95rem;
@@ -776,7 +781,6 @@ figcaption {
   border-radius: 6px;
   background: var(--panel);
   color: var(--ink);
-  cursor: pointer;
   padding: 0.55em 0.55em;
   font-family: inherit;
   font-size: 0.92rem;

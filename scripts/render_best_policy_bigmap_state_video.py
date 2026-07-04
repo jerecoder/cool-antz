@@ -85,6 +85,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-fps", type=int, default=160)
     parser.add_argument("--base-video-fps", type=int, default=8)
     parser.add_argument("--tile-size", type=int, default=1)
+    parser.add_argument("--render-style", default="big_scale_old_three_color")
+    parser.add_argument("--maze-obstacles", action="store_true")
+    parser.add_argument("--maze-corridor-width", type=int, default=3)
+    parser.add_argument("--maze-wall-width", type=int, default=1)
+    parser.add_argument("--maze-seed", type=int, default=17)
     parser.add_argument("--action-mode", default="sampled_move_greedy_write")
     parser.add_argument("--move-temperature", type=float, default=0.9)
     parser.add_argument("--write-temperature", type=float, default=1.0)
@@ -156,7 +161,7 @@ def main() -> int:
         train_args,
         render_mode="rgb_array",
         tile_size=int(cli_args.tile_size),
-        render_style="big_scale_old_three_color",
+        render_style=str(cli_args.render_style),
     )
     writer = imageio.get_writer(
         output_path,
@@ -510,6 +515,10 @@ def _apply_bigmap_overrides(train_args: argparse.Namespace, cli_args: argparse.N
         train_args.random_hub = False
     train_args.random_ant_spawn = False
     train_args.food_termination = False
+    train_args.maze_obstacles = bool(cli_args.maze_obstacles)
+    train_args.maze_corridor_width = int(cli_args.maze_corridor_width)
+    train_args.maze_wall_width = int(cli_args.maze_wall_width)
+    train_args.maze_seed = int(cli_args.maze_seed)
 
 
 def _reset_options_from_cli(
@@ -660,8 +669,8 @@ def _metadata(
     inner_high = int(train_args.width) - int(train_args.layout_margin) - 1
     return {
         "policy_choice": (
-            "best 250x250 set_cnn actor rendered actor-only; critic/central obs skipped "
-            "because sampled_move_greedy_write only uses actor logits"
+            "actor-only deployment from the supplied JAX MAPPO checkpoint; "
+            "critic/central observations are skipped because evaluation actions use actor logits"
         ),
         "checkpoint": _project_display_path(checkpoint_path),
         "checkpoint_run_name": raw_checkpoint.get("run_name"),
@@ -682,7 +691,7 @@ def _metadata(
             "render-frame hub, food, delivery, carrying, byte-count metrics",
             "initial food source sparse coordinates and final byte sparse coordinates",
         ],
-        "render_style": "big_scale_old_three_color",
+        "render_style": str(cli_args.render_style),
         "palette": _old_style_palette(),
         "width": int(train_args.width),
         "height": int(train_args.height),
@@ -734,6 +743,10 @@ def _metadata(
             "random_hub": bool(train_args.random_hub),
             "random_ant_spawn": bool(train_args.random_ant_spawn),
             "food_termination": bool(train_args.food_termination),
+            "maze_obstacles": bool(train_args.maze_obstacles),
+            "maze_corridor_width": int(train_args.maze_corridor_width),
+            "maze_wall_width": int(train_args.maze_wall_width),
+            "maze_seed": int(train_args.maze_seed),
         },
         "reset_options": _jsonable_reset_options(reset_options),
         "critic_architecture": _target_critic_architecture(
