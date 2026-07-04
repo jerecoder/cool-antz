@@ -1,0 +1,13 @@
+run,mode,delivered,note
+R8,normal,394,byte trail
+R8,no_byte_read,397,byte trail
+R8,no_write,397,byte trail
+R9,normal,124,stronger protocol
+R9,no_byte_read,56,stronger protocol
+R9,no_write,56,stronger protocol
+R10,normal,260,lighter protocol
+R10,no_byte_read,248,lighter protocol
+R10,no_write,248,lighter protocol
+R11,normal,378,sparse continuation
+R11,no_byte_read,395,sparse continuation
+R11,no_write,395,sparse continuation

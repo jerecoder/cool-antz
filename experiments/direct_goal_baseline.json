@@ -1,21 +1,22 @@
 {
   "name": "direct_goal_baseline",
   "backend": "jax",
-  "description": "Direct sparse-reward JAX MAPPO baseline for the final 50x50, 3x3-vision, 5-bit, 10-ant AntByte target.",
+  "description": "Direct sparse-reward JAX MAPPO baseline for the final 50x50, 5x5-vision, 5-bit, 8-ant AntByte target.",
   "args": {
-    "exp_name": "jax_mappo_direct_goal_baseline",
+    "exp_name": "jax_mappo_direct_goal_baseline_8ants_r2",
     "total_timesteps": 12800000,
     "num_envs": 16,
     "num_steps": 80,
     "num_minibatches": 4,
     "update_epochs": 4,
+    "log_interval": 10,
     "training_rollout_temperature": 0.75,
     "width": 50,
     "height": 50,
     "obs_width": 50,
     "obs_height": 50,
-    "actor_vision_radius": 1,
-    "num_ants": 10,
+    "actor_vision_radius": 2,
+    "num_ants": 8,
     "food_count": 48,
     "food_sources": 25,
     "cookie_distance": 24,
@@ -31,14 +32,15 @@
     "random_hub": true
   },
   "metadata": {
-    "target": "50x50 map, 3x3 actor vision, 5 writable bits, 10 ants",
+    "target": "50x50 map, 5x5 actor vision, 5 writable bits, 8 ants",
     "rollout_policy_temperature": 0.0,
+    "wandb_video_max_frames": 1200,
     "reward_shaping": "disabled",
     "food_defaults": {
       "food_count": 48,
       "food_sources": 25,
       "max_steps": 10000
     },
-    "notes": "Direct baseline trains the final target from scratch with sparse environment delivery reward only."
+    "notes": "Direct baseline trains the 8-ant, radius-2-vision final target from scratch with sparse environment delivery reward only."
   }
 }

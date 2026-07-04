@@ -1,5 +1,5 @@
 LATEXMK ?= latexmk
-PYTHON ?= python3
+PYTHON ?= python
 
 .PHONY: all figures clean
 

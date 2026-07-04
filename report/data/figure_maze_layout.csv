@@ -1,0 +1,2 @@
+config,width,height,ants,food_count,food_sources,write_bits,actor_vision_radius,critic,reward_mode,stage_range,stage_count,corridor_width,wall_width,maze_seed,open_cells,blocked_cells
+maze_exploration_curriculum,50,50,1,48,12,2,1,MLP,explore,10x10-50x50,41,3,1,17,1817,683

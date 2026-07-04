@@ -8,6 +8,7 @@ engineering milestones with changed tasks, critics, or checkpoint lineage.
 from __future__ import annotations
 
 import csv
+import importlib.util
 import json
 import math
 import subprocess
@@ -18,11 +19,28 @@ from typing import Any
 import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
+from matplotlib.colors import ListedColormap
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_maze_generator():
+    module_path = ROOT / "src" / "ant_byte_env" / "maze.py"
+    spec = importlib.util.spec_from_file_location("report_maze", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load maze helper from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.generate_wide_corridor_maze
+
+
+generate_wide_corridor_maze = load_maze_generator()
+
 OUT = ROOT / "report" / "figures"
 DATA = ROOT / "report" / "data"
+WEB_PLOTS = ROOT / "docs" / "report-site" / "assets" / "plots"
+WEB_POSTERS = ROOT / "docs" / "report-site" / "assets" / "posters"
 
 BLUE = "#3566a8"
 GREEN = "#3b8b65"
@@ -56,11 +74,42 @@ def load_csv_rows(path: Path) -> list[dict[str, Any]]:
     return pd.read_csv(path).to_dict("records")
 
 
+def load_jsonl(path: str | Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with rel(path).open() as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def thin_rows(rows: list[dict[str, Any]], max_points: int = 260) -> list[dict[str, Any]]:
+    if len(rows) <= max_points:
+        return rows
+    step = math.ceil(len(rows) / max_points)
+    thinned = rows[::step]
+    if thinned[-1] is not rows[-1]:
+        thinned.append(rows[-1])
+    return thinned
+
+
 def savefig(fig: plt.Figure, name: str) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT / f"{name}.pdf", bbox_inches="tight")
     fig.savefig(OUT / f"{name}.png", bbox_inches="tight", dpi=220)
     plt.close(fig)
+
+
+def export_web_image(name: str, poster_name: str | None = None) -> None:
+    WEB_PLOTS.mkdir(parents=True, exist_ok=True)
+    source = OUT / f"{name}.png"
+    target = WEB_PLOTS / f"{name}.png"
+    image = Image.open(source).convert("RGB")
+    image.save(target, quality=94)
+    if poster_name:
+        WEB_POSTERS.mkdir(parents=True, exist_ok=True)
+        image.save(WEB_POSTERS / poster_name, quality=92)
 
 
 def style_axes(ax: plt.Axes, ylabel: str | None = None) -> None:
@@ -195,6 +244,97 @@ def figure_bits_vs_ants() -> list[dict[str, Any]]:
     ax.set_xlabel("hormigas")
     style_axes(ax, "retorno de entrenamiento")
     savefig(fig, "fig_bits_vs_ants")
+    return rows
+
+
+def figure_logged_metrics_story() -> list[dict[str, Any]]:
+    sources = [
+        ("50x50 largo", "runs/notebooks/exploration_to_forage_50x50/metrics.jsonl"),
+        ("50x50 eficiente", "runs/notebooks/exploration_to_forage_50x50_efficient/metrics.jsonl"),
+    ]
+    metric_keys = [
+        "update",
+        "global_step",
+        "episode_return",
+        "env_return",
+        "eval_mean_delivered_food",
+        "eval_mean_delivered_food_per_1000_ant_steps",
+        "delivery_events",
+        "pickup_events",
+        "mean_carrying_ants",
+        "final_mean_visited_cell_fraction",
+        "write_action_nonzero_rate",
+        "entropy",
+        "approx_kl",
+        "grad_norm",
+        "value_loss",
+    ]
+    rows: list[dict[str, Any]] = []
+    loaded: dict[str, list[dict[str, Any]]] = {}
+    for label, path in sources:
+        data = load_jsonl(path)
+        loaded[label] = data
+        for row in data:
+            out = {"source": label}
+            for key in metric_keys:
+                value = row.get(key)
+                out[key] = "" if value is None else value
+            rows.append(out)
+    write_csv(DATA / "figure_logged_metrics_story.csv", rows)
+
+    long_rows = thin_rows(loaded["50x50 largo"])
+    efficient_rows = loaded["50x50 eficiente"]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.2, 7.0), constrained_layout=True)
+
+    ax = axes[0][0]
+    xs = [r["update"] for r in long_rows]
+    ax.plot(xs, [r.get("pickup_events", 0.0) for r in long_rows], color=ORANGE, linewidth=1.9, label="pickups")
+    ax.plot(xs, [r.get("delivery_events", 0.0) for r in long_rows], color=BLUE, linewidth=1.9, label="entregas")
+    ax.set_xlabel("actualización")
+    style_axes(ax, "eventos por resumen")
+    ax.legend(frameon=False)
+
+    ax = axes[0][1]
+    xs = [r["update"] for r in efficient_rows]
+    ax.plot(xs, [r.get("eval_mean_delivered_food", 0.0) for r in efficient_rows], color=GREEN, marker="o", linewidth=2.0, label="comida eval.")
+    ax.plot(
+        xs,
+        [r.get("eval_mean_delivered_food_per_1000_ant_steps", 0.0) for r in efficient_rows],
+        color=PURPLE,
+        marker="s",
+        linewidth=2.0,
+        label="entregas / 1000 pasos-hormiga",
+    )
+    ax.set_xlabel("actualización")
+    style_axes(ax, "evaluación held-out")
+    ax.legend(frameon=False)
+
+    ax = axes[1][0]
+    xs = [r["update"] for r in long_rows]
+    ax.plot(xs, [r.get("final_mean_visited_cell_fraction", 0.0) for r in long_rows], color=GREEN, linewidth=1.9, label="cobertura final")
+    ax.plot(xs, [r.get("write_action_nonzero_rate", 0.0) for r in long_rows], color=PURPLE, linewidth=1.9, label="escritura no-cero")
+    ax.set_xlabel("actualización")
+    ax.set_ylim(0, 1.05)
+    style_axes(ax, "fracción / tasa")
+    ax.legend(frameon=False)
+
+    ax = axes[1][1]
+    xs = [r["update"] for r in long_rows]
+    for key, color, label in [
+        ("entropy", BLUE, "entropía"),
+        ("approx_kl", RED, "KL aprox."),
+        ("grad_norm", ORANGE, "norma grad."),
+        ("value_loss", GRAY, "loss valor"),
+    ]:
+        ys = [max(float(r.get(key, 0.0)), 1e-6) for r in long_rows]
+        ax.plot(xs, ys, linewidth=1.6, color=color, label=label)
+    ax.set_xlabel("actualización")
+    ax.set_yscale("log")
+    style_axes(ax, "escala log")
+    ax.legend(frameon=False, ncols=2)
+
+    savefig(fig, "fig_logged_metrics_story")
     return rows
 
 
@@ -422,6 +562,114 @@ def figure_250x250() -> list[dict[str, Any]]:
     return rows
 
 
+def figure_maze_layout() -> list[dict[str, Any]]:
+    config = load_json("experiments/maze_exploration_curriculum.json")
+    args = config["args"]
+    metadata = config["metadata"]
+    width = int(args["width"])
+    height = int(args["height"])
+    corridor_width = int(args["maze_corridor_width"])
+    wall_width = int(args["maze_wall_width"])
+    maze_seed = int(args["maze_seed"])
+    obstacles = generate_wide_corridor_maze(
+        width=width,
+        height=height,
+        corridor_width=corridor_width,
+        wall_width=wall_width,
+        seed=maze_seed,
+    )
+    open_cells = int((~obstacles).sum())
+    blocked_cells = int(obstacles.sum())
+    rows = [
+        {
+            "config": config["name"],
+            "width": width,
+            "height": height,
+            "ants": int(args["num_ants"]),
+            "food_count": int(args["food_count"]),
+            "food_sources": int(args["food_sources"]),
+            "write_bits": int(args["write_bits"]),
+            "actor_vision_radius": int(args["actor_vision_radius"]),
+            "critic": "MLP",
+            "reward_mode": args["reward_mode"],
+            "stage_range": metadata["stage_range"],
+            "stage_count": int(metadata["stage_count"]),
+            "corridor_width": corridor_width,
+            "wall_width": wall_width,
+            "maze_seed": maze_seed,
+            "open_cells": open_cells,
+            "blocked_cells": blocked_cells,
+        }
+    ]
+    write_csv(DATA / "figure_maze_layout.csv", rows)
+
+    fig, ax = plt.subplots(figsize=(6.8, 6.8), constrained_layout=True)
+    cmap = ListedColormap(["#efe4c6", "#26343c"])
+    ax.imshow(obstacles.astype(int), cmap=cmap, interpolation="nearest", origin="upper")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_xticks(range(0, width + 1, 10))
+    ax.set_yticks(range(0, height + 1, 10))
+    ax.tick_params(length=0)
+    for spine in ax.spines.values():
+        spine.set_color("#cdbd9d")
+    savefig(fig, "fig_maze_layout")
+    export_web_image("fig_maze_layout")
+    return rows
+
+
+def figure_memory_ablation() -> list[dict[str, Any]]:
+    rows = [
+        {"run": "R8", "mode": "normal", "delivered": 394, "note": "byte trail"},
+        {"run": "R8", "mode": "no_byte_read", "delivered": 397, "note": "byte trail"},
+        {"run": "R8", "mode": "no_write", "delivered": 397, "note": "byte trail"},
+        {"run": "R9", "mode": "normal", "delivered": 124, "note": "stronger protocol"},
+        {"run": "R9", "mode": "no_byte_read", "delivered": 56, "note": "stronger protocol"},
+        {"run": "R9", "mode": "no_write", "delivered": 56, "note": "stronger protocol"},
+        {"run": "R10", "mode": "normal", "delivered": 260, "note": "lighter protocol"},
+        {"run": "R10", "mode": "no_byte_read", "delivered": 248, "note": "lighter protocol"},
+        {"run": "R10", "mode": "no_write", "delivered": 248, "note": "lighter protocol"},
+        {"run": "R11", "mode": "normal", "delivered": 378, "note": "sparse continuation"},
+        {"run": "R11", "mode": "no_byte_read", "delivered": 395, "note": "sparse continuation"},
+        {"run": "R11", "mode": "no_write", "delivered": 395, "note": "sparse continuation"},
+    ]
+    write_csv(DATA / "figure_memory_r8_r12_ablation.csv", rows)
+
+    df = pd.DataFrame(rows)
+    runs = ["R8", "R9", "R10", "R11"]
+    modes = [
+        ("normal", BLUE, "normal"),
+        ("no_byte_read", ORANGE, "sin lectura de bytes"),
+        ("no_write", GREEN, "sin escritura"),
+    ]
+    x = list(range(len(runs)))
+    width = 0.24
+    fig, ax = plt.subplots(figsize=(9.8, 4.6), constrained_layout=True)
+    for idx, (mode, color, label) in enumerate(modes):
+        offset = (idx - 1) * width
+        values = [
+            int(df[(df.run == run) & (df["mode"] == mode)].delivered.iloc[0])
+            for run in runs
+        ]
+        bars = ax.bar([pos + offset for pos in x], values, width, color=color, label=label)
+        for bar, value in zip(bars, values):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value + 8,
+                str(value),
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+    ax.set_xticks(x, runs)
+    ax.set_ylim(0, 440)
+    style_axes(ax, "entregas en evaluación")
+    ax.legend(frameon=False, ncols=3, loc="upper left")
+    savefig(fig, "fig_memory_r8_r12_ablation")
+    export_web_image("fig_memory_r8_r12_ablation", "tree-memory.jpg")
+    return rows
+
+
 @dataclass
 class VideoItem:
     label: str
@@ -481,10 +729,12 @@ def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 def make_behavior_montage() -> list[dict[str, Any]]:
     items = [
         VideoItem("Azar: sin retorno estable", "docs/report-site/assets/videos/random-rollout.mp4", 0.55),
-        VideoItem("25x25: cobertura multi-hormiga", "docs/report-site/assets/videos/forage-25x25-4ants.mp4", 0.62),
+        VideoItem("25x25: 2 hormigas", "docs/report-site/assets/videos/ant-count-25x25-2ants.mp4", 0.52),
+        VideoItem("25x25: 3 hormigas", "docs/report-site/assets/videos/ant-count-25x25-3ants.mp4", 0.52),
+        VideoItem("25x25: 4 hormigas", "docs/report-site/assets/videos/forage-25x25-4ants.mp4", 0.62),
+        VideoItem("25x25: 6 hormigas", "docs/report-site/assets/videos/ant-count-25x25-6ants.mp4", 0.52),
+        VideoItem("25x25: 8 hormigas", "docs/report-site/assets/videos/ant-count-25x25-8ants.mp4", 0.58),
         VideoItem("50x50: frontera de 60 hormigas", "docs/report-site/assets/videos/frontier-50x50.mp4", 0.55),
-        VideoItem("100x100: continuación seleccionada", "docs/report-site/assets/videos/bridge-100x100.mp4", 0.55),
-        VideoItem("250x250: reset-boundary local", "docs/report-site/assets/videos/reset-boundary-250x250.mp4", 0.60),
         VideoItem("1000x1000: despliegue solo actor", "docs/report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4", 0.45),
     ]
     missing_videos = [item for item in items if not rel(item.path).exists()]
@@ -497,7 +747,9 @@ def make_behavior_montage() -> list[dict[str, Any]]:
     cell_w, cell_h = 540, 420
     pad = 18
     panel_font = font(28)
-    montage = Image.new("RGB", (2 * cell_w, 3 * cell_h), "white")
+    columns = 2
+    rows_count = math.ceil(len(items) / columns)
+    montage = Image.new("RGB", (columns * cell_w, rows_count * cell_h), "white")
     draw = ImageDraw.Draw(montage)
     for idx, item in enumerate(items):
         video = rel(item.path)
@@ -505,8 +757,8 @@ def make_behavior_montage() -> list[dict[str, Any]]:
         ok = video.exists() and extract_frame(video, frame_path, item.fraction)
         if not ok:
             raise RuntimeError(f"could not extract montage frame from {item.path}")
-        x0 = (idx % 2) * cell_w
-        y0 = (idx // 2) * cell_h
+        x0 = (idx % columns) * cell_w
+        y0 = (idx // columns) * cell_h
         draw.rectangle([x0, y0, x0 + cell_w, y0 + cell_h], fill="white")
         image = Image.open(frame_path).convert("RGB")
         image.thumbnail((cell_w - 2 * pad, cell_h - 2 * pad), Image.Resampling.LANCZOS)
@@ -553,9 +805,12 @@ def main() -> None:
     all_rows = {
         "25x25 action modes": figure_25x25_modes(),
         "bits vs ants": figure_bits_vs_ants(),
+        "logged metrics story": figure_logged_metrics_story(),
         "rare 50x50": figure_rare_50x50(),
         "critic 50x50": figure_critic_50x50(),
         "250x250 diagnostics": figure_250x250(),
+        "maze layout": figure_maze_layout(),
+        "memory R8-R12 ablation": figure_memory_ablation(),
         "behavior montage": make_behavior_montage(),
     }
     write_source_note(all_rows)
