@@ -88,6 +88,8 @@ La arquitectura del crítico es una frontera causal del proyecto:
 
 Esta separación es central. Si una corrida 50x50 mejora después de pasar de \run{mlp} a \run{strided_cnn}, no se puede atribuir la mejora solamente a más hormigas, más bits, fuentes más densas o escritura compartida. El crítico cambió el problema de crédito que PPO resuelve durante entrenamiento.
 
+Las figuras siguen un criterio editorial simple: el lienzo del gráfico se reserva para datos, ejes, leyendas, umbrales y anotaciones numéricas. La interpretación de cada resultado aparece en la leyenda y en el texto que acompaña a la figura, no como un título incrustado dentro del gráfico.
+
 \section{Historia experimental}
 
 \subsection{Cambio de contrato de la tarea}
@@ -109,7 +111,7 @@ El primer resultado fuerte aparece al combinar shaping de distancia, más hormig
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{fig_25x25_modes.pdf}
-\caption{Evolución 25x25 bajo dos protocolos de despliegue. El resultado clave no es solo el máximo de comida entregada, sino la brecha entre movimiento greedy y movimiento muestreado.}
+\caption{Evaluación 25x25 bajo dos protocolos de despliegue. Cada barra muestra la fracción de comida entregada y anota entregas sobre 23 unidades. La línea punteada marca la tarea completa: el resultado importante es la brecha entre movimiento greedy y movimiento muestreado, no solo el máximo alcanzado.}
 \label{fig:25x25}
 \end{figure}
 
@@ -122,7 +124,7 @@ Los barridos tempranos de bits no muestran un salto claro de capacidad. En una l
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{fig_bits_vs_ants.pdf}
-\caption{Los primeros barridos favorecen una interpretación simple: la cobertura multi-agente importó más que aumentar el alfabeto de escritura. Estas curvas son retornos de entrenamiento, no evaluaciones held-out.}
+\caption{Comparación entre dos hipótesis tempranas. El panel izquierdo muestra retornos de entrenamiento al variar la cantidad de bits de escritura; el panel derecho muestra retornos al variar la cantidad de hormigas. La lectura favorece una explicación de cobertura multi-agente antes que una explicación basada solo en aumentar el alfabeto de escritura. Estas curvas no son evaluaciones held-out.}
 \label{fig:bits-ants}
 \end{figure}
 
@@ -133,7 +135,7 @@ Cuando la comida se vuelve rara en 50x50, el problema cambia. El agente debe des
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.9\linewidth]{fig_rare_50x50.pdf}
-\caption{En 50x50 raro, las ayudas vectoriales parecen facilitar descubrimiento. La mejora no prueba comunicación emergente, porque las corridas cambian más de una variable.}
+\caption{Evaluaciones seleccionadas en el escenario 50x50 con fuentes raras. Las barras reportan fracción entregada y anotan entregas sobre 23 junto con tasa de éxito. Las ayudas vectoriales parecen facilitar descubrimiento, pero la mejora no prueba comunicación emergente porque las corridas cambian más de una variable.}
 \label{fig:rare}
 \end{figure}
 
@@ -144,7 +146,7 @@ La línea 50x50 eficiente inicial usa el crítico MLP por defecto y entrega \(21
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{fig_critic_50x50.pdf}
-\caption{Resultados 50x50 seleccionados. La línea vertical marca el cambio de crítico MLP a crítico espacial. Las barras posteriores no son una sola ablación: combinan arquitectura del crítico, fuentes, ants, escritura, costos y checkpoints.}
+\caption{Resultados 50x50 seleccionados con denominadores explícitos en cada barra. La línea vertical marca el cambio de crítico MLP a crítico espacial. Las barras posteriores no son una sola ablación: combinan arquitectura del crítico, geometría de fuentes, cantidad de hormigas, escritura, costos y selección de checkpoints.}
 \label{fig:critic50}
 \end{figure}
 
@@ -159,7 +161,7 @@ La escala 250x250 mostró el fracaso más informativo. Corridas con \run{resnet_
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{fig_250x250_diagnostics.pdf}
-\caption{Diagnóstico 250x250. La primera subfigura muestra eventos reales. La segunda muestra escritura. La entrega mejora localmente con reset-boundary, mientras que saturar bytes por sí solo no implica resolver forrajeo.}
+\caption{Diagnóstico 250x250 separado por métrica. El panel izquierdo muestra eventos reales de tarea, entregas y pickups. El panel derecho muestra actividad de escritura y fracción de bytes no-cero. La comparación deja visible la lección negativa: el retorno moldeado y la actividad de bytes pueden crecer sin resolver entrega; reset-boundary recupera progreso local de entrega.}
 \label{fig:250}
 \end{figure}
 
@@ -167,12 +169,12 @@ El cambio \run{fixed8-reset-boundary256} sí mejora la entrega local: el resumen
 
 \section{Evolución cualitativa del comportamiento}
 
-Los videos apoyan una lectura en cuatro etapas. Primero hay movimiento local sin retorno estable. Luego aparece cobertura multi-hormiga en 25x25: las hormigas encuentran fuentes y cierran ciclos. En 50x50 MLP hay progreso parcial, pero más dispersión y menos finalización. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. En 250x250 se ve la diferencia entre actividad y objetivo: puede haber mucha escritura o exploración sin suficientes entregas.
+Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retorno estable. Luego aparece cobertura multi-hormiga en 25x25: las hormigas encuentran fuentes y cierran ciclos. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. Las visualizaciones grandes deben leerse con cuidado: 100x100 es una continuación seleccionada, 250x250 muestra una recuperación local por reset-boundary, y 1000x1000 es un despliegue solo-actor de una política ya entrenada, no entrenamiento de punta a punta en ese entorno.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{fig_behavior_montage.jpg}
-\caption{Fotogramas extraídos de videos locales. La figura no es evidencia cuantitativa; sirve para interpretar la semántica de los números: exploración, retorno, escala y fallas por shaping.}
+\caption{Fotogramas extraídos de videos locales. A: línea base aleatoria. B: cobertura multi-hormiga en 25x25. C: frontera 50x50 con 60 hormigas. D: continuación seleccionada 100x100 visualizada en 1000x1000. E: reset-boundary 250x250. F: despliegue solo-actor 1000x1000 de la política 50x50. La figura no es evidencia cuantitativa; sirve para interpretar la semántica visual de las métricas.}
 \label{fig:behavior}
 \end{figure}
 
