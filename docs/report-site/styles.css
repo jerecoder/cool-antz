@@ -149,6 +149,7 @@ figcaption {
   font-size: 1.08rem;
 }
 
+.intro-grid,
 .takeaway-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -156,11 +157,23 @@ figcaption {
   margin: 1.4em 0 0;
 }
 
+.intro-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #d9d2c2;
+  border-bottom: 1px solid #d9d2c2;
+  padding: 1em 0;
+}
+
+.intro-grid > div {
+  padding-right: 0.8em;
+}
+
 .takeaway-grid > div {
   border-top: 3px solid #34495e;
   padding-top: 0.7em;
 }
 
+.intro-grid strong,
 .takeaway-grid strong {
   display: block;
   color: #1f2d36;
@@ -168,8 +181,38 @@ figcaption {
   line-height: 1.15;
 }
 
+.intro-grid p,
 .takeaway-grid p {
   margin: 0.45em 0 0;
+}
+
+.order-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.85em;
+  margin: 1.2em 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: order-step;
+}
+
+.order-list li {
+  counter-increment: order-step;
+  border-top: 1px solid #d9d2c2;
+  padding-top: 0.65em;
+}
+
+.order-list li::before {
+  content: counter(order-step);
+  display: block;
+  margin-bottom: 0.35em;
+  color: #8a4d1f;
+  font-weight: bold;
+}
+
+.order-list strong {
+  display: block;
+  color: #1f2d36;
 }
 
 .kicker {
@@ -544,9 +587,14 @@ li + li {
   .figure-grid,
   .policy-viewer,
   .runner-shell,
+  .intro-grid,
   .takeaway-grid,
   .evidence-pair,
   .result-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .order-list {
     grid-template-columns: 1fr;
   }
 

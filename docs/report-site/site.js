@@ -39,7 +39,7 @@
         ["train episode return", "12.545"],
       ],
       caveat:
-        "This video is not the DISTINCT DISTANCE_CAP4 row in the results table; that 23/23 result is reported from local evaluation files, not this MP4 artifact.",
+        "This video is the ant-count curriculum artifact. The DISTANCE_CAP4 23/23 result comes from separate local evaluation files with a 6-source task contract.",
     },
     bridge100: {
       title: "1000x1000 bridge bigmap render",
@@ -79,10 +79,10 @@
         ["final deliveries", "654"],
         ["final pickups", "869"],
         ["best train delivery", "around 1003"],
-        ["diagnostic point", "raw delivery, not shaped return"],
+        ["diagnostic point", "raw delivery separated from shaped return"],
       ],
       caveat:
-        "This branch shows real local delivery progress, but it is still not a solved general 250x250 task.",
+        "This branch shows real local delivery progress inside the reset/distance 250x250 setup.",
     },
     frontier250: {
       title: "1000x1000 half-scale bigmap render",
@@ -114,10 +114,10 @@
         ["encoded frame", "576x576"],
         ["frames", "301 at 12 fps"],
         ["purpose", "behavior baseline"],
-        ["result meaning", "motion without delivery is not success"],
+        ["result meaning", "motion matters when it creates delivery loops"],
       ],
       caveat:
-        "This is a baseline visual anchor, not a trained policy result.",
+        "This baseline visual anchor shows the task before training enters the story.",
     },
   };
 

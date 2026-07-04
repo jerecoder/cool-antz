@@ -41,15 +41,79 @@
     </header>
 
     <main>
-      <section class="lead-section">
-        <h2>What the experiments actually showed</h2>
+      <section class="lead-section project-overview">
+        <h2>Project Overview</h2>
         <p class="summary">
-          The story is not "add bytes, get communication." The repo history
-          shows a slower, more useful line: define delivery correctly, make the
-          sparse task learnable, discover that sampled deployment matters,
-          change the centralized critic, and keep shaped return separate from
-          raw deliveries.
+          Cool Antz is a multi-agent reinforcement learning project about
+          cooperative foraging. A colony of ants moves in a gridworld, finds
+          food sources, carries food back to a hub, and can write discrete byte
+          values into the map. The research question is: what makes reliable
+          delivery behavior emerge, and when does the external byte grid become
+          useful memory for the colony?
         </p>
+        <div class="intro-grid">
+          <div>
+            <span class="kicker">system</span>
+            <strong>Local actors</strong>
+            <p>
+              Each ant sees a small facing-aware patch and chooses movement
+              plus a write value. The deployed policy is local.
+            </p>
+          </div>
+          <div>
+            <span class="kicker">training</span>
+            <strong>Central critic</strong>
+            <p>
+              MAPPO trains with centralized critics, so critic architecture is
+              part of the experiment design.
+            </p>
+          </div>
+          <div>
+            <span class="kicker">objective</span>
+            <strong>Food delivery</strong>
+            <p>
+              Success means completing source-to-hub delivery loops, measured
+              by delivered food and success rate.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="development-order">
+        <h2>How this page is ordered</h2>
+        <p class="summary">
+          The development became understandable in layers rather than as a
+          simple march from small maps to large maps. This page follows that
+          reasoning order: first the task definition, then the learning
+          bottlenecks, then the interventions that changed behavior, and
+          finally the frontier results and remaining ablations.
+        </p>
+        <ol class="order-list">
+          <li>
+            <strong>Define the task.</strong>
+            Delivery from depleting food sources is the objective.
+          </li>
+          <li>
+            <strong>Make sparse foraging learnable.</strong>
+            Distance shaping, ant coverage, and sampled deployment unlock
+            25x25.
+          </li>
+          <li>
+            <strong>Test what changed behavior.</strong>
+            Bit count, ant count, source geometry, and critic architecture are
+            separated in the narrative.
+          </li>
+          <li>
+            <strong>Scale carefully.</strong>
+            50x50, 100x100, and 250x250 are shown with their exact contracts,
+            plots, and videos.
+          </li>
+          <li>
+            <strong>State what the evidence supports.</strong>
+            Byte memory is a research hypothesis; the page names the ablations
+            that would turn it into a causal claim.
+          </li>
+        </ol>
         <div class="takeaway-grid">
           <div>
             <span class="kicker">best clean unlock</span>
@@ -62,7 +126,7 @@
             <p>60 ants, 125 food, 2 sources, 8 bits, strided CNN critic: 123.906/125.</p>
           </div>
           <div>
-            <span class="kicker">main warning</span>
+            <span class="kicker">diagnostic lesson</span>
             <strong>250x250</strong>
             <p>Shaped return and byte activity can rise while objective delivery is still zero.</p>
           </div>
@@ -70,16 +134,16 @@
       </section>
 
       <section>
-        <h2>Evidence Map</h2>
+        <h2>Development Map</h2>
         <p class="summary">
-          Every number below comes from the local report CSVs, chronology,
-          checked video metadata, checkpoint exports, or commit history. The
-          page deliberately separates task geometry, render resolution,
-          checkpoint lineage, and evaluation contract.
+          Each chapter below has the same structure: what we tried, what the
+          result was, what we concluded, and which plot or video supports it.
+          The labels separate task geometry, render resolution, checkpoint
+          lineage, and evaluation contract.
         </p>
         <nav class="story-nav" aria-label="Experiment story sections">
           <a href="#contract">1. Task contract</a>
-          <a href="#small-scale">2. First failures</a>
+          <a href="#small-scale">2. Bottleneck</a>
           <a href="#unlock25">3. 25x25 unlock</a>
           <a href="#bits-ants">4. Bits vs coverage</a>
           <a href="#rare50">5. Rare 50x50</a>
@@ -95,7 +159,7 @@
         <div class="chapter-header">
           <span class="chapter-number">1</span>
           <div>
-            <h2>Task Contract: Delivery, Not Pickup</h2>
+            <h2>Task Contract: Delivery Is the Objective</h2>
             <p>
               The first major boundary in the repo is semantic. Food is an
               integer grid: <code>food_count</code> is total deliverable bites
@@ -127,8 +191,8 @@
             </video>
             <figcaption>
               <strong>Random baseline.</strong> 576x576 MP4, 301 frames at
-              12 fps. This shows why "moving around" is not evidence of solving
-              the task: the objective is repeated source-to-hub delivery.
+              12 fps. The baseline makes the objective concrete: motion only
+              matters when it closes repeated source-to-hub delivery loops.
             </figcaption>
           </figure>
         </div>
@@ -139,14 +203,14 @@
             <p>
               The report-safe contract is delivery-only foraging with depleting
               sources. A result such as <code>23/23</code> means all 23 bites
-              were delivered, not merely discovered or picked up.
+              were delivered after being discovered, picked up, and returned.
             </p>
           </div>
           <div>
             <h3>Conclusion</h3>
             <p>
-              Old pickup-heavy intuition is not paper-safe. Every later claim
-              has to state food count, source count, ant count, write bits,
+              Earlier pickup-heavy runs become background context. Every later
+              claim states food count, source count, ant count, write bits,
               critic family, evaluation mode, and whether the metric is raw
               delivery or shaped return.
             </p>
@@ -158,10 +222,10 @@
         <div class="chapter-header">
           <span class="chapter-number">2</span>
           <div>
-            <h2>Small Maps Failed for the Right Reason</h2>
+            <h2>Small Maps Revealed the Bottleneck</h2>
             <p>
               Early JAX MAPPO policies could move and sometimes find food, but
-              one ant did not reliably close the long source-to-hub loop as the
+              one ant struggled to close the long source-to-hub loop as the
               map grew.
             </p>
           </div>
@@ -174,8 +238,8 @@
               alt="Early write-bit sweep compared with ant-count sweep"
             >
             <figcaption>
-              Early training summaries: adding write bits did not unlock the
-              25x25 anchor, while adding ants raised training return.
+              Early training summaries: adding write bits gave little movement
+              on the 25x25 anchor, while adding ants raised training return.
             </figcaption>
           </figure>
           <div>
@@ -183,8 +247,8 @@
             <p>
               The early families swept communication bits from 2 to 8 and then
               swept ant count over 2, 3, 4, 6, and 8 ants on 25x25 with 3 write
-              bits. These were training-return comparisons, not final held-out
-              evaluation gates.
+              bits. These comparisons came before the final held-out evaluation
+              gates and served as a diagnosis step.
             </p>
             <h3>Result</h3>
             <p>
@@ -195,9 +259,9 @@
             </p>
             <h3>Conclusion</h3>
             <p>
-              The first bottleneck was not the size of the byte alphabet. It
-              was coverage and credit: more agents made the sparse delivery
-              process easier to learn.
+              The first bottleneck was coverage and credit. More agents made
+              the sparse delivery process easier to learn than a larger byte
+              alphabet did.
             </p>
           </div>
         </div>
@@ -223,8 +287,8 @@
               alt="25x25 action mode comparison"
             >
             <figcaption>
-              The key comparison: sampled movement solves some policies that
-              greedy movement does not.
+              The key comparison: sampled movement preserves behavior that
+              greedy movement misses.
             </figcaption>
           </figure>
           <figure>
@@ -233,9 +297,10 @@
             </video>
             <figcaption>
               <strong>25x25 ant-count curriculum video.</strong> 4 ants, 3
-              write bits, 23 food, 12 sources, 800x800 MP4. This is a real
-              local rollout from the ant-count vault, not the distinct
-              <code>DISTANCE_CAP4</code> evaluation row.
+              write bits, 23 food, 12 sources, 800x800 MP4. This real local
+              rollout comes from the ant-count vault. The
+              <code>DISTANCE_CAP4</code> 23/23 result below is a separate
+              evaluation row with a 6-source task contract.
             </figcaption>
           </figure>
         </div>
@@ -256,7 +321,7 @@
               <td>25x25, 1 ant, 23 food, 6 sources, 1 bit, radius 1, MLP critic</td>
               <td>13.75/23, success 0</td>
               <td>7/23, success 0</td>
-              <td>Distance shaping helps, but one ant is not enough.</td>
+              <td>Distance shaping helps, and the one-ant setup still lacks coverage.</td>
             </tr>
             <tr>
               <td><code>DISTANCE_CAP4</code></td>
@@ -270,7 +335,7 @@
               <td>25x25, 4 ants, 23 food, 6 sources, no writing, same sampled-style family</td>
               <td>0/23, success 0</td>
               <td>22/23, success 0.5</td>
-              <td>25x25 success is not proof that bytes are causal.</td>
+              <td>25x25 success points first to coverage and stochastic deployment.</td>
             </tr>
           </tbody>
         </table>
@@ -280,10 +345,11 @@
         <div class="chapter-header">
           <span class="chapter-number">4</span>
           <div>
-            <h2>Communication Bits Were a Hypothesis, Not a Result</h2>
+            <h2>Bytes Became a Hypothesis to Test</h2>
             <p>
-              The byte grid is real and the actors can write to it. What is not
-              yet proven is that the written values cause the best behavior.
+              The byte grid is real and the actors can write to it. The next
+              question is whether those written values cause better foraging
+              decisions, or simply mark activity along the way.
             </p>
           </div>
         </div>
@@ -308,16 +374,16 @@
             </p>
             <h3>Result</h3>
             <p>
-              The bit sweep did not produce a clear scale jump. The ant-count
-              curriculum did. In the 25x25 3-bit stage, final training env
-              return rose through <code>4.8125</code>, <code>6.8125</code>,
+              The bit sweep produced no clear scale jump. The ant-count
+              curriculum gave the clearer signal. In the 25x25 3-bit stage,
+              final training env return rose through <code>4.8125</code>, <code>6.8125</code>,
               <code>7.8125</code>, <code>9.9375</code>, and <code>10.875</code>.
             </p>
             <h3>Conclusion</h3>
             <p>
-              The honest interpretation is coverage first, communication later.
-              Bytes remain an experimental mechanism that needs matched
-              no-write, byte-shuffle, and no-byte-read ablations.
+              The interpretation is coverage first, communication as the next
+              causal question. The byte hypothesis calls for matched no-write,
+              byte-shuffle, and no-byte-read ablations.
             </p>
           </div>
         </div>
@@ -353,8 +419,8 @@
               alt="Rare 50x50 navigation vector comparison"
             >
             <figcaption>
-              Rare-source 50x50: vector hints improve discovery, but the task
-              is not solved.
+              Rare-source 50x50: vector hints improve discovery, while full
+              completion remains limited.
             </figcaption>
           </figure>
           <figure>
@@ -363,9 +429,9 @@
             </video>
             <figcaption>
               <strong>Later 50x50 frontier video.</strong> 60 ants, 8 bits,
-              125 food, 2 sources, 800x800 MP4. This is not one of the rare
-              50x50 vector-hint runs; it shows where the 50x50 branch eventually
-              went.
+              125 food, 2 sources, 800x800 MP4. This is a later frontier
+              artifact, included to show where the 50x50 branch eventually went
+              after the rare-source diagnosis.
             </figcaption>
           </figure>
         </div>
@@ -383,9 +449,9 @@
           <div>
             <h3>Conclusion</h3>
             <p>
-              Discovery aids helped, but this is not a communication result.
-              It shows that sparse layouts need exploration support before
-              memory claims are meaningful.
+              Discovery aids helped. This supports an exploration
+              interpretation: sparse layouts need reliable source discovery
+              before byte-memory claims become meaningful.
             </p>
           </div>
         </div>
@@ -397,9 +463,9 @@
           <div>
             <h2>The 50x50 Causal Boundary Is the Critic</h2>
             <p>
-              The most important 50x50 change is not just "more ants" or "more
-              bits." The branch moves from a flat MLP centralized critic to a
-              spatial <code>strided_cnn</code> critic.
+              The 50x50 branch changed more than team size and write bits. It
+              moved from a flat MLP centralized critic to a spatial
+              <code>strided_cnn</code> critic.
             </p>
           </div>
         </div>
@@ -432,9 +498,9 @@
             </p>
             <h3>Conclusion</h3>
             <p>
-              The spatial critic changed value learning. The report should not
-              flatten this into a simple story about byte communication or
-              source layout.
+              The spatial critic changed value learning. The report keeps this
+              critic boundary visible alongside source layout, write bits, and
+              ant count.
             </p>
           </div>
         </div>
@@ -444,9 +510,9 @@
           </video>
           <figcaption>
             <strong>Later spatial-critic frontier behavior.</strong> This
-            60-ant video is downstream of the critic-boundary story. It is not
-            an isolated critic ablation, so the caption keeps it tied to the
-            confounded 50x50 frontier branch.
+            60-ant video is downstream of the critic-boundary story. It follows
+            several changes at once, so the caption ties it to the full 50x50
+            frontier branch.
           </figcaption>
         </figure>
       </section>
@@ -455,10 +521,11 @@
         <div class="chapter-header">
           <span class="chapter-number">7</span>
           <div>
-            <h2>The 60-Ant Frontier Is Strong and Confounded</h2>
+            <h2>The 60-Ant Frontier and What Changed With It</h2>
             <p>
-              This is the strongest behavior result in the current site. It is
-              also the easiest result to overclaim.
+              This is the strongest behavior result in the current site. The
+              point of this section is to show the result and name the changes
+              that arrived with it.
             </p>
           </div>
         </div>
@@ -492,10 +559,10 @@
             </p>
             <h3>Conclusion</h3>
             <p>
-              This is strong behavior engineering. It is not clean evidence
-              that bytes are the causal mechanism, because ant count, 8 bits,
-              identity, selected continuation, temperature, spatial critic, and
-              saturated writes all move together.
+              This supports a strong behavior-engineering claim. The causal
+              byte-memory question remains a follow-up because ant count, 8
+              bits, identity, selected continuation, temperature, spatial
+              critic, and saturated writes all move together.
             </p>
           </div>
         </div>
@@ -507,8 +574,9 @@
           <div>
             <h2>Large-Scale Branches: Progress, Selection, and Diagnostics</h2>
             <p>
-              The 100x100 bridge and 250x250 reset branches are important, but
-              neither should be presented as a solved general scale-up.
+              The 100x100 bridge and 250x250 reset branches answer narrower
+              scale-up questions: how far selected continuations can go, and
+              how raw delivery separates from shaped activity.
             </p>
           </div>
         </div>
@@ -520,8 +588,8 @@
               alt="100x100 bridge continuation evaluation results"
             >
             <figcaption>
-              The 100x100 continuation branch gets close to full delivery, but
-              selection and deployment temperature matter.
+              The 100x100 continuation branch gets close to full delivery, with
+              selection and deployment temperature as part of the result.
             </figcaption>
           </figure>
           <figure>
@@ -555,7 +623,8 @@
               <strong>250x250 reset-boundary checkpoint video.</strong>
               1008x1008 MP4, 600 frames at 8 fps from
               <code>fixed8-reset-boundary256</code>. This is the local
-              diagnostic branch, not the separate 1000x1000 bigmap render.
+              diagnostic branch; the next video is the separate 1000x1000
+              bigmap render.
             </figcaption>
           </figure>
         </div>
@@ -567,7 +636,8 @@
               alt="250x250 reset-boundary raw delivery versus return over PPO updates"
             >
             <figcaption>
-              Raw delivery and shaped episode return do not tell the same story.
+              Raw delivery and shaped episode return separate two different
+              learning signals.
             </figcaption>
           </figure>
           <figure>
@@ -602,13 +672,13 @@
               <td>250x250 source teacher</td>
               <td>500 ants, 5000 food, 1 source, set CNN diagnostic family</td>
               <td>Positive shaping with zero delivery in the diagnosis row</td>
-              <td>Shaping can be misleading without raw delivery metrics.</td>
+              <td>Raw delivery metrics keep the shaped signal interpretable.</td>
             </tr>
             <tr>
               <td>250x250 reset boundary</td>
               <td>500 ants, 5000 food, 1 source, reset/distance branch</td>
               <td>654 final deliveries, 869 pickups; best train around 1003 deliveries</td>
-              <td>Real local progress, not a solved general 250x250 task.</td>
+              <td>Real local progress inside the reset/distance branch.</td>
             </tr>
           </tbody>
         </table>
@@ -620,9 +690,8 @@
           <div>
             <h2>Interactive Sandbox: Actual 50x50 Policy</h2>
             <p>
-              This is not a toy rule-based demo. It uses the exported actor
-              weights from the actual trained 50x50 frontier checkpoint for
-              this map size.
+              This runner uses exported actor weights from the actual trained
+              50x50 frontier checkpoint for this map size.
             </p>
           </div>
         </div>
@@ -739,7 +808,8 @@
             <h2>Reasoning Transparency</h2>
             <p>
               The strongest version of this project is careful about what is
-              proven, what is confounded, and what should be run next.
+              supported by the current evidence, what changed together, and
+              what should be run next.
             </p>
           </div>
         </div>
@@ -755,7 +825,7 @@
           </thead>
           <tbody>
             <tr>
-              <td>25x25 can be solved under sampled movement.</td>
+              <td>25x25 reaches full delivery under sampled movement.</td>
               <td>Strong</td>
               <td><code>DISTANCE_CAP4</code>: 23/23, success 1.0.</td>
               <td>Greedy deployment remains much weaker.</td>
@@ -763,8 +833,8 @@
             <tr>
               <td>Ant coverage mattered more than bit count early.</td>
               <td>Strong for the observed runs</td>
-              <td>Ant-count return rises monotonically; bit sweep does not unlock 25x25.</td>
-              <td>Not a full factorial ablation.</td>
+              <td>Ant-count return rises monotonically; bit sweep gives little 25x25 movement.</td>
+              <td>A full factorial ablation would make this sharper.</td>
             </tr>
             <tr>
               <td>The 50x50 frontier is a spatial-critic branch.</td>
@@ -774,13 +844,13 @@
             </tr>
             <tr>
               <td>Bytes cause the best policies.</td>
-              <td>Not proven</td>
+              <td>Open</td>
               <td>Writes exist and often saturate; no-write evidence remains mixed.</td>
               <td>Need matched no-write, byte-shuffle, no-byte-read, and cost-matched bit ablations.</td>
             </tr>
             <tr>
-              <td>250x250 is solved.</td>
-              <td>Not proven</td>
+              <td>250x250 general foraging is complete.</td>
+              <td>Open</td>
               <td>Reset-boundary gets real local delivery progress.</td>
               <td>General task remains diagnostic and shaped return can mislead.</td>
             </tr>
