@@ -110,12 +110,15 @@ L4 runtime profile:
 
 - `num_envs = 128`
 - `num_steps = 256`
-- `total_timesteps = 16384000`
+- `total_timesteps = 65536000`
 - base updates: `500`
-- continuation updates from the latest chunk: `5000`
+- tuned continuation updates from the saved global-best checkpoint: `2000`
 - chunk size in notebook: `500` updates
 - best-eval checkpointing during continuation: every chunk
 - W&B target: `jerefigueiredo-universidad-de-san-andr-s/cool-antz`
+- tuned learning rate: `1e-4`
+- tuned write penalty: `0.0001`
+- tuned best-eval episodes: `16`
 
 The source run used a larger `64 x 256` rollout profile and a `strided_cnn`
 critic. On the L4 instance, a short shape sweep selected `128 x 256`: it keeps
@@ -123,8 +126,11 @@ the source rollout horizon and spans the `150`-step release interval while
 running near the measured throughput ceiling for this implementation. The local
 profile intentionally does not preserve the source run's `20000`-update budget;
 this is the GPU-backed role-probe profile. The first notebook probe covered
-updates `0-500`; the current continuation profile starts from the latest terminal
-chunk checkpoint and plans updates `500-5500`.
+updates `0-500`; the later continuation reached a complete terminal checkpoint
+at update `4500`, but 16-episode eval favored the saved global-best checkpoint
+from the earlier part of the run. The tuned profile now starts from that saved
+global best, lowers the PPO learning rate, adds a tiny write penalty, and uses
+16-episode best-eval selection.
 
 Measured steady-state throughput, excluding first-update compile/autotune:
 
@@ -182,14 +188,15 @@ the global `500`-update best-eval cadence. Each scoring chunk writes a candidate
 best checkpoint first; the notebook only promotes it to the global best
 checkpoint if it beats the saved global best metric.
 
-After the first sanity pass, or for the current L4 continuation:
+After the first sanity pass, or for the current tuned L4 continuation:
 
 ```python
 MAX_CHUNKS_TO_RUN = None
 ```
 
-That lets the notebook read `training_chunks.json`, continue from the latest
-terminal chunk, and append the configured continuation budget.
+That lets the notebook train the configured tuned continuation budget. For the
+tuned run, the notebook writes under a fresh run directory and compares candidate
+best checkpoints against the source best checkpoint before promoting them.
 
 ## Evaluation Metrics
 
