@@ -34,8 +34,8 @@
   };
   const configLimits = {
     gridSize: { min: 15, max: Number.MAX_SAFE_INTEGER },
-    antCount: { min: 1, max: 500 },
-    foodCount: { min: 0, max: 100000 },
+    antCount: { min: 1, max: Infinity },
+    foodCount: { min: 0, max: Infinity },
     sourceCount: { min: 0, max: Number.MAX_SAFE_INTEGER },
   };
   const uiText = {
