@@ -834,7 +834,7 @@
   }
 
   function stepPolicy() {
-    if (remainingFood() <= 0 || state.step >= env.max_steps) {
+    if (allFoodDelivered() || state.step >= env.max_steps) {
       setRunning(false);
       return;
     }
@@ -843,16 +843,28 @@
     state.currentAntCounts = null;
     actions.forEach((action, antIndex) => applyAntAction(antIndex, action));
     state.step += 1;
-    if (remainingFood() <= 0 || state.step >= env.max_steps) {
+    if (allFoodDelivered() || state.step >= env.max_steps) {
       setRunning(false);
     }
   }
 
-  function remainingFood() {
-    return state.food.reduce(
+  function sumGrid(grid) {
+    return grid.reduce(
       (total, row) => total + row.reduce((rowTotal, value) => rowTotal + value, 0),
       0,
     );
+  }
+
+  function remainingFood() {
+    return sumGrid(state.food);
+  }
+
+  function deliveryTarget() {
+    return state ? sumGrid(state.initialFood) : env.food_count;
+  }
+
+  function allFoodDelivered() {
+    return state.delivered >= deliveryTarget();
   }
 
   function carryingCount() {
@@ -878,14 +890,15 @@
   }
 
   function updateMetrics() {
+    const target = deliveryTarget();
     metrics.step.textContent = `${state.step} / ${env.max_steps}`;
-    metrics.delivered.textContent = `${state.delivered} / ${env.food_count}`;
+    metrics.delivered.textContent = `${state.delivered} / ${target}`;
     metrics.remaining.textContent = `${remainingFood()}`;
     metrics.carrying.textContent = `${carryingCount()} / ${env.num_ants}`;
     metrics.bytes.textContent = `${nonzeroBytes()} ${uiText.tiles}`;
     metrics.obstacles.textContent = `${obstacleCount()} ${uiText.tiles}`;
     metrics.sources.textContent = `${foodSourceCount()} posiciones`;
-    if (remainingFood() <= 0) {
+    if (allFoodDelivered()) {
       setStatus(uiText.statuses.complete);
     } else if (state.step >= env.max_steps) {
       setStatus(uiText.statuses.maxSteps);
@@ -1272,7 +1285,7 @@
     });
     setDefinitionLabel("#runner-step", "paso");
     setDefinitionLabel("#runner-delivered", "entregado");
-    setDefinitionLabel("#runner-remaining", "restante");
+    setDefinitionLabel("#runner-remaining", "en mapa");
     setDefinitionLabel("#runner-carrying", "transportando");
     setDefinitionLabel("#runner-bytes", "bytes no cero");
     setDefinitionLabel("#runner-obstacles", "paredes");
