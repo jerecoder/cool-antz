@@ -90,7 +90,7 @@
   "seed_offset": 214000000,
   "reset_seed": 214000007,
   "action_mode": "sampled_move_greedy_write",
-  "move_temperature": 0.9,
+  "move_temperature": 0.525,
   "write_temperature": 1.0,
   "requested_sim_steps": 60000,
   "steps": 60000,
@@ -107,8 +107,8 @@
   "delivered_food": 0,
   "remaining_food": 125,
   "carrying_ants": 0,
-  "nonzero_byte_tiles": 840,
-  "visited_cells": 841,
+  "nonzero_byte_tiles": 886,
+  "visited_cells": 887,
   "original_train_args": {
     "actor_max_grad_norm": null,
     "actor_vision_radius": 2,
@@ -271,5 +271,5 @@
       }
     ]
   },
-  "elapsed_render_seconds": 123.251
+  "elapsed_render_seconds": 121.709
 }
