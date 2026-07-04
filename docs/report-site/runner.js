@@ -24,6 +24,7 @@
   const resetLayoutButton = document.querySelector("#runner-reset-layout");
   const modeButtons = Array.from(document.querySelectorAll("[data-place-mode]"));
   const actionMode = document.querySelector("#runner-action-mode");
+  const paletteSelect = document.querySelector("#runner-palette");
   const speedInput = document.querySelector("#runner-speed");
   const configControls = {
     gridSize: document.querySelector("#runner-grid-size"),
@@ -69,11 +70,74 @@
   const ACTION_DOWN = 3;
   const ACTION_LEFT = 4;
   const DEFAULT_FACING = ACTION_RIGHT;
+  const LARGE_MAP_THRESHOLD = 100;
   const spritePaths = {
     ant: "report-site/assets/sprites/ant.png",
     food: "report-site/assets/sprites/food.png",
     hub: "report-site/assets/sprites/hub.png",
     tile: "report-site/assets/sprites/tile.png",
+  };
+  const palettes = {
+    natural: {
+      floor: "#d7cfb5",
+      largeFloor: "#d3ccb4",
+      grid: "rgba(80, 70, 52, 0.16)",
+      byteLow: [88, 112, 190],
+      byteHigh: [222, 76, 90],
+      byteAlpha: 0.38,
+      byteText: "#181f24",
+      hub: "#5b4e9c",
+      food: "#e8b44e",
+      ant: "#a8452e",
+      carryingOuter: "#bc702d",
+      carryingInner: "#efa752",
+      useTileSprite: true,
+    },
+    paper: {
+      floor: "#f1e7cf",
+      largeFloor: "#e6dcc5",
+      grid: "rgba(91, 70, 40, 0.14)",
+      byteLow: [74, 123, 138],
+      byteHigh: [156, 78, 52],
+      byteAlpha: 0.42,
+      byteText: "#2f2a23",
+      hub: "#466b73",
+      food: "#c9912e",
+      ant: "#7c3529",
+      carryingOuter: "#a46d2d",
+      carryingInner: "#e7bd68",
+      useTileSprite: false,
+    },
+    night: {
+      floor: "#172027",
+      largeFloor: "#111920",
+      grid: "rgba(226, 214, 180, 0.12)",
+      byteLow: [71, 129, 201],
+      byteHigh: [235, 150, 72],
+      byteAlpha: 0.5,
+      byteText: "#f7efd8",
+      hub: "#9a8cff",
+      food: "#f6c85f",
+      ant: "#e4674f",
+      carryingOuter: "#d58b42",
+      carryingInner: "#ffd37a",
+      useTileSprite: false,
+    },
+    contrast: {
+      floor: "#f5f1e4",
+      largeFloor: "#ece6d5",
+      grid: "rgba(22, 22, 18, 0.24)",
+      byteLow: [0, 94, 154],
+      byteHigh: [190, 38, 51],
+      byteAlpha: 0.52,
+      byteText: "#171511",
+      hub: "#2f3a8f",
+      food: "#d89b00",
+      ant: "#b62222",
+      carryingOuter: "#8f5a00",
+      carryingInner: "#ffca45",
+      useTileSprite: false,
+    },
   };
 
   let state = null;
@@ -361,6 +425,7 @@
       food,
       initialFood: cloneGrid(food),
       bytes: makeGrid(0),
+      writtenKeys: new Set(),
       ants: Array.from({ length: env.num_ants }, () => copyPosition(hub)),
       facing: Array(env.num_ants).fill(DEFAULT_FACING),
       carrying: Array(env.num_ants).fill(false),
@@ -663,6 +728,12 @@
     const canWrite = wantsWrite && !hadFood && !isHub;
     if (canWrite) {
       state.bytes[y][x] = writeValue;
+      const key = positionKey([x, y]);
+      if (writeValue > 0) {
+        state.writtenKeys.add(key);
+      } else {
+        state.writtenKeys.delete(key);
+      }
       state.numWrites += 1;
     }
   }
@@ -694,6 +765,9 @@
   }
 
   function nonzeroBytes() {
+    if (state.writtenKeys) {
+      return state.writtenKeys.size;
+    }
     return state.bytes.reduce(
       (total, row) => total + row.filter((value) => value > 0).length,
       0,
@@ -736,23 +810,36 @@
     }
   }
 
-  function drawSprite(name, x, y, cell, alpha = 1, rotation = 0) {
+  function drawSprite(
+    name,
+    x,
+    y,
+    cell,
+    alpha = 1,
+    rotation = 0,
+    palette = currentPalette(),
+    largeMap = false,
+  ) {
     const image = sprites[name];
     const px = x * cell;
     const py = y * cell;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    if (image && image.complete && image.naturalWidth > 0) {
+    const canUseSprite =
+      !largeMap &&
+      palette.useTileSprite &&
+      image &&
+      image.complete &&
+      image.naturalWidth > 0 &&
+      cell >= 5;
+    if (canUseSprite) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
       ctx.translate(px + cell / 2, py + cell / 2);
       ctx.rotate(rotation);
       ctx.drawImage(image, -cell / 2, -cell / 2, cell, cell);
+      ctx.restore();
     } else {
-      ctx.fillStyle = name === "hub" ? "#5b4e9c" : name === "food" ? "#e8b44e" : "#c47a2c";
-      ctx.beginPath();
-      ctx.arc(px + cell / 2, py + cell / 2, cell * 0.35, 0, Math.PI * 2);
-      ctx.fill();
+      drawMarker(name, x, y, cell, palette, alpha, rotation);
     }
-    ctx.restore();
   }
 
   function antRotation(facing) {
@@ -762,6 +849,75 @@
     return 0;
   }
 
+  function currentPalette() {
+    const key = paletteSelect ? paletteSelect.value : "natural";
+    return palettes[key] || palettes.natural;
+  }
+
+  function isLargeMap() {
+    return env.width > LARGE_MAP_THRESHOLD || env.height > LARGE_MAP_THRESHOLD;
+  }
+
+  function rgba(rgb, alpha) {
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+  }
+
+  function mixRgb(start, end, ratio) {
+    return start.map((value, index) =>
+      Math.round(value + (end[index] - value) * ratio),
+    );
+  }
+
+  function drawByteCell(x, y, value, cell, palette, largeMap) {
+    if (value <= 0) {
+      return;
+    }
+    const ratio = value / Math.max((1 << env.write_bits) - 1, 1);
+    const color = mixRgb(palette.byteLow, palette.byteHigh, ratio);
+    const px = x * cell;
+    const py = y * cell;
+    const marker = largeMap ? Math.max(cell, 1.4) : cell;
+    ctx.fillStyle = rgba(color, palette.byteAlpha);
+    ctx.fillRect(px + (cell - marker) / 2, py + (cell - marker) / 2, marker, marker);
+    if (!largeMap && cell >= 18) {
+      ctx.fillStyle = palette.byteText;
+      ctx.font = `${Math.max(8, Math.floor(cell * 0.45))}px Georgia, serif`;
+      ctx.fillText(String(value), px + 2, py + cell * 0.55);
+    }
+  }
+
+  function drawMarker(name, x, y, cell, palette, alpha = 1, rotation = 0) {
+    const px = x * cell + cell / 2;
+    const py = y * cell + cell / 2;
+    const radius = Math.max(2, cell * 0.38);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(px, py);
+    if (name === "hub") {
+      const size = Math.max(3, cell * 0.72);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = palette.hub;
+      ctx.fillRect(-size / 2, -size / 2, size, size);
+    } else if (name === "food") {
+      ctx.fillStyle = palette.food;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const size = Math.max(3, cell * 0.72);
+      ctx.rotate(rotation);
+      ctx.fillStyle = palette.ant;
+      ctx.beginPath();
+      ctx.moveTo(size * 0.62, 0);
+      ctx.lineTo(-size * 0.45, -size * 0.38);
+      ctx.lineTo(-size * 0.3, 0);
+      ctx.lineTo(-size * 0.45, size * 0.38);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function render() {
     if (!state) {
       return;
@@ -769,72 +925,91 @@
     resizeCanvas();
     const size = canvasCssSize;
     const cell = size / env.width;
+    const palette = currentPalette();
+    const largeMap = isLargeMap();
     ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = "#d7cfb5";
+    ctx.fillStyle = largeMap ? palette.largeFloor : palette.floor;
     ctx.fillRect(0, 0, size, size);
 
-    for (let y = 0; y < env.height; y += 1) {
-      for (let x = 0; x < env.width; x += 1) {
-        if (sprites.tile && sprites.tile.complete && sprites.tile.naturalWidth > 0) {
-          ctx.drawImage(sprites.tile, x * cell, y * cell, cell, cell);
-        }
-        const byteValue = state.bytes[y][x];
-        if (byteValue > 0) {
-          const ratio = byteValue / Math.max((1 << env.write_bits) - 1, 1);
-          ctx.fillStyle = `rgba(${Math.round(40 + 180 * ratio)}, 92, ${Math.round(
-            255 - 120 * ratio,
-          )}, 0.38)`;
-          ctx.fillRect(x * cell, y * cell, cell, cell);
-          if (cell >= 18) {
-            ctx.fillStyle = "#181f24";
-            ctx.font = `${Math.max(8, Math.floor(cell * 0.45))}px Georgia, serif`;
-            ctx.fillText(String(byteValue), x * cell + 2, y * cell + cell * 0.55);
+    if (!largeMap) {
+      for (let y = 0; y < env.height; y += 1) {
+        for (let x = 0; x < env.width; x += 1) {
+          if (
+            palette.useTileSprite &&
+            sprites.tile &&
+            sprites.tile.complete &&
+            sprites.tile.naturalWidth > 0
+          ) {
+            ctx.drawImage(sprites.tile, x * cell, y * cell, cell, cell);
           }
+          drawByteCell(x, y, state.bytes[y][x], cell, palette, false);
         }
+      }
+    } else {
+      state.writtenKeys.forEach((key) => {
+        const [x, y] = key.split(",").map(Number);
+        if (inBounds(x, y)) {
+          drawByteCell(x, y, state.bytes[y][x], cell, palette, true);
+        }
+      });
+    }
+
+    if (!largeMap) {
+      ctx.strokeStyle = palette.grid;
+      ctx.lineWidth = 1;
+      for (let index = 0; index <= env.width; index += 1) {
+        const pos = index * cell;
+        ctx.beginPath();
+        ctx.moveTo(pos, 0);
+        ctx.lineTo(pos, size);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, pos);
+        ctx.lineTo(size, pos);
+        ctx.stroke();
       }
     }
 
-    ctx.strokeStyle = "rgba(80, 70, 52, 0.16)";
-    ctx.lineWidth = 1;
-    for (let index = 0; index <= env.width; index += 1) {
-      const pos = index * cell;
-      ctx.beginPath();
-      ctx.moveTo(pos, 0);
-      ctx.lineTo(pos, size);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, pos);
-      ctx.lineTo(size, pos);
-      ctx.stroke();
-    }
-
-    drawSprite("hub", state.hub[0], state.hub[1], cell);
-    for (let y = 0; y < env.height; y += 1) {
-      for (let x = 0; x < env.width; x += 1) {
-        const amount = state.food[y][x];
-        if (amount <= 0) {
-          continue;
+    drawSprite("hub", state.hub[0], state.hub[1], cell, 1, 0, palette, largeMap);
+    const drawFoodAt = (x, y) => {
+      const amount = state.food[y][x];
+      if (amount <= 0) {
+        return;
+      }
+      const initial = Math.max(state.initialFood[y][x], 1);
+      drawSprite("food", x, y, cell, Math.max(0.22, Math.min(1, amount / initial)), 0, palette, largeMap);
+      if (!largeMap && amount > 1 && cell >= 14) {
+        ctx.fillStyle = "#fff7db";
+        ctx.font = `bold ${Math.max(9, Math.floor(cell * 0.48))}px Georgia, serif`;
+        ctx.fillText(String(amount), x * cell + cell * 0.52, y * cell + cell * 0.74);
+      }
+    };
+    if (largeMap) {
+      foodSources.forEach(([x, y]) => {
+        if (inBounds(x, y)) {
+          drawFoodAt(x, y);
         }
-        const initial = Math.max(state.initialFood[y][x], 1);
-        drawSprite("food", x, y, cell, Math.max(0.22, Math.min(1, amount / initial)));
-        if (amount > 1 && cell >= 14) {
-          ctx.fillStyle = "#fff7db";
-          ctx.font = `bold ${Math.max(9, Math.floor(cell * 0.48))}px Georgia, serif`;
-          ctx.fillText(String(amount), x * cell + cell * 0.52, y * cell + cell * 0.74);
+      });
+    } else {
+      for (let y = 0; y < env.height; y += 1) {
+        for (let x = 0; x < env.width; x += 1) {
+          drawFoodAt(x, y);
         }
       }
     }
 
     state.ants.forEach(([x, y], index) => {
-      drawSprite("ant", x, y, cell, 1, antRotation(state.facing[index]));
+      drawSprite("ant", x, y, cell, 1, antRotation(state.facing[index]), palette, largeMap);
       if (state.carrying[index]) {
-        ctx.fillStyle = "#bc702d";
+        const carryRadius = largeMap ? Math.max(1.4, cell * 0.22) : Math.max(3, cell * 0.13);
+        const shineRadius = largeMap ? Math.max(0.8, cell * 0.1) : Math.max(1, cell * 0.06);
+        ctx.fillStyle = palette.carryingOuter;
         ctx.beginPath();
-        ctx.arc(x * cell + cell * 0.74, y * cell + cell * 0.25, Math.max(3, cell * 0.13), 0, Math.PI * 2);
+        ctx.arc(x * cell + cell * 0.74, y * cell + cell * 0.25, carryRadius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "#efa752";
+        ctx.fillStyle = palette.carryingInner;
         ctx.beginPath();
-        ctx.arc(x * cell + cell * 0.74, y * cell + cell * 0.25, Math.max(1, cell * 0.06), 0, Math.PI * 2);
+        ctx.arc(x * cell + cell * 0.74, y * cell + cell * 0.25, shineRadius, 0, Math.PI * 2);
         ctx.fill();
       }
     });
@@ -905,6 +1080,7 @@
     );
     setText(".control-label", "colocar");
     setText("label[for='runner-action-mode']", "modo de acción");
+    setText("label[for='runner-palette']", "paleta");
     setText("label[for='runner-speed']", "pasos por cuadro");
     const configLabels = [
       [configControls.gridSize, "tamaño de grilla"],
@@ -942,6 +1118,20 @@
         option.textContent = label;
       }
     });
+    if (paletteSelect) {
+      const paletteLabels = {
+        natural: "natural",
+        paper: "papel",
+        night: "nocturna",
+        contrast: "contraste",
+      };
+      Array.from(paletteSelect.options).forEach((option) => {
+        const label = paletteLabels[option.value];
+        if (label) {
+          option.textContent = label;
+        }
+      });
+    }
     runButton.textContent = uiText.run;
     stepButton.textContent = uiText.step;
     resetRunButton.textContent = uiText.resetRun;
@@ -980,6 +1170,9 @@
       }
     });
   });
+  if (paletteSelect) {
+    paletteSelect.addEventListener("change", render);
+  }
   window.addEventListener("resize", render);
 
   setPlacementMode("food");

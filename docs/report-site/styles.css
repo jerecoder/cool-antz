@@ -21,7 +21,7 @@
 html {
   background: var(--paper);
   color: var(--ink);
-  cursor: url("assets/sprites/ant-cursor.png") 20 20, auto;
+  cursor: url("assets/sprites/ant-cursor.png") 20 4, auto;
   scroll-behavior: smooth;
 }
 
@@ -44,7 +44,7 @@ input,
 video,
 canvas,
 .tree-link {
-  cursor: url("assets/sprites/ant-cursor.png") 20 20, pointer;
+  cursor: url("assets/sprites/ant-cursor.png") 20 4, pointer;
 }
 
 header {
