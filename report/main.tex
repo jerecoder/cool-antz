@@ -26,7 +26,7 @@
 \newcommand{\run}[1]{\nolinkurl{#1}}
 \newcommand{\metric}[1]{\nolinkurl{#1}}
 
-\title{\textbf{Forrajeo multi-agente con memoria externa en grillas: una historia experimental}}
+\title{\textbf{Forrajeo multi-agente con memoria externa en grillas: un estudio experimental}}
 \author{Jeremías Figueiredo Paschmann \and Francisco Nattero \and Juan Kaplan}
 \date{Proyecto final de Aprendizaje por Refuerzo}
 
@@ -34,24 +34,41 @@
 \maketitle
 
 \begin{abstract}
-Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el umbral de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de puntos guardados, escritura compartida y penalizaciones de escritura. También hubo ramas que no deben desaparecer de la historia: autocurrículos que avanzaban sin entrega real, laberintos entrenados como exploración pero no como forrajeo comparable, pruebas de estrés de transferencia que fallaron sin recogidas y barridos de memoria que aumentaban escritura sin probar comunicación útil. Para cerrar el relato se auditó el checkout completo: commits, refs, notebooks, configs, corridas locales, W\&B local, logs y artefactos quedaron clasificados por familia. En 250x250 apareció una lección negativa: el retorno moldeado puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
+Este informe reconstruye una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo con memoria externa discreta. La tarea exige que agentes con observación local encuentren fuentes de comida, transporten unidades al hub y sostengan ciclos de entrega bajo ejecución descentralizada. La evidencia muestra que el progreso no se explica por aumentar la cantidad de bits de comunicación, sino por una secuencia de cambios más concreta: corregir el contrato de la tarea, hacer aprendible la señal de crédito, aumentar la cobertura con más agentes y reemplazar el crítico centralizado plano por una arquitectura espacial. En 25x25 se obtuvo una política que completa las 23 entregas bajo movimiento muestreado. En 50x50, la frontera más fuerte aparece dentro de la familia con crítico \run{strided_cnn}, donde una política de 60 hormigas alcanza una fracción de entrega cercana a 0.99 en evaluación seleccionada, aunque esa mejora queda confundida con cantidad de agentes, identidades, selección de checkpoints y escritura casi saturada. En 250x250, el resultado más importante es negativo: el retorno moldeado y la actividad de bytes pueden crecer aunque las entregas reales sigan siendo nulas. Para evitar una historia retrospectiva demasiado limpia, se auditó el checkout completo y se clasificaron commits, refs, notebooks, configuraciones, corridas locales, carpetas W\&B, logs y artefactos por familia experimental. La conclusión es deliberadamente acotada: el sistema aprendió forrajeo cooperativo útil y escaló a escenarios 50x50 exigentes, pero todavía no demuestra causalmente comunicación emergente mediante la memoria por bytes.
 \end{abstract}
 
-\section{Motivación}
+\begin{figure}[h]
+\centering
+\fbox{\begin{minipage}{0.94\linewidth}
+\small
+\centering
+\begin{tabularx}{\linewidth}{>{\centering\arraybackslash}X c >{\centering\arraybackslash}X c >{\centering\arraybackslash}X c >{\centering\arraybackslash}X}
+\textbf{Contrato} & \(\Longrightarrow\) & \textbf{Crédito} & \(\Longrightarrow\) & \textbf{Crítico} & \(\Longrightarrow\) & \textbf{Conclusión} \\
+entregas reales con fuentes agotables
+&
+&
+moldeado de distancia, más agentes y evaluación muestreada
+&
+&
+crítico espacial, checkpoints seleccionados y auditoría por familia
+&
+&
+forrajeo fuerte sin prueba causal de comunicación por bytes
+\end{tabularx}
+\end{minipage}}
+\caption{Resumen gráfico del argumento central. La lectura del proyecto va desde la definición correcta de la tarea hasta la interpretación causal de los resultados: las métricas de entrega explican el desempeño, la arquitectura del crítico explica parte del salto 50x50 y las ablaciones de memoria delimitan lo que todavía no puede afirmarse.}
+\label{fig:graphical-abstract}
+\end{figure}
+
+\section{Introducción}
 
 El problema que se estudia es simple de describir y difícil de aprender: varios agentes locales deben encontrar fuentes de comida, recoger unidades de comida y volver al hub para entregarlas. Cada agente observa solo una vecindad pequeña y ejecuta una política compartida. Durante el entrenamiento se permite un crítico centralizado, pero durante el despliegue la política sigue siendo local. Esta separación corresponde al marco de entrenamiento centralizado con ejecución descentralizada, usado en algoritmos multi-agente como MAPPO y MADDPG \cite{yu2022mappo,lowe2017maddpg}.
 
-La motivación no es solo maximizar una métrica. La pregunta interesante es semántica: qué comportamiento aparece cuando se combinan búsqueda local, memoria en el ambiente y presión de entregar comida. Un resultado útil no debería ser únicamente ``alto reward''. Debería mostrar ciclos completos de forrajeo, regreso al hub, uso razonable del espacio y robustez bajo mapas aleatorios. Por eso este informe distingue tres cosas que a menudo se mezclan:
-
-\begin{itemize}
-    \item desempeño: cuánta comida se entrega, con qué tasa de éxito y con cuántos pasos;
-    \item mecanismo: qué cambios de entorno, política o crítico hicieron posible el desempeño;
-    \item comportamiento: si los videos muestran búsqueda, transporte y retorno, o solo movimiento con retorno moldeado.
-\end{itemize}
+La motivación no es solo maximizar una métrica. La pregunta relevante es semántica: qué comportamiento aparece cuando se combinan búsqueda local, memoria en el ambiente y presión de entregar comida. Un resultado útil no debería ser únicamente ``alto reward'', sino que debería mostrar ciclos completos de forrajeo, retorno al hub, uso razonable del espacio y robustez bajo mapas aleatorios. Por eso el análisis separa tres capas que suelen mezclarse. La primera es el desempeño, medido por comida entregada, tasa de éxito y eficiencia temporal. La segunda es el mecanismo, es decir, los cambios de entorno, política, crítico o evaluación que hicieron posible ese desempeño. La tercera es el comportamiento visible: si los videos muestran búsqueda, transporte y retorno, o si solo muestran movimiento local sostenido por retorno moldeado.
 
 El trabajo se ubica cerca de MAPPO \cite{yu2022mappo}, PPO \cite{schulman2017ppo}, GAE \cite{schulman2015gae} y aprendizaje de comunicación multi-agente como CommNet y DIAL \cite{sukhbaatar2016commnet,foerster2016dial}. La diferencia práctica es que aquí la comunicación no es un canal diferentiable directo entre agentes. Es una memoria discreta escrita en celdas del ambiente. Eso hace que la atribución causal sea más difícil: ver bytes no-cero no implica que esos bytes estén coordinando la política.
 
-\section{Entorno y semántica}
+\section{Entorno experimental}
 
 La semántica del entorno cambió de manera decisiva durante el proyecto. En la versión relevante para este informe, \metric{food_count} no significa posiciones independientes de comida. Significa mordidas totales. \metric{food_sources} controla cuántas fuentes concentran esas mordidas y cada fuente se agota. La recompensa cruda principal es la entrega en el hub: una unidad entregada da \(+1\). La recogida puede tener bonus de moldeado en algunas corridas, pero no es el objetivo final.
 
@@ -78,13 +95,7 @@ Variable & Interpretación para el informe \\
 
 La base de entrenamiento es PPO multi-agente con política compartida, ventajas estimadas con GAE y un crítico centralizado. PPO optimiza una función objetivo recortada que evita cambios demasiado grandes de política \cite{schulman2017ppo}. MAPPO aplica esta idea a agentes cooperativos y suele usar un crítico centralizado para estabilizar el aprendizaje \cite{yu2022mappo}. En este proyecto, el actor debe ejecutar con información local; el crítico puede ver más información durante entrenamiento.
 
-La arquitectura del crítico es una frontera causal del proyecto:
-
-\begin{itemize}
-    \item \run{mlp}: crítico plano sobre observaciones centralizadas aplanadas. Fue usado en líneas tempranas y en el 50x50 eficiente inicial.
-    \item \run{strided_cnn}: crítico espacial sobre planos de grilla y rasgos de entidades. Aparece en la línea 50x50 de proximidad y full-layout.
-    \item \run{set_cnn}: familia posterior usada en diagnósticos 250x250. No es una continuación limpia de los experimentos 50x50.
-\end{itemize}
+La arquitectura del crítico es una frontera causal del proyecto. Las líneas tempranas y el 50x50 eficiente inicial usaron un crítico \run{mlp} plano sobre observaciones centralizadas aplanadas. La línea posterior de proximidad y full-layout en 50x50 introdujo \run{strided_cnn}, un crítico espacial que procesa planos de grilla y rasgos de entidades. Los diagnósticos 250x250 pertenecen a una familia distinta, donde aparecen críticos \run{resnet_cnn}, \run{strided_cnn} y \run{set_cnn} bajo contratos de escala y reset diferentes. Esta separación impide presentar los resultados como si todos fueran puntos de una única curva de comunicación.
 
 Esta separación es central. Si una corrida 50x50 mejora después de pasar de \run{mlp} a \run{strided_cnn}, no se puede atribuir la mejora solamente a más hormigas, más bits, fuentes más densas o escritura compartida. El crítico cambió el problema de crédito que PPO resuelve durante entrenamiento.
 
@@ -184,7 +195,7 @@ Ref & Familia & Lectura \\
 
 Las figuras siguen un criterio editorial simple: el lienzo del gráfico se reserva para datos, ejes, leyendas, umbrales y anotaciones numéricas. La interpretación de cada resultado aparece en la leyenda y en el texto que acompaña a la figura, no como un título incrustado dentro del gráfico.
 
-\section{Historia experimental}
+\section{Resultados experimentales}
 
 \subsection{Cambio de contrato de la tarea}
 
@@ -367,7 +378,7 @@ El cambio \run{fixed8-reset-boundary256} sí mejora la entrega local: el resumen
 
 Las continuaciones posteriores refuerzan esa lectura. \run{byte-decay} redujo ocupación de bytes pero terminó con 175 entregas. La evaluación larga d12 de la rama no-decay mostró una media de 0.392 entregas, mediana 0, \metric{pickup_to_delivery_rate}=0.008 y 13.745 pickups no entregados en promedio. El intento estratificado d4/d8/d12 dejó manifiesto y configuración, pero los archivos \run{metrics.jsonl}, \run{fresh_eval_metrics.jsonl} y \run{long_eval_metrics.jsonl} quedaron vacíos después de un aborto operacional tipo exit 137. No es evidencia contra la hipótesis; simplemente no produjo un resultado interpretable.
 
-\section{Evolución cualitativa del comportamiento}
+\section{Evidencia cualitativa}
 
 Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retorno estable. Después, los rollouts preservados del currículo 25x25 muestran cómo cambia el comportamiento al pasar por 2, 3, 4, 6 y 8 hormigas: la cobertura deja de ser un detalle y se vuelve parte del mecanismo. En 50x50 con crítico espacial aparecen rutas repetidas y entregas más densas. Las visualizaciones grandes deben leerse con cuidado: 100x100 es una continuación seleccionada, 250x250 muestra una recuperación local por reset-boundary, y 1000x1000 es un despliegue solo-actor de una política ya entrenada, no entrenamiento de punta a punta en ese entorno. La prueba 100x100 de laberinto agrega una evidencia negativa visualmente útil: hay exploración local y escritura de bytes, pero no aparece el ciclo recogida--retorno que define el forrajeo.
 
@@ -378,39 +389,15 @@ Los videos apoyan una lectura progresiva. Primero hay movimiento local sin retor
 \label{fig:behavior}
 \end{figure}
 
-\section{Qué funcionó y qué no}
+\section{Discusión}
 
-Funcionó, con evidencia fuerte:
+La evidencia más fuerte apunta a cinco decisiones que sí cambiaron el problema de manera productiva. La primera fue redefinir la tarea alrededor de entregas reales y fuentes agotables; sin esa frontera, una política podía parecer activa sin cerrar ciclos de forrajeo. La segunda fue usar moldeado de distancia para atravesar el horizonte largo inicial, especialmente en 25x25. La tercera fue aumentar la cobertura mediante más hormigas, un cambio que tuvo más efecto práctico que aumentar simplemente la cantidad de bits. La cuarta fue evaluar políticas con movimiento muestreado cuando el comportamiento aprendido vivía en la distribución y no en el argmax. La quinta, crucial para 50x50, fue reemplazar el crítico centralizado plano por una arquitectura espacial.
 
-\begin{itemize}
-    \item redefinir la tarea alrededor de entregas reales y fuentes agotables;
-    \item usar moldeado de distancia para atravesar el horizonte largo inicial;
-    \item aumentar cobertura con más hormigas;
-    \item evaluar políticas muestreadas cuando el comportamiento aprendido vive en la distribución;
-    \item cambiar el crítico centralizado a una arquitectura espacial para 50x50.
-\end{itemize}
+Otros resultados son útiles, pero tienen confusión causal. La escritura compartida y las penalizaciones de escritura mejoraron algunas continuaciones 50x50, aunque no aislaron el rol de los bytes. El aumento a 8 bits tampoco es una ablación limpia, porque cambió junto con costos, cantidad de hormigas y selección de checkpoints. La línea de 60 hormigas es el resultado conductual más fuerte, pero mezcla 60 agentes, identidades repetidas, 8 bits, continuación desde un punto guardado, crítico \run{strided_cnn}, selección por evaluación y escritura casi saturada. En 250x250, \run{reset-boundary} arregla ventanas locales de entrenamiento, pero no demuestra que el autocurrículo general de gran escala haya quedado resuelto.
 
-Funcionó parcialmente o con confusión causal:
+La evidencia negativa es igual de importante para la interpretación. Aumentar bits no funcionó como mecanismo único de escala. Los autocurrículos podían avanzar, acumular retorno moldeado o producir muchos agentes cargando sin entregar comida. El flujo de laberintos produjo un video entrenado de exploración 50x50 y una prueba de estrés 100x100, pero no una demostración comparable de forrajeo cooperativo en laberinto. Las ramas R8--R12 mostraron que puede haber dependencia de bytes, pero no una mejora robusta de tarea causada por memoria externa. Las ramas adversariales, timed-release y lethal-cookies quedan ubicadas en el árbol por refs, commits e infraestructura, aunque no tienen el mismo paquete de métricas, videos y evaluaciones que las líneas centrales.
 
-\begin{itemize}
-    \item escritura compartida y penalización de escritura en 50x50;
-    \item aumento a 8 bits, porque también cambió la escala de costo;
-    \item línea de 60 hormigas, porque mejora mucho pero mezcla muchos factores;
-    \item reset-boundary en 250x250, porque arregla ventanas locales pero no demuestra curriculum general.
-\end{itemize}
-
-No funcionó o no quedó demostrado:
-
-\begin{itemize}
-    \item aumentar bits como único mecanismo de escala;
-    \item los autocurrículos como solución general: podían avanzar o acumular retorno moldeado sin entrega real;
-    \item el flujo de laberintos como evidencia comparable de forrajeo: hubo video W\&B de exploración 50x50 y una prueba de estrés 100x100, pero ninguna muestra entrega cooperativa entrenada en laberinto;
-    \item las ramas R8--R12 de memoria como prueba de comunicación: algunas aumentaron dependencia de bytes, pero no mejoraron simultáneamente la tarea;
-    \item las ramas adversariales, timed-release y lethal-cookies como resultados principales: quedan ubicadas en el árbol por refs y commits, pero no tienen el mismo paquete de métricas, videos y evaluaciones que las líneas centrales;
-    \item despliegue determinista como criterio único de éxito;
-    \item interpretar retorno moldeado como entrega real;
-    \item afirmar comunicación emergente causal sin ablaciones emparejadas de no-write, shuffled-write y costo de escritura.
-\end{itemize}
+Por estas razones, el informe evita tres sobreinterpretaciones. El despliegue determinista no se usa como único criterio de éxito cuando la política aprendida es estocástica. El retorno moldeado no se trata como sustituto de entrega real. Y la comunicación emergente no se afirma sin ablaciones emparejadas, como \run{no_write}, bytes permutados, costos igualados entre alfabetos y comparaciones de crítico bajo el mismo contrato de entorno.
 
 \section{Limitaciones}
 
@@ -431,16 +418,11 @@ La contribución honesta del trabajo no es ``resolvimos comunicación emergente'
 \appendix
 \section{Trabajo futuro}
 
-El informe cierra la historia experimental disponible en el checkout actual. Quedan, sin embargo, extensiones naturales para convertir varias lecturas en evidencia causal más fuerte:
+El informe cierra la historia experimental disponible en el checkout actual, pero varias extensiones convertirían las lecturas principales en evidencia causal más fuerte. La primera prioridad es congelar una tabla canónica de runs y checkpoints por familia, acompañada por hiperparámetros comparables: \run{critic_architecture}, \run{food_count}, \run{food_sources}, cantidad de hormigas, bits, modo de evaluación y criterio de selección. Esa tabla evitaría que los resultados dependan de nombres de corrida o de memoria contextual.
 
-\begin{enumerate}
-    \item congelar una tabla canónica de runs y checkpoints por familia;
-    \item agregar una tabla de hiperparámetros por familia, especialmente \run{critic_architecture}, \run{food_count}, \run{food_sources}, número de hormigas, bits y modo de evaluación;
-    \item regenerar la tabla cloud de W\&B después de \run{wandb relogin}, porque esta auditoría solo pudo garantizar exhaustividad local;
-    \item inspeccionar manualmente el bucket \run{unclassified-review-needed} antes de usarlo como evidencia en el paper;
-    \item correr ablaciones emparejadas mínimas para comunicación: sin escritura, bytes permutados y mismo costo entre 4 y 8 bits;
-    \item repetir laberintos con contrato de forrajeo comparable si se quiere convertir la prueba de estrés en experimento principal: misma plantilla de métricas, 60 hormigas, fuente lejana, recogidas, entregas, eficiencia y tiempo de convergencia.
-\end{enumerate}
+La segunda prioridad es completar la trazabilidad externa. La auditoría actual garantiza exhaustividad local, pero la tabla cloud de W\&B debería regenerarse después de \run{wandb relogin}. También conviene inspeccionar manualmente el bucket \run{unclassified-review-needed} antes de usarlo como evidencia en un paper o presentación.
+
+La tercera prioridad es ejecutar ablaciones emparejadas para memoria. Una prueba mínima debería comparar la misma política bajo escritura normal, escritura bloqueada, lectura bloqueada, bytes permutados entre celdas y costos igualados entre alfabetos de 4 y 8 bits. Si se quiere convertir los laberintos en una línea principal, el contrato también debe cambiar: no basta un video de exploración, sino que hace falta una plantilla comparable con recogidas, entregas, eficiencia, tiempo de convergencia, 60 hormigas y una fuente lejana bajo el mismo criterio de evaluación.
 
 \bibliographystyle{plain}
 \bibliography{references}
