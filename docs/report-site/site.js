@@ -63,6 +63,27 @@
       caveat:
         "The video geometry is 1000x1000 with 500 ants and 5000 food. The 100x100 label belongs only to the checkpoint lineage and evaluation task.",
     },
+    reset250: {
+      title: "250x250 reset-boundary checkpoint",
+      src: "report-site/assets/videos/reset-boundary-250x250.mp4",
+      caption:
+        "Local reset-boundary checkpoint video from the fixed8 250x250 diagnostic branch, encoded as 1008x1008.",
+      metrics: [
+        ["task grid", "250x250"],
+        ["encoded frame", "1008x1008"],
+        ["frames", "600 at 8 fps"],
+        ["ants", "500"],
+        ["food", "5000 bites / 1 source"],
+        ["checkpoint family", "fixed8-reset-boundary256"],
+        ["critic", "set_cnn"],
+        ["final deliveries", "654"],
+        ["final pickups", "869"],
+        ["best train delivery", "around 1003"],
+        ["diagnostic point", "raw delivery, not shaped return"],
+      ],
+      caveat:
+        "This branch shows real local delivery progress, but it is still not a solved general 250x250 task.",
+    },
     frontier250: {
       title: "1000x1000 half-scale bigmap render",
       src: "report-site/assets/videos/frontier-250x250.mp4",
@@ -83,6 +104,20 @@
       ],
       caveat:
         "250x250 remains diagnostic: raw delivery matters more than shaped return or byte activity.",
+    },
+    random: {
+      title: "Random baseline rollout",
+      src: "report-site/assets/videos/random-rollout.mp4",
+      caption:
+        "Early random-policy baseline, encoded as a 576x576 MP4 with 301 frames at 12 fps.",
+      metrics: [
+        ["encoded frame", "576x576"],
+        ["frames", "301 at 12 fps"],
+        ["purpose", "behavior baseline"],
+        ["result meaning", "motion without delivery is not success"],
+      ],
+      caveat:
+        "This is a baseline visual anchor, not a trained policy result.",
     },
   };
 
