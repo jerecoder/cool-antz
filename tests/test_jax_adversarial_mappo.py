@@ -23,6 +23,10 @@ from ant_byte_env.training.jax_mappo import (
     write_value_count,
 )
 from ant_byte_env.training.jax_mappo.checkpointing import load_checkpoint, read_checkpoint
+from ant_byte_env.training.jax_mappo.models import (
+    critic_forward_kwargs_from_args,
+    get_value,
+)
 from ant_byte_env.training.jax_mappo.adversarial.cli import parse_args
 from ant_byte_env.training.jax_mappo.adversarial.checkpointing import (
     evaluate_checkpoint_matrix,
@@ -48,6 +52,7 @@ from ant_byte_env.training.jax_mappo.adversarial.rendering import (
     render_adversarial_rollout,
 )
 from ant_byte_env.training.jax_mappo.adversarial.runner import main as adversarial_main
+from ant_byte_env.training.jax_mappo.adversarial.setup import init_adversarial_params
 from ant_byte_env.training.jax_mappo.adversarial.transfer import warm_start_actor_params
 from ant_byte_env.training.jax_mappo.updates import behavior_anchor_kl
 
@@ -533,6 +538,75 @@ def test_adversarial_parse_args_accepts_best_model_options(tmp_path: Path) -> No
     assert args.best_eval_interval == 5
 
 
+def test_adversarial_parse_args_accepts_cnn_critic_and_wandb_options() -> None:
+    args = _small_args(
+        [
+            "--critic-architecture",
+            "strided_cnn",
+            "--wandb-project",
+            "cool-antz",
+            "--wandb-entity",
+            "team",
+            "--wandb-group",
+            "adversarial",
+            "--wandb-run-name",
+            "cnn-probe",
+            "--wandb-notes",
+            "tiny adversarial cnn smoke",
+            "--wandb-mode",
+            "offline",
+            "--wandb-tags",
+            "jax",
+            "cnn",
+        ]
+    )
+
+    assert args.critic_architecture == "strided_cnn"
+    assert args.num_ants == args.num_ants_per_team
+    assert args.critic_num_ants == 2 * args.num_ants_per_team
+    assert args.critic_extra_entity_dim == 6
+    assert args.obs_height == args.height
+    assert args.obs_width == args.width
+    assert args.wandb_project == "cool-antz"
+    assert args.wandb_entity == "team"
+    assert args.wandb_group == "adversarial"
+    assert args.wandb_run_name == "cnn-probe"
+    assert args.wandb_notes == "tiny adversarial cnn smoke"
+    assert args.wandb_mode == "offline"
+    assert args.wandb_tags == ["jax", "cnn"]
+
+
+def test_adversarial_strided_cnn_critic_uses_both_teams_shape() -> None:
+    args = _small_args(["--critic-architecture", "strided_cnn"])
+    env = _env(max_steps=args.max_steps)
+    _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
+    central_obs = build_team_central_observations(
+        obs,
+        team=args.learner_team,
+        num_ants_per_team=args.num_ants_per_team,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+    )
+    actor_obs = build_team_actor_observations(
+        obs,
+        team=args.learner_team,
+        num_ants_per_team=args.num_ants_per_team,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+    )
+
+    params = init_adversarial_params(
+        jax.random.PRNGKey(30),
+        args=args,
+        central_obs_dim=int(central_obs.shape[-1]),
+        actor_obs_dim=int(actor_obs.shape[-1]),
+    )
+    values = get_value(params, central_obs, **critic_forward_kwargs_from_args(args))
+
+    assert values.shape == (args.num_envs,)
+
+
 def test_actor_warm_start_copies_actor_only(tmp_path: Path) -> None:
     args = _small_args()
     env = _env(max_steps=args.max_steps)
@@ -568,6 +642,69 @@ def test_actor_warm_start_copies_actor_only(tmp_path: Path) -> None:
         target_params,
         checkpoint_path,
         actor_obs_dim=actor_dim,
+        target_write_bits=args.write_bits,
+    )
+
+    for actual, expected in zip(
+        jax.tree_util.tree_leaves(warmed.actor_body),
+        jax.tree_util.tree_leaves(source_params.actor_body),
+    ):
+        np.testing.assert_allclose(np.asarray(actual), np.asarray(expected))
+    for actual, expected in zip(
+        jax.tree_util.tree_leaves(warmed.critic_body),
+        jax.tree_util.tree_leaves(target_params.critic_body),
+    ):
+        np.testing.assert_allclose(np.asarray(actual), np.asarray(expected))
+
+
+def test_actor_warm_start_preserves_fresh_cnn_critic(tmp_path: Path) -> None:
+    args = _small_args(["--critic-architecture", "strided_cnn"])
+    env = _env(max_steps=args.max_steps)
+    _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
+    central_obs = build_team_central_observations(
+        obs,
+        team=args.learner_team,
+        num_ants_per_team=args.num_ants_per_team,
+        food_scale=args.food_count,
+        write_bits=args.write_bits,
+    )
+    actor_obs = build_team_actor_observations(
+        obs,
+        team=args.learner_team,
+        num_ants_per_team=args.num_ants_per_team,
+        food_scale=args.food_count,
+        actor_vision_radius=args.actor_vision_radius,
+        write_bits=args.write_bits,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(31),
+        central_obs_dim=7,
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        hidden_size=args.hidden_size,
+        write_value_count=write_value_count(args.write_bits),
+    )
+    target_params = init_adversarial_params(
+        jax.random.PRNGKey(32),
+        args=args,
+        central_obs_dim=int(central_obs.shape[-1]),
+        actor_obs_dim=int(actor_obs.shape[-1]),
+    )
+    checkpoint_path = tmp_path / "mlp_source.pkl"
+    save_checkpoint(
+        checkpoint_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(source="mlp_source"),
+        central_obs_dim=7,
+        actor_obs_dim=int(actor_obs.shape[-1]),
+        run_name="source",
+        metrics={},
+    )
+
+    warmed = warm_start_actor_params(
+        target_params,
+        checkpoint_path,
+        actor_obs_dim=int(actor_obs.shape[-1]),
         target_write_bits=args.write_bits,
     )
 

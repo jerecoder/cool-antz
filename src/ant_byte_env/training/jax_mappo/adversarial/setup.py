@@ -49,5 +49,9 @@ def init_adversarial_params(
         actor_obs_dim=actor_obs_dim,
         hidden_size=args.hidden_size,
         write_value_count=write_value_count(args.write_bits),
-        critic_architecture="mlp",
+        critic_architecture=getattr(args, "critic_architecture", "mlp"),
+        critic_num_ants=args.critic_num_ants,
+        critic_obs_height=args.obs_height,
+        critic_obs_width=args.obs_width,
+        critic_extra_entity_dim=args.critic_extra_entity_dim,
     )

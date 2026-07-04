@@ -9,6 +9,7 @@ from typing import Any
 from ant_byte_env import DEFAULT_ACTOR_VISION_DEPTH, DEFAULT_WRITE_BITS, MAX_WRITE_BITS
 from ant_byte_env.experiments import namespace_to_jsonable
 from ant_byte_env.training.jax_mappo.adversarial.actions import ADVERSARIAL_ACTION_MODES
+from ant_byte_env.training.jax_mappo.cli import CRITIC_ARCHITECTURES
 
 OPPONENT_ACTION_MODES = ADVERSARIAL_ACTION_MODES
 
@@ -37,6 +38,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--vf-coef", type=float, default=0.5)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-size", type=int, default=128)
+    parser.add_argument(
+        "--critic-architecture",
+        choices=CRITIC_ARCHITECTURES,
+        default="mlp",
+        help=(
+            "Centralized value-function architecture. CNN critics use the full "
+            "adversarial map and both teams' ants."
+        ),
+    )
     parser.add_argument("--training-rollout-temperature", type=float, default=1.0)
     parser.add_argument("--freeze-actor", action="store_true")
     parser.add_argument(
@@ -140,6 +150,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--run-dir", type=Path, default=None)
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-group", type=str, default=None)
+    parser.add_argument("--wandb-run-name", type=str, default=None)
+    parser.add_argument("--wandb-notes", type=str, default=None)
+    parser.add_argument(
+        "--wandb-mode",
+        choices=("online", "offline", "disabled"),
+        default="online",
+    )
+    parser.add_argument("--wandb-tags", nargs="*", default=None)
     return _validate_args(parser.parse_args(argv))
 
 
@@ -206,7 +227,10 @@ def _validate_args(args: argparse.Namespace) -> argparse.Namespace:
             "--allow-random-init is set."
         )
     args.num_ants = int(args.num_ants_per_team)
-    args.critic_architecture = "mlp"
+    args.critic_num_ants = 2 * int(args.num_ants_per_team)
+    args.critic_extra_entity_dim = 6
+    args.obs_height = int(args.height)
+    args.obs_width = int(args.width)
     return args
 
 

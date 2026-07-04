@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 
 from ant_byte_env.runs import append_metrics, ensure_run_structure, write_json
+from ant_byte_env.wandb_tracking import WandbTracker
 from ant_byte_env.training.jax_mappo.adversarial.cli import parse_args
 from ant_byte_env.training.jax_mappo.adversarial.env import reset_batch
 from ant_byte_env.training.jax_mappo.adversarial.evaluation import evaluate_matrix
@@ -255,6 +256,18 @@ def main(
     if opt_state is None:
         opt_state = init_adam_state(params)
 
+    tracker = WandbTracker(
+        project=args.wandb_project,
+        entity=args.wandb_entity,
+        group=args.wandb_group,
+        name=args.wandb_run_name or run_name,
+        tags=args.wandb_tags,
+        mode=args.wandb_mode,
+        run_dir=args.run_dir,
+        config=checkpoint_args(args),
+        notes=args.wandb_notes,
+    )
+
     rollout_fn = jax.jit(
         lambda current_params, current_states, current_obs, rollout_key: collect_rollout(
             args=args,
@@ -370,6 +383,7 @@ def main(
                 progress_callback(update, num_updates, reported_metrics)
             if metrics_path is not None:
                 append_metrics(metrics_path, logged_metrics)
+            tracker.log_metrics(logged_metrics, step=global_step)
             if not args.quiet:
                 print(
                     "update={update}/{num_updates} step={step} loss={loss:.4f} "
@@ -398,6 +412,19 @@ def main(
             metrics=final_metrics,
             behavior_anchor_params=behavior_anchor_params,
         )
+        tracker.log_artifact(
+            "jax-adversarial-mappo-checkpoint",
+            args.save_model,
+            artifact_type="model",
+            aliases=["latest"],
+        )
+    if args.save_best_model is not None and args.save_best_model.exists():
+        tracker.log_artifact(
+            "jax-adversarial-mappo-best-checkpoint",
+            args.save_best_model,
+            artifact_type="model",
+            aliases=["best"],
+        )
     if summary_path is not None:
         summary = {
             "backend": "jax",
@@ -421,6 +448,7 @@ def main(
             summary_path,
             summary,
         )
+    tracker.finish()
     return final_metrics
 
 

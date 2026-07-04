@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+VARARG_CONFIG_ARGS = frozenset({"wandb_tags"})
+
 
 @dataclass(frozen=True)
 class ExperimentSpec:
@@ -55,6 +57,9 @@ def config_args_to_argv(args: dict[str, Any]) -> list[str]:
             argv.append(option)
             continue
         if isinstance(value, list):
+            if key in VARARG_CONFIG_ARGS:
+                argv.extend([option, *[str(item) for item in value]])
+                continue
             for item in value:
                 argv.extend([option, str(item)])
             continue

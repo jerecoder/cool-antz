@@ -26,7 +26,10 @@ from ant_byte_env.training.jax_mappo.observations import (
     flatten_agent_actions,
     food_observation_scale,
 )
-from ant_byte_env.training.jax_mappo.models import get_action_logits
+from ant_byte_env.training.jax_mappo.models import (
+    critic_forward_kwargs_from_args,
+    get_action_logits,
+)
 from ant_byte_env.training.jax_mappo.policy import get_action_and_value
 from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams
 
@@ -88,6 +91,7 @@ def collect_rollout(
         food_count=args.food_count,
         food_sources=getattr(args, "food_sources", None),
     )
+    critic_kwargs = critic_forward_kwargs_from_args(args)
 
     def scan_step(
         carry: tuple[JaxAdversarialAntState, dict[str, jax.Array], jax.Array],
@@ -125,6 +129,7 @@ def collect_rollout(
             learner_key,
             deterministic=False,
             policy_temperature=float(args.training_rollout_temperature),
+            **critic_kwargs,
         )
         opponent_actions = _policy_action_mode(
             opponent_params,
@@ -164,6 +169,7 @@ def collect_rollout(
             learner_key,
             deterministic=True,
             policy_temperature=float(args.training_rollout_temperature),
+            **critic_kwargs,
         )
         rewards = env_rewards[:, learner_team]
 

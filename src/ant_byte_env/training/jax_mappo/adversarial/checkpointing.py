@@ -40,7 +40,13 @@ _PATH_ARG_NAMES = {
     "save_best_model",
     "run_dir",
 }
-_DERIVED_ARG_NAMES = {"critic_architecture", "num_ants"}
+_DERIVED_ARG_NAMES = {
+    "num_ants",
+    "critic_num_ants",
+    "critic_extra_entity_dim",
+    "obs_height",
+    "obs_width",
+}
 
 
 @dataclass(frozen=True)
@@ -177,7 +183,10 @@ def _args_from_checkpoint_payload(payload: dict[str, Any]) -> argparse.Namespace
         if defaults.get(name) is not None:
             defaults[name] = Path(defaults[name])
     defaults["num_ants"] = int(defaults["num_ants_per_team"])
-    defaults["critic_architecture"] = "mlp"
+    defaults["critic_num_ants"] = 2 * int(defaults["num_ants_per_team"])
+    defaults["critic_extra_entity_dim"] = 6
+    defaults["obs_height"] = int(defaults["height"])
+    defaults["obs_width"] = int(defaults["width"])
     return argparse.Namespace(**defaults)
 
 

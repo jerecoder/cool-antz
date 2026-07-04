@@ -34,6 +34,12 @@ def test_experiment_config_loads_and_converts_args() -> None:
     assert "--no-cuda" in argv
 
 
+def test_experiment_config_renders_wandb_tags_as_single_vararg() -> None:
+    argv = config_args_to_argv({"wandb_tags": ["adversarial", "cnn", "l4"]})
+
+    assert argv == ["--wandb-tags", "adversarial", "cnn", "l4"]
+
+
 def test_cli_dry_run_validates_config_and_overrides(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = cli_main(
         [

@@ -63,8 +63,8 @@ def init_residual_block(key: jax.Array, channels: int) -> ResidualBlockParams:
     )
 
 
-def _critic_entity_dim(*, num_ants: int) -> int:
-    return 7 * int(num_ants) + 4
+def _critic_entity_dim(*, num_ants: int, extra_entity_dim: int = 4) -> int:
+    return 7 * int(num_ants) + int(extra_entity_dim)
 
 
 def central_obs_dim_with_ants_count(
@@ -72,9 +72,10 @@ def central_obs_dim_with_ants_count(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
 ) -> int:
     grid_area = int(obs_height) * int(obs_width)
-    return 7 * int(num_ants) + 3 * grid_area + 4
+    return 7 * int(num_ants) + 3 * grid_area + int(extra_entity_dim)
 
 
 def _strided_cnn_output_size(size: int) -> int:
@@ -96,6 +97,7 @@ def init_resnet_cnn_critic(
     key: jax.Array,
     *,
     num_ants: int,
+    extra_entity_dim: int = 4,
     spatial_channels: int = 4,
 ) -> tuple[ResNetCriticParams, LinearParams]:
     if num_ants <= 0:
@@ -121,7 +123,14 @@ def init_resnet_cnn_critic(
         blocks_128=(init_residual_block(keys[10], 128),),
         spatial_dense=init_layer(keys[11], 256, 256),
         entity_body=(
-            init_layer(keys[12], _critic_entity_dim(num_ants=num_ants), 128),
+            init_layer(
+                keys[12],
+                _critic_entity_dim(
+                    num_ants=num_ants,
+                    extra_entity_dim=extra_entity_dim,
+                ),
+                128,
+            ),
             init_layer(keys[13], 128, 128),
         ),
         fusion_body=(
@@ -138,6 +147,7 @@ def init_strided_cnn_critic(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
     spatial_channels: int = 4,
 ) -> tuple[StridedCNNCriticParams, LinearParams]:
     if num_ants <= 0:
@@ -154,7 +164,14 @@ def init_strided_cnn_critic(
             _strided_cnn_flatten_dim(obs_height=obs_height, obs_width=obs_width),
             256,
         ),
-        entity_dense=init_layer(keys[4], _critic_entity_dim(num_ants=num_ants), 128),
+        entity_dense=init_layer(
+            keys[4],
+            _critic_entity_dim(
+                num_ants=num_ants,
+                extra_entity_dim=extra_entity_dim,
+            ),
+            128,
+        ),
         fusion_dense=init_layer(keys[5], 384, 256),
     )
     return critic_body, init_layer(keys[6], 256, 1, scale=1.0)
@@ -199,6 +216,7 @@ def init_agent_params(
     critic_num_ants: int | None = None,
     critic_obs_height: int | None = None,
     critic_obs_width: int | None = None,
+    critic_extra_entity_dim: int = 4,
 ) -> JaxMAPPOParams:
     if write_value_count <= 0:
         raise ValueError("write_value_count must be positive.")
@@ -220,6 +238,7 @@ def init_agent_params(
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            extra_entity_dim=critic_extra_entity_dim,
         )
         if int(central_obs_dim) != expected_dim:
             raise ValueError(
@@ -230,6 +249,7 @@ def init_agent_params(
         critic_body, value_head = init_resnet_cnn_critic(
             keys[4],
             num_ants=critic_num_ants,
+            extra_entity_dim=critic_extra_entity_dim,
         )
     elif architecture == "strided_cnn":
         if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
@@ -241,6 +261,7 @@ def init_agent_params(
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            extra_entity_dim=critic_extra_entity_dim,
         )
         if int(central_obs_dim) != expected_dim:
             raise ValueError(
@@ -253,6 +274,7 @@ def init_agent_params(
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            extra_entity_dim=critic_extra_entity_dim,
         )
     elif architecture == "structured_mlp":
         if critic_num_ants is None or critic_obs_height is None or critic_obs_width is None:
@@ -264,6 +286,7 @@ def init_agent_params(
             num_ants=critic_num_ants,
             obs_height=critic_obs_height,
             obs_width=critic_obs_width,
+            extra_entity_dim=critic_extra_entity_dim,
         )
         if int(central_obs_dim) != expected_dim:
             raise ValueError(
@@ -275,7 +298,10 @@ def init_agent_params(
         critic_body, value_head = init_structured_mlp_critic(
             keys[4],
             grid_feature_dim=grid_feature_dim,
-            entity_feature_dim=_critic_entity_dim(num_ants=critic_num_ants),
+            entity_feature_dim=_critic_entity_dim(
+                num_ants=critic_num_ants,
+                extra_entity_dim=critic_extra_entity_dim,
+            ),
         )
     else:
         raise ValueError(
@@ -354,6 +380,7 @@ def _split_central_observation_for_cnn(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
     critic_architecture: str = "resnet_cnn",
 ) -> tuple[jax.Array, jax.Array, tuple[int, ...]]:
     leading_shape = central_obs.shape[:-1]
@@ -363,6 +390,7 @@ def _split_central_observation_for_cnn(
         num_ants=num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        extra_entity_dim=extra_entity_dim,
     )
     if int(central_obs.shape[-1]) != expected_dim:
         raise ValueError(
@@ -423,6 +451,7 @@ def _split_central_observation_for_structured_mlp(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
 ) -> tuple[jax.Array, jax.Array, tuple[int, ...]]:
     leading_shape = central_obs.shape[:-1]
     flat = central_obs.reshape((-1, central_obs.shape[-1]))
@@ -431,6 +460,7 @@ def _split_central_observation_for_structured_mlp(
         num_ants=num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        extra_entity_dim=extra_entity_dim,
     )
     if int(central_obs.shape[-1]) != expected_dim:
         raise ValueError(
@@ -467,12 +497,14 @@ def _forward_resnet_cnn_critic(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
 ) -> jax.Array:
     spatial, entity, leading_shape = _split_central_observation_for_cnn(
         central_obs,
         num_ants=num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        extra_entity_dim=extra_entity_dim,
     )
     hidden = _activation(_conv2d(critic_body.stem, spatial))
     for block in critic_body.blocks_32:
@@ -512,12 +544,14 @@ def _forward_strided_cnn_critic(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
 ) -> jax.Array:
     spatial, entity, leading_shape = _split_central_observation_for_cnn(
         central_obs,
         num_ants=num_ants,
         obs_height=obs_height,
         obs_width=obs_width,
+        extra_entity_dim=extra_entity_dim,
         critic_architecture="strided_cnn",
     )
     hidden = _activation(_conv2d(critic_body.conv_5x5, spatial, stride=2))
@@ -543,6 +577,7 @@ def _forward_structured_mlp_critic(
     num_ants: int,
     obs_height: int,
     obs_width: int,
+    extra_entity_dim: int = 4,
 ) -> jax.Array:
     grid_features, entity_features, leading_shape = (
         _split_central_observation_for_structured_mlp(
@@ -550,6 +585,7 @@ def _forward_structured_mlp_critic(
             num_ants=num_ants,
             obs_height=obs_height,
             obs_width=obs_width,
+            extra_entity_dim=extra_entity_dim,
         )
     )
     grid_embedding = _forward_body(critic_body.grid_body, grid_features)
@@ -571,9 +607,10 @@ def critic_forward_kwargs_from_args(args: argparse.Namespace) -> dict[str, int |
         )
     return {
         "critic_architecture": architecture,
-        "critic_num_ants": int(args.num_ants),
+        "critic_num_ants": int(getattr(args, "critic_num_ants", args.num_ants)),
         "critic_obs_height": int(args.obs_height or args.height),
         "critic_obs_width": int(args.obs_width or args.width),
+        "critic_extra_entity_dim": int(getattr(args, "critic_extra_entity_dim", 4)),
     }
 
 
@@ -593,6 +630,7 @@ def get_value(
     critic_num_ants: int | None = None,
     critic_obs_height: int | None = None,
     critic_obs_width: int | None = None,
+    critic_extra_entity_dim: int = 4,
 ) -> jax.Array:
     architecture = str(critic_architecture)
     if architecture == "mlp":
@@ -606,6 +644,7 @@ def get_value(
             num_ants=_require_cnn_critic_field("critic_num_ants", critic_num_ants),
             obs_height=_require_cnn_critic_field("critic_obs_height", critic_obs_height),
             obs_width=_require_cnn_critic_field("critic_obs_width", critic_obs_width),
+            extra_entity_dim=critic_extra_entity_dim,
         )
     if architecture == "strided_cnn":
         return _forward_strided_cnn_critic(
@@ -627,6 +666,7 @@ def get_value(
                 critic_obs_width,
                 critic_architecture="strided_cnn",
             ),
+            extra_entity_dim=critic_extra_entity_dim,
         )
     if architecture == "structured_mlp":
         return _forward_structured_mlp_critic(
@@ -645,9 +685,9 @@ def get_value(
                 "critic_obs_width",
                 critic_obs_width,
             ),
+            extra_entity_dim=critic_extra_entity_dim,
         )
     raise ValueError(
         "critic_architecture must be 'mlp', 'structured_mlp', 'strided_cnn', "
         "or 'resnet_cnn'."
     )
-

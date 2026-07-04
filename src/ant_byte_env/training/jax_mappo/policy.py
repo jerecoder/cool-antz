@@ -41,6 +41,7 @@ def evaluate_actions(
     critic_num_ants: int | None = None,
     critic_obs_height: int | None = None,
     critic_obs_width: int | None = None,
+    critic_extra_entity_dim: int = 4,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     move_logits, write_logits = get_action_logits(params, actor_obs)
     move_logits = _logits_for_policy_temperature(
@@ -61,6 +62,7 @@ def evaluate_actions(
         critic_num_ants=critic_num_ants,
         critic_obs_height=critic_obs_height,
         critic_obs_width=critic_obs_width,
+        critic_extra_entity_dim=critic_extra_entity_dim,
     )
     return logprob, entropy, value
 
@@ -77,6 +79,7 @@ def get_action_and_value(
     critic_num_ants: int | None = None,
     critic_obs_height: int | None = None,
     critic_obs_width: int | None = None,
+    critic_extra_entity_dim: int = 4,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     move_logits, write_logits = get_action_logits(params, actor_obs)
     move_logits = _logits_for_policy_temperature(
@@ -105,6 +108,6 @@ def get_action_and_value(
         critic_num_ants=critic_num_ants,
         critic_obs_height=critic_obs_height,
         critic_obs_width=critic_obs_width,
+        critic_extra_entity_dim=critic_extra_entity_dim,
     )
     return actions, logprob, entropy, value
-
