@@ -648,6 +648,8 @@ figcaption {
   aspect-ratio: 1 / 1;
   border: 1px solid var(--line-strong);
   background: #d7cfb5;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .policy-viewer h3 {
@@ -774,7 +776,7 @@ figcaption {
 }
 
 .runner-tabs {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .runner-controls {
@@ -1095,7 +1097,7 @@ li + li {
   }
 
   .runner-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .policy-tabs button {

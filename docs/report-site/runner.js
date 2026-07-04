@@ -15,6 +15,7 @@
     remaining: document.querySelector("#runner-remaining"),
     carrying: document.querySelector("#runner-carrying"),
     bytes: document.querySelector("#runner-bytes"),
+    obstacles: document.querySelector("#runner-obstacles"),
     sources: document.querySelector("#runner-sources"),
     status: document.querySelector("#runner-status"),
   };
@@ -55,6 +56,7 @@
     placement: {
       hub: "Hormiguero",
       food: "Cookie +1",
+      obstacle: "Pared",
       erase: "Borrar",
     },
     actionModes: {
@@ -89,6 +91,7 @@
       hub: "#5b4e9c",
       food: "#e8b44e",
       ant: "#a8452e",
+      obstacle: "#46515a",
       carryingOuter: "#bc702d",
       carryingInner: "#efa752",
       useTileSprite: true,
@@ -104,6 +107,7 @@
       hub: "#466b73",
       food: "#c9912e",
       ant: "#7c3529",
+      obstacle: "#5d625f",
       carryingOuter: "#a46d2d",
       carryingInner: "#e7bd68",
       useTileSprite: false,
@@ -119,6 +123,7 @@
       hub: "#9a8cff",
       food: "#f6c85f",
       ant: "#e4674f",
+      obstacle: "#6f7a86",
       carryingOuter: "#d58b42",
       carryingInner: "#ffd37a",
       useTileSprite: false,
@@ -134,6 +139,7 @@
       hub: "#2f3a8f",
       food: "#d89b00",
       ant: "#b62222",
+      obstacle: "#2d3439",
       carryingOuter: "#8f5a00",
       carryingInner: "#ffca45",
       useTileSprite: false,
@@ -144,11 +150,16 @@
   let running = false;
   let placementMode = "food";
   let hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
+  let obstacleLayout = makeGrid(0);
+  let obstacleKeys = new Set();
   let foodSources = buildDefaultFoodSources();
   let foodAmounts = distributeFoodAmounts(foodSources, env.food_count);
   let rngState = 0x5eed1234;
   let animationFrame = 0;
   let canvasCssSize = 0;
+  let activePointerId = null;
+  let lastPaintedKey = null;
+  let obstaclePaintValue = 1;
   const sprites = {};
 
   function copyPosition(position) {
@@ -160,9 +171,8 @@
     return Math.max(min, Math.min(max, parsed));
   }
 
-  function maxSourceCountFor(gridSize) {
-    const usableCells = Math.max(1, gridSize * gridSize - 1);
-    return Math.max(0, usableCells);
+  function maxSourceCountFor(gridSize, blockedCells = 0) {
+    return Math.max(0, gridSize * gridSize - 1 - blockedCells);
   }
 
   function readIntegerControl(control, limits, fallback, maxOverride = limits.max) {
@@ -183,7 +193,7 @@
   }
 
   function syncConfigControls() {
-    const sourceMax = maxSourceCountFor(env.width);
+    const sourceMax = maxSourceCountFor(env.width, obstacleKeys.size);
     writeIntegerControl(configControls.gridSize, env.width, null);
     writeIntegerControl(configControls.antCount, env.num_ants);
     writeIntegerControl(configControls.foodCount, env.food_count);
@@ -291,6 +301,7 @@
     if (samePosition(position, hub)) {
       return;
     }
+    removeObstacleAt(position);
     const source = copyPosition(position);
     const key = positionKey(source);
     if (!foodSources.some((candidate) => samePosition(candidate, source))) {
@@ -305,6 +316,16 @@
     foodAmounts.delete(key);
     foodSources = foodSources.filter((source) => !samePosition(source, position));
     syncFoodLayoutFromAmounts();
+  }
+
+  function setObstaclePlacement(position, blocked) {
+    if (blocked && samePosition(position, hub)) {
+      return;
+    }
+    if (blocked) {
+      removeFoodAt(position);
+    }
+    setObstacleAt(position, blocked);
   }
 
   function updateSandboxTitle() {
@@ -355,10 +376,12 @@
 
     if (previousWidth !== env.width || previousHeight !== env.height) {
       hub = scalePosition(hub, previousWidth, previousHeight, env.width, env.height);
+      scaleObstacleLayout(previousWidth, previousHeight, env.width, env.height);
       foodSources = foodSources.map((source) =>
         scalePosition(source, previousWidth, previousHeight, env.width, env.height),
       );
     }
+    removeObstacleAt(hub);
     setDistributedFoodLayout(completeFoodSources(foodSources), foodCount);
     syncConfigControls();
     resetRun();
@@ -384,6 +407,61 @@
     return `${position[0]},${position[1]}`;
   }
 
+  function positionFromKey(key) {
+    return key.split(",").map(Number);
+  }
+
+  function isLayoutObstacle(position) {
+    const [x, y] = position;
+    return inBounds(x, y) && obstacleLayout[y][x] > 0;
+  }
+
+  function isStateObstacle(position) {
+    const [x, y] = position;
+    return state && inBounds(x, y) && state.obstacles[y][x] > 0;
+  }
+
+  function setObstacleAt(position, blocked) {
+    const [x, y] = copyPosition(position);
+    if (!inBounds(x, y)) {
+      return;
+    }
+    const key = positionKey([x, y]);
+    const shouldBlock = Boolean(blocked) && !samePosition([x, y], hub);
+    obstacleLayout[y][x] = shouldBlock ? 1 : 0;
+    if (shouldBlock) {
+      obstacleKeys.add(key);
+    } else {
+      obstacleKeys.delete(key);
+    }
+  }
+
+  function removeObstacleAt(position) {
+    setObstacleAt(position, false);
+  }
+
+  function obstaclePositions() {
+    return Array.from(obstacleKeys, positionFromKey);
+  }
+
+  function rebuildObstacleLayout(positions) {
+    obstacleLayout = makeGrid(0);
+    obstacleKeys = new Set();
+    positions.forEach((position) => setObstacleAt(position, true));
+  }
+
+  function scaleObstacleLayout(fromWidth, fromHeight, toWidth, toHeight) {
+    const scaled = obstaclePositions().map((position) =>
+      scalePosition(position, fromWidth, fromHeight, toWidth, toHeight),
+    );
+    rebuildObstacleLayout(scaled);
+    removeObstacleAt(hub);
+  }
+
+  function obstacleCount() {
+    return obstacleKeys.size;
+  }
+
   function uniqueSources(sources, limit = Infinity) {
     const seen = new Set();
     const result = [];
@@ -395,7 +473,7 @@
       const y = Math.max(0, Math.min(env.height - 1, Math.round(position[1])));
       const clean = [x, y];
       const key = positionKey(clean);
-      if (!samePosition(clean, hub) && !seen.has(key)) {
+      if (!samePosition(clean, hub) && !isLayoutObstacle(clean) && !seen.has(key)) {
         seen.add(key);
         result.push(clean);
       }
@@ -424,6 +502,8 @@
       hub: copyPosition(hub),
       food,
       initialFood: cloneGrid(food),
+      obstacles: cloneGrid(obstacleLayout),
+      obstacleKeys: new Set(obstacleKeys),
       bytes: makeGrid(0),
       writtenKeys: new Set(),
       ants: Array.from({ length: env.num_ants }, () => copyPosition(hub)),
@@ -441,6 +521,7 @@
   function resetLayout() {
     setRunning(false);
     hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
+    rebuildObstacleLayout([]);
     setDistributedFoodLayout(buildDefaultFoodSources(), env.food_count);
     syncConfigControls();
     resetRun();
@@ -620,7 +701,9 @@
         (x, y) => (x === state.hub[0] && y === state.hub[1] ? 1 : 0),
       ),
     );
-    values.push(...legacyLocalPatch(position, () => 0, 1));
+    values.push(
+      ...legacyLocalPatch(position, (x, y) => (gridValue(state.obstacles, x, y) ? 1 : 0), 1),
+    );
     values.push(state.carrying[antIndex] ? 1 : 0);
     return values;
   }
@@ -651,7 +734,9 @@
         (x, y) => (x === state.hub[0] && y === state.hub[1] ? 1 : 0),
       ),
     );
-    values.push(...localPatch(position, facing, () => 0, 1));
+    values.push(
+      ...localPatch(position, facing, (x, y) => (gridValue(state.obstacles, x, y) ? 1 : 0), 1),
+    );
     values.push(...identityFeatures(antIndex));
     values.push(state.carrying[antIndex] ? 1 : 0);
     values.push(...facingOneHot(facing));
@@ -688,10 +773,11 @@
     if (action === ACTION_STAY) {
       return copyPosition(position);
     }
-    return [
+    const next = [
       Math.max(0, Math.min(env.width - 1, position[0] + dx)),
       Math.max(0, Math.min(env.height - 1, position[1] + dy)),
     ];
+    return isStateObstacle(next) ? copyPosition(position) : next;
   }
 
   function updateFacing(currentFacing, move) {
@@ -788,6 +874,7 @@
     metrics.remaining.textContent = `${remainingFood()}`;
     metrics.carrying.textContent = `${carryingCount()} / ${env.num_ants}`;
     metrics.bytes.textContent = `${nonzeroBytes()} ${uiText.tiles}`;
+    metrics.obstacles.textContent = `${obstacleCount()} ${uiText.tiles}`;
     metrics.sources.textContent = `${foodSourceCount()} posiciones`;
     if (remainingFood() <= 0) {
       setStatus(uiText.statuses.complete);
@@ -886,6 +973,22 @@
     }
   }
 
+  function drawObstacleCell(x, y, cell, palette, largeMap) {
+    const px = x * cell;
+    const py = y * cell;
+    const inset = largeMap ? 0 : Math.max(0.5, cell * 0.08);
+    ctx.fillStyle = palette.obstacle;
+    ctx.fillRect(px + inset, py + inset, Math.max(1, cell - inset * 2), Math.max(1, cell - inset * 2));
+    if (!largeMap && cell >= 10) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.lineWidth = Math.max(1, cell * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(px + cell * 0.22, py + cell * 0.74);
+      ctx.lineTo(px + cell * 0.78, py + cell * 0.26);
+      ctx.stroke();
+    }
+  }
+
   function drawMarker(name, x, y, cell, palette, alpha = 1, rotation = 0) {
     const px = x * cell + cell / 2;
     const py = y * cell + cell / 2;
@@ -943,6 +1046,9 @@
             ctx.drawImage(sprites.tile, x * cell, y * cell, cell, cell);
           }
           drawByteCell(x, y, state.bytes[y][x], cell, palette, false);
+          if (state.obstacles[y][x] > 0) {
+            drawObstacleCell(x, y, cell, palette, false);
+          }
         }
       }
     } else {
@@ -950,6 +1056,12 @@
         const [x, y] = key.split(",").map(Number);
         if (inBounds(x, y)) {
           drawByteCell(x, y, state.bytes[y][x], cell, palette, true);
+        }
+      });
+      state.obstacleKeys.forEach((key) => {
+        const [x, y] = positionFromKey(key);
+        if (inBounds(x, y)) {
+          drawObstacleCell(x, y, cell, palette, true);
         }
       });
     }
@@ -1022,18 +1134,71 @@
     return [Math.max(0, Math.min(env.width - 1, x)), Math.max(0, Math.min(env.height - 1, y))];
   }
 
-  function applyPlacement(position) {
+  function applyPlacement(position, options = {}) {
     setRunning(false);
     if (placementMode === "hub") {
       hub = copyPosition(position);
+      removeObstacleAt(hub);
       removeFoodAt(hub);
     } else if (placementMode === "food") {
       addFoodAt(position);
+    } else if (placementMode === "obstacle") {
+      const blocked = options.obstacleValue ?? !isLayoutObstacle(position);
+      setObstaclePlacement(position, blocked);
     } else if (placementMode === "erase") {
       removeFoodAt(position);
+      removeObstacleAt(position);
     }
     syncConfigControls();
     resetRun();
+  }
+
+  function beginPlacement(event) {
+    event.preventDefault();
+    const position = cellFromEvent(event);
+    activePointerId = event.pointerId;
+    lastPaintedKey = positionKey(position);
+    if (placementMode === "obstacle") {
+      obstaclePaintValue = isLayoutObstacle(position) ? 0 : 1;
+      applyPlacement(position, { obstacleValue: obstaclePaintValue });
+    } else {
+      applyPlacement(position);
+    }
+    if (canvas.setPointerCapture) {
+      canvas.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function continuePlacement(event) {
+    if (event.pointerId !== activePointerId) {
+      return;
+    }
+    if (placementMode !== "obstacle" && placementMode !== "erase") {
+      return;
+    }
+    event.preventDefault();
+    const position = cellFromEvent(event);
+    const key = positionKey(position);
+    if (key === lastPaintedKey) {
+      return;
+    }
+    lastPaintedKey = key;
+    if (placementMode === "obstacle") {
+      applyPlacement(position, { obstacleValue: obstaclePaintValue });
+    } else {
+      applyPlacement(position);
+    }
+  }
+
+  function endPlacement(event) {
+    if (event.pointerId !== activePointerId) {
+      return;
+    }
+    if (canvas.releasePointerCapture) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    activePointerId = null;
+    lastPaintedKey = null;
   }
 
   function setPlacementMode(mode) {
@@ -1100,6 +1265,7 @@
     setDefinitionLabel("#runner-remaining", "restante");
     setDefinitionLabel("#runner-carrying", "transportando");
     setDefinitionLabel("#runner-bytes", "bytes no cero");
+    setDefinitionLabel("#runner-obstacles", "paredes");
     setDefinitionLabel("#runner-sources", "fuentes de comida");
     setDefinitionLabel("#runner-status", "estado");
     const placementTabs = document.querySelector(".policy-tabs.runner-tabs");
@@ -1144,7 +1310,10 @@
   modeButtons.forEach((button) => {
     button.addEventListener("click", () => setPlacementMode(button.dataset.placeMode));
   });
-  canvas.addEventListener("click", (event) => applyPlacement(cellFromEvent(event)));
+  canvas.addEventListener("pointerdown", beginPlacement);
+  canvas.addEventListener("pointermove", continuePlacement);
+  canvas.addEventListener("pointerup", endPlacement);
+  canvas.addEventListener("pointercancel", endPlacement);
   runButton.addEventListener("click", () => setRunning(!running));
   stepButton.addEventListener("click", () => {
     setRunning(false);

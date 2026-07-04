@@ -2197,8 +2197,8 @@
               Este sandbox usa los pesos exportados del actor del punto guardado
               entrenado para 50x50. Podés cambiar el tamaño de la grilla, la
               cantidad de hormigas, la comida total y cuántas posiciones tienen
-              cookies; después podés mover el hormiguero y las fuentes, y correr
-              la política en el navegador.
+              cookies; después podés mover el hormiguero, las fuentes y las
+              paredes, y correr la política en el navegador.
             </p>
           </div>
         </div>
@@ -2231,6 +2231,7 @@
               <div class="policy-tabs runner-tabs" role="tablist" aria-label="Modo de ubicación">
                 <button type="button" data-place-mode="hub">Hormiguero</button>
                 <button type="button" class="active" data-place-mode="food">Cookie +1</button>
+                <button type="button" data-place-mode="obstacle">Pared</button>
                 <button type="button" data-place-mode="erase">Borrar</button>
               </div>
             </div>
@@ -2292,6 +2293,8 @@
               <dd id="runner-carrying">0 / 60</dd>
               <dt>bytes no nulos</dt>
               <dd id="runner-bytes">0 celdas</dd>
+              <dt>paredes</dt>
+              <dd id="runner-obstacles">0 celdas</dd>
               <dt>fuentes</dt>
               <dd id="runner-sources">2 / 2</dd>
               <dt>estado</dt>
