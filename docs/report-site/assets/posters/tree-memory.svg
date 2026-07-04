@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img" aria-label="Esquema de memoria externa con ablations">
+  <rect width="320" height="220" fill="#f3efe5"/>
+  <g transform="translate(34 32)">
+    <rect width="252" height="156" fill="#fffdf8" stroke="#d8ceb9" stroke-width="3"/>
+    <g fill="#d9c8a9">
+      <rect x="0" y="31" width="252" height="2"/>
+      <rect x="0" y="62" width="252" height="2"/>
+      <rect x="0" y="93" width="252" height="2"/>
+      <rect x="0" y="124" width="252" height="2"/>
+      <rect x="42" y="0" width="2" height="156"/>
+      <rect x="84" y="0" width="2" height="156"/>
+      <rect x="126" y="0" width="2" height="156"/>
+      <rect x="168" y="0" width="2" height="156"/>
+      <rect x="210" y="0" width="2" height="156"/>
+    </g>
+    <rect x="50" y="38" width="28" height="18" fill="#3566a8"/>
+    <rect x="92" y="38" width="28" height="18" fill="#3566a8"/>
+    <rect x="134" y="69" width="28" height="18" fill="#3566a8"/>
+    <rect x="176" y="69" width="28" height="18" fill="#3566a8"/>
+    <rect x="50" y="100" width="28" height="18" fill="#8d3f2f"/>
+    <rect x="92" y="100" width="28" height="18" fill="#8d3f2f"/>
+    <path d="M42 142 H210" stroke="#314551" stroke-width="7" stroke-linecap="round"/>
+    <path d="M214 132 l18 10 -18 10" fill="none" stroke="#314551" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

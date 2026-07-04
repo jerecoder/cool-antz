@@ -11,8 +11,24 @@ and audit while preserving reproductive experiment behavior.
 | `origin/main` | Current best-organized base. It already contains grouped notebooks, experiment JSON files, workflow modules, runtime resource checks, curated results, and the archived forage autoresearch report. | Use as the base for integration. |
 | `research/direct-goal-repro-sweep` | Older direct-goal/autoresearch line with flat notebook names, direct-goal sweep artifacts, and the original gated map-ant MLP curriculum. | Selectively port durable artifacts only. The gated map-ant MLP curriculum is preserved as a documented historical experiment; do not merge wholesale because this branch would remove newer workflow and notebook organization. |
 | `autoresearch/map-ant-12x12-conv-critic` | Failed/new-critic map-ant autoresearch line. It includes useful evidence and some diagnostics, but did not produce a solved curriculum. | Preserve as branch evidence. Do not make its autoresearch loop a mainline workflow. Keep the maintained map-growth and ant-scaling experiments in `experiments/` and `notebooks/`; port only isolated, tested utilities if they improve those workflows without changing the environment or actor information surface. |
-| `origin/vision_shrink_curriculum` | Vision-range curriculum experiment branch. | Treat as optional experiment lineage. Port only as a documented config/notebook if later desired; do not change default actor vision or baseline semantics. |
+| `origin/vision_shrink_curriculum` | Vision-range curriculum experiment branch. | Ported as exploratory configs plus a grouped notebook. It remains deferred evidence; do not change default actor vision or baseline semantics. |
 | local `main` | Old local main behind `origin/main`. | Ignore for integration. |
+
+## Integration Head Ledger
+
+These refs were fetched before the final integration pass on
+`repo/research-integration-cleanup`.
+
+| Ref | Head used | Imported surface |
+| --- | --- | --- |
+| `origin/report-writing-site` | `bd1f6ee` | Report evidence ledgers, `report/`, `docs/report-site/`, `docs/index.html`, 60-ant 50x50, 100x100/report assets, and 250x250 distance diagnostics. |
+| `origin/research/timed-release-roles` | `38cf3d8` | Timed-release roles workflow, config, notebook, docs, and tests. |
+| `origin/feat/multi-device-jax-mappo` | `83d54e7` | Data-parallel helper/configs and write-cost multiplier sweep configs. |
+| `origin/vision_shrink_curriculum` | `b955a6f` | Exploratory vision-shrink configs and notebook. |
+| `origin/lethal_cookies` | `58ea666` | Lethal-cookie geometry config/notebooks and JAX env support. |
+| `research/adversarial-marl-experiments` | `4aad30d` | Frozen-opponent adversarial workflow, configs, notebooks, docs, and tests. |
+| `research/direct-goal-repro-sweep` | `5ccced7` | Historical gated map-ant workflow evidence and direct-goal/map-ant docs. |
+| `autoresearch/map-ant-12x12-conv-critic` | `cc7c499` | 12x12 conv-critic/autoresearch evidence docs and sweep scripts only. |
 
 ## Guardrails
 
@@ -29,7 +45,9 @@ and audit while preserving reproductive experiment behavior.
 - `.vscode/` is ignored so editor state does not pollute branch status.
 - `autoresearch/REPORT.md` is the durable historical evidence for the forage autoresearch loop; long autoresearch matrices are archival, not the primary user-facing workflow.
 - `experiments/*.json` and grouped notebooks are the canonical reproduction surfaces.
-- One-off continuation launchers were removed from `scripts/`; committed experiment JSON files and notebooks are the reproduction surface.
+- Committed experiment JSON files and notebooks are the reproduction surface.
+  Small scripts may remain for report assets, checkpoint transfer, or one-shot
+  audits when they are cited by docs; raw generated payloads stay ignored.
 
 ## Next Integration Decisions
 
@@ -41,9 +59,8 @@ and audit while preserving reproductive experiment behavior.
    50x50 result.
 3. Keep the failed `autoresearch/map-ant-12x12-conv-critic` branch as evidence
    unless one isolated utility is worth porting.
-4. Continue MAPPO cleanup by moving real ownership boundaries, then remove old
-   import shells once notebooks/tests have migrated. Do not add compatibility
-   files that exist only to hide obsolete organization.
+4. Keep `training/jax_mappo/core.py` as a compatibility facade while the owned
+   modules remain the primary implementation surface.
 
 ## MAPPO Organization Finding
 
