@@ -1,0 +1,14 @@
+ref	kind	commit	full_hash	date	family	ahead_of_head	behind_head	merged_into_head	subject
+feat/multi-device-jax-mappo	local	6879fa4	6879fa4fc37f5e4307f6c33272840676eb697377	2026-06-28 14:56:53 -0300	jax-mappo-training-core	18	53	no	perf: skip nearest-open scan for empty arenas
+main	local	5b27fd2	5b27fd26abc73332802b7bee065af0f6fbae380b	2026-07-03 17:41:06 -0300	bigmap-deployment-rendering	0	31	yes	feat: add bigmap palette rerender helper
+report-writing-site	local	21d3cdf	21d3cdfb6b9fbb0b01227845701a59be94129bd2	2026-07-04 16:21:50 -0300	report-site-paper-assets	0	0	yes	docs: sync Spanish report with site story
+train-half-scale-resnet	local	3c0eac2	3c0eac25b30b3ca02e1606d7828b40088e4c7f31	2026-06-28 16:19:53 -0300	twofifty-frontier-reset	19	53	no	feat: add half-scale resnet training launch
+origin/HEAD	remote	a6ba235	a6ba23530c5c618220e95ae8f451aabb6b21b957	2026-07-01 11:36:13 -0300	critic-full-layout-50x50	0	52	yes	feat: add 8-bit shared-write continuation
+origin/feat/multi-device-jax-mappo	remote	83d54e7	83d54e7aad75af574e313778dc46bd1d93b3eafa	2026-06-26 18:34:48 -0300	jax-mappo-training-core	15	53	no	feat: add x150 write cost experiment
+origin/lethal_cookies	remote	58ea666	58ea66654aad7fb0cabdadfc40e4690e38ead1df	2026-07-01 11:47:24 -0300	hundred-bridge-maze-stress	2	56	no	modified:   experiments/exploration_to_forage_proximity_sources_50x50.json  new file:   notebooks/source_layouts/proximity_sources_50x50 cookie radius.ipynb  new file:   notebooks/source_layouts/proximity_sources_50x50 maze.ipynb  deleted:    notebooks/source_layouts/proximity_sources_50x50.ipynb  modified:   src/ant_byte_env/training/jax_mappo/transfer.py  modified:   tests/test_train_mappo_jax.py
+origin/main	remote	a6ba235	a6ba23530c5c618220e95ae8f451aabb6b21b957	2026-07-01 11:36:13 -0300	critic-full-layout-50x50	0	52	yes	feat: add 8-bit shared-write continuation
+origin/repo/research-integration-cleanup	remote	c241433	c2414332fd31b8fab99d9eb45a30a8b85e6bc2ef	2026-06-25 14:59:03 -0300	jax-mappo-training-core	7	56	no	test: skip torch mappo tests without torchrl extras
+origin/report-writing-site	remote	21d3cdf	21d3cdfb6b9fbb0b01227845701a59be94129bd2	2026-07-04 16:21:50 -0300	report-site-paper-assets	0	0	yes	docs: sync Spanish report with site story
+origin/research/adversarial-marl-experiments	remote	4aad30d	4aad30da3a4f984b6ec0993fd1a46e158adc686c	2026-07-02 18:03:10 -0300	adversarial-roles-side-branches	16	56	no	Document adversarial frozen-opponent experiments
+origin/research/timed-release-roles	remote	61f6647	61f6647548550a25833a9f3d739f9b895b6c5e45	2026-07-04 19:08:21 +0000	adversarial-roles-side-branches	11	56	no	Park tuned timed-release continuation
+origin/vision_shrink_curriculum	remote	b955a6f	b955a6f2c98567ee0acd5214b899e1b76ebe0eff	2026-06-24 22:51:52 -0300	ant-count-25x25-autoresearch	3	182	no	fix: update vision range parameters and execution counts in curriculum notebook
