@@ -1,123 +1,126 @@
 (() => {
   const policies = {
     frontier50: {
-      title: "50x50 frontier policy",
+      label: "50x50",
+      title: "Política frontera 50x50",
       src: "report-site/assets/videos/frontier-50x50.mp4",
       caption:
-        "60-ant 50x50 checkpoint rendered as an 800x800 sprite MP4 from the actual policy.",
+        "Checkpoint 50x50 de 60 hormigas renderizado como MP4 de sprites 800x800 desde la política real.",
       metrics: [
-        ["task grid", "50x50"],
-        ["encoded frame", "800x800"],
-        ["ants", "60"],
-        ["food", "125 bites / 2 sources"],
+        ["grilla de tarea", "50x50"],
+        ["video codificado", "800x800"],
+        ["hormigas", "60"],
+        ["comida", "125 bocados / 2 fuentes"],
         ["bits", "8"],
-        ["critic", "strided_cnn"],
-        ["delivered", "123.906 / 125"],
-        ["success", "0.906 over 64 eval episodes"],
-        ["action mode", "sampled move / greedy write"],
-        ["move temp", "0.525 render, 0.5 confirmation"],
-        ["write nonzero", "0.998"],
+        ["crítico", "strided_cnn"],
+        ["entregado", "123.906 / 125"],
+        ["éxito", "0.906 en 64 episodios de evaluación"],
+        ["modo de acción", "movimiento muestreado / escritura greedy"],
+        ["temp. movimiento", "0.525 render, 0.5 confirmación"],
+        ["escritura no cero", "0.998"],
       ],
       caveat:
-        "Strong behavior, but confounded by ant count, write bits, identity features, selected continuation, temperature, and saturated writes.",
+        "Comportamiento fuerte, pero mezclado con cantidad de hormigas, bits de escritura, rasgos de identidad, continuación seleccionada, temperatura y escrituras saturadas.",
     },
     unlock25: {
-      title: "25x25 ant-count curriculum rollout",
+      label: "25x25",
+      title: "Rollout 25x25 del currículum de cantidad de hormigas",
       src: "report-site/assets/videos/forage-25x25-4ants.mp4",
       caption:
-        "Four-ant, 3-bit rollout from the ant-count curriculum vault, rendered as an 800x800 MP4.",
+        "Rollout de cuatro hormigas y 3 bits desde el artefacto del currículum de cantidad de hormigas, renderizado como MP4 800x800.",
       metrics: [
-        ["task grid", "25x25"],
-        ["encoded frame", "800x800"],
-        ["ants", "4"],
-        ["food", "23 bites / 12 sources"],
+        ["grilla de tarea", "25x25"],
+        ["video codificado", "800x800"],
+        ["hormigas", "4"],
+        ["comida", "23 bocados / 12 fuentes"],
         ["bits", "3"],
         ["checkpoint", "ant_count_25x25_3_bits/4_ants"],
-        ["actor obs", "151 legacy features"],
-        ["critic", "MLP"],
-        ["train env return", "7.8125"],
-        ["train episode return", "12.545"],
+        ["obs. del actor", "151 rasgos legacy"],
+        ["crítico", "MLP"],
+        ["retorno del entorno en entrenamiento", "7.8125"],
+        ["retorno de episodio en entrenamiento", "12.545"],
       ],
       caveat:
-        "This video is the ant-count curriculum artifact. The DISTANCE_CAP4 23/23 result comes from separate local evaluation files with a 6-source task setup.",
+        "Este video es el artefacto del currículum de cantidad de hormigas. El resultado DISTANCE_CAP4 23/23 viene de archivos locales de evaluación separados con una tarea de 6 fuentes.",
     },
     bridge100: {
-      title: "1000x1000 bridge bigmap render",
+      label: "puente 100x100",
+      title: "Puente 100x100 en render 1000x1000",
       src: "report-site/assets/videos/bridge-100x100.mp4",
       caption:
-        "Actor-only bigmap rollout on a 1000x1000 simulation grid, encoded as a 1008x1008 MP4.",
+        "Rollout solo actor en una grilla de simulación 1000x1000, codificado como MP4 1008x1008.",
       metrics: [
-        ["render grid", "1000x1000"],
-        ["encoded frame", "1008x1008"],
-        ["active window", "250x250 inside [375, 624]"],
-        ["render ants", "500"],
-        ["render food", "5000 bites / 6 sources"],
-        ["checkpoint task", "100x100 hard375 continuation"],
-        ["eval setup", "120 ants, 375 food, 6 sources"],
-        ["critic", "set_cnn lineage"],
-        ["eval delivered", "372 / 375"],
-        ["eval success", "0.625 over 24 episodes"],
-        ["temperature", "move 0.525"],
-        ["eval rate", "0.803 delivered / 1000 ant-steps"],
+        ["grilla de render", "1000x1000"],
+        ["video codificado", "1008x1008"],
+        ["ventana activa", "250x250 dentro de [375, 624]"],
+        ["hormigas en render", "500"],
+        ["comida en render", "5000 bocados / 6 fuentes"],
+        ["tarea del checkpoint", "continuación hard375 100x100"],
+        ["configuración de evaluación", "120 hormigas, 375 comida, 6 fuentes"],
+        ["crítico", "linaje set_cnn"],
+        ["entregado en evaluación", "372 / 375"],
+        ["éxito en evaluación", "0.625 en 24 episodios"],
+        ["temperatura", "movimiento 0.525"],
+        ["tasa de evaluación", "0.803 entregas / 1000 pasos-hormiga"],
       ],
       caveat:
-        "The video geometry is 1000x1000 with 500 ants and 5000 food. The 100x100 label belongs only to the checkpoint lineage and evaluation task.",
+        "La geometría del video es 1000x1000 con 500 hormigas y 5000 comida. La etiqueta 100x100 pertenece al linaje del checkpoint y a la tarea de evaluación.",
     },
     reset250: {
-      title: "250x250 reset-boundary checkpoint",
+      label: "reset 250",
+      title: "Checkpoint reset-boundary 250x250",
       src: "report-site/assets/videos/reset-boundary-250x250.mp4",
       caption:
-        "Local reset-boundary checkpoint video from the fixed8 250x250 diagnostic branch, encoded as 1008x1008.",
+        "Video local del checkpoint reset-boundary de la rama diagnóstica fixed8 250x250, codificado como 1008x1008.",
       metrics: [
-        ["task grid", "250x250"],
-        ["encoded frame", "1008x1008"],
-        ["frames", "600 at 8 fps"],
-        ["ants", "500"],
-        ["food", "5000 bites / 1 source"],
-        ["checkpoint family", "fixed8-reset-boundary256"],
-        ["critic", "set_cnn"],
-        ["final deliveries", "654"],
-        ["final pickups", "869"],
-        ["best train delivery", "around 1003"],
-        ["diagnostic point", "raw delivery separated from shaped return"],
+        ["grilla de tarea", "250x250"],
+        ["video codificado", "1008x1008"],
+        ["fotogramas", "600 a 8 fps"],
+        ["hormigas", "500"],
+        ["comida", "5000 bocados / 1 fuente"],
+        ["familia del checkpoint", "fixed8-reset-boundary256"],
+        ["crítico", "set_cnn"],
+        ["entregas finales", "654"],
+        ["recogidas finales", "869"],
+        ["mejor entrega de entrenamiento", "alrededor de 1003"],
+        ["punto diagnóstico", "entrega cruda separada del retorno moldeado"],
       ],
       caveat:
-        "This branch shows real local delivery progress inside the reset/distance 250x250 setup.",
-    },
-    frontier250: {
-      title: "1000x1000 half-scale bigmap render",
-      src: "report-site/assets/videos/frontier-250x250.mp4",
-      caption:
-        "Actor-only bigmap rollout from the half-scale branch on a 1000x1000 simulation grid, encoded as 1008x1008.",
-      metrics: [
-        ["render grid", "1000x1000"],
-        ["encoded frame", "1008x1008"],
-        ["active window", "250x250 inside [375, 624]"],
-        ["render ants", "500"],
-        ["render food", "5000 bites / 1 source"],
-        ["checkpoint", "best_training_delivery.pkl"],
-        ["actor obs", "705"],
-        ["bits", "4"],
-        ["critic", "set_cnn branch"],
-        ["checkpoint metric", "685.0 best training delivery"],
-        ["render move temp", "0.9"],
-      ],
-      caveat:
-        "250x250 remains diagnostic: raw delivery matters more than shaped return or byte activity.",
+        "Esta rama muestra progreso local real de entrega dentro de la configuración reset/distancia 250x250.",
     },
     random: {
-      title: "Random baseline rollout",
+      label: "azar",
+      title: "Rollout línea base aleatoria",
       src: "report-site/assets/videos/random-rollout.mp4",
       caption:
-        "Early random-policy baseline, encoded as a 576x576 MP4 with 301 frames at 12 fps.",
+        "Línea base temprana de política aleatoria, codificada como MP4 576x576 con 301 fotogramas a 12 fps.",
       metrics: [
-        ["encoded frame", "576x576"],
-        ["frames", "301 at 12 fps"],
-        ["purpose", "behavior baseline"],
-        ["result meaning", "motion matters when it creates delivery loops"],
+        ["video codificado", "576x576"],
+        ["fotogramas", "301 a 12 fps"],
+        ["propósito", "línea base de comportamiento"],
+        ["lectura del resultado", "el movimiento importa cuando crea bucles de entrega"],
       ],
       caveat:
-        "This baseline visual anchor shows the task before training enters the story.",
+        "Este ancla visual de línea base muestra la tarea antes de que el entrenamiento entre en la historia.",
+    },
+    bigmap50: {
+      label: "1000 50x50",
+      title: "Política 50x50 en render 1000x1000",
+      src: "report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4",
+      caption:
+        "Política 50x50 renderizada en una grilla de simulación 1000x1000, codificada como MP4 1008x1008.",
+      metrics: [
+        ["grilla de render", "1000x1000"],
+        ["video codificado", "1008x1008"],
+        ["fotogramas", "8109 a 160 fps"],
+        ["política fuente", "frontera 50x50"],
+        ["hormigas en render", "500"],
+        ["comida en render", "5000 bocados"],
+        ["primera entrega", "paso 14574"],
+        ["entregado", "147 al paso 120000"],
+      ],
+      caveat:
+        "Despliegue solo actor: evidencia visual de transferencia de comportamiento, no entrenamiento de punta a punta en 1000x1000.",
     },
   };
 
@@ -161,6 +164,10 @@
   }
 
   buttons.forEach((button) => {
+    const policy = policies[button.dataset.policy];
+    if (policy && policy.label) {
+      button.textContent = policy.label;
+    }
     button.addEventListener("click", () => selectPolicy(button.dataset.policy));
   });
 

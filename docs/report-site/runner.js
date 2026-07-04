@@ -25,6 +25,31 @@
   const modeButtons = Array.from(document.querySelectorAll("[data-place-mode]"));
   const actionMode = document.querySelector("#runner-action-mode");
   const speedInput = document.querySelector("#runner-speed");
+  const uiText = {
+    run: "Ejecutar",
+    pause: "Pausar",
+    step: "Paso",
+    resetRun: "Reiniciar ejecución",
+    resetLayout: "Reiniciar mapa",
+    tiles: "celdas",
+    loading: "cargando",
+    statuses: {
+      complete: "completo",
+      maxSteps: "pasos máximos",
+      running: "en ejecución",
+      ready: "listo",
+    },
+    placement: {
+      hub: "Hormiguero",
+      food: "Comida",
+      erase: "Borrar",
+    },
+    actionModes: {
+      sampled_move_greedy_write: "movimiento muestreado / escritura greedy",
+      greedy_move_greedy_write: "movimiento greedy / escritura greedy",
+      sampled_move_sampled_write: "movimiento muestreado / escritura muestreada",
+    },
+  };
 
   const ACTION_STAY = 0;
   const ACTION_UP = 1;
@@ -153,7 +178,7 @@
 
   function setRunning(nextRunning) {
     running = nextRunning;
-    runButton.textContent = running ? "Pause" : "Run";
+    runButton.textContent = running ? uiText.pause : uiText.run;
     if (state) {
       updateMetrics();
     }
@@ -483,14 +508,14 @@
     metrics.delivered.textContent = `${state.delivered} / ${env.food_count}`;
     metrics.remaining.textContent = `${remainingFood()}`;
     metrics.carrying.textContent = `${carryingCount()} / ${env.num_ants}`;
-    metrics.bytes.textContent = `${nonzeroBytes()} tiles`;
+    metrics.bytes.textContent = `${nonzeroBytes()} ${uiText.tiles}`;
     metrics.sources.textContent = `${foodSourceCount()} / ${env.food_sources}`;
     if (remainingFood() <= 0) {
-      setStatus("complete");
+      setStatus(uiText.statuses.complete);
     } else if (state.step >= env.max_steps) {
-      setStatus("max steps");
+      setStatus(uiText.statuses.maxSteps);
     } else {
-      setStatus(running ? "running" : "ready");
+      setStatus(running ? uiText.statuses.running : uiText.statuses.ready);
     }
   }
 
@@ -656,6 +681,62 @@
     );
   }
 
+  function setText(selector, text) {
+    const element = document.querySelector(selector);
+    if (element) {
+      element.textContent = text;
+    }
+  }
+
+  function setDefinitionLabel(valueSelector, text) {
+    const value = document.querySelector(valueSelector);
+    const label = value ? value.previousElementSibling : null;
+    if (label && label.tagName === "DT") {
+      label.textContent = text;
+    }
+  }
+
+  function localizeUi() {
+    setText(".runner-panel h3", "50x50 / 60 hormigas / 8 bits");
+    setText(
+      ".runner-panel .caption",
+      "La entrada exportada del actor tiene 313 dimensiones: parche de comida orientado por dirección, parche de cantidad de hormigas, parches de bits de bytes, hormiguero, borde, rasgos de identidad repetidos, bandera de carga y dirección one-hot.",
+    );
+    setText(".control-label", "colocar");
+    setText("label[for='runner-action-mode']", "modo de acción");
+    setText("label[for='runner-speed']", "pasos por cuadro");
+    setDefinitionLabel("#runner-step", "paso");
+    setDefinitionLabel("#runner-delivered", "entregado");
+    setDefinitionLabel("#runner-remaining", "restante");
+    setDefinitionLabel("#runner-carrying", "transportando");
+    setDefinitionLabel("#runner-bytes", "bytes no cero");
+    setDefinitionLabel("#runner-sources", "fuentes de comida");
+    setDefinitionLabel("#runner-status", "estado");
+    canvas.setAttribute("aria-label", "Sandbox interactivo de la política de hormigas 50x50");
+    const placementTabs = document.querySelector(".policy-tabs.runner-tabs");
+    if (placementTabs) {
+      placementTabs.setAttribute("aria-label", "Modo de colocación");
+    }
+    modeButtons.forEach((button) => {
+      const label = uiText.placement[button.dataset.placeMode];
+      if (label) {
+        button.textContent = label;
+      }
+    });
+    Array.from(actionMode.options).forEach((option) => {
+      const label = uiText.actionModes[option.value];
+      if (label) {
+        option.textContent = label;
+      }
+    });
+    runButton.textContent = uiText.run;
+    stepButton.textContent = uiText.step;
+    resetRunButton.textContent = uiText.resetRun;
+    resetLayoutButton.textContent = uiText.resetLayout;
+    setStatus(uiText.loading);
+  }
+
+  localizeUi();
   modeButtons.forEach((button) => {
     button.addEventListener("click", () => setPlacementMode(button.dataset.placeMode));
   });
