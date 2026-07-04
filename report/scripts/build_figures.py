@@ -614,7 +614,7 @@ def figure_maze_layout() -> list[dict[str, Any]]:
     for spine in ax.spines.values():
         spine.set_color("#cdbd9d")
     savefig(fig, "fig_maze_layout")
-    export_web_image("fig_maze_layout", "tree-maze.jpg")
+    export_web_image("fig_maze_layout")
     return rows
 
 

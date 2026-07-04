@@ -1,0 +1,57 @@
+{
+  "source": "wandb",
+  "entity_project": "jerefigueiredo-universidad-de-san-andr-s/cool-antz",
+  "run_id": "8ebnjq9f",
+  "run_name": "maze_exploration_curriculum",
+  "run_state": "finished",
+  "created_at": "2026-06-19T22:50:58Z",
+  "video_key": "videos/maze_exploration/50x50",
+  "downloaded_video_file": "media/videos/videos/maze_exploration/50x50_157440000_44da2ca0eb6639edb092.mp4",
+  "stable_video": "docs/report-site/assets/videos/maze-exploration-50x50-trained-policy.mp4",
+  "policy_lineage": "maze_exploration_curriculum",
+  "policy_stage": "50x50",
+  "trained_for": "generated wide-corridor maze obstacles",
+  "training_config": {
+    "exp_name": "jax_mappo_maze_exploration",
+    "width": 50,
+    "height": 50,
+    "num_ants": 1,
+    "food_count": 48,
+    "food_sources": 12,
+    "write_bits": 2,
+    "actor_vision_radius": 1,
+    "reward_mode": "explore",
+    "maze_obstacles": true,
+    "maze_corridor_width": 3,
+    "maze_wall_width": 1,
+    "maze_seed": 17,
+    "random_food": true,
+    "random_hub": true,
+    "terminate_on_full_coverage": true,
+    "max_steps": 6250,
+    "stage_count": 41,
+    "stage_range": "10x10-50x50"
+  },
+  "wandb_summary_subset": {
+    "completed_episodes": 0,
+    "env_return": 0,
+    "episode_return": 26.125,
+    "final_mean_remaining_food": 45.5,
+    "food_count": 48,
+    "food_sources": 12,
+    "terminated_episodes": 0,
+    "truncated_episodes": 0,
+    "videos/maze_exploration/50x50": {
+      "_type": "video-file",
+      "path": "media/videos/videos/maze_exploration/50x50_157440000_44da2ca0eb6639edb092.mp4",
+      "sha256": "44da2ca0eb6639edb09261f778e37129ca9722cb922b459e4210a5d7a68bec94",
+      "size": 576719
+    }
+  },
+  "largest_local_checkpoint_artifact": {
+    "artifact": "jerefigueiredo-universidad-de-san-andr-s/cool-antz/jax-mappo-checkpoint:v33",
+    "stage": "24x24",
+    "stable_checkpoint": "docs/report-site/assets/data/wandb-maze-checkpoints/jax_mappo_maze_explore_24x24.pkl",
+    "note": "W&B model artifacts found in the checkpoint collection only up to 24x24; the 50x50 maze evidence is the W&B video from the finished curriculum run."
+  }
+}

@@ -991,13 +991,13 @@
         <div class="chapter-header">
           <span class="chapter-number">4b</span>
           <div>
-            <h2>Laberinto: una rama de infraestructura, no una rama de resultado</h2>
+            <h2>Laberinto: entrenamiento exploratorio, no forrajeo comparable</h2>
             <p>
               También hubo una línea de laberintos. Es importante incluirla
-              porque representa una decisión de diseño que no terminó como
-              entrenamiento exitoso. Para que no quede como diagrama, agregamos
-              además un despliegue real del mejor actor 50x50 de 60 hormigas
-              sobre un laberinto 50x50.
+              porque fue una decisión de diseño distinta: entrenar exploración
+              en pasillos con obstáculos. La evidencia visual de esta sección
+              viene del run de W&B <code>8ebnjq9f</code>, etapa 50x50 del
+              currículo <code>maze_exploration_curriculum</code>.
             </p>
           </div>
         </div>
@@ -1005,14 +1005,15 @@
         <div class="evidence-pair">
           <figure>
             <video controls preload="metadata" playsinline>
-              <source src="report-site/assets/videos/labyrinth-50x50-policy-60ants.mp4" type="video/mp4">
+              <source src="report-site/assets/videos/maze-exploration-50x50-trained-policy.mp4" type="video/mp4">
             </video>
             <figcaption>
-              <strong>Video / evidencia visual.</strong> Rollout nuevo con el
-              actor 50x50 de 60 hormigas sobre un laberinto 50x50 generado con
-              pasillos de ancho 3, paredes de ancho 1 y semilla 17. Es evidencia
-              real de despliegue: 2400 pasos, 125 cookies, 2 fuentes,
-              <code>0</code> entregas.
+              <strong>Video / evidencia visual.</strong> Rollout 50x50 del
+              currículo entrenado para laberintos: 1 hormiga, 48 comidas, 12
+              fuentes, 2 bits, radio 1, pasillos de ancho 3, paredes de ancho 1
+              y semilla 17. Es el video W&B
+              <code>videos/maze_exploration/50x50</code>, no una política abierta
+              reaprovechada.
             </figcaption>
           </figure>
           <div class="experiment-template">
@@ -1040,35 +1041,37 @@
               <h3>Qué medimos</h3>
               <p>
                 Para el flujo preservado se verificó soporte de obstáculos,
-                reinicios y renderizado. No hay métricas locales preservadas de
-                comida recolectada, supervivencia, eficiencia o convergencia que
-                permitan compararlo con las ramas principales. El despliegue
-                agregado en el sitio sí mide una prueba concreta: 60 hormigas,
-                125 cookies, 2 fuentes, 2400 pasos, <code>0</code> entregas,
-                187 celdas con bytes no cero y 188 celdas visitadas.
+                reinicios, renderizado y un run W&B completo de 10x10 a 50x50.
+                En la etapa 50x50 el summary final reporta
+                <code>episode_return=26.125</code>,
+                <code>final_mean_remaining_food=45.5/48</code> y
+                <code>completed_episodes=0</code>. Como el objetivo era
+                <code>reward_mode=explore</code>, estas cifras se leen como
+                exploración en laberinto, no como éxito de entrega.
               </p>
             </div>
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                El MP4 del sitio no viene de una política entrenada en laberinto:
-                usa el mismo checkpoint fuerte 50x50 de 60 hormigas del sandbox,
-                renderizado actor-only en el entorno con obstáculos. El cuaderno
-                de la rama lateral preparaba un render largo, pero la llamada de
-                entrenamiento estaba comentada y no hay archivo multimedia final
-                en <code>runs/</code>.
+                El MP4 fue descargado del run terminado
+                <code>8ebnjq9f</code> en W&B. La colección de modelos recuperable
+                preserva checkpoints de laberinto hasta 24x24; el video 50x50 es el
+                artefacto visual final del currículo entrenado. El cuaderno de la
+                rama lateral <code>origin/lethal_cookies</code> sí preparaba un
+                render 41x41 en L, pero esa celda de entrenamiento quedó
+                comentada.
               </p>
             </div>
             <div>
               <h3>Lectura de resultados</h3>
               <p>
-                El fallo fue de evidencia y foco experimental: la infraestructura
-                de laberintos existió, pero no produjo una corrida entrenada
-                comparable. El despliegue nuevo confirma que el mejor actor
-                50x50 abierto no transfiere automáticamente al laberinto:
-                escribe y explora una región, pero no cierra el ciclo de entrega.
-                La decisión razonable fue volver al forrajeo abierto, donde sí
-                había métricas, videos y checkpoints auditables.
+                Esta rama sí tuvo política entrenada para laberintos, pero el
+                contrato experimental era exploración y no forrajeo cooperativo.
+                Por eso no se debe comparar contra las ramas principales usando
+                comida entregada, supervivencia o eficiencia de entrega. La
+                conclusión metodológica es más precisa: la infraestructura de
+                obstáculos funcionó y produjo evidencia visual, pero no resolvió
+                la pregunta central del proyecto.
               </p>
             </div>
           </div>
@@ -1974,7 +1977,7 @@
               <button type="button" data-policy="ant2">25x25 2h</button>
               <button type="button" data-policy="ant8">25x25 8h</button>
               <button type="button" data-policy="bridge100">100x100 en 1000</button>
-              <button type="button" data-policy="maze50">laberinto 50x50</button>
+              <button type="button" data-policy="maze50">laberinto entrenado 50x50</button>
               <button type="button" data-policy="auto250fail">auto 250 fallo</button>
               <button type="button" data-policy="reset250">250 reset</button>
               <button type="button" data-policy="bigmap50">stress 1000</button>

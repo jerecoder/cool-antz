@@ -172,22 +172,22 @@ El segundo tipo fue más importante como diagnóstico: autocurrículo de distanc
 
 La lectura es metodológica: los umbrales de un autocurrículo no pueden confiar solo en progreso moldeado, actividad de bytes o cantidad de agentes cargando. Deben depender de eventos de tarea, especialmente entregas y tasa pickup-entrega. Este fracaso motivó reportar \metric{pickup_to_delivery_rate}, \metric{undelivered_pickup_events}, ventanas sin entrega y evaluaciones \run{normal}/\run{no_byte_read}/\run{no_write}. También explica por qué la recuperación \run{reset-boundary} de 250x250 debe presentarse como cambio de contrato de reset y distancia, no como prueba de que el autocurrículo general quedó resuelto.
 
-\subsection{Laberintos: una rama de infraestructura sin resultado comparable}
+\subsection{Laberintos: entrenamiento exploratorio sin forrajeo comparable}
 
 Otra rama exploró laberintos. En la rama actual queda el config \run{maze_exploration_curriculum.json}: laberintos generados de 10x10 a 50x50, una hormiga, 48 unidades de comida, 12 fuentes, 2 bits, radio 1, crítico MLP, \metric{max_steps}=6250, 16 entornos por 80 pasos, \metric{reward_mode}=\run{explore}, pasillos de ancho 3, paredes de ancho 1 y semilla 17. La infraestructura de obstáculos sí quedó implementada y testeada: obstáculos bloquean movimiento, aparecen en observaciones, los resets ubican hub/comida/hormigas en celdas abiertas y los layouts pueden cambiar tras truncación.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.82\linewidth]{fig_maze_layout.pdf}
-\caption{Layout 50x50 generado desde \run{maze_exploration_curriculum.json} con el generador real de laberintos del entorno. No es un rollout ni una métrica de éxito: muestra la geometría que la rama podía producir, mientras que el resultado cuantitativo comparable no quedó preservado.}
+\caption{Layout 50x50 generado desde \run{maze_exploration_curriculum.json} con el generador real de laberintos del entorno. Esta figura muestra la geometría; el sitio web complementa con el video W\&B 50x50 del currículo entrenado.}
 \label{fig:maze-layout}
 \end{figure}
 
 También existió una rama lateral \run{origin/lethal_cookies}. Allí el cuaderno de maze preparaba una prueba de estrés 41x41 en forma de L dentro de una arena 50x50, con pasillos de ancho 5, 20 hormigas, una fuente normal al final y, en una variante hermana, bolsillos laterales para fuentes letales. Sin embargo, esa rama no tiene en el checkout actual métricas locales preservadas de entrega, supervivencia, eficiencia o convergencia, y la llamada de entrenamiento del cuaderno de maze estaba comentada.
 
-Para el sitio web se agregó una prueba visual concreta que no existía en los artefactos originales: desplegar el mejor actor 50x50 de 60 hormigas sobre un laberinto 50x50 generado con el mismo sistema de obstáculos. El video \run{labyrinth-50x50-policy-60ants.mp4} usa el checkpoint \run{best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl}, 125 unidades de comida en 2 fuentes, 8 bits, movimiento muestreado con escritura greedy, pasillos de ancho 3, paredes de ancho 1 y semilla 17. En 2400 pasos entregó \(0/125\), dejó 187 celdas con bytes no cero y visitó 188 celdas.
+Para el sitio web se recuperó el video correcto desde W\&B, correspondiente al run terminado \run{8ebnjq9f} y a la clave \run{videos/maze_exploration/50x50}. Ese artefacto sí viene de la política entrenada para laberintos: 50x50, una hormiga, 48 unidades de comida, 12 fuentes, 2 bits, radio 1, \metric{reward_mode}=\run{explore}, pasillos de ancho 3, paredes de ancho 1 y semilla 17. El MP4 tiene 600 fotogramas, \(800\times800\) píxeles, 8 fps y 75 segundos. El summary final reporta \metric{episode_return}=26.125, \metric{final_mean_remaining_food}=45.5/48 y \metric{completed_episodes}=0. La colección de modelos recuperable conserva checkpoints de laberinto hasta \run{jax_mappo_maze_explore_24x24.pkl}; para la etapa 50x50 quedó preservado el video, no el checkpoint local.
 
-Por eso el laberinto debe contarse como fracaso de flujo/evidencia y, para esta prueba agregada, como fallo de transferencia de la política abierta. La idea era válida para probar memoria espacial bajo obstáculos, pero no produjo una corrida entrenada comparable con las ramas principales. La decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de entrega.
+Por eso el laberinto debe contarse como rama entrenada de exploración, no como resultado comparable de forrajeo cooperativo. La infraestructura de obstáculos funcionó y produjo evidencia visual, pero el contrato de recompensa no medía entrega; la decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de comida recolectada.
 
 \subsection{Memoria y autoresearch: escribir no basta}
 
