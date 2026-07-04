@@ -36,6 +36,7 @@ def save_checkpoint(
     actor_obs_dim: int,
     run_name: str,
     metrics: dict[str, float],
+    behavior_anchor_params: JaxMAPPOParams | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("wb") as checkpoint_file:
@@ -43,6 +44,11 @@ def save_checkpoint(
             {
                 "params": _numpy_tree(params),
                 "opt_state": _numpy_tree(opt_state),
+                "behavior_anchor_params": (
+                    None
+                    if behavior_anchor_params is None
+                    else _numpy_tree(behavior_anchor_params)
+                ),
                 "args": checkpoint_args(args),
                 "central_obs_dim": int(central_obs_dim),
                 "actor_obs_dim": int(actor_obs_dim),
@@ -72,4 +78,10 @@ def read_checkpoint(path: Path) -> dict[str, Any]:
         checkpoint = pickle.load(checkpoint_file)
     checkpoint["params"] = _jax_tree(checkpoint["params"])
     checkpoint["opt_state"] = _jax_tree(checkpoint["opt_state"])
+    behavior_anchor_params = checkpoint.get("behavior_anchor_params")
+    checkpoint["behavior_anchor_params"] = (
+        None
+        if behavior_anchor_params is None
+        else _jax_tree(behavior_anchor_params)
+    )
     return checkpoint

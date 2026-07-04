@@ -22,6 +22,7 @@ from ant_byte_env.env import (
     MOVE_UP,
 )
 from ant_byte_env.jax_env import JaxObs
+from ant_byte_env.training.jax_mappo.types import CRITIC_AUX_FEATURE_DIM
 
 def _normalize_positions(positions: jax.Array, *, height: int, width: int) -> jax.Array:
     scale = jnp.asarray([max(width - 1, 1), max(height - 1, 1)], dtype=jnp.float32)
@@ -47,16 +48,29 @@ def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
     )
 
 
-def _agent_identity_features(ants_pos: jax.Array) -> jax.Array:
+def _agent_identity_features(
+    ants_pos: jax.Array,
+    *,
+    agent_identity_types: int | None = None,
+) -> jax.Array:
     batch_size, num_agents = ants_pos.shape[:2]
     if num_agents <= 1:
         return jnp.zeros((batch_size, num_agents, 0), dtype=jnp.float32)
+    if agent_identity_types is None:
+        identity_count = num_agents
+    else:
+        identity_count = int(agent_identity_types)
+        if identity_count <= 0:
+            raise ValueError("agent_identity_types must be positive.")
     identity = jax.nn.one_hot(
-        jnp.arange(num_agents),
-        num_agents,
+        jnp.arange(num_agents) % identity_count,
+        identity_count,
         dtype=jnp.float32,
     )
-    return jnp.broadcast_to(identity[None, :, :], (batch_size, num_agents, num_agents))
+    return jnp.broadcast_to(
+        identity[None, :, :],
+        (batch_size, num_agents, identity_count),
+    )
 
 
 def _ants_facing_or_default(obs: JaxObs) -> jax.Array:
@@ -105,6 +119,111 @@ def _pad_grid(grid: jax.Array, *, height: int, width: int) -> jax.Array:
         return grid
     padded = jnp.zeros((grid.shape[0], height, width), dtype=grid.dtype)
     return padded.at[:, : grid.shape[1], : grid.shape[2]].set(grid)
+
+
+def _obs_scalar_column(obs: JaxObs, key: str, *, batch_size: int) -> jax.Array:
+    value = obs.get(key)
+    if value is None:
+        return jnp.zeros((batch_size, 1), dtype=jnp.float32)
+    array = jnp.asarray(value, dtype=jnp.float32).reshape((batch_size, -1))
+    return array[:, :1]
+
+
+def _critic_aux_features(
+    obs: JaxObs,
+    *,
+    food: jax.Array,
+    bytes_grid: jax.Array,
+    ants_pos: jax.Array,
+    ants_carrying: jax.Array,
+    hub_pos: jax.Array,
+    food_scale: int | float,
+    target_height: int,
+    target_width: int,
+) -> jax.Array:
+    batch_size, current_height, current_width = food.shape
+    map_distance = max(float(target_width + target_height - 2), 1.0)
+    stage_distance = jnp.clip(
+        _obs_scalar_column(
+            obs,
+            "distance_curriculum_stage_distance",
+            batch_size=batch_size,
+        )
+        / map_distance,
+        0.0,
+        1.0,
+    )
+    stage_index = jnp.clip(
+        _obs_scalar_column(
+            obs,
+            "distance_curriculum_stage_index",
+            batch_size=batch_size,
+        )
+        / 16.0,
+        0.0,
+        1.0,
+    )
+
+    food_mass = jnp.sum(food, axis=(1, 2), keepdims=False)[:, None]
+    remaining_food = jnp.clip(food_mass / max(float(food_scale), 1.0), 0.0, 1.0)
+    carrier_fraction = jnp.mean(ants_carrying.astype(jnp.float32), axis=1, keepdims=True)
+    nonzero_byte_fraction = (
+        jnp.sum((bytes_grid > 0).astype(jnp.float32), axis=(1, 2), keepdims=False)[:, None]
+        / max(float(current_height * current_width), 1.0)
+    )
+
+    normalized_ant_distances = (
+        jnp.sum(jnp.abs(ants_pos - hub_pos[:, None, :]), axis=-1) / 2.0
+    )
+    mean_ant_hub_distance = jnp.mean(normalized_ant_distances, axis=1, keepdims=True)
+    carrier_weights = ants_carrying.astype(jnp.float32)
+    carrier_count = jnp.sum(carrier_weights, axis=1, keepdims=True)
+    mean_carrier_hub_distance = (
+        jnp.sum(normalized_ant_distances * carrier_weights, axis=1, keepdims=True)
+        / jnp.maximum(carrier_count, 1.0)
+    )
+    mean_carrier_hub_distance = jnp.where(
+        carrier_count > 0.0,
+        mean_carrier_hub_distance,
+        0.0,
+    )
+
+    x_coords = jnp.linspace(0.0, 1.0, current_width, dtype=jnp.float32)[None, None, :]
+    y_coords = jnp.linspace(0.0, 1.0, current_height, dtype=jnp.float32)[None, :, None]
+    safe_food_mass = jnp.maximum(food_mass, 1.0)
+    food_centroid_x = (
+        jnp.sum(food * x_coords, axis=(1, 2), keepdims=False)[:, None] / safe_food_mass
+    )
+    food_centroid_y = (
+        jnp.sum(food * y_coords, axis=(1, 2), keepdims=False)[:, None] / safe_food_mass
+    )
+    has_food = food_mass > 0.0
+    food_centroid_x = jnp.where(has_food, food_centroid_x, hub_pos[:, 0:1])
+    food_centroid_y = jnp.where(has_food, food_centroid_y, hub_pos[:, 1:2])
+    food_hub_abs_dx = jnp.abs(food_centroid_x - hub_pos[:, 0:1])
+    food_hub_abs_dy = jnp.abs(food_centroid_y - hub_pos[:, 1:2])
+    food_hub_manhattan = (food_hub_abs_dx + food_hub_abs_dy) / 2.0
+
+    aux = jnp.concatenate(
+        [
+            stage_distance,
+            stage_index,
+            remaining_food,
+            carrier_fraction,
+            nonzero_byte_fraction,
+            mean_ant_hub_distance,
+            mean_carrier_hub_distance,
+            food_centroid_x,
+            food_centroid_y,
+            food_hub_abs_dx,
+            food_hub_abs_dy,
+            food_hub_manhattan,
+        ],
+        axis=-1,
+    ).astype(jnp.float32)
+    if aux.shape[-1] != CRITIC_AUX_FEATURE_DIM:
+        raise ValueError(f"critic aux features must have {CRITIC_AUX_FEATURE_DIM} columns.")
+    return aux
 
 
 def _ants_count_grid(obs: JaxObs, *, height: int, width: int) -> jax.Array:
@@ -170,6 +289,17 @@ def build_central_observations(
         [max(float(target_width), 1.0), max(float(target_height), 1.0)],
         dtype=jnp.float32,
     )
+    critic_aux = _critic_aux_features(
+        obs,
+        food=food,
+        bytes_grid=bytes_grid,
+        ants_pos=ants_pos,
+        ants_carrying=ants_carrying,
+        hub_pos=hub_pos,
+        food_scale=food_scale,
+        target_height=target_height,
+        target_width=target_width,
+    )
     return jnp.concatenate(
         [
             ants_pos.reshape(batch_size, -1),
@@ -180,6 +310,7 @@ def build_central_observations(
             bytes_norm.reshape(batch_size, -1),
             hub_pos.reshape(batch_size, -1),
             grid_size,
+            critic_aux,
         ],
         axis=-1,
     )
@@ -191,6 +322,7 @@ def build_actor_observations(
     food_scale: int = 1,
     actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     write_bits: int = DEFAULT_WRITE_BITS,
+    agent_identity_types: int | None = None,
     obs_width: int | None = None,
     obs_height: int | None = None,
 ) -> jax.Array:
@@ -261,7 +393,10 @@ def build_actor_observations(
         local_byte_bits,
         local_hub,
         local_border,
-        _agent_identity_features(obs["ants_pos"]),
+        _agent_identity_features(
+            obs["ants_pos"],
+            agent_identity_types=agent_identity_types,
+        ),
         own_carrying,
         own_facing,
     ]
@@ -414,5 +549,4 @@ def flatten_agent_actions(actions: jax.Array) -> jax.Array:
     if actions.ndim != 3 or actions.shape[-1] != 2:
         raise ValueError(f"joint actions must have shape (batch, ants, 2), got {actions.shape}.")
     return actions.astype(jnp.int32).reshape(actions.shape[0], actions.shape[1] * 2)
-
 

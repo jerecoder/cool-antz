@@ -39,7 +39,9 @@ class JaxAntState(NamedTuple):
     ants_count: jax.Array
     ants_facing: jax.Array
     ants_carrying: jax.Array
+    ants_alive: jax.Array
     food: jax.Array
+    lethal_food: jax.Array
     initial_food: jax.Array
     bytes: jax.Array
     delivered_food: jax.Array
@@ -53,9 +55,13 @@ class JaxAntState(NamedTuple):
 class JaxAntInfo(NamedTuple):
     delivered_food: jax.Array
     remaining_food: jax.Array
+    remaining_lethal_food: jax.Array
     step_count: jax.Array
     num_writes: jax.Array
     num_overwrites: jax.Array
+    death_events: jax.Array
+    alive_ant_count: jax.Array
+    dead_ant_count: jax.Array
     visited_cell_count: jax.Array
     newly_visited_cells: jax.Array
     viewed_cell_count: jax.Array
@@ -77,6 +83,8 @@ class JaxAntByteForagingEnv:
         num_ants: int = 4,
         food_count: int = 8,
         food_source_count: int = 1,
+        lethal_food_count: int = 0,
+        lethal_food_source_count: int = 0,
         max_steps: int = 500,
         random_food: bool = True,
         random_hub: bool = False,
@@ -86,6 +94,7 @@ class JaxAntByteForagingEnv:
         hub_center_window_size: int = 0,
         actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
         step_penalty: float = 0.0,
+        death_penalty: float = 0.0,
         completion_bonus: float = 0.0,
         write_penalty: float = 0.0,
         write_bits: int = DEFAULT_WRITE_BITS,
@@ -105,8 +114,11 @@ class JaxAntByteForagingEnv:
             num_ants=num_ants,
             food_count=food_count,
             food_source_count=food_source_count,
+            lethal_food_count=lethal_food_count,
+            lethal_food_source_count=lethal_food_source_count,
             max_steps=max_steps,
             step_penalty=step_penalty,
+            death_penalty=death_penalty,
             completion_bonus=completion_bonus,
             write_penalty=write_penalty,
             write_bits=write_bits,
@@ -124,6 +136,8 @@ class JaxAntByteForagingEnv:
         self.num_ants = int(num_ants)
         self.food_count = int(food_count)
         self.food_source_count = int(food_source_count)
+        self.lethal_food_count = int(lethal_food_count)
+        self.lethal_food_source_count = int(lethal_food_source_count)
         self.max_steps = int(max_steps)
         self.random_food = bool(random_food)
         self.random_hub = bool(random_hub)
@@ -135,6 +149,7 @@ class JaxAntByteForagingEnv:
         self.hub_center_window_size = int(hub_center_window_size)
         self.actor_vision_radius = int(actor_vision_radius)
         self.step_penalty = float(step_penalty)
+        self.death_penalty = float(death_penalty)
         self.completion_bonus = float(completion_bonus)
         self.write_penalty = float(write_penalty)
         self.write_bits = int(write_bits)
@@ -162,6 +177,10 @@ class JaxAntByteForagingEnv:
         )
         self.open_cell_count = min_open_cell_count
         self.source_count = min(self.food_source_count, max(min_open_cell_count - 1, 0))
+        self.lethal_source_count = min(
+            self.lethal_food_source_count,
+            max(min_open_cell_count - 1, 0),
+        )
         self.write_value_count = write_value_count(self.write_bits)
         self.max_write_value = max_write_value(self.write_bits)
         self.action_nvec = jnp.asarray(
@@ -177,8 +196,11 @@ class JaxAntByteForagingEnv:
         num_ants: int,
         food_count: int,
         food_source_count: int,
+        lethal_food_count: int,
+        lethal_food_source_count: int,
         max_steps: int,
         step_penalty: float,
+        death_penalty: float,
         completion_bonus: float,
         write_penalty: float,
         write_bits: int,
@@ -197,14 +219,22 @@ class JaxAntByteForagingEnv:
             raise ValueError("num_ants must be positive.")
         if food_count < 0:
             raise ValueError("food_count must be non-negative.")
+        if lethal_food_count < 0:
+            raise ValueError("lethal_food_count must be non-negative.")
         if food_count > 0 and width * height <= 1:
             raise ValueError("food_count requires at least one non-hub tile.")
         if food_source_count <= 0:
             raise ValueError("food_source_count must be positive.")
+        if lethal_food_count > 0 and lethal_food_source_count <= 0:
+            raise ValueError("lethal_food_source_count must be positive when lethal food is used.")
+        if lethal_food_count == 0 and lethal_food_source_count < 0:
+            raise ValueError("lethal_food_source_count must be non-negative.")
         if max_steps <= 0:
             raise ValueError("max_steps must be positive.")
         if step_penalty < 0:
             raise ValueError("step_penalty must be non-negative.")
+        if death_penalty < 0:
+            raise ValueError("death_penalty must be non-negative.")
         if completion_bonus < 0:
             raise ValueError("completion_bonus must be non-negative.")
         if write_penalty < 0:
@@ -215,7 +245,7 @@ class JaxAntByteForagingEnv:
             raise ValueError("layout_margin must be non-negative.")
         if int(layout_margin) * 2 >= min(width, height):
             raise ValueError("layout_margin must leave at least one interior cell.")
-        if food_count > 0 and (width - 2 * int(layout_margin)) * (
+        if (food_count > 0 or lethal_food_count > 0) and (width - 2 * int(layout_margin)) * (
             height - 2 * int(layout_margin)
         ) <= 1:
             raise ValueError("layout_margin must leave at least two interior cells with food.")
@@ -243,6 +273,7 @@ class JaxAntByteForagingEnv:
         *,
         hub_pos: jax.Array | None = None,
         food_positions: jax.Array | None = None,
+        lethal_food_positions: jax.Array | None = None,
         obstacles: jax.Array | None = None,
         previous_obstacles: jax.Array | None = None,
     ) -> tuple[JaxAntState, JaxObs, JaxAntInfo]:
@@ -262,17 +293,32 @@ class JaxAntByteForagingEnv:
             food_positions,
             actual_obstacles,
         )
-        ants_pos = self._initial_ant_positions(ant_key, actual_hub_pos, food, actual_obstacles)
-        ants_count = self._build_ants_count_grid(ants_pos)
+        lethal_food = self._initial_lethal_food_grid(
+            food_key,
+            actual_hub_pos,
+            lethal_food_positions,
+            actual_obstacles,
+            food,
+        )
+        ants_alive = jnp.ones((self.num_ants,), dtype=jnp.bool_)
+        ants_pos = self._initial_ant_positions(
+            ant_key,
+            actual_hub_pos,
+            food + lethal_food,
+            actual_obstacles,
+        )
+        ants_count = self._build_ants_count_grid(ants_pos, ants_alive=ants_alive)
         visited_cells = self._mark_visited(
             jnp.zeros((self.height, self.width), dtype=jnp.bool_),
             ants_pos,
             actual_obstacles,
+            ants_alive=ants_alive,
         )
         viewed_cells = self._mark_viewed(
             jnp.zeros((self.height, self.width), dtype=jnp.bool_),
             ants_pos,
             actual_obstacles,
+            ants_alive=ants_alive,
         )
         state = JaxAntState(
             hub_pos=actual_hub_pos,
@@ -280,7 +326,9 @@ class JaxAntByteForagingEnv:
             ants_count=ants_count,
             ants_facing=jnp.full((self.num_ants,), DEFAULT_FACING, dtype=jnp.int32),
             ants_carrying=jnp.zeros((self.num_ants,), dtype=jnp.bool_),
+            ants_alive=ants_alive,
             food=food,
+            lethal_food=lethal_food,
             initial_food=food,
             bytes=jnp.zeros((self.height, self.width), dtype=jnp.uint8),
             delivered_food=jnp.asarray(0, dtype=jnp.int32),
@@ -299,7 +347,9 @@ class JaxAntByteForagingEnv:
             visible_border_cells=self._count_visible_border_cells(
                 ants_pos,
                 actual_obstacles,
+                ants_alive=ants_alive,
             ),
+            death_events=0,
         )
 
     def step(
@@ -315,10 +365,13 @@ class JaxAntByteForagingEnv:
             state.ants_pos,
             state.ants_facing,
             state.ants_carrying,
+            state.ants_alive,
             state.food,
+            state.lethal_food,
             state.bytes,
             state.delivered_food,
             written_mask,
+            jnp.asarray(0, dtype=jnp.int32),
             jnp.asarray(0, dtype=jnp.int32),
             jnp.asarray(0, dtype=jnp.int32),
             jnp.asarray(0, dtype=jnp.int32),
@@ -329,51 +382,81 @@ class JaxAntByteForagingEnv:
                 ants_pos,
                 ants_facing,
                 ants_carrying,
+                ants_alive,
                 food,
+                lethal_food,
                 bytes_grid,
                 delivered_food,
                 written_tiles,
                 num_writes,
                 num_overwrites,
                 delivery_count,
+                death_count,
             ) = carry
 
             action_start = 2 * ant_index
             move = flat_action[action_start]
             write_value = flat_action[action_start + 1].astype(jnp.uint8)
-            next_facing = self._action_facing(ants_facing[ant_index], move)
-            next_pos = self._move_position(
+            is_alive = ants_alive[ant_index]
+            action_facing = self._action_facing(ants_facing[ant_index], move)
+            next_facing = jnp.where(is_alive, action_facing, ants_facing[ant_index])
+            moved_pos = self._move_position(
                 ants_pos[ant_index],
                 action=move,
                 obstacles=state.obstacles,
             )
+            next_pos = jnp.where(is_alive, moved_pos, ants_pos[ant_index])
             ants_facing = ants_facing.at[ant_index].set(next_facing)
             ants_pos = ants_pos.at[ant_index].set(next_pos)
 
             x_pos = next_pos[0]
             y_pos = next_pos[1]
             tile_had_food = food[y_pos, x_pos] > 0
+            tile_had_lethal_food = lethal_food[y_pos, x_pos] > 0
+            tile_had_visible_food = jnp.logical_or(tile_had_food, tile_had_lethal_food)
             tile_is_hub = jnp.all(next_pos == state.hub_pos)
             was_carrying = ants_carrying[ant_index]
 
-            picked_up = jnp.logical_and(jnp.logical_not(was_carrying), tile_had_food)
+            can_pick_up = jnp.logical_and(is_alive, jnp.logical_not(was_carrying))
+            picked_up = jnp.logical_and(can_pick_up, tile_had_food)
+            lethal_pickup = jnp.logical_and(
+                can_pick_up,
+                jnp.logical_and(jnp.logical_not(tile_had_food), tile_had_lethal_food),
+            )
             food = food.at[y_pos, x_pos].add(jnp.where(picked_up, -1, 0))
+            lethal_food = lethal_food.at[y_pos, x_pos].add(jnp.where(lethal_pickup, -1, 0))
             carrying_after_pickup = jnp.logical_or(was_carrying, picked_up)
 
-            delivered = jnp.logical_and(carrying_after_pickup, tile_is_hub)
+            delivered = jnp.logical_and(
+                is_alive,
+                jnp.logical_and(carrying_after_pickup, tile_is_hub),
+            )
             ants_carrying = ants_carrying.at[ant_index].set(
-                jnp.logical_and(carrying_after_pickup, jnp.logical_not(delivered))
+                jnp.logical_and(
+                    jnp.logical_not(lethal_pickup),
+                    jnp.logical_and(carrying_after_pickup, jnp.logical_not(delivered)),
+                )
+            )
+            ants_alive = ants_alive.at[ant_index].set(
+                jnp.logical_and(is_alive, jnp.logical_not(lethal_pickup))
             )
             delivered_food = delivered_food + delivered.astype(jnp.int32)
             delivery_count = delivery_count + delivered.astype(jnp.int32)
+            death_count = death_count + lethal_pickup.astype(jnp.int32)
 
             wants_write = jnp.logical_or(
                 move == ACTION_STAY,
                 jnp.asarray(self.write_while_moving, dtype=jnp.bool_),
             )
             can_write = jnp.logical_and(
-                wants_write,
-                jnp.logical_not(jnp.logical_or(tile_had_food, tile_is_hub)),
+                is_alive,
+                jnp.logical_and(
+                    jnp.logical_not(lethal_pickup),
+                    jnp.logical_and(
+                        wants_write,
+                        jnp.logical_not(jnp.logical_or(tile_had_visible_food, tile_is_hub)),
+                    ),
+                ),
             )
             already_written = written_tiles[y_pos, x_pos]
             num_overwrites = num_overwrites + jnp.logical_and(can_write, already_written).astype(
@@ -405,34 +488,41 @@ class JaxAntByteForagingEnv:
                 ants_pos,
                 ants_facing,
                 ants_carrying,
+                ants_alive,
                 food,
+                lethal_food,
                 bytes_grid,
                 delivered_food,
                 written_tiles,
                 num_writes,
                 num_overwrites,
                 delivery_count,
+                death_count,
             ), None
 
         (
             ants_pos,
             ants_facing,
             ants_carrying,
+            ants_alive,
             food,
+            lethal_food,
             bytes_grid,
             delivered_food,
             _,
             num_writes,
             num_overwrites,
             delivery_count,
+            death_count,
         ), _ = jax.lax.scan(scan_ant, init_carry, jnp.arange(self.num_ants))
 
         step_count = state.step_count + jnp.asarray(1, dtype=jnp.int32)
-        ants_count = self._build_ants_count_grid(ants_pos)
+        ants_count = self._build_ants_count_grid(ants_pos, ants_alive=ants_alive)
         step_visited_cells = self._mark_visited(
             jnp.zeros((self.height, self.width), dtype=jnp.bool_),
             ants_pos,
             state.obstacles,
+            ants_alive=ants_alive,
         )
         newly_visited_cells = jnp.sum(
             jnp.logical_and(step_visited_cells, jnp.logical_not(state.visited_cells))
@@ -442,19 +532,26 @@ class JaxAntByteForagingEnv:
             jnp.zeros((self.height, self.width), dtype=jnp.bool_),
             ants_pos,
             state.obstacles,
+            ants_alive=ants_alive,
         )
         newly_viewed_cells = jnp.sum(
             jnp.logical_and(step_viewed_cells, jnp.logical_not(state.viewed_cells))
         ).astype(jnp.int32)
         viewed_cells = jnp.logical_or(state.viewed_cells, step_viewed_cells)
-        visible_border_cells = self._count_visible_border_cells(ants_pos, state.obstacles)
+        visible_border_cells = self._count_visible_border_cells(
+            ants_pos,
+            state.obstacles,
+            ants_alive=ants_alive,
+        )
         next_state = JaxAntState(
             hub_pos=state.hub_pos,
             ants_pos=ants_pos,
             ants_count=ants_count,
             ants_facing=ants_facing,
             ants_carrying=ants_carrying,
+            ants_alive=ants_alive,
             food=food,
+            lethal_food=lethal_food,
             initial_food=state.initial_food,
             bytes=bytes_grid,
             delivered_food=delivered_food,
@@ -465,6 +562,7 @@ class JaxAntByteForagingEnv:
             obstacles=state.obstacles,
         )
         completed_food = delivered_food >= state.initial_food_total
+        all_ants_dead = jnp.logical_not(jnp.any(ants_alive))
         food_terminated = jnp.logical_and(
             jnp.asarray(self.terminate_on_food_delivery, dtype=jnp.bool_),
             completed_food,
@@ -476,11 +574,17 @@ class JaxAntByteForagingEnv:
             jnp.asarray(self.terminate_on_full_coverage, dtype=jnp.bool_),
             full_coverage,
         )
-        terminated = jnp.logical_or(food_terminated, coverage_terminated)
+        terminated = jnp.logical_or(
+            all_ants_dead,
+            jnp.logical_or(food_terminated, coverage_terminated),
+        )
         reward = (
             delivery_count.astype(jnp.float32)
             - jnp.asarray(self.step_penalty * self.num_ants, dtype=jnp.float32)
-            - num_writes.astype(jnp.float32) * jnp.asarray(self.write_penalty, dtype=jnp.float32)
+            - death_count.astype(jnp.float32)
+            * jnp.asarray(self.death_penalty, dtype=jnp.float32)
+            - num_writes.astype(jnp.float32)
+            * jnp.asarray(self.write_penalty, dtype=jnp.float32)
             + completed_food.astype(jnp.float32)
             * jnp.asarray(self.terminate_on_food_delivery, dtype=jnp.float32)
             * jnp.asarray(self.completion_bonus, dtype=jnp.float32)
@@ -493,20 +597,27 @@ class JaxAntByteForagingEnv:
             newly_visited_cells=newly_visited_cells,
             newly_viewed_cells=newly_viewed_cells,
             visible_border_cells=visible_border_cells,
+            death_events=death_count,
         )
         return next_state, self.observe(next_state), reward, terminated, truncated, info
 
     def observe(self, state: JaxAntState) -> JaxObs:
-        return {
+        obs = {
             "ants_pos": state.ants_pos.astype(jnp.int32),
             "ants_count": state.ants_count.astype(jnp.int32),
             "ants_carrying": state.ants_carrying.astype(jnp.int8),
             "ants_facing": state.ants_facing.astype(jnp.int32),
-            "food": state.food.astype(jnp.int32),
+            "food": (state.food + state.lethal_food).astype(jnp.int32),
             "bytes": state.bytes.astype(jnp.uint8),
             "obstacles": state.obstacles.astype(jnp.int8),
             "hub_pos": state.hub_pos.astype(jnp.int32),
         }
+        if self.lethal_food_count > 0:
+            obs["dead_ants_count"] = self._build_dead_ants_count_grid(
+                state.ants_pos,
+                ants_alive=state.ants_alive,
+            ).astype(jnp.int32)
+        return obs
 
     def info(
         self,
@@ -517,13 +628,20 @@ class JaxAntByteForagingEnv:
         newly_visited_cells: int | jax.Array,
         newly_viewed_cells: int | jax.Array,
         visible_border_cells: int | jax.Array,
+        death_events: int | jax.Array = 0,
     ) -> JaxAntInfo:
         return JaxAntInfo(
             delivered_food=state.delivered_food.astype(jnp.int32),
             remaining_food=jnp.sum(state.food).astype(jnp.int32),
+            remaining_lethal_food=jnp.sum(state.lethal_food).astype(jnp.int32),
             step_count=state.step_count.astype(jnp.int32),
             num_writes=jnp.asarray(num_writes, dtype=jnp.int32),
             num_overwrites=jnp.asarray(num_overwrites, dtype=jnp.int32),
+            death_events=jnp.asarray(death_events, dtype=jnp.int32),
+            alive_ant_count=jnp.sum(state.ants_alive.astype(jnp.int32)).astype(jnp.int32),
+            dead_ant_count=jnp.sum(jnp.logical_not(state.ants_alive).astype(jnp.int32)).astype(
+                jnp.int32
+            ),
             visited_cell_count=jnp.sum(state.visited_cells).astype(jnp.int32),
             newly_visited_cells=jnp.asarray(newly_visited_cells, dtype=jnp.int32),
             viewed_cell_count=jnp.sum(state.viewed_cells).astype(jnp.int32),
@@ -536,9 +654,17 @@ class JaxAntByteForagingEnv:
         visited_cells: jax.Array,
         ants_pos: jax.Array,
         obstacles: jax.Array,
+        *,
+        ants_alive: jax.Array | None = None,
     ) -> jax.Array:
         ants_pos = ants_pos.astype(jnp.int32)
-        marked = visited_cells.at[ants_pos[:, 1], ants_pos[:, 0]].set(True)
+        if ants_alive is None:
+            ants_alive = jnp.ones((ants_pos.shape[0],), dtype=jnp.bool_)
+        step_visits = jnp.zeros((self.height, self.width), dtype=jnp.int32).at[
+            ants_pos[:, 1],
+            ants_pos[:, 0],
+        ].add(ants_alive.astype(jnp.int32))
+        marked = jnp.logical_or(visited_cells, step_visits > 0)
         return jnp.logical_and(marked, jnp.logical_not(obstacles))
 
     def _mark_viewed(
@@ -546,8 +672,12 @@ class JaxAntByteForagingEnv:
         viewed_cells: jax.Array,
         ants_pos: jax.Array,
         obstacles: jax.Array,
+        *,
+        ants_alive: jax.Array | None = None,
     ) -> jax.Array:
         radius = int(self.actor_vision_radius)
+        if ants_alive is None:
+            ants_alive = jnp.ones((ants_pos.shape[0],), dtype=jnp.bool_)
         axis = jnp.arange(-radius, radius + 1, dtype=jnp.int32)
         offset_y = jnp.repeat(axis, 2 * radius + 1)
         offset_x = jnp.tile(axis, 2 * radius + 1)
@@ -561,18 +691,26 @@ class JaxAntByteForagingEnv:
             0,
             self.height - 1,
         )
-        marked = viewed_cells.at[y_pos.reshape(-1), x_pos.reshape(-1)].set(True)
+        alive_marks = jnp.repeat(ants_alive.astype(jnp.int32), offset_x.shape[0])
+        step_views = jnp.zeros((self.height, self.width), dtype=jnp.int32).at[
+            y_pos.reshape(-1),
+            x_pos.reshape(-1),
+        ].add(alive_marks)
+        marked = jnp.logical_or(viewed_cells, step_views > 0)
         return jnp.logical_and(marked, jnp.logical_not(obstacles))
 
     def _count_visible_border_cells(
         self,
         ants_pos: jax.Array,
         obstacles: jax.Array,
+        *,
+        ants_alive: jax.Array | None = None,
     ) -> jax.Array:
         visible_cells = self._mark_viewed(
             jnp.zeros((self.height, self.width), dtype=jnp.bool_),
             ants_pos,
             obstacles,
+            ants_alive=ants_alive,
         )
         x_coords = jnp.arange(self.width, dtype=jnp.int32)[None, :]
         y_coords = jnp.arange(self.height, dtype=jnp.int32)[:, None]
@@ -659,7 +797,66 @@ class JaxAntByteForagingEnv:
             positions = jnp.where(is_hub[:, None], fallback_pos[None, :], positions)
         else:
             positions = self._sample_food_positions(key, hub_pos, obstacles)
-        return self._distribute_food(positions)
+        return self._distribute_food(positions, food_count=self.food_count)
+
+    def _initial_lethal_food_grid(
+        self,
+        key: jax.Array,
+        hub_pos: jax.Array,
+        lethal_food_positions: jax.Array | None,
+        obstacles: jax.Array,
+        safe_food: jax.Array,
+    ) -> jax.Array:
+        if self.lethal_food_count == 0:
+            return jnp.zeros((self.height, self.width), dtype=jnp.int32)
+
+        if lethal_food_positions is None:
+            positions = self._sample_lethal_food_positions(key, hub_pos, obstacles, safe_food)
+        else:
+            positions = jnp.asarray(lethal_food_positions, dtype=jnp.int32).reshape((-1, 2))
+
+        positions = self._nearest_open_positions(positions, obstacles)
+        fallback_pos = self._first_non_hub_open_position(hub_pos, obstacles)
+        is_hub = jnp.all(positions == hub_pos, axis=-1)
+        positions = jnp.where(is_hub[:, None], fallback_pos[None, :], positions)
+        return self._distribute_food(positions, food_count=self.lethal_food_count)
+
+    def _sample_lethal_food_positions(
+        self,
+        key: jax.Array,
+        hub_pos: jax.Array,
+        obstacles: jax.Array,
+        safe_food: jax.Array,
+    ) -> jax.Array:
+        if self.lethal_source_count == 0:
+            return jnp.zeros((0, 2), dtype=jnp.int32)
+
+        flat_indices = jnp.arange(self.width * self.height, dtype=jnp.int32)
+        flat_x = flat_indices % self.width
+        flat_y = flat_indices // self.width
+        is_open = jnp.logical_not(obstacles.reshape((-1,)))
+        is_hub = (flat_x == hub_pos[0]) & (flat_y == hub_pos[1])
+        has_safe_food = safe_food.reshape((-1,)) > 0
+        candidate_mask = is_open & jnp.logical_not(is_hub) & jnp.logical_not(has_safe_food)
+        interior_mask = candidate_mask & self._inside_layout_margin(flat_x, flat_y)
+        enough_interior = jnp.sum(interior_mask.astype(jnp.int32)) >= self.lethal_source_count
+        candidate_mask = jnp.where(enough_interior, interior_mask, candidate_mask)
+        if self.random_food:
+            scores = jax.random.uniform(
+                key,
+                (self.width * self.height,),
+                dtype=jnp.float32,
+            )
+        else:
+            scores = -flat_indices.astype(jnp.float32)
+        _, selected_flat = jax.lax.top_k(
+            jnp.where(candidate_mask, scores, -jnp.inf),
+            self.lethal_source_count,
+        )
+        return jnp.stack(
+            [selected_flat % self.width, selected_flat // self.width],
+            axis=-1,
+        ).astype(jnp.int32)
 
     def _sample_food_positions(
         self,
@@ -696,12 +893,18 @@ class JaxAntByteForagingEnv:
             axis=-1,
         ).astype(jnp.int32)
 
-    def _distribute_food(self, positions: jax.Array) -> jax.Array:
+    def _distribute_food(
+        self,
+        positions: jax.Array,
+        *,
+        food_count: int | None = None,
+    ) -> jax.Array:
         position_count = positions.shape[0]
         if position_count <= 0:
             raise ValueError("food_positions must contain at least one position.")
 
-        base_amount, extra_units = divmod(self.food_count, position_count)
+        total_food = self.food_count if food_count is None else int(food_count)
+        base_amount, extra_units = divmod(total_food, position_count)
         amounts = base_amount + (jnp.arange(position_count) < extra_units).astype(jnp.int32)
         return jnp.zeros((self.height, self.width), dtype=jnp.int32).at[
             positions[:, 1],
@@ -832,12 +1035,31 @@ class JaxAntByteForagingEnv:
             next_pos,
         )
 
-    def _build_ants_count_grid(self, ants_pos: jax.Array) -> jax.Array:
+    def _build_ants_count_grid(
+        self,
+        ants_pos: jax.Array,
+        *,
+        ants_alive: jax.Array | None = None,
+    ) -> jax.Array:
+        ants_pos = ants_pos.astype(jnp.int32)
+        if ants_alive is None:
+            ants_alive = jnp.ones((ants_pos.shape[0],), dtype=jnp.bool_)
+        return jnp.zeros((self.height, self.width), dtype=jnp.int32).at[
+            ants_pos[:, 1],
+            ants_pos[:, 0],
+        ].add(ants_alive.astype(jnp.int32))
+
+    def _build_dead_ants_count_grid(
+        self,
+        ants_pos: jax.Array,
+        *,
+        ants_alive: jax.Array,
+    ) -> jax.Array:
         ants_pos = ants_pos.astype(jnp.int32)
         return jnp.zeros((self.height, self.width), dtype=jnp.int32).at[
             ants_pos[:, 1],
             ants_pos[:, 0],
-        ].add(1)
+        ].add(jnp.logical_not(ants_alive).astype(jnp.int32))
 
     def _build_obstacle_bank(self) -> np.ndarray:
         if not self.maze_obstacles:

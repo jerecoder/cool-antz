@@ -34,15 +34,21 @@ def expand_params_for_write_bits(
     source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
     source_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
     target_num_ants: int = 1,
+    target_agent_identity_types: int | None = None,
     write_head_transfer: str = "repeat",
 ) -> JaxMAPPOParams:
     write_head_transfer = validate_write_head_transfer(write_head_transfer)
     source_identity_features = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
-    target_identity_features = agent_identity_feature_count(target_num_ants)
+    target_identity_features = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     if (
         target_bits == old_bits
         and source_includes_ants_count
@@ -65,7 +71,9 @@ def expand_params_for_write_bits(
                 source_includes_agent_identity=source_includes_agent_identity,
                 source_layout=source_layout,
                 source_num_ants=source_num_ants,
+                source_agent_identity_types=source_agent_identity_types,
                 target_num_ants=target_num_ants,
+                target_agent_identity_types=target_agent_identity_types,
             ),
             params.actor_body[1],
         ),
@@ -91,13 +99,19 @@ def resize_params_for_actor_vision_radius(
     target_actor_vision_radius: int,
     source_num_ants: int = 1,
     target_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
+    target_agent_identity_types: int | None = None,
     source_includes_agent_identity: bool = True,
 ) -> JaxMAPPOParams:
     source_identity_features = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
-    target_identity_features = agent_identity_feature_count(target_num_ants)
+    target_identity_features = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     if (
         source_actor_vision_radius == target_actor_vision_radius
         and source_identity_features == target_identity_features
@@ -112,6 +126,8 @@ def resize_params_for_actor_vision_radius(
                 target_actor_vision_radius=target_actor_vision_radius,
                 source_num_ants=source_num_ants,
                 target_num_ants=target_num_ants,
+                source_agent_identity_types=source_agent_identity_types,
+                target_agent_identity_types=target_agent_identity_types,
                 source_includes_agent_identity=source_includes_agent_identity,
             ),
             params.actor_body[1],
@@ -164,7 +180,9 @@ def expand_actor_input_layer(
     source_includes_agent_identity: bool = False,
     source_layout: str = "centered",
     source_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
     target_num_ants: int = 1,
+    target_agent_identity_types: int | None = None,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
     target_patch_size = actor_vision_patch_size(actor_vision_radius)
@@ -180,11 +198,13 @@ def expand_actor_input_layer(
         include_orientation=source_includes_orientation,
         include_agent_identity=source_includes_agent_identity,
         source_layout=source_layout,
+        agent_identity_types=source_agent_identity_types,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=target_bits,
         actor_vision_radius=actor_vision_radius,
         num_ants=target_num_ants,
+        agent_identity_types=target_agent_identity_types,
     )
     if old_weight.shape[0] != expected_old_dim:
         raise ValueError(
@@ -242,6 +262,7 @@ def expand_actor_input_layer(
     old_identity_width = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
     old_identity = slice(old_tail_start, old_tail_start + old_identity_width)
     old_carrying = slice(old_identity.stop, old_identity.stop + 1)
@@ -251,7 +272,10 @@ def expand_actor_input_layer(
         else None
     )
     new_tail_start = target_patch_size * (target_bits + 4)
-    new_identity_width = agent_identity_feature_count(target_num_ants)
+    new_identity_width = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     new_identity = slice(new_tail_start, new_tail_start + new_identity_width)
     new_carrying = slice(new_identity.stop, new_identity.stop + 1)
     new_orientation = slice(
@@ -326,6 +350,8 @@ def resize_actor_input_layer_for_vision_radius(
     target_actor_vision_radius: int,
     source_num_ants: int = 1,
     target_num_ants: int = 1,
+    source_agent_identity_types: int | None = None,
+    target_agent_identity_types: int | None = None,
     source_includes_agent_identity: bool = True,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
@@ -334,11 +360,13 @@ def resize_actor_input_layer_for_vision_radius(
         actor_vision_radius=source_actor_vision_radius,
         num_ants=source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
     target_dim = actor_obs_dim_for_bits(
         write_bits=write_bits,
         actor_vision_radius=target_actor_vision_radius,
         num_ants=target_num_ants,
+        agent_identity_types=target_agent_identity_types,
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected actor input dim {source_dim}, got {old_weight.shape[0]}.")
@@ -370,8 +398,12 @@ def resize_actor_input_layer_for_vision_radius(
     source_identity_width = agent_identity_feature_count(
         source_num_ants,
         include_agent_identity=source_includes_agent_identity,
+        agent_identity_types=source_agent_identity_types,
     )
-    target_identity_width = agent_identity_feature_count(target_num_ants)
+    target_identity_width = agent_identity_feature_count(
+        target_num_ants,
+        agent_identity_types=target_agent_identity_types,
+    )
     if source_identity_width > 0 and target_identity_width > 0:
         shared_identity_width = min(source_identity_width, target_identity_width)
         new_weight = new_weight.at[

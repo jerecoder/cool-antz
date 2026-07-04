@@ -6,6 +6,11 @@ from typing import Any, NamedTuple
 
 import jax
 
+CRITIC_AUX_FEATURE_DIM = 12
+CRITIC_GLOBAL_FEATURE_DIM = 4 + CRITIC_AUX_FEATURE_DIM
+SET_CNN_ANT_FEATURE_DIM = 7
+
+
 class LinearParams(NamedTuple):
     weight: jax.Array
     bias: jax.Array
@@ -44,6 +49,16 @@ class StridedCNNCriticParams(NamedTuple):
     fusion_dense: LinearParams
 
 
+class SetCNNCriticParams(NamedTuple):
+    conv_5x5: ConvParams
+    conv_3x3_a: ConvParams
+    conv_3x3_b: ConvParams
+    spatial_dense: LinearParams
+    ant_encoder: tuple[LinearParams, LinearParams]
+    global_dense: LinearParams
+    fusion_body: tuple[LinearParams, LinearParams]
+
+
 class StructuredMLPCriticParams(NamedTuple):
     grid_body: tuple[LinearParams, LinearParams]
     entity_body: tuple[LinearParams, LinearParams]
@@ -68,6 +83,7 @@ class Transition(NamedTuple):
     actor_obs: jax.Array
     central_obs: jax.Array
     actions: jax.Array
+    agent_masks: jax.Array
     logprobs: jax.Array
     rewards: jax.Array
     dones: jax.Array
@@ -80,6 +96,10 @@ class Transition(NamedTuple):
     delivery_events: jax.Array
     carrying_ants: jax.Array
     remaining_food: jax.Array
+    remaining_lethal_food: jax.Array
+    death_events: jax.Array
+    alive_ant_count: jax.Array
+    dead_ant_count: jax.Array
     active_size: jax.Array
     stage_advances: jax.Array
     stage_delivered_food: jax.Array
@@ -108,6 +128,7 @@ class Rollout(NamedTuple):
     actor_obs: jax.Array
     central_obs: jax.Array
     actions: jax.Array
+    agent_masks: jax.Array
     logprobs: jax.Array
     rewards: jax.Array
     dones: jax.Array
@@ -120,6 +141,10 @@ class Rollout(NamedTuple):
     delivery_events: jax.Array
     carrying_ants: jax.Array
     remaining_food: jax.Array
+    remaining_lethal_food: jax.Array
+    death_events: jax.Array
+    alive_ant_count: jax.Array
+    dead_ant_count: jax.Array
     active_size: jax.Array
     stage_advances: jax.Array
     stage_delivered_food: jax.Array
@@ -148,6 +173,7 @@ class TrainingBatch(NamedTuple):
     actor_obs: jax.Array
     central_obs: jax.Array
     actions: jax.Array
+    agent_masks: jax.Array
     old_logprobs: jax.Array
     advantages: jax.Array
     returns: jax.Array
@@ -159,6 +185,14 @@ class UpdateMetrics(NamedTuple):
     value_loss: jax.Array
     entropy: jax.Array
     approx_kl: jax.Array
+    behavior_anchor_kl: jax.Array
     clipfrac: jax.Array
     grad_norm: jax.Array
+    actor_grad_norm: jax.Array
+    critic_grad_norm: jax.Array
 
+
+class GradientNorms(NamedTuple):
+    global_norm: jax.Array
+    actor_norm: jax.Array
+    critic_norm: jax.Array

@@ -408,6 +408,32 @@ def test_env_from_args_passes_hub_center_window_size() -> None:
     env.close()
 
 
+def test_env_from_args_rejects_unsupported_jax_env_modes() -> None:
+    base_args = dict(
+        width=5,
+        height=4,
+        num_ants=1,
+        food_count=2,
+        food_sources=1,
+        max_steps=12,
+        random_food=True,
+        step_penalty=0.0,
+        write_penalty=0.0,
+        write_bits=1,
+    )
+
+    with pytest.raises(ValueError, match="distance-autocurriculum"):
+        _env_from_args(
+            argparse.Namespace(**base_args, distance_autocurriculum=True),
+            render_mode="rgb_array",
+        )
+    with pytest.raises(ValueError, match="lethal-food"):
+        _env_from_args(
+            argparse.Namespace(**base_args, lethal_food_count=1),
+            render_mode="rgb_array",
+        )
+
+
 def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
 

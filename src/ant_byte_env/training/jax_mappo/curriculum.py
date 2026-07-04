@@ -70,6 +70,37 @@ def _prefer_layout_margin(
     return jnp.where(enough_interior, interior_mask, candidate_mask)
 
 
+def _prefer_cookie_distance(
+    *,
+    args: argparse.Namespace,
+    env: JaxAntByteForagingEnv,
+    flat_indices: jax.Array,
+    hub_positions: jax.Array,
+    candidate_mask: jax.Array,
+    required_count: int = 1,
+) -> jax.Array:
+    if not bool(getattr(args, "random_food_same_distance", False)):
+        return candidate_mask
+
+    distance = int(getattr(args, "cookie_distance", 0))
+    flat_x = flat_indices % env.width
+    flat_y = flat_indices // env.width
+    hub_x = hub_positions[:, 0:1]
+    hub_y = hub_positions[:, 1:2]
+    ring_mask = candidate_mask & (
+        jnp.maximum(
+            jnp.abs(flat_x[None, :] - hub_x),
+            jnp.abs(flat_y[None, :] - hub_y),
+        )
+        == distance
+    )
+    enough_ring = (
+        jnp.sum(ring_mask.astype(jnp.int32), axis=1, keepdims=True)
+        >= int(required_count)
+    )
+    return jnp.where(enough_ring, ring_mask, candidate_mask)
+
+
 def _prefer_hub_center_window(
     *,
     args: argparse.Namespace,
@@ -180,8 +211,11 @@ def _sample_clustered_food_positions(
     key: jax.Array,
     candidate_mask: jax.Array,
     flat_indices: jax.Array,
+    source_count: int | None = None,
 ) -> jax.Array:
-    source_count = int(getattr(env, "source_count", 0))
+    source_count = int(
+        getattr(env, "source_count", 0) if source_count is None else source_count
+    )
     cluster_count = int(getattr(args, "food_cluster_count", 0))
     cluster_radius = int(getattr(args, "food_cluster_radius", 0))
     if source_count <= 0:
@@ -267,8 +301,12 @@ def _sample_food_positions(
     obstacles: jax.Array,
     previous_obs: JaxObs | None,
     previous_food: jax.Array | None,
+    source_count: int | None = None,
+    exclude_food: jax.Array | None = None,
 ) -> jax.Array:
-    source_count = int(getattr(env, "source_count", 0))
+    source_count = int(
+        getattr(env, "source_count", 0) if source_count is None else source_count
+    )
     if source_count <= 0:
         return jnp.zeros((args.num_envs, 0, 2), dtype=jnp.int32)
 
@@ -283,6 +321,19 @@ def _sample_food_positions(
         candidate_mask=candidate_mask,
         required_count=source_count,
     )
+    candidate_mask = _prefer_cookie_distance(
+        args=args,
+        env=env,
+        flat_indices=flat_indices,
+        hub_positions=hub_positions,
+        candidate_mask=candidate_mask,
+        required_count=source_count,
+    )
+    if exclude_food is not None:
+        exclude_mask = exclude_food.reshape((args.num_envs, -1)) > 0
+        preferred_mask = candidate_mask & jnp.logical_not(exclude_mask)
+        enough_preferred = jnp.sum(preferred_mask, axis=1, keepdims=True) >= source_count
+        candidate_mask = jnp.where(enough_preferred, preferred_mask, candidate_mask)
 
     previous_food_grid = previous_food
     if previous_food_grid is None and previous_obs is not None:
@@ -300,6 +351,7 @@ def _sample_food_positions(
             key=key,
             candidate_mask=candidate_mask,
             flat_indices=flat_indices,
+            source_count=source_count,
         )
 
     scores = jax.random.uniform(key, candidate_mask.shape, dtype=jnp.float32)
@@ -308,6 +360,23 @@ def _sample_food_positions(
         source_count,
     )
     return _flat_positions(selected_flat.astype(jnp.int32), width=env.width)
+
+
+def _positions_to_source_grid(
+    positions: jax.Array,
+    *,
+    height: int,
+    width: int,
+) -> jax.Array:
+    if positions.shape[1] == 0:
+        return jnp.zeros((positions.shape[0], height, width), dtype=jnp.int32)
+    env_indices = jnp.arange(positions.shape[0], dtype=jnp.int32)[:, None]
+    grid = jnp.zeros((positions.shape[0], height, width), dtype=jnp.int32)
+    return grid.at[
+        env_indices,
+        positions[..., 1],
+        positions[..., 0],
+    ].set(1)
 
 
 def reset_batch(
@@ -319,7 +388,9 @@ def reset_batch(
     previous_food: jax.Array | None = None,
 ) -> tuple[JaxAntState, JaxObs]:
     reset_keys = jax.random.split(key, args.num_envs)
-    if bool(getattr(args, "autocurriculum", False)):
+    if bool(getattr(args, "autocurriculum", False)) or bool(
+        getattr(args, "distance_autocurriculum", False)
+    ):
         states, obs, _ = jax.vmap(env.reset)(reset_keys)
         return states, obs
 
@@ -339,6 +410,7 @@ def reset_batch(
     )
 
     if args.random_food:
+        food_key, lethal_food_key = jax.random.split(food_key)
         food_positions = _sample_food_positions(
             args=args,
             env=env,
@@ -348,19 +420,52 @@ def reset_batch(
             previous_obs=previous_obs,
             previous_food=previous_food,
         )
-        states, obs, _ = jax.vmap(
-            lambda reset_key, hub, food, obstacle_grid: env.reset(
-                reset_key,
-                hub_pos=hub,
-                food_positions=food,
-                obstacles=obstacle_grid,
-            )
-        )(
-            reset_keys,
-            hub_positions,
+        safe_source_grid = _positions_to_source_grid(
             food_positions,
-            obstacles,
+            height=env.height,
+            width=env.width,
         )
+        lethal_food_positions = _sample_food_positions(
+            args=args,
+            env=env,
+            key=lethal_food_key,
+            hub_positions=hub_positions,
+            obstacles=obstacles,
+            previous_obs=previous_obs,
+            previous_food=None,
+            source_count=int(getattr(env, "lethal_source_count", 0)),
+            exclude_food=safe_source_grid,
+        )
+        if int(getattr(env, "lethal_food_count", 0)) > 0:
+            states, obs, _ = jax.vmap(
+                lambda reset_key, hub, food, lethal_food, obstacle_grid: env.reset(
+                    reset_key,
+                    hub_pos=hub,
+                    food_positions=food,
+                    lethal_food_positions=lethal_food,
+                    obstacles=obstacle_grid,
+                )
+            )(
+                reset_keys,
+                hub_positions,
+                food_positions,
+                lethal_food_positions,
+                obstacles,
+            )
+        else:
+            states, obs, _ = jax.vmap(
+                lambda reset_key, hub, food, obstacle_grid: env.reset(
+                    reset_key,
+                    hub_pos=hub,
+                    food_positions=food,
+                    obstacles=obstacle_grid,
+                )
+            )(
+                reset_keys,
+                hub_positions,
+                food_positions,
+                obstacles,
+            )
         return states, obs
 
     food_positions = _fixed_cookie_positions(

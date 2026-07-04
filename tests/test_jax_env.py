@@ -638,6 +638,68 @@ def test_jax_food_state_tracks_remaining_bite_counts() -> None:
     assert int(info.remaining_food) == 1
 
 
+def test_jax_lethal_food_reset_samples_separate_sources() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=5,
+        num_ants=1,
+        food_count=2,
+        food_source_count=1,
+        lethal_food_count=2,
+        lethal_food_source_count=1,
+        random_food=False,
+    )
+
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(4),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+
+    assert int(jnp.sum(state.food)) == 2
+    assert int(jnp.sum(state.lethal_food)) == 2
+    assert not bool(jnp.any(jnp.logical_and(state.food > 0, state.lethal_food > 0)))
+    assert int(info.remaining_food) == 2
+    assert int(info.remaining_lethal_food) == 2
+    assert int(jnp.sum(obs["food"])) == 4
+
+
+def test_jax_lethal_food_metrics_track_death() -> None:
+    env = JaxAntByteForagingEnv(
+        width=3,
+        height=1,
+        num_ants=1,
+        food_count=0,
+        food_source_count=1,
+        lethal_food_count=1,
+        lethal_food_source_count=1,
+        random_food=False,
+        death_penalty=1.5,
+    )
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(7),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        lethal_food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+
+    assert int(info.remaining_lethal_food) == 1
+    assert "dead_ants_count" in obs
+
+    state, obs, reward, terminated, _, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    assert bool(terminated)
+    assert float(reward) == -1.5
+    assert bool(state.ants_alive[0]) is False
+    assert int(info.death_events) == 1
+    assert int(info.remaining_lethal_food) == 0
+    assert int(info.alive_ant_count) == 0
+    assert int(info.dead_ant_count) == 1
+    assert int(jnp.sum(obs["dead_ants_count"])) == 1
+
+
 def test_jax_core_matches_gym_env_for_fixed_rollout() -> None:
     gym_env = AntByteForagingEnv(
         width=3,

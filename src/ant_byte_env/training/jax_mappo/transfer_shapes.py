@@ -11,9 +11,11 @@ from ant_byte_env import (
     actor_vision_patch_size,
     write_value_count,
 )
+from ant_byte_env.training.jax_mappo.types import CRITIC_GLOBAL_FEATURE_DIM
 
 WRITE_HEAD_TRANSFER_MODES = ("repeat", "reset", "neutral-new")
 FACING_FEATURE_COUNT = MOVEMENT_ACTION_COUNT - 1
+LEGACY_GLOBAL_FEATURE_DIM = 4
 
 
 def validate_write_head_transfer(mode: str) -> str:
@@ -32,6 +34,7 @@ def actor_obs_dim_for_bits(
     include_orientation: bool = True,
     include_agent_identity: bool = True,
     include_current_row: bool = True,
+    agent_identity_types: int | None = None,
 ) -> int:
     if actor_vision_radius < 0:
         raise ValueError("actor_vision_radius must be non-negative.")
@@ -45,6 +48,7 @@ def actor_obs_dim_for_bits(
     identity_features = agent_identity_feature_count(
         num_ants,
         include_agent_identity=include_agent_identity,
+        agent_identity_types=agent_identity_types,
     )
     return patch_size * grid_channels + identity_features + 1 + orientation_features
 
@@ -53,11 +57,18 @@ def agent_identity_feature_count(
     num_ants: int,
     *,
     include_agent_identity: bool = True,
+    agent_identity_types: int | None = None,
 ) -> int:
     if not include_agent_identity:
         return 0
-    count = int(num_ants)
-    return count if count > 1 else 0
+    if int(num_ants) <= 1:
+        return 0
+    if agent_identity_types is None:
+        return int(num_ants)
+    count = int(agent_identity_types)
+    if count <= 0:
+        raise ValueError("agent_identity_types must be positive.")
+    return count
 
 
 def source_actor_patch_size(*, actor_vision_radius: int, source_layout: str) -> int:
@@ -79,6 +90,7 @@ def source_actor_obs_dim(
     include_orientation: bool,
     include_agent_identity: bool,
     source_layout: str,
+    agent_identity_types: int | None = None,
 ) -> int:
     patch_size = source_actor_patch_size(
         actor_vision_radius=actor_vision_radius,
@@ -89,6 +101,7 @@ def source_actor_obs_dim(
     identity_features = agent_identity_feature_count(
         num_ants,
         include_agent_identity=include_agent_identity,
+        agent_identity_types=agent_identity_types,
     )
     return patch_size * grid_channels + identity_features + 1 + orientation_features
 
@@ -99,6 +112,7 @@ def _actor_obs_source_shape(
     write_bits: int,
     actor_vision_radius: int,
     num_ants: int = 1,
+    agent_identity_types: int | None = None,
 ) -> dict[str, bool | str] | None:
     source_layouts = (
         ("centered", actor_vision_patch_size(actor_vision_radius), True),
@@ -118,6 +132,7 @@ def _actor_obs_source_shape(
                     identity_features = agent_identity_feature_count(
                         num_ants,
                         include_agent_identity=include_agent_identity,
+                        agent_identity_types=agent_identity_types,
                     )
                     expected_dim = (
                         patch_size * grid_channels
@@ -142,10 +157,11 @@ def central_obs_dim_with_ants_count(
     obs_height: int,
     obs_width: int,
     include_orientation: bool = True,
+    global_feature_dim: int = CRITIC_GLOBAL_FEATURE_DIM,
 ) -> int:
     grid_area = obs_height * obs_width
     orientation_features = FACING_FEATURE_COUNT * num_ants if include_orientation else 0
-    return 3 * num_ants + orientation_features + 3 * grid_area + 4
+    return 3 * num_ants + orientation_features + 3 * grid_area + int(global_feature_dim)
 
 
 def legacy_central_obs_dim(*, num_ants: int, obs_height: int, obs_width: int) -> int:

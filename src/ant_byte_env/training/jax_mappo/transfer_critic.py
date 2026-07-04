@@ -9,13 +9,16 @@ import jax.numpy as jnp
 from ant_byte_env.training.jax_mappo.transfer_actor import adapt_movement_head_layer
 from ant_byte_env.training.jax_mappo.transfer_shapes import (
     FACING_FEATURE_COUNT,
+    LEGACY_GLOBAL_FEATURE_DIM,
     central_obs_dim_with_ants_count,
     legacy_central_obs_dim,
 )
 from ant_byte_env.training.jax_mappo.types import (
+    CRITIC_GLOBAL_FEATURE_DIM,
     JaxMAPPOParams,
     LinearParams,
     ResNetCriticParams,
+    SetCNNCriticParams,
     StridedCNNCriticParams,
     StructuredMLPCriticParams,
 )
@@ -40,6 +43,13 @@ def expand_critic_input_for_ants_count(
         obs_height=source_height,
         obs_width=source_width,
         include_orientation=False,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
+    )
+    old_current_dim = central_obs_dim_with_ants_count(
+        num_ants=source_num_ants,
+        obs_height=source_height,
+        obs_width=source_width,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
     )
     current_dim = central_obs_dim_with_ants_count(
         num_ants=source_num_ants,
@@ -63,6 +73,13 @@ def expand_critic_input_for_ants_count(
         )
     elif old_weight.shape[0] == no_orientation_dim:
         current_first_layer = expand_central_input_layer_for_orientation(
+            first_layer,
+            num_ants=source_num_ants,
+            obs_height=source_height,
+            obs_width=source_width,
+        )
+    elif old_weight.shape[0] == old_current_dim:
+        current_first_layer = expand_central_input_layer_for_aux_features(
             first_layer,
             num_ants=source_num_ants,
             obs_height=source_height,
@@ -97,11 +114,12 @@ def infer_num_ants_for_current_central_dim(
     obs_width: int,
 ) -> int:
     grid_area = obs_height * obs_width
-    non_ant_dim = 3 * grid_area + 4
-    ant_dim = int(central_obs_dim) - non_ant_dim
-    if ant_dim <= 0 or ant_dim % 7 != 0:
-        raise ValueError("Checkpoint central observation dimension does not match this run.")
-    return ant_dim // 7
+    for global_feature_dim in (CRITIC_GLOBAL_FEATURE_DIM, LEGACY_GLOBAL_FEATURE_DIM):
+        non_ant_dim = 3 * grid_area + global_feature_dim
+        ant_dim = int(central_obs_dim) - non_ant_dim
+        if ant_dim > 0 and ant_dim % 7 == 0:
+            return ant_dim // 7
+    raise ValueError("Checkpoint central observation dimension does not match this run.")
 
 
 def resize_central_input_layer_for_num_ants(
@@ -125,7 +143,7 @@ def resize_central_input_layer_for_num_ants(
     )
     if old_weight.shape[0] != source_dim:
         raise ValueError(f"Expected central input dim {source_dim}, got {old_weight.shape[0]}.")
-    if source_dim == target_dim:
+    if source_dim == target_dim and int(source_num_ants) == int(target_num_ants):
         return layer
 
     grid_area = obs_height * obs_width
@@ -175,6 +193,35 @@ def resize_central_input_layer_for_num_ants(
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
+def expand_central_input_layer_for_aux_features(
+    layer: LinearParams,
+    *,
+    num_ants: int,
+    obs_height: int,
+    obs_width: int,
+) -> LinearParams:
+    old_weight = jnp.asarray(layer.weight)
+    old_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
+    )
+    current_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    if old_weight.shape[0] != old_dim:
+        raise ValueError(f"Expected central input dim {old_dim}, got {old_weight.shape[0]}.")
+    if old_dim == current_dim:
+        return layer
+
+    new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
+    new_weight = new_weight.at[:old_dim, :].set(old_weight)
+    return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
+
+
 def resize_critic_entity_input_layer_for_num_ants(
     layer: LinearParams,
     *,
@@ -182,11 +229,15 @@ def resize_critic_entity_input_layer_for_num_ants(
     target_num_ants: int,
 ) -> LinearParams:
     old_weight = jnp.asarray(layer.weight)
-    source_dim = 7 * int(source_num_ants) + 4
-    target_dim = 7 * int(target_num_ants) + 4
-    if old_weight.shape[0] != source_dim:
-        raise ValueError(f"Expected critic entity input dim {source_dim}, got {old_weight.shape[0]}.")
-    if source_dim == target_dim:
+    source_ant_dim = 7 * int(source_num_ants)
+    source_tail_width = int(old_weight.shape[0]) - source_ant_dim
+    target_dim = 7 * int(target_num_ants) + CRITIC_GLOBAL_FEATURE_DIM
+    if source_tail_width <= 0:
+        raise ValueError(
+            "Checkpoint critic entity input dimension does not match its ant count "
+            f"({old_weight.shape[0]} for {source_num_ants} ants)."
+        )
+    if old_weight.shape[0] == target_dim and int(source_num_ants) == int(target_num_ants):
         return layer
 
     shared_ants = min(int(source_num_ants), int(target_num_ants))
@@ -213,7 +264,16 @@ def resize_critic_entity_input_layer_for_num_ants(
             :,
         ]
     )
-    new_weight = new_weight.at[target_facing_end:, :].set(old_weight[source_facing_end:, :])
+    shared_tail_width = min(source_tail_width, CRITIC_GLOBAL_FEATURE_DIM)
+    new_weight = new_weight.at[
+        target_facing_end : target_facing_end + shared_tail_width,
+        :,
+    ].set(
+        old_weight[
+            source_facing_end : source_facing_end + shared_tail_width,
+            :,
+        ]
+    )
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
@@ -258,6 +318,8 @@ def resize_non_mlp_critic_for_ants_count(
         resized_body = critic_body._replace(
             entity_body=(resized_first, critic_body.entity_body[1])
         )
+    elif isinstance(critic_body, SetCNNCriticParams):
+        resized_body = critic_body
     else:
         raise ValueError(
             "Non-MLP critic checkpoint central observation dimension does not match this run."
@@ -301,13 +363,17 @@ def expand_central_input_layer_for_ants_count(
     old_tail = slice(prefix_dim + 2 * grid_area, legacy_dim)
     new_food = slice(new_prefix_dim + grid_area, new_prefix_dim + 2 * grid_area)
     new_bytes = slice(new_prefix_dim + 2 * grid_area, new_prefix_dim + 3 * grid_area)
-    new_tail = slice(new_prefix_dim + 3 * grid_area, current_dim)
+    new_tail_start = new_prefix_dim + 3 * grid_area
+    copied_tail_width = min(old_tail.stop - old_tail.start, current_dim - new_tail_start)
 
     new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
     new_weight = new_weight.at[:prefix_dim, :].set(old_weight[:prefix_dim, :])
     new_weight = new_weight.at[new_food, :].set(old_weight[old_food, :])
     new_weight = new_weight.at[new_bytes, :].set(old_weight[old_bytes, :])
-    new_weight = new_weight.at[new_tail, :].set(old_weight[old_tail, :])
+    new_weight = new_weight.at[
+        new_tail_start : new_tail_start + copied_tail_width,
+        :,
+    ].set(old_weight[old_tail.start : old_tail.start + copied_tail_width, :])
     return LinearParams(weight=new_weight, bias=jnp.asarray(layer.bias))
 
 
@@ -325,6 +391,7 @@ def expand_central_input_layer_for_orientation(
         obs_height=obs_height,
         obs_width=obs_width,
         include_orientation=False,
+        global_feature_dim=LEGACY_GLOBAL_FEATURE_DIM,
     )
     current_dim = central_obs_dim_with_ants_count(
         num_ants=num_ants,
@@ -338,8 +405,12 @@ def expand_central_input_layer_for_orientation(
 
     prefix_dim = 3 * num_ants
     orientation_dim = FACING_FEATURE_COUNT * num_ants
-    old_maps_and_tail = slice(prefix_dim, no_orientation_dim)
-    new_maps_and_tail = slice(prefix_dim + orientation_dim, current_dim)
+    grid_and_old_tail_width = 3 * grid_area + LEGACY_GLOBAL_FEATURE_DIM
+    old_maps_and_tail = slice(prefix_dim, prefix_dim + grid_and_old_tail_width)
+    new_maps_and_tail = slice(
+        prefix_dim + orientation_dim,
+        prefix_dim + orientation_dim + grid_and_old_tail_width,
+    )
 
     new_weight = jnp.zeros((current_dim, old_weight.shape[1]), dtype=old_weight.dtype)
     new_weight = new_weight.at[:prefix_dim, :].set(old_weight[:prefix_dim, :])
@@ -356,6 +427,7 @@ def source_grid_size(source_args: dict[str, Any], axis: str) -> int:
 
 __all__ = [
     "expand_central_input_layer_for_ants_count",
+    "expand_central_input_layer_for_aux_features",
     "expand_central_input_layer_for_orientation",
     "expand_critic_input_for_ants_count",
     "infer_num_ants_for_current_central_dim",

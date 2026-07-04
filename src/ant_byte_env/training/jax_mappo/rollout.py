@@ -44,6 +44,14 @@ def _select_reset_values(current: Any, reset: Any, dones: jax.Array) -> Any:
     return jax.tree_util.tree_map(select_leaf, current, reset)
 
 
+def _initial_food_from_states(states: Any) -> jax.Array:
+    if hasattr(states, "initial_food"):
+        return states.initial_food
+    if hasattr(states, "base") and hasattr(states.base, "initial_food"):
+        return states.base.initial_food
+    raise AttributeError("rollout state does not expose initial_food.")
+
+
 def _actor_observation_source(args: argparse.Namespace, obs: JaxObs) -> JaxObs:
     if not bool(getattr(args, "actor_byte_read_ablation", False)):
         return obs
@@ -161,6 +169,7 @@ def collect_rollout(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -247,6 +256,17 @@ def collect_rollout(
             else:
                 logprobs = jnp.where(greedy_mask, greedy_logprobs, sampled_logprobs)
         actions_for_env = _executed_actions(args, actions)
+        agent_masks = current_obs.get("active_mask")
+        if agent_masks is None:
+            agent_masks = jnp.ones(actions_for_env.shape[:2], dtype=jnp.float32)
+        else:
+            agent_masks = agent_masks.astype(jnp.float32)
+            inactive_actions = jnp.zeros_like(actions_for_env).at[..., 0].set(ACTION_STAY)
+            actions_for_env = jnp.where(
+                agent_masks.astype(jnp.bool_)[..., None],
+                actions_for_env,
+                inactive_actions,
+            )
         next_states, next_obs, env_rewards, terminated, truncated, infos = jax.vmap(env.step)(
             current_states,
             flatten_agent_actions(actions_for_env),
@@ -390,7 +410,31 @@ def collect_rollout(
             axis=-1,
         )
         carrying_ants = jnp.sum(next_carrying.astype(jnp.float32), axis=-1)
-        remaining_food = jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1))
+        remaining_food = getattr(
+            infos,
+            "remaining_food",
+            jnp.sum(next_obs["food"].astype(jnp.float32), axis=(-2, -1)),
+        ).astype(jnp.float32)
+        remaining_lethal_food = getattr(
+            infos,
+            "remaining_lethal_food",
+            jnp.zeros_like(env_rewards, dtype=jnp.float32),
+        ).astype(jnp.float32)
+        death_events = getattr(
+            infos,
+            "death_events",
+            jnp.zeros_like(env_rewards, dtype=jnp.float32),
+        ).astype(jnp.float32)
+        alive_ant_count = getattr(
+            infos,
+            "alive_ant_count",
+            jnp.full_like(env_rewards, args.num_ants, dtype=jnp.float32),
+        ).astype(jnp.float32)
+        dead_ant_count = getattr(
+            infos,
+            "dead_ant_count",
+            jnp.zeros_like(env_rewards, dtype=jnp.float32),
+        ).astype(jnp.float32)
         active_grid_size = next_obs.get("active_grid_size")
         active_size = (
             active_grid_size[..., 0].astype(jnp.float32)
@@ -428,7 +472,7 @@ def collect_rollout(
                 env=env,
                 key=reset_key,
                 previous_obs=next_obs,
-                previous_food=next_states.initial_food,
+                previous_food=_initial_food_from_states(next_states),
             )
             return (
                 _select_reset_values(next_states, reset_states, dones),
@@ -462,6 +506,7 @@ def collect_rollout(
             actor_obs=actor_obs,
             central_obs=central_obs,
             actions=actions_for_env,
+            agent_masks=agent_masks,
             logprobs=logprobs,
             rewards=rewards,
             dones=dones,
@@ -474,6 +519,10 @@ def collect_rollout(
             delivery_events=delivery_events,
             carrying_ants=carrying_ants,
             remaining_food=remaining_food,
+            remaining_lethal_food=remaining_lethal_food,
+            death_events=death_events,
+            alive_ant_count=alive_ant_count,
+            dead_ant_count=dead_ant_count,
             active_size=active_size,
             stage_advances=stage_advances,
             stage_delivered_food=stage_delivered_food,
@@ -503,6 +552,7 @@ def collect_rollout(
         actor_obs=transitions.actor_obs,
         central_obs=transitions.central_obs,
         actions=transitions.actions,
+        agent_masks=transitions.agent_masks,
         logprobs=transitions.logprobs,
         rewards=transitions.rewards
         + (
@@ -526,6 +576,10 @@ def collect_rollout(
         delivery_events=transitions.delivery_events,
         carrying_ants=transitions.carrying_ants,
         remaining_food=transitions.remaining_food,
+        remaining_lethal_food=transitions.remaining_lethal_food,
+        death_events=transitions.death_events,
+        alive_ant_count=transitions.alive_ant_count,
+        dead_ant_count=transitions.dead_ant_count,
         active_size=transitions.active_size,
         stage_advances=transitions.stage_advances,
         stage_delivered_food=transitions.stage_delivered_food,

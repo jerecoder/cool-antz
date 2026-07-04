@@ -275,6 +275,7 @@ def render_jax_checkpoint(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -285,6 +286,7 @@ def render_jax_checkpoint(
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
             target_num_ants=int(getattr(args, "num_ants", 1)),
+            target_agent_identity_types=getattr(args, "agent_identity_types", None),
             target_critic_architecture=_target_critic_architecture(critic_kwargs),
         )
         params = jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
@@ -416,6 +418,7 @@ def _compile_jax_action_selector(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -484,6 +487,13 @@ def _env_from_args(
     render_mode: str,
     tile_size: int | None = None,
 ) -> AntByteForagingEnv | AntByteAutoCurriculumEnv:
+    if bool(getattr(args, "distance_autocurriculum", False)):
+        raise ValueError(
+            "The Python renderer does not support distance-autocurriculum checkpoints."
+        )
+    if int(getattr(args, "lethal_food_count", 0)) > 0:
+        raise ValueError("The Python renderer does not support lethal-food checkpoints.")
+
     if bool(getattr(args, "autocurriculum", False)):
         env_kwargs: dict[str, Any] = {
             "start_size": int(getattr(args, "autocurriculum_start_size", 4)),

@@ -10,10 +10,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
-from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.cli import parse_args
+from ant_byte_env.training.jax_mappo.env_factory import JaxMappoEnv, make_jax_mappo_env
 from ant_byte_env.training.jax_mappo.models import (
     critic_forward_kwargs_from_args,
     get_action_logits,
@@ -222,6 +221,7 @@ def _evaluation_step(
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -285,6 +285,7 @@ def evaluate_checkpoint(
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
         target_num_ants=args.num_ants,
+        target_agent_identity_types=getattr(args, "agent_identity_types", None),
         target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
     )
     return evaluate_params(
@@ -427,49 +428,15 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     return central_obs.shape[-1], actor_obs.shape[-1]
 
 
-def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
-    common_kwargs = {
-        "width": args.width,
-        "height": args.height,
-        "num_ants": args.num_ants,
-        "food_count": args.food_count,
-        "food_source_count": args.food_sources,
-        "max_steps": args.max_steps,
-        "random_food": args.random_food,
-        "random_hub": args.random_hub,
-        "random_ant_spawn": bool(getattr(args, "random_ant_spawn", False)),
-        "random_ant_spawn_radius": getattr(args, "random_ant_spawn_radius", None),
-        "step_penalty": args.step_penalty,
-        "completion_bonus": getattr(args, "completion_bonus", 0.0),
-        "write_penalty": args.write_penalty,
-        "write_bits": args.write_bits,
-        "write_while_moving": bool(getattr(args, "write_while_moving", False)),
-        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
-        "actor_vision_radius": int(getattr(args, "actor_vision_radius", 1)),
-    }
-    if bool(getattr(args, "autocurriculum", False)):
-        return JaxAntByteAutoCurriculumEnv(
-            **common_kwargs,
-            start_size=int(getattr(args, "autocurriculum_start_size", 4)),
-            success_cookies=int(getattr(args, "autocurriculum_success_cookies", 6)),
-        )
-    return JaxAntByteForagingEnv(
-        **common_kwargs,
-        layout_margin=int(getattr(args, "layout_margin", 0)),
-        hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
-        terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
-        terminate_on_full_coverage=bool(getattr(args, "terminate_on_full_coverage", False)),
-        maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
-        maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
-        maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
-        maze_seed=int(getattr(args, "maze_seed", 0)),
-    )
+def _make_eval_env(args: argparse.Namespace) -> JaxMappoEnv:
+    return make_jax_mappo_env(args)
 
 
 def _checkpoint_args_with_defaults(saved_args: dict[str, object]) -> argparse.Namespace:

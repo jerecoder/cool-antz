@@ -14,6 +14,13 @@ from ant_byte_env.runs import ensure_run_structure, write_json
 DEFAULT_STAGE_PLAN = "4:1,6:1,8:2,10:2,12:3,16:4,20:5,25:6,32:8,40:10,50:10"
 DEFAULT_EXP_NAME = "jax_mappo_map_ant_gated_mlp"
 GATE_FAILURE_EXIT_CODE = 2
+UNSUPPORTED_TRAINER_SHAPING_FIELDS = (
+    "write_overwrite_penalty",
+    "visible_food_approach_bonus",
+    "visible_food_stall_penalty",
+    "carrying_hub_approach_bonus",
+    "carrying_hub_stall_penalty",
+)
 
 TrainMain = Callable[..., dict[str, float]]
 EvaluateModes = Callable[[Path], dict[str, Any]]
@@ -144,16 +151,20 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--obs-width must be at least the maximum stage width.")
     if args.obs_height is not None and args.obs_height < max_stage_height:
         raise ValueError("--obs-height must be at least the maximum stage height.")
-    for name in (
-        "completion_bonus",
-        "visible_food_approach_bonus",
-        "visible_food_stall_penalty",
-        "carrying_hub_approach_bonus",
-        "carrying_hub_stall_penalty",
-        "write_overwrite_penalty",
-    ):
+    for name in ("completion_bonus", *UNSUPPORTED_TRAINER_SHAPING_FIELDS):
         if float(getattr(args, name)) < 0.0:
             raise ValueError(f"--{name.replace('_', '-')} must be non-negative.")
+    unsupported_nonzero = [
+        name
+        for name in UNSUPPORTED_TRAINER_SHAPING_FIELDS
+        if float(getattr(args, name)) != 0.0
+    ]
+    if unsupported_nonzero:
+        flags = ", ".join(f"--{name.replace('_', '-')}" for name in unsupported_nonzero)
+        raise ValueError(
+            "The live JAX MAPPO trainer does not support these historical shaping flags: "
+            f"{flags}. Keep them as documentation metadata instead of passing them to training."
+        )
     if args.gate_update_chunk_cap <= 0 or args.gate_max_stage_attempts <= 0:
         raise ValueError("gate update caps and attempts must be positive.")
     if args.gate_eval_num_episodes <= 0:
@@ -477,13 +488,12 @@ def build_stage_train_argv(
         "exp_name": args.exp_name,
         "seed": args.seed,
         "quiet": args.quiet,
-        "track": args.track,
-        "wandb_project_name": args.wandb_project_name,
+        "wandb_project": args.wandb_project_name if args.track else None,
         "wandb_entity": args.wandb_entity,
         "wandb_group": args.wandb_group,
         "wandb_run_name": args.wandb_run_name,
         "wandb_tags": args.wandb_tags or None,
-        "wandb_mode": args.wandb_mode,
+        "wandb_mode": args.wandb_mode or ("online" if args.track else "disabled"),
         "total_timesteps": total_timesteps,
         "learning_rate": args.learning_rate,
         "num_envs": args.num_envs,
@@ -519,14 +529,9 @@ def build_stage_train_argv(
         "write_penalty": args.write_penalty,
         "write_bit_penalty": args.write_bit_penalty,
         "write_bit_penalty_decay": args.write_bit_penalty_decay,
-        "write_overwrite_penalty": args.write_overwrite_penalty,
         "write_entropy_bonus": args.write_entropy_bonus,
         "write_entropy_bonus_cap": args.write_entropy_bonus_cap,
         "write_bit_entropy_bonus": args.write_bit_entropy_bonus,
-        "visible_food_approach_bonus": args.visible_food_approach_bonus,
-        "visible_food_stall_penalty": args.visible_food_stall_penalty,
-        "carrying_hub_approach_bonus": args.carrying_hub_approach_bonus,
-        "carrying_hub_stall_penalty": args.carrying_hub_stall_penalty,
         "write_bits": args.write_bits,
         "write_head_transfer": args.write_head_transfer,
         "cookie_distance": stage["cookie_distance"],
@@ -539,7 +544,7 @@ def build_stage_train_argv(
     }
     if load_checkpoint is not None:
         payload["load_model"] = load_checkpoint
-        payload["reset_opt_state_on_load"] = args.reset_opt_state_on_load
+        payload["reset_optimizer_on_load"] = args.reset_opt_state_on_load
     return config_args_to_argv(payload)
 
 
