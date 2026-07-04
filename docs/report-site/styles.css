@@ -299,180 +299,107 @@ figcaption {
 }
 
 .experiment-lineage {
-  --tree-stroke: #a7804d;
-  --tree-node-top: #5c6e4d;
-  position: relative;
   margin: 1.55em 0 0;
-  padding-left: clamp(1.15rem, 2vw, 1.65rem);
-  display: grid;
-  gap: 1.25rem;
-}
-
-.experiment-lineage::before {
-  content: "";
-  position: absolute;
-  top: 0.7rem;
-  bottom: 0.7rem;
-  left: 0;
-  width: 4px;
-  border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    var(--tree-stroke),
-    var(--line-strong) 42%,
-    var(--blue-ink)
-  );
-}
-
-.tree-trunk,
-.tree-side-branches,
-.tree-branches {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.4rem, 1fr));
-  gap: clamp(0.62rem, 1.15vw, 0.95rem);
-  padding: 1.4rem 0 0 clamp(1.05rem, 1.75vw, 1.45rem);
-}
-
-.tree-side-branches::before,
-.tree-side-branches::after,
-.tree-trunk::before,
-.tree-trunk::after,
-.tree-branches::before,
-.tree-branches::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
-
-.tree-trunk::before,
-.tree-side-branches::before,
-.tree-branches::before {
-  top: 1.95rem;
-  left: 0;
-  width: clamp(1.05rem, 1.75vw, 1.45rem);
-  height: 4px;
-  border-radius: 999px;
-  background: var(--tree-stroke);
-}
-
-.tree-trunk::after,
-.tree-side-branches::after {
-  top: 0;
-  left: clamp(1.05rem, 1.75vw, 1.45rem);
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: bold;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.tree-branches::after {
-  top: 0;
-  left: clamp(1.05rem, 1.75vw, 1.45rem);
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: bold;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.tree-trunk::after {
-  content: "Ruta principal";
-}
-
-.tree-side-branches::after {
-  content: "Ramas exploratorias";
-}
-
-.tree-branches::after {
-  content: "Escalado desde 50x50";
-}
-
-.tree-node {
-  position: relative;
-  display: grid;
-  align-content: start;
-  gap: 0.4em;
-  min-height: 12.25em;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
   border: 1px solid var(--line);
-  border-top: 4px solid var(--tree-node-top);
   border-radius: 6px;
-  background: var(--panel);
-  color: #25343d;
-  padding: 0.56em;
-  font-size: 0.88rem;
-  line-height: 1.22;
-  overflow-wrap: anywhere;
-  text-align: left;
+  background: #fffaf0;
+  padding: 0.5rem;
+}
+
+.tree-loading {
+  margin: 0;
+  color: var(--muted);
+}
+
+.tree-svg {
+  display: block;
+  min-width: 1120px;
+  max-width: none;
+  height: auto;
+}
+
+.tree-edge {
+  fill: none;
+  stroke: #a7804d;
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
+.tree-edge.side {
+  stroke: var(--brick);
+  stroke-dasharray: 8 8;
+}
+
+.tree-edge.scale {
+  stroke: var(--blue-ink);
+}
+
+.tree-link {
+  cursor: pointer;
+}
+
+.tree-node-frame {
+  fill: var(--panel);
+  stroke: #d8c8aa;
+  stroke-width: 1;
+  filter: drop-shadow(0 2px 3px rgb(77 63 38 / 0.08));
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
+    fill 160ms ease,
+    stroke 160ms ease,
     transform 160ms ease;
 }
 
-.tree-node::before {
-  content: "";
-  position: absolute;
-  top: 1.28rem;
-  left: calc(clamp(1.05rem, 1.75vw, 1.45rem) * -1);
-  width: clamp(1.05rem, 1.75vw, 1.45rem);
-  height: 4px;
-  border-radius: 999px;
-  background: var(--tree-stroke);
-  pointer-events: none;
+.tree-node-rail {
+  fill: #5c6e4d;
 }
 
-.tree-node.root {
-  border-color: var(--line-strong);
-  border-top-color: var(--accent);
+.tree-link.root .tree-node-rail {
+  fill: var(--accent);
 }
 
-.tree-node.frontier {
-  border-top-color: var(--blue-ink);
-  background: #fffaf0;
+.tree-link.frontier .tree-node-frame {
+  fill: #fff4d8;
+  stroke: #c59a53;
 }
 
-.tree-node.side {
-  border-top-color: var(--brick);
+.tree-link.frontier .tree-node-rail,
+.tree-link.scale .tree-node-rail {
+  fill: var(--blue-ink);
 }
 
-.tree-node img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 11;
-  border: 1px solid #e5dccb;
-  border-radius: 4px;
-  background-color: var(--paper-warm);
-  background-position: center;
-  background-size: cover;
-  object-fit: cover;
+.tree-link.side .tree-node-rail {
+  fill: var(--brick);
 }
 
-.tree-label {
-  display: block;
-  color: #243039;
-  font-size: 0.98rem;
-  font-weight: bold;
+.tree-node-image {
+  clip-path: inset(0 round 4px);
 }
 
-.tree-node small {
-  display: block;
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.25;
+.tree-node-label {
+  fill: #243039;
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.tree-node:hover {
-  border-color: var(--accent);
-  background-color: #fff9ec;
-  color: var(--accent-dark);
-  transform: translateY(-2px);
+.tree-node-small {
+  fill: var(--muted);
+  font-size: 12px;
 }
 
-.tree-node:hover .tree-label {
-  color: var(--accent-dark);
+.tree-link:hover .tree-node-frame {
+  fill: #fff8e8;
+  stroke: var(--accent);
+}
+
+.tree-link:focus-visible {
+  outline: none;
+}
+
+.tree-link:focus-visible .tree-node-frame {
+  stroke: #c79c58;
+  stroke-width: 3;
 }
 
 .story-nav {
@@ -500,7 +427,7 @@ figcaption {
   color: var(--accent-dark);
 }
 
-.tree-node:focus-visible,
+.tree-link:focus-visible .tree-node-frame,
 .story-nav a:focus-visible,
 .button:focus-visible,
 .policy-tabs button:focus-visible,
@@ -1046,51 +973,11 @@ li + li {
 
 @media (max-width: 940px) {
   .experiment-lineage {
-    padding-left: 1rem;
-    gap: 1rem;
+    padding: 0.35rem;
   }
 
-  .tree-trunk,
-  .tree-side-branches,
-  .tree-branches {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.8rem;
-    padding: 1.35rem 0 0 1.05rem;
-  }
-
-  .tree-trunk::before,
-  .tree-side-branches::before {
-    top: 1.92rem;
-    left: 0;
-    width: 1.05rem;
-    height: 4px;
-  }
-
-  .tree-branches::before {
-    top: 1.92rem;
-    left: 0;
-    width: 1.05rem;
-    height: 4px;
-  }
-
-  .tree-node {
-    grid-template-columns: minmax(5.2rem, 0.35fr) minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    align-items: start;
-    gap: 0.22em 0.7em;
-    min-height: 0;
-  }
-
-  .tree-node::before {
-    top: 1.2rem;
-    left: -1.05rem;
-    width: 1.05rem;
-    height: 4px;
-  }
-
-  .tree-node img {
-    grid-row: 1 / span 2;
-    aspect-ratio: 4 / 3;
+  .tree-svg {
+    min-width: 980px;
   }
 }
 

@@ -176,6 +176,13 @@ La lectura es metodológica: los umbrales de un autocurrículo no pueden confiar
 
 Otra rama exploró laberintos. En la rama actual queda el config \run{maze_exploration_curriculum.json}: laberintos generados de 10x10 a 50x50, una hormiga, 48 unidades de comida, 12 fuentes, 2 bits, radio 1, crítico MLP, \metric{max_steps}=6250, 16 entornos por 80 pasos, \metric{reward_mode}=\run{explore}, pasillos de ancho 3, paredes de ancho 1 y semilla 17. La infraestructura de obstáculos sí quedó implementada y testeada: obstáculos bloquean movimiento, aparecen en observaciones, los resets ubican hub/comida/hormigas en celdas abiertas y los layouts pueden cambiar tras truncación.
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\linewidth]{fig_maze_layout.pdf}
+\caption{Layout 50x50 generado desde \run{maze_exploration_curriculum.json} con el generador real de laberintos del entorno. No es un rollout ni una métrica de éxito: muestra la geometría que la rama podía producir, mientras que el resultado cuantitativo comparable no quedó preservado.}
+\label{fig:maze-layout}
+\end{figure}
+
 También existió una rama lateral \run{origin/lethal_cookies}. Allí el cuaderno de maze preparaba una prueba de estrés 41x41 en forma de L dentro de una arena 50x50, con pasillos de ancho 5, 20 hormigas, una fuente normal al final y, en una variante hermana, bolsillos laterales para fuentes letales. Sin embargo, esa rama no tiene en el checkout actual métricas locales preservadas de entrega, supervivencia, eficiencia o convergencia, y la llamada de entrenamiento del cuaderno de maze estaba comentada.
 
 Por eso el laberinto debe contarse como fracaso de flujo/evidencia, no como fracaso cuantitativo de política. La idea era válida para probar memoria espacial bajo obstáculos, pero no produjo una corrida comparable con las ramas principales. La decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de entrega.
@@ -183,6 +190,13 @@ Por eso el laberinto debe contarse como fracaso de flujo/evidencia, no como frac
 \subsection{Memoria y autoresearch: escribir no basta}
 
 La línea de memoria intentó convertir la observación cualitativa de bytes escritos en una afirmación causal. El criterio correcto era más exigente: una política con bytes debía superar pruebas \run{no_byte_read} y \run{no_write}, y al mismo tiempo mantener o mejorar comida entregada. Los barridos R8--R12 y las recompensas \run{delivery_byte_trail_bonus}, \run{byte_follow_bonus} y variantes relacionadas fueron diseñados para esa pregunta.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{fig_memory_r8_r12_ablation.pdf}
+\caption{Pruebas de memoria R8--R11. Cada grupo compara la evaluación normal contra dos ablaciones: impedir la lectura de bytes y bloquear la escritura. R12 queda fuera de la figura porque se interrumpió antes de un resultado final confiable. La lectura importante no es cuántos bytes aparecen, sino si la política mantiene forrajeo y mejora frente a las ablaciones.}
+\label{fig:memory-r8-r12}
+\end{figure}
 
 La conclusión no fue positiva. El punto guardado sparse apenas dependía de los bytes. R8 entregó bien pero no a través de memoria: \run{normal}=394, \run{no_byte_read}=397 y \run{no_write}=397. R9 produjo una brecha más causal, pero dañó el forrajeo: \run{normal}=124 contra ablaciones de 56. R10 fue más liviano, aunque todavía débil: 260 contra 248. R11 preservó conducta sparse sin ganancia causal: 378 contra 395 y 395. R12 quedó interrumpido antes de un resultado final confiable. Junto con el resultado \run{DISTANCE_CAP4_NO_WRITE} de \(22/23\), esto impide afirmar que la memoria externa causó los mejores resultados. Lo que sí queda demostrado es más modesto: el entorno ofrece una memoria discreta y las políticas pueden escribirla; falta probar que esa información escrita mejore decisiones de forma robusta.
 

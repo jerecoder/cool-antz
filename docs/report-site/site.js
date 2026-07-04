@@ -1,4 +1,356 @@
 (() => {
+  const experimentTree = {
+    id: "world",
+    href: "#world",
+    label: "Mundo y métrica",
+    small: "entrega, fuentes, bytes",
+    poster: "report-site/assets/posters/tree-world.jpg",
+    alt: "Fotograma de la línea base aleatoria",
+    kind: "root",
+    children: [
+      {
+        id: "size-curriculum",
+        href: "#size-curriculum",
+        label: "Currículo de tamaño",
+        small: "8x8 a 50x50 desde pickles",
+        poster: "report-site/assets/posters/tree-size-curriculum.jpg",
+        alt: "Fotograma del currículo temprano de tamaño de mapa",
+        kind: "main",
+        children: [
+          {
+            id: "small-scale",
+            href: "#small-scale",
+            label: "Primer cuello",
+            small: "una colonia chica no cubre",
+            poster: "report-site/assets/posters/tree-small-scale.jpg",
+            alt: "Fotograma 25x25 con 2 hormigas",
+            kind: "main",
+            children: [
+              {
+                id: "unlock25",
+                href: "#unlock25",
+                label: "Desbloqueo 25x25",
+                small: "4 hormigas + moldeado",
+                poster: "report-site/assets/posters/tree-unlock25.jpg",
+                alt: "Fotograma 25x25 con 4 hormigas",
+                kind: "main",
+                children: [
+                  {
+                    id: "bits-ants",
+                    href: "#bits-ants",
+                    label: "Bytes vs cobertura",
+                    small: "hipótesis, no conclusión",
+                    poster: "report-site/assets/posters/tree-bits-ants.jpg",
+                    alt: "Fotograma del currículo de cantidad de hormigas",
+                    kind: "main",
+                    children: [
+                      {
+                        id: "source-layouts",
+                        href: "#source-layouts",
+                        label: "Fuentes dispersas",
+                        small: "de muchas posiciones a 2 fuentes",
+                        poster: "report-site/assets/posters/tree-source-layouts.jpg",
+                        alt: "Fotograma de una política entrenada con pocas posiciones de comida",
+                        kind: "main",
+                        children: [
+                          {
+                            id: "rare50",
+                            href: "#rare50",
+                            label: "50x50 raro",
+                            small: "descubrir fuentes escasas",
+                            poster: "report-site/assets/posters/tree-rare50.jpg",
+                            alt: "Fotograma de una política 50x50 rara con 4 hormigas",
+                            kind: "main",
+                            children: [
+                              {
+                                id: "critic50",
+                                href: "#critic50",
+                                label: "Cambio de crítico",
+                                small: "MLP a strided_cnn",
+                                poster: "report-site/assets/posters/tree-critic50.jpg",
+                                alt: "Fotograma de una política 50x50 con crítico strided_cnn",
+                                kind: "main",
+                                children: [
+                                  {
+                                    id: "frontier50",
+                                    href: "#frontier50",
+                                    label: "Frontera 60 hormigas",
+                                    small: "123.90625/125",
+                                    poster: "report-site/assets/posters/tree-frontier50.jpg",
+                                    alt: "Fotograma de la política 50x50 de 60 hormigas",
+                                    kind: "frontier",
+                                    children: [
+                                      {
+                                        id: "large-scale-100",
+                                        href: "#large-scale-100",
+                                        label: "Puente 100x100",
+                                        small: "372-373/375",
+                                        poster: "report-site/assets/posters/tree-large-scale-100.jpg",
+                                        alt: "Fotograma del render 1000x1000 del puente 100x100",
+                                        kind: "scale",
+                                      },
+                                      {
+                                        id: "large-scale-250",
+                                        href: "#large-scale-250",
+                                        label: "250x250 reset",
+                                        small: "falló, luego entregó",
+                                        poster: "report-site/assets/posters/tree-large-scale-250.jpg",
+                                        alt: "Fotograma del reset-boundary 250x250",
+                                        kind: "scale",
+                                      },
+                                      {
+                                        id: "bigmap",
+                                        href: "#bigmap",
+                                        label: "1000x1000 solo actor",
+                                        small: "política 50x50 en estrés",
+                                        poster: "report-site/assets/posters/tree-bigmap.jpg",
+                                        alt: "Fotograma del despliegue solo actor 1000x1000",
+                                        kind: "scale",
+                                      },
+                                    ],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                      {
+                        id: "autocurriculum",
+                        href: "#autocurriculum",
+                        label: "Autocurrículos",
+                        small: "etapas y moldeado no bastaron",
+                        poster: "report-site/assets/posters/tree-autocurriculum.jpg",
+                        alt: "Fotograma real del autocurrículo 250x250 con entrega cero",
+                        kind: "side",
+                      },
+                      {
+                        id: "maze-pipeline",
+                        href: "#maze-pipeline",
+                        label: "Laberinto",
+                        small: "mapa real, sin video final",
+                        poster: "report-site/assets/posters/tree-maze.jpg",
+                        alt: "Layout de laberinto generado desde la configuración preservada",
+                        kind: "side",
+                      },
+                      {
+                        id: "memory-autoresearch",
+                        href: "#memory-autoresearch",
+                        label: "Memoria R8-R12",
+                        small: "ablaciones antes que videos",
+                        poster: "report-site/assets/posters/tree-memory.jpg",
+                        alt: "Gráfico de entregas en pruebas normal, sin lectura de bytes y sin escritura",
+                        kind: "side",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  function createSvg(tagName) {
+    return document.createElementNS("http://www.w3.org/2000/svg", tagName);
+  }
+
+  function splitLabel(text, maxChars, maxLines) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let current = "";
+    words.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= maxChars) {
+        current = candidate;
+        return;
+      }
+      if (current) lines.push(current);
+      current = word;
+    });
+    if (current) lines.push(current);
+    if (lines.length <= maxLines) return lines;
+    const trimmed = lines.slice(0, maxLines);
+    trimmed[maxLines - 1] = `${trimmed[maxLines - 1].replace(/\.*$/, "")}...`;
+    return trimmed;
+  }
+
+  function collectTreeLayout(root) {
+    const nodeWidth = 220;
+    const nodeHeight = 104;
+    const levelGap = 54;
+    const rowGap = 34;
+    const padding = 26;
+    const nodes = [];
+    const edges = [];
+
+    function primaryChild(node) {
+      return (node.children || []).find((child) => child.kind === "main" || child.kind === "frontier") || null;
+    }
+
+    function makeLayoutNode(node, depth, row) {
+      const layoutNode = {
+        ...node,
+        depth,
+        row,
+        width: nodeWidth,
+        height: nodeHeight,
+        x: padding + depth * (nodeWidth + levelGap),
+        y: padding + row * (nodeHeight + rowGap),
+      };
+      nodes.push(layoutNode);
+      return layoutNode;
+    }
+
+    const mainChain = [];
+    let current = root;
+    while (current) {
+      mainChain.push(current);
+      current = primaryChild(current);
+    }
+
+    const layoutById = new Map();
+    mainChain.forEach((node, depth) => {
+      layoutById.set(node.id, makeLayoutNode(node, depth, 0));
+    });
+    for (let index = 1; index < mainChain.length; index += 1) {
+      edges.push({
+        parent: layoutById.get(mainChain[index - 1].id),
+        child: layoutById.get(mainChain[index].id),
+      });
+    }
+
+    mainChain.forEach((node, depth) => {
+      const parent = layoutById.get(node.id);
+      const primary = primaryChild(node);
+      const branches = (node.children || []).filter((child) => child !== primary);
+      const scaleBranch = parent.kind === "frontier" || branches.every((child) => child.kind === "scale");
+      branches.forEach((branch, index) => {
+        const branchDepth = depth + (scaleBranch ? index + 1 : index);
+        const row = 1;
+        const child = makeLayoutNode(branch, branchDepth, row);
+        edges.push({ parent, child });
+      });
+    });
+
+    const maxX = Math.max(...nodes.map((node) => node.x)) + nodeWidth + padding;
+    const maxY = Math.max(...nodes.map((node) => node.y)) + nodeHeight + padding;
+    return { nodes, edges, width: maxX, height: maxY };
+  }
+
+  function appendWrappedText(parent, text, x, y, maxChars, maxLines, className, lineHeight) {
+    splitLabel(text, maxChars, maxLines).forEach((line, index) => {
+      const tspan = createSvg("text");
+      tspan.setAttribute("x", x);
+      tspan.setAttribute("y", y + index * lineHeight);
+      tspan.setAttribute("class", className);
+      tspan.textContent = line;
+      parent.append(tspan);
+    });
+  }
+
+  function renderExperimentTree() {
+    const container = document.querySelector("#experiment-lineage");
+    if (!container) return;
+
+    const { nodes, edges, width, height } = collectTreeLayout(experimentTree);
+    const svg = createSvg("svg");
+    svg.setAttribute("class", "tree-svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-labelledby", "tree-svg-title tree-svg-desc");
+
+    const title = createSvg("title");
+    title.setAttribute("id", "tree-svg-title");
+    title.textContent = "Árbol navegable de experimentos";
+    const desc = createSvg("desc");
+    desc.setAttribute("id", "tree-svg-desc");
+    desc.textContent =
+      "Linaje desde la definición del mundo y los primeros currículos hasta la frontera 50x50, las ramas exploratorias y los despliegues grandes.";
+    svg.append(title, desc);
+
+    const edgeLayer = createSvg("g");
+    edgeLayer.setAttribute("class", "tree-edges");
+    edges.forEach(({ parent, child }) => {
+      const edge = createSvg("path");
+      edge.setAttribute("class", `tree-edge ${child.kind || "main"}`);
+      if (child.x > parent.x) {
+        const x1 = parent.x + parent.width;
+        const y1 = parent.y + parent.height / 2;
+        const x2 = child.x;
+        const y2 = child.y + child.height / 2;
+        const mid = x1 + (x2 - x1) * 0.5;
+        edge.setAttribute("d", `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`);
+      } else {
+        const x1 = parent.x + parent.width / 2;
+        const y1 = parent.y + parent.height;
+        const x2 = child.x + child.width / 2;
+        const y2 = child.y;
+        const mid = y1 + (y2 - y1) * 0.5;
+        edge.setAttribute("d", `M ${x1} ${y1} C ${x1} ${mid}, ${x2} ${mid}, ${x2} ${y2}`);
+      }
+      edgeLayer.append(edge);
+    });
+    svg.append(edgeLayer);
+
+    const nodeLayer = createSvg("g");
+    nodeLayer.setAttribute("class", "tree-nodes");
+    nodes.forEach((node) => {
+      const link = createSvg("a");
+      link.setAttribute("href", node.href);
+      link.setAttribute("class", `tree-link ${node.kind || "main"}`);
+      link.setAttribute("aria-label", `${node.label}: ${node.small}`);
+      link.addEventListener("click", (event) => {
+        const target = document.querySelector(node.href);
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.pushState(null, "", node.href);
+      });
+
+      const group = createSvg("g");
+      group.setAttribute("transform", `translate(${node.x} ${node.y})`);
+
+      const frame = createSvg("rect");
+      frame.setAttribute("class", "tree-node-frame");
+      frame.setAttribute("width", node.width);
+      frame.setAttribute("height", node.height);
+      frame.setAttribute("rx", "7");
+
+      const rail = createSvg("rect");
+      rail.setAttribute("class", "tree-node-rail");
+      rail.setAttribute("width", node.width);
+      rail.setAttribute("height", "5");
+      rail.setAttribute("rx", "5");
+
+      const image = createSvg("image");
+      image.setAttribute("class", "tree-node-image");
+      image.setAttribute("href", node.poster);
+      image.setAttribute("x", "10");
+      image.setAttribute("y", "14");
+      image.setAttribute("width", "74");
+      image.setAttribute("height", "56");
+      image.setAttribute("preserveAspectRatio", "xMidYMid slice");
+
+      const imageTitle = createSvg("title");
+      imageTitle.textContent = node.alt;
+      image.append(imageTitle);
+
+      group.append(frame, rail, image);
+      appendWrappedText(group, node.label, 94, 31, 17, 2, "tree-node-label", 17);
+      appendWrappedText(group, node.small, 94, 75, 22, 2, "tree-node-small", 15);
+      link.append(group);
+      nodeLayer.append(link);
+    });
+    svg.append(nodeLayer);
+
+    container.replaceChildren(svg);
+  }
+
   const policies = {
     frontier50: {
       label: "50x50",
@@ -231,5 +583,6 @@
     button.addEventListener("click", () => selectPolicy(button.dataset.policy));
   });
 
+  renderExperimentTree();
   selectPolicy("frontier50");
 })();

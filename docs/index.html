@@ -136,95 +136,20 @@
       <section class="experiment-tree" aria-labelledby="tree-title">
         <h2 id="tree-title">Árbol de experimentos</h2>
         <p class="summary">
-          Cada nodo se puede seleccionar y lleva a la sección correspondiente. Las
+          Cada nodo se puede seleccionar y lleva a la sección correspondiente.
+          El árbol se genera desde una estructura de linaje: los conectores salen
+          de relaciones padre-hijo, no de posiciones dibujadas a mano. Las
           imágenes son fotogramas reales de rollouts cuando hay checkpoint o
-          video preservado. Cuando una rama quedó solo como infraestructura, el
-          nodo lo declara como esquema y no como resultado empírico.
+          video preservado; cuando una rama quedó como infraestructura o
+          diagnóstico, usamos una visualización generada desde la configuración
+          o las métricas locales y lo decimos explícitamente.
         </p>
-        <nav class="experiment-lineage" aria-label="Árbol navegable de experimentos">
-          <div class="tree-trunk" aria-label="Tronco: desde el entorno hasta la frontera 50x50">
-            <a class="tree-node root" href="#world">
-              <img src="report-site/assets/posters/tree-world.jpg" alt="Fotograma de la línea base aleatoria">
-              <span class="tree-label">Mundo y métrica</span>
-              <small>entrega, fuentes, bytes</small>
-            </a>
-            <a class="tree-node" href="#size-curriculum">
-              <img src="report-site/assets/posters/tree-size-curriculum.jpg" alt="Fotograma del currículo temprano de tamaño de mapa">
-              <span class="tree-label">Currículo de tamaño</span>
-              <small>8x8 a 50x50 desde pickles</small>
-            </a>
-            <a class="tree-node" href="#small-scale">
-              <img src="report-site/assets/posters/tree-small-scale.jpg" alt="Fotograma 25x25 con 2 hormigas">
-              <span class="tree-label">Primer cuello</span>
-              <small>una colonia chica no cubre</small>
-            </a>
-            <a class="tree-node" href="#unlock25">
-              <img src="report-site/assets/posters/tree-unlock25.jpg" alt="Fotograma 25x25 con 4 hormigas">
-              <span class="tree-label">Desbloqueo 25x25</span>
-              <small>4 hormigas + moldeado</small>
-            </a>
-            <a class="tree-node" href="#bits-ants">
-              <img src="report-site/assets/posters/tree-bits-ants.jpg" alt="Fotograma del currículo de cantidad de hormigas">
-              <span class="tree-label">Bytes vs cobertura</span>
-              <small>hipótesis, no conclusión</small>
-            </a>
-            <a class="tree-node" href="#source-layouts">
-              <img src="report-site/assets/posters/tree-source-layouts.jpg" alt="Fotograma de una política entrenada con pocas posiciones de comida">
-              <span class="tree-label">Fuentes dispersas</span>
-              <small>de muchas posiciones a 2 fuentes</small>
-            </a>
-            <a class="tree-node" href="#rare50">
-              <img src="report-site/assets/posters/tree-rare50.jpg" alt="Fotograma de una política 50x50 rara con 4 hormigas">
-              <span class="tree-label">50x50 raro</span>
-              <small>descubrir fuentes escasas</small>
-            </a>
-            <a class="tree-node" href="#critic50">
-              <img src="report-site/assets/posters/tree-critic50.jpg" alt="Fotograma de una política 50x50 con crítico strided_cnn">
-              <span class="tree-label">Cambio de crítico</span>
-              <small>MLP a strided_cnn</small>
-            </a>
-            <a class="tree-node frontier" href="#frontier50">
-              <img src="report-site/assets/posters/tree-frontier50.jpg" alt="Fotograma de la política 50x50 de 60 hormigas">
-              <span class="tree-label">Frontera 60 hormigas</span>
-              <small>123.90625/125</small>
-            </a>
-          </div>
-
-          <div class="tree-side-branches" aria-label="Ramas exploratorias que no quedaron como línea principal">
-            <a class="tree-node side tree-side-autocurriculum" href="#autocurriculum">
-              <img src="report-site/assets/posters/tree-autocurriculum.jpg" alt="Fotograma real del autocurrículo 250x250 con entrega cero">
-              <span class="tree-label">Autocurrículos</span>
-              <small>etapas y moldeado no bastaron</small>
-            </a>
-            <a class="tree-node side tree-side-maze" href="#maze-pipeline">
-              <img src="report-site/assets/posters/tree-maze.svg" alt="Esquema del flujo de laberinto">
-              <span class="tree-label">Laberinto</span>
-              <small>flujo sin evidencia final</small>
-            </a>
-            <a class="tree-node side tree-side-memory" href="#memory-autoresearch">
-              <img src="report-site/assets/posters/tree-memory.svg" alt="Esquema de memoria externa con ablaciones">
-              <span class="tree-label">Memoria R8-R12</span>
-              <small>más causalidad, menos forrajeo</small>
-            </a>
-          </div>
-
-          <div class="tree-branches" aria-label="Ramas de escalado desde la frontera 50x50">
-            <a class="tree-node tree-branch tree-branch-100" href="#large-scale-100">
-              <img src="report-site/assets/posters/tree-large-scale-100.jpg" alt="Fotograma del render 1000x1000 del puente 100x100">
-              <span class="tree-label">Puente 100x100</span>
-              <small>372-373/375</small>
-            </a>
-            <a class="tree-node tree-branch tree-branch-250" href="#large-scale-250">
-              <img src="report-site/assets/posters/tree-large-scale-250.jpg" alt="Fotograma del reset-boundary 250x250">
-              <span class="tree-label">250x250 reset</span>
-              <small>falló, luego entregó</small>
-            </a>
-            <a class="tree-node tree-branch tree-branch-bigmap" href="#bigmap">
-              <img src="report-site/assets/posters/tree-bigmap.jpg" alt="Fotograma del despliegue solo actor 1000x1000">
-              <span class="tree-label">1000x1000 solo actor</span>
-              <small>política 50x50 en prueba de estrés</small>
-            </a>
-          </div>
+        <nav
+          id="experiment-lineage"
+          class="experiment-lineage"
+          aria-label="Árbol navegable de experimentos"
+        >
+          <p class="tree-loading">Cargando árbol de experimentos...</p>
         </nav>
       </section>
 
@@ -1078,13 +1003,15 @@
         <div class="evidence-pair">
           <figure>
             <img
-              src="report-site/assets/posters/tree-maze.svg"
-              alt="Esquema del laberinto en L usado como prueba de estrés"
+              src="report-site/assets/plots/fig_maze_layout.png"
+              alt="Mapa de obstáculos generado por maze_exploration_curriculum.json"
             >
             <figcaption>
               <strong>Video / evidencia visual.</strong> Este panel es un
-              esquema: no encontramos un MP4 local conservado para esta rama.
-              Por eso no la presentamos como éxito empírico.
+              layout generado desde <code>maze_exploration_curriculum.json</code>
+              y el generador real de laberintos. No encontramos un MP4 local
+              conservado para esta rama; por eso no la presentamos como éxito
+              empírico.
             </figcaption>
           </figure>
           <div class="experiment-template">
@@ -1122,8 +1049,9 @@
               <p>
                 El cuaderno de la rama lateral preparaba un render largo, pero
                 la llamada de entrenamiento estaba comentada y no hay archivo
-                multimedia final en <code>runs/</code>. Por eso esta sección usa un
-                esquema y no un video.
+                multimedia final en <code>runs/</code>. Por eso esta sección usa
+                una figura generada desde la configuración preservada, no un
+                video de política.
               </p>
             </div>
             <div>
@@ -1156,14 +1084,14 @@
         <div class="evidence-pair">
           <figure>
             <img
-              src="report-site/assets/plots/fig_bits_vs_ants.png"
-              alt="Comparación de bits de escritura y cantidad de hormigas"
+              src="report-site/assets/plots/fig_memory_r8_r12_ablation.png"
+              alt="Entregas R8-R11 bajo evaluación normal, sin lectura de bytes y sin escritura"
             >
             <figcaption>
-              <strong>Video / evidencia visual.</strong> La figura resume la
-              primera señal negativa: aumentar bits no fue el desbloqueo
-              principal. Las ramas R8-R12 agregan ablaciones, pero no tienen una
-              figura final equivalente.
+              <strong>Video / evidencia visual.</strong> La evidencia decisiva
+              para memoria no era un video con bytes pintados, sino la brecha
+              contra ablaciones. La figura se genera desde los números R8-R11;
+              R12 quedó interrumpido y no se grafica como resultado final.
             </figcaption>
           </figure>
           <div class="experiment-template">

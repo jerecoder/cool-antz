@@ -15,5 +15,9 @@ Las barras mezclan denominadores solo cuando la figura lo declara: por eso cada 
 - filas: 7
 ## 250x250 diagnostics
 - filas: 5
+## maze layout
+- filas: 1
+## memory R8-R12 ablation
+- filas: 12
 ## behavior montage
 - filas: 8
