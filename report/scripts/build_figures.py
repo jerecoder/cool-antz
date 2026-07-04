@@ -47,9 +47,13 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         return
     with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def load_csv_rows(path: Path) -> list[dict[str, Any]]:
+    return pd.read_csv(path).to_dict("records")
 
 
 def savefig(fig: plt.Figure, name: str) -> None:
@@ -139,7 +143,6 @@ def figure_25x25_modes() -> list[dict[str, Any]]:
     ax.axhline(1.0, color=DARK, linewidth=1.1, linestyle="--", alpha=0.8)
     ax.set_ylim(0, 1.13)
     ax.set_xticks(list(x), labels, rotation=22, ha="right")
-    ax.set_title("25x25: el resultado depende del modo de despliegue")
     style_axes(ax, "fracción entregada en evaluación")
     ax.legend(frameon=False, ncols=2, loc="upper left")
     savefig(fig, "fig_25x25_modes")
@@ -182,7 +185,6 @@ def figure_bits_vs_ants() -> list[dict[str, Any]]:
     for task, color, marker in [("15x15 aprox.", GREEN, "o"), ("25x25 anchor", ORANGE, "s")]:
         sub = df[(df.family == "bits") & (df.task == task)].sort_values("setting")
         ax.plot(sub.setting, sub.episode_return, marker=marker, linewidth=2.4, color=color, label=task)
-    ax.set_title("Más bits no fue el desbloqueo")
     ax.set_xlabel("bits de escritura")
     style_axes(ax, "retorno de entrenamiento")
     ax.legend(frameon=False)
@@ -190,7 +192,6 @@ def figure_bits_vs_ants() -> list[dict[str, Any]]:
     ax = axes[1]
     sub = df[df.family == "ants"].sort_values("setting")
     ax.bar(sub.setting.astype(str), sub.episode_return, color=BLUE)
-    ax.set_title("Más hormigas sí aumentó cobertura")
     ax.set_xlabel("hormigas")
     style_axes(ax, "retorno de entrenamiento")
     savefig(fig, "fig_bits_vs_ants")
@@ -233,7 +234,6 @@ def figure_rare_50x50() -> list[dict[str, Any]]:
             fontsize=8,
         )
     ax.set_ylim(0, 0.82)
-    ax.set_title("50x50 raro: los vectores ayudan a descubrir, pero no resuelven")
     ax.set_xticks(range(len(rows)), [r["label"] for r in rows], rotation=18, ha="right")
     style_axes(ax, "fracción entregada")
     savefig(fig, "fig_rare_50x50")
@@ -241,6 +241,7 @@ def figure_rare_50x50() -> list[dict[str, Any]]:
 
 
 def figure_critic_50x50() -> list[dict[str, Any]]:
+    confirmation_path = "runs/overnight_efficiency_sweep/sweep_20260702_003029/confirmation_64/summary.json"
     entries = [
         {
             "label": "eficiente 50x50",
@@ -292,38 +293,47 @@ def figure_critic_50x50() -> list[dict[str, Any]]:
             "note": "64 eval episodes, saturated writes",
         },
     ]
-    rows: list[dict[str, Any]] = []
-    for entry in entries:
-        if entry["path"]:
-            data = wandb(entry["path"])
-            row = {
-                "label": entry["label"],
-                "critic": entry["critic"],
-                "ants": entry["ants"],
-                "delivered_food": float(data["eval_mean_delivered_food"]),
-                "food_total": int(data["food_count"]),
-                "delivered_fraction": float(data["eval_mean_delivered_fraction"]),
-                "success_rate": float(data["eval_success_rate"]),
-                "write_nonzero_rate": float(data.get("write_action_nonzero_rate", 0.0)),
-                "note": entry["note"],
-            }
-        else:
-            confirmation = load_json("runs/overnight_efficiency_sweep/sweep_20260702_003029/confirmation_64/summary.json")
-            baseline = next(item for item in confirmation if item["label"] == "baseline_cool_temp050")
-            metrics = baseline["metrics"]
-            row = {
-                "label": entry["label"],
-                "critic": entry["critic"],
-                "ants": entry["ants"],
-                "delivered_food": float(metrics["eval_mean_delivered_food"]),
-                "food_total": 125,
-                "delivered_fraction": float(metrics["eval_mean_delivered_fraction"]),
-                "success_rate": float(metrics["eval_success_rate"]),
-                "write_nonzero_rate": 0.9980143904685974,
-                "note": entry["note"],
-            }
-        rows.append(row)
-    write_csv(DATA / "figure_critic_50x50.csv", rows)
+    required_paths = [rel(entry["path"]) for entry in entries if entry["path"]] + [rel(confirmation_path)]
+    missing_sources = [path for path in required_paths if not path.exists()]
+    if missing_sources:
+        rows = load_csv_rows(DATA / "figure_critic_50x50.csv")
+        print(
+            f"using {DATA / 'figure_critic_50x50.csv'} for critic 50x50 "
+            f"because {len(missing_sources)} source artifact(s) are unavailable"
+        )
+    else:
+        rows = []
+        for entry in entries:
+            if entry["path"]:
+                data = wandb(entry["path"])
+                row = {
+                    "label": entry["label"],
+                    "critic": entry["critic"],
+                    "ants": entry["ants"],
+                    "delivered_food": float(data["eval_mean_delivered_food"]),
+                    "food_total": int(data["food_count"]),
+                    "delivered_fraction": float(data["eval_mean_delivered_fraction"]),
+                    "success_rate": float(data["eval_success_rate"]),
+                    "write_nonzero_rate": float(data.get("write_action_nonzero_rate", 0.0)),
+                    "note": entry["note"],
+                }
+            else:
+                confirmation = load_json(confirmation_path)
+                baseline = next(item for item in confirmation if item["label"] == "baseline_cool_temp050")
+                metrics = baseline["metrics"]
+                row = {
+                    "label": entry["label"],
+                    "critic": entry["critic"],
+                    "ants": entry["ants"],
+                    "delivered_food": float(metrics["eval_mean_delivered_food"]),
+                    "food_total": 125,
+                    "delivered_fraction": float(metrics["eval_mean_delivered_fraction"]),
+                    "success_rate": float(metrics["eval_success_rate"]),
+                    "write_nonzero_rate": 0.9980143904685974,
+                    "note": entry["note"],
+                }
+            rows.append(row)
+        write_csv(DATA / "figure_critic_50x50.csv", rows)
 
     fig, ax = plt.subplots(figsize=(11.8, 4.9), constrained_layout=True)
     colors = [GRAY if r["critic"] == "MLP" else (BLUE if r["ants"] < 60 else GREEN) for r in rows]
@@ -340,7 +350,6 @@ def figure_critic_50x50() -> list[dict[str, Any]]:
     ax.axvline(0.5, color=DARK, linestyle="--", linewidth=1, alpha=0.55)
     ax.text(0.52, 0.98, "cambio de crítico", ha="left", va="top", fontsize=9, transform=ax.get_xaxis_transform())
     ax.set_ylim(0, 1.13)
-    ax.set_title("50x50: el salto de crítico es una frontera causal")
     ax.set_xticks(range(len(rows)), [r["label"] for r in rows], rotation=22, ha="right")
     style_axes(ax, "fracción entregada")
     savefig(fig, "fig_critic_50x50")
@@ -399,7 +408,6 @@ def figure_250x250() -> list[dict[str, Any]]:
     ax.bar([i - width / 2 for i in x], [r["delivery_events"] for r in rows], width, color=BLUE, label="entregas")
     ax.bar([i + width / 2 for i in x], [r["pickup_events"] for r in rows], width, color=ORANGE, label="pickups")
     ax.set_xticks(list(x), [r["label"] for r in rows], rotation=22, ha="right")
-    ax.set_title("250x250: shaping positivo no basta")
     style_axes(ax, "eventos en resumen final")
     ax.legend(frameon=False)
 
@@ -408,7 +416,6 @@ def figure_250x250() -> list[dict[str, Any]]:
     ax.bar([i + width / 2 for i in x], [r["nonzero_byte_fraction"] for r in rows], width, color=GREEN, label="fracción bytes no-cero")
     ax.set_xticks(list(x), [r["label"] for r in rows], rotation=22, ha="right")
     ax.set_ylim(0, 1.05)
-    ax.set_title("Saturar bytes no implica entrega")
     style_axes(ax, "tasa / fracción")
     ax.legend(frameon=False)
     savefig(fig, "fig_250x250_diagnostics")
@@ -473,40 +480,41 @@ def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 def make_behavior_montage() -> list[dict[str, Any]]:
     items = [
-        VideoItem("Azar: sin retorno estable", "docs/media/random-rollout.mp4", 0.55),
-        VideoItem("25x25: cobertura multi-hormiga", "runs/notebooks/ant_count_25x25_3_bits/media/jax_mappo_25x25_3bits_8_ants_rollout.mp4", 0.62),
-        VideoItem("50x50 MLP: progreso parcial", "runs/notebooks/exploration_to_forage_50x50_efficient/media/last_policy_random_map_probe/last_50x50_policy_random_map_01_seed_210001.mp4", 0.62),
-        VideoItem("50x50 strided CNN: entregas recurrentes", "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_write_cost_from_shared_best/media/jax_mappo_full_layout_proximity_8ants_half_food_shared_writes_write_cost_latest_random_until_termination_normalized_channel_grid_no_markers_smooth_bit_labels_3x.mp4", 0.45),
-        VideoItem("50x50, 60 ants: frontera reciente", "runs/notebooks/fl50_60ants_half_food_sw_wc_8bits_speed_shaping_from_60best/media/wandb_previews/best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_speed_preview_01.mp4", 0.55),
-        VideoItem("250x250: reset-boundary local", "runs/training/half_scale_distance_fixed8_source_reset_boundary_256_250x250/fixed8-reset-boundary256-20260629T214228Z/media/checkpoint_videos/latest_update_002463_rollout.mp4", 0.60),
+        VideoItem("Azar: sin retorno estable", "docs/report-site/assets/videos/random-rollout.mp4", 0.55),
+        VideoItem("25x25: cobertura multi-hormiga", "docs/report-site/assets/videos/forage-25x25-4ants.mp4", 0.62),
+        VideoItem("50x50: frontera de 60 hormigas", "docs/report-site/assets/videos/frontier-50x50.mp4", 0.55),
+        VideoItem("100x100: continuación seleccionada", "docs/report-site/assets/videos/bridge-100x100.mp4", 0.55),
+        VideoItem("250x250: reset-boundary local", "docs/report-site/assets/videos/reset-boundary-250x250.mp4", 0.60),
+        VideoItem("1000x1000: despliegue solo actor", "docs/report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4", 0.45),
     ]
+    missing_videos = [item for item in items if not rel(item.path).exists()]
+    if missing_videos:
+        missing = ", ".join(item.path for item in missing_videos)
+        raise FileNotFoundError(f"missing behavior montage source video(s): {missing}")
     frame_dir = OUT / "behavior_frames"
     frame_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     cell_w, cell_h = 540, 420
-    image_h = 340
     pad = 18
-    label_font = font(24)
-    small_font = font(17)
-    montage = Image.new("RGB", (2 * cell_w, 3 * cell_h), "#f3f5f7")
+    panel_font = font(28)
+    montage = Image.new("RGB", (2 * cell_w, 3 * cell_h), "white")
     draw = ImageDraw.Draw(montage)
     for idx, item in enumerate(items):
         video = rel(item.path)
         frame_path = frame_dir / f"frame_{idx:02d}.jpg"
         ok = video.exists() and extract_frame(video, frame_path, item.fraction)
+        if not ok:
+            raise RuntimeError(f"could not extract montage frame from {item.path}")
         x0 = (idx % 2) * cell_w
         y0 = (idx // 2) * cell_h
-        draw.rectangle([x0, y0, x0 + cell_w, y0 + cell_h], fill="#f8fafc")
-        draw.text((x0 + pad, y0 + pad), item.label, fill=DARK, font=label_font)
-        if ok:
-            image = Image.open(frame_path).convert("RGB")
-            image.thumbnail((cell_w - 2 * pad, image_h), Image.Resampling.LANCZOS)
-            ix = x0 + (cell_w - image.width) // 2
-            iy = y0 + 68 + (image_h - image.height) // 2
-            montage.paste(image, (ix, iy))
-        else:
-            draw.rectangle([x0 + pad, y0 + 80, x0 + cell_w - pad, y0 + image_h], fill="#dfe5ec")
-            draw.text((x0 + pad + 10, y0 + 140), "video no disponible", fill=RED, font=small_font)
+        draw.rectangle([x0, y0, x0 + cell_w, y0 + cell_h], fill="white")
+        image = Image.open(frame_path).convert("RGB")
+        image.thumbnail((cell_w - 2 * pad, cell_h - 2 * pad), Image.Resampling.LANCZOS)
+        ix = x0 + (cell_w - image.width) // 2
+        iy = y0 + (cell_h - image.height) // 2
+        montage.paste(image, (ix, iy))
+        draw.rectangle([ix + 8, iy + 8, ix + 44, iy + 44], fill="white", outline="#b8c0cc")
+        draw.text((ix + 18, iy + 10), chr(ord("A") + idx), fill=DARK, font=panel_font)
         rows.append({"label": item.label, "path": item.path, "frame_fraction": item.fraction, "extracted": ok})
     out = OUT / "fig_behavior_montage.jpg"
     montage.save(out, quality=92)
@@ -534,7 +542,6 @@ def main() -> None:
     plt.rcParams.update(
         {
             "font.size": 10,
-            "axes.titlesize": 13,
             "axes.labelsize": 10,
             "xtick.labelsize": 9,
             "ytick.labelsize": 9,
