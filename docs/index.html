@@ -137,8 +137,9 @@
         <h2 id="tree-title">Árbol de experimentos</h2>
         <p class="summary">
           Cada nodo se puede seleccionar y lleva a la sección correspondiente. Las
-          imágenes son fotogramas reales de rollouts o, donde no existe un video
-          específico, la figura auditada del experimento.
+          imágenes son fotogramas reales de rollouts cuando hay checkpoint o
+          video preservado. Cuando una rama quedó solo como infraestructura, el
+          nodo lo declara como esquema y no como resultado empírico.
         </p>
         <nav class="experiment-lineage" aria-label="Árbol navegable de experimentos">
           <div class="tree-trunk" aria-label="Tronco: desde el entorno hasta la frontera 50x50">
@@ -146,6 +147,11 @@
               <img src="report-site/assets/posters/tree-world.jpg" alt="Fotograma de la línea base aleatoria">
               <span class="tree-label">Mundo y métrica</span>
               <small>entrega, fuentes, bytes</small>
+            </a>
+            <a class="tree-node" href="#size-curriculum">
+              <img src="report-site/assets/posters/tree-size-curriculum.jpg" alt="Fotograma del currículo temprano de tamaño de mapa">
+              <span class="tree-label">Currículo de tamaño</span>
+              <small>8x8 a 50x50 desde pickles</small>
             </a>
             <a class="tree-node" href="#small-scale">
               <img src="report-site/assets/posters/tree-small-scale.jpg" alt="Fotograma 25x25 con 2 hormigas">
@@ -163,17 +169,17 @@
               <small>hipótesis, no conclusión</small>
             </a>
             <a class="tree-node" href="#source-layouts">
-              <img src="report-site/assets/posters/tree-rare50.jpg" alt="Figura de fuentes escasas y currículos de fuente">
+              <img src="report-site/assets/posters/tree-source-layouts.jpg" alt="Fotograma de una política entrenada con pocas posiciones de comida">
               <span class="tree-label">Fuentes dispersas</span>
               <small>de muchas posiciones a 2 fuentes</small>
             </a>
             <a class="tree-node" href="#rare50">
-              <img src="report-site/assets/posters/tree-rare50.jpg" alt="Figura del 50x50 raro">
+              <img src="report-site/assets/posters/tree-rare50.jpg" alt="Fotograma de una política 50x50 rara con 4 hormigas">
               <span class="tree-label">50x50 raro</span>
               <small>descubrir fuentes escasas</small>
             </a>
             <a class="tree-node" href="#critic50">
-              <img src="report-site/assets/posters/tree-critic50.jpg" alt="Fotograma del comportamiento 50x50 posterior al cambio de crítico">
+              <img src="report-site/assets/posters/tree-critic50.jpg" alt="Fotograma de una política 50x50 con crítico strided_cnn">
               <span class="tree-label">Cambio de crítico</span>
               <small>MLP a strided_cnn</small>
             </a>
@@ -186,7 +192,7 @@
 
           <div class="tree-side-branches" aria-label="Ramas exploratorias que no quedaron como línea principal">
             <a class="tree-node side tree-side-autocurriculum" href="#autocurriculum">
-              <img src="report-site/assets/posters/tree-autocurriculum.svg" alt="Esquema de autocurrículo con progreso aparente y entrega cero">
+              <img src="report-site/assets/posters/tree-autocurriculum.jpg" alt="Fotograma real del autocurrículo 250x250 con entrega cero">
               <span class="tree-label">Autocurrículos</span>
               <small>etapas y moldeado no bastaron</small>
             </a>
@@ -401,6 +407,7 @@
           <a href="#visual-evidence">0. Evidencia</a>
           <a href="#traceability">0b. Trazabilidad</a>
           <a href="#world">1. Mundo</a>
+          <a href="#size-curriculum">1b. Tamaños</a>
           <a href="#small-scale">2. Cuello</a>
           <a href="#unlock25">3. 25x25</a>
           <a href="#bits-ants">4. Bytes</a>
@@ -412,10 +419,10 @@
           <a href="#rare50">6. 50x50 raro</a>
           <a href="#critic50">7. Crítico</a>
           <a href="#frontier50">8. 60 hormigas</a>
-          <a href="#large-scale-100">9. 100x100</a>
-          <a href="#large-scale-250">10. 250x250</a>
-          <a href="#bigmap">11. 1000x1000</a>
-          <a href="#sandbox">12. Sandbox</a>
+          <a href="#large-scale-100">9a. 100x100</a>
+          <a href="#large-scale-250">9b. 250x250</a>
+          <a href="#bigmap">9c. 1000x1000</a>
+          <a href="#sandbox">10. Sandbox</a>
         </nav>
       </section>
 
@@ -482,6 +489,168 @@
               aparezca una política útil.
             </figcaption>
           </figure>
+        </div>
+      </section>
+
+      <section id="size-curriculum" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">1b</span>
+          <div>
+            <h2>Primer enfoque: hacer crecer el mapa</h2>
+            <p>
+              La primera idea de currículo fue directa: empezar en mapas donde
+              una hormiga podía descubrir comida casi por azar y luego conservar
+              la política mientras el tablero crecía. La pregunta era si la
+              estrategia local aprendida en pequeño se transfería a arenas cada
+              vez más grandes.
+            </p>
+          </div>
+        </div>
+
+        <div class="video-grid rollout-sequence">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-08x08.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>8x8.</strong> Checkpoint pickle preservado, 4 hormigas, 6
+              comidas, 2 fuentes, observación 50x50 y radio 1.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-12x12.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>12x12.</strong> La misma línea de entrenamiento con el
+              mapa expandido y más comida.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-16x16.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>16x16.</strong> El comportamiento sigue siendo local; el
+              costo de descubrir fuentes crece.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-20x20.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>20x20.</strong> La distancia al hormiguero empieza a
+              separar encontrar comida de completar entregas.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-25x25.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>25x25.</strong> El currículo ya no es solo navegación
+              corta: exige cobertura sostenida.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-30x30.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>30x30.</strong> La política conserva actividad, pero la
+              entrega se vuelve mucho menos estable.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-35x35.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>35x35.</strong> Etapa intermedia donde aparece el cuello de
+              descubrimiento en mapas abiertos.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-40x40.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>40x40.</strong> Más espacio y el mismo presupuesto local
+              hacen visible la fragilidad del traslado.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-45x45.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>45x45.</strong> Última etapa antes del contrato 50x50 de
+              esta corrida.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/curriculum-efficient-50x50.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>50x50.</strong> Checkpoint preservado del final del
+              currículo; evidencia de avance, no solve robusto.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="experiment-template template-wide">
+          <div>
+            <h3>Objetivo / hipótesis</h3>
+            <p>
+              Aprender primero navegación y retorno en mapas chicos, y usar ese
+              comportamiento como punto de partida para mapas cada vez más
+              grandes sin cambiar la política de fondo.
+            </p>
+          </div>
+          <div>
+            <h3>Cambio respecto de la línea base</h3>
+            <p>
+              El enfoque más temprano usó una variante chica de
+              <code>4x4</code> a <code>29x29</code> con observación acolchada.
+              La secuencia visual que mostramos aquí es la corrida preservada
+              más completa: 4 hormigas, 1 bit, radio 1, observación 50x50 y
+              checkpoints de <code>8x8</code> a <code>50x50</code>; al crecer
+              el mapa también crecen comida, fuentes y horizonte máximo.
+            </p>
+          </div>
+          <div>
+            <h3>Qué medimos</h3>
+            <p>
+              Retorno de entorno y entregas por tamaño. La eficiencia por
+              pasos-hormiga no fue la métrica central de esta línea temprana; la
+              supervivencia se interpreta como completar ciclos de tarea, no como
+              muerte de agentes.
+            </p>
+          </div>
+          <div>
+            <h3>Video / evidencia visual</h3>
+            <p>
+              Los diez videos de arriba fueron renderizados desde checkpoints
+              pickle entrenados, no dibujados a mano. La secuencia permite ver
+              el crecimiento del contrato experimental, no solo leerlo en una
+              tabla.
+            </p>
+          </div>
+          <div>
+            <h3>Lectura de resultados</h3>
+            <p>
+              El enfoque enseñaba actividad local, pero no produjo transferencia
+              robusta. En esta corrida 8x8-50x50, el mejor punto evaluado llegó
+              a <code>22.5/48</code> y <code>0.9</code> comidas por 1000
+              pasos-hormiga, pero el resultado no quedó estable como solución de
+              frontera. La versión temprana 4x4-50x50 también caía con el
+              tamaño. Esa falla motivó separar dos problemas que estaban
+              mezclados: cobertura multi-agente y descubrimiento de fuentes
+              escasas.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -710,9 +879,9 @@
               alt="Retorno de entrenamiento 25x25 según cantidad de hormigas"
             >
             <figcaption>
-              <strong>Video / evidencia visual.</strong> Curva del currículo de
-              cantidad de hormigas. Debajo se muestran los rollouts preservados
-              de 2, 4 y 8 hormigas de esa misma familia.
+              <strong>Resultados.</strong> Curva del currículo de cantidad de
+              hormigas. Debajo se muestran los rollouts preservados de 2, 3, 4,
+              6 y 8 hormigas de esa misma familia.
             </figcaption>
           </figure>
           <div class="experiment-template">
@@ -741,8 +910,8 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                La curva del currículo de hormigas y los rollouts 2/4/8 muestran
-                la rama donde cobertura produjo la señal más clara.
+                La curva del currículo de hormigas y los rollouts 2/3/4/6/8
+                muestran la rama donde cobertura produjo la señal más clara.
               </p>
             </div>
             <div>
@@ -768,11 +937,29 @@
           </figure>
           <figure>
             <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/ant-count-25x25-3ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              3 hormigas, retorno de entorno <code>6.8125</code>, retorno de
+              episodio <code>10.6987</code>. 800x800, 2501 cuadros a 8 fps.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
               <source src="report-site/assets/videos/forage-25x25-4ants.mp4" type="video/mp4">
             </video>
             <figcaption>
               4 hormigas, retorno de entorno <code>7.8125</code>, retorno de
               episodio <code>12.545</code>. 800x800, 321 cuadros a 8 fps.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/ant-count-25x25-6ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              6 hormigas, retorno de entorno <code>9.9375</code>, retorno de
+              episodio <code>16.1287</code>. 800x800, 2501 cuadros a 8 fps.
             </figcaption>
           </figure>
           <figure>
@@ -845,10 +1032,11 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                No hay video para todos los autocurrículos, pero sí hay un
-                checkpoint-video útil de la diagnosis 250x250. La figura debajo
-                muestra el error de lectura: mirar solo retorno o bytes no
-                alcanza. Hay que mirar entregas y pickups como eventos de tarea.
+                El video fue renderizado desde un checkpoint pickle de la
+                diagnosis 250x250. No lo usamos como evidencia de éxito: lo
+                usamos para mostrar por qué mirar solo actividad, retorno
+                moldeado o bytes escritos no alcanza. Hay que mirar entregas y
+                pickups como eventos de tarea.
               </p>
             </div>
             <div>
@@ -1047,69 +1235,112 @@
           </div>
         </div>
 
-        <div class="evidence-pair">
+        <div class="experiment-template template-wide">
+          <div>
+            <h3>Objetivo / hipótesis</h3>
+            <p>
+              Enseñar descubrimiento de comida sin depender solo de distancia al
+              hub: empezar con fuentes más fáciles de encontrar y terminar con
+              pocas fuentes concentradas.
+            </p>
+          </div>
+          <div>
+            <h3>Cambio respecto de la línea base</h3>
+            <p>
+              <code>padded_sources_50x50</code> mantuvo una arena 50x50 pero
+              restringió hub/comida a una ventana interior 20x20 y redujo
+              posiciones de fuente de 12 a 2. <code>scratch_smooth_sources</code>
+              usó arena 80x80 con ventana 50x50 y annealing suave de 250
+              posiciones a 2. <code>proximity_sources</code> usó dos macro
+              fuentes desde el principio, pero redujo el footprint hasta dos
+              celdas finales.
+            </p>
+          </div>
+          <div>
+            <h3>Qué medimos</h3>
+            <p>
+              Comida entregada, éxito, eficiencia por pasos-hormiga cuando la
+              evaluación la guardó, actividad de escritura y selección de
+              checkpoint por evaluación held-out.
+            </p>
+          </div>
+          <div>
+            <h3>Video / evidencia visual</h3>
+            <p>
+              Los videos siguientes son rollouts generados desde checkpoints
+              pickle de esas ramas, no diagramas. La fila superior muestra el
+              currículo de fuentes acolchadas; la inferior, el currículo de
+              proximidad que termina con dos posiciones.
+            </p>
+          </div>
+          <div>
+            <h3>Lectura de resultados</h3>
+            <p>
+              El workflow <code>padded_sources</code> falló en esa forma:
+              alrededor de <code>0.25/18</code>. El currículo de proximidad con
+              <code>strided_cnn</code> llegó a <code>40.875/250</code>. La
+              lectura correcta no es “la dispersión resolvió 50x50”, sino “hacer
+              sparse las fuentes reveló que descubrimiento y crítico espacial
+              eran cuellos distintos”.
+            </p>
+          </div>
+        </div>
+
+        <div class="video-grid rollout-sequence source-rollouts">
           <figure>
-            <img
-              src="report-site/assets/plots/fig_critic_50x50.png"
-              alt="Resultados 50x50 que incluyen ramas de fuentes, proximidad y crítico espacial"
-            >
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/padded-sources-12.mp4" type="video/mp4">
+            </video>
             <figcaption>
-              <strong>Video / evidencia visual.</strong> No hay un MP4 dedicado
-              y preservado para cada currículo de fuente. La figura deja visible
-              dónde esta línea empieza a mejorar: proximidad/full-layout con
-              crítico espacial.
+              <strong>Padded sources, 12 posiciones.</strong> 50x50, 4 hormigas,
+              18 comidas, ventana interior 20x20.
             </figcaption>
           </figure>
-          <div class="experiment-template">
-            <div>
-              <h3>Objetivo / hipótesis</h3>
-              <p>
-                Enseñar descubrimiento de comida sin depender solo de distancia
-                al hub: empezar con fuentes más fáciles de encontrar y terminar
-                con pocas fuentes concentradas.
-              </p>
-            </div>
-            <div>
-              <h3>Cambio respecto de la línea base</h3>
-              <p>
-                <code>padded_sources_50x50</code> mantuvo una arena 50x50 pero
-                restringió hub/comida a una ventana interior 20x20 y redujo
-                posiciones de fuente de 12 a 2. <code>scratch_smooth_sources</code>
-                usó arena 80x80 con ventana 50x50 y annealing suave de 250
-                posiciones a 2. <code>proximity_sources</code> usó dos macro
-                fuentes desde el principio, pero redujo el footprint hasta dos
-                celdas finales.
-              </p>
-            </div>
-            <div>
-              <h3>Qué medimos</h3>
-              <p>
-                Comida entregada, éxito, eficiencia por pasos-hormiga cuando la
-                evaluación la guardó, actividad de escritura y selección de
-                checkpoint por evaluación held-out.
-              </p>
-            </div>
-            <div>
-              <h3>Video / evidencia visual</h3>
-              <p>
-                Esta rama se entiende mejor como tabla/figura de contratos que
-                como un único video. Un rollout final de 50x50 no separa por sí
-                solo si mejoró el currículo de fuentes, el crítico o el linaje
-                del checkpoint.
-              </p>
-            </div>
-            <div>
-              <h3>Lectura de resultados</h3>
-              <p>
-                El workflow <code>padded_sources</code> falló en esa forma:
-                alrededor de <code>0.25/18</code>. El currículo de proximidad
-                con <code>strided_cnn</code> llegó a <code>40.875/250</code>.
-                La lectura correcta no es “la dispersión resolvió 50x50”, sino
-                “hacer sparse las fuentes reveló que descubrimiento y crítico
-                espacial eran cuellos distintos”.
-              </p>
-            </div>
-          </div>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/padded-sources-06.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Padded sources, 6 posiciones.</strong> Mismo contrato, con
+              menos puntos donde puede aparecer comida.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/padded-sources-02.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Padded sources, 2 posiciones.</strong> Etapa final de esta
+              rama; el resultado cuantitativo quedó débil.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/proximity-sources-50.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Proximity, 50 posiciones.</strong> 50x50 exterior, 30x30
+              interior, 4 hormigas y 250 comidas.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/proximity-sources-08.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Proximity, 8 posiciones.</strong> Reducción intermedia del
+              footprint de fuentes.
+            </figcaption>
+          </figure>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/proximity-sources-02.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Proximity, 2 posiciones.</strong> Etapa sparse final que
+              muestra el cuello de descubrimiento.
+            </figcaption>
+          </figure>
         </div>
 
         <table>
@@ -1239,11 +1470,23 @@
               alt="Comparación de vectores de navegación en 50x50 raro"
             >
             <figcaption>
-              <strong>Video / evidencia visual.</strong> No hay video dedicado
-              del 50x50 raro en los assets actuales; usamos la figura auditada.
+              <strong>Resultados.</strong> Figura auditada de la comparación de
+              navegación en 50x50 raro.
             </figcaption>
           </figure>
-          <div class="experiment-template">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/rare-50x50-4ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> Rollout renderizado
+              desde <code>model_update_014000.pkl</code>: 50x50, 4 hormigas, 48
+              comidas, 12 fuentes, 1 bit.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="experiment-template template-wide">
             <div>
               <h3>Objetivo / hipótesis</h3>
               <p>
@@ -1268,8 +1511,9 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                No hay video dedicado de este 50x50 raro; la figura auditada es
-                la evidencia visual principal.
+                El video complementa la figura: permite ver que cubrir el mapa y
+                encontrar fuentes no equivale automáticamente a resolver el
+                ciclo de entrega.
               </p>
             </div>
             <div>
@@ -1288,7 +1532,6 @@
                 pero no resolvió el 50x50 raro.
               </p>
             </div>
-          </div>
         </div>
       </section>
 
@@ -1312,12 +1555,23 @@
               alt="Frontera de arquitectura del crítico en 50x50"
             >
             <figcaption>
-              <strong>Video / evidencia visual.</strong> Figura de resultados
-              por rama. El video 50x50 posterior muestra el comportamiento de la
-              familia espacial, no un experimento de una sola variable.
+              <strong>Resultados.</strong> Figura de resultados por rama: MLP,
+              fuente sparse y crítico espacial no son el mismo cambio.
             </figcaption>
           </figure>
-          <div class="experiment-template">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/critic-50x50-8ants-strided.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> Rollout renderizado
+              desde el checkpoint <code>strided_cnn</code> de 8 hormigas, 125
+              comidas, 2 fuentes, escritura compartida y costo de escritura.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="experiment-template template-wide">
             <div>
               <h3>Objetivo / hipótesis</h3>
               <p>
@@ -1346,7 +1600,8 @@
               <h3>Video / evidencia visual</h3>
               <p>
                 La figura marca la frontera MLP versus <code>strided_cnn</code>;
-                los videos posteriores pertenecen a paquetes de intervención.
+                el video muestra una política representativa de esa familia
+                espacial, no un experimento de una sola variable.
               </p>
             </div>
             <div>
@@ -1361,7 +1616,6 @@
                 causal de primer orden.
               </p>
             </div>
-          </div>
         </div>
       </section>
 

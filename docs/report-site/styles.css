@@ -303,6 +303,25 @@ figcaption {
   --tree-node-top: #5c6e4d;
   position: relative;
   margin: 1.55em 0 0;
+  padding-left: clamp(1.15rem, 2vw, 1.65rem);
+  display: grid;
+  gap: 1.25rem;
+}
+
+.experiment-lineage::before {
+  content: "";
+  position: absolute;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  left: 0;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    var(--tree-stroke),
+    var(--line-strong) 42%,
+    var(--blue-ink)
+  );
 }
 
 .tree-trunk,
@@ -310,104 +329,64 @@ figcaption {
 .tree-branches {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: clamp(0.55rem, 1.1vw, 0.9rem);
-}
-
-.tree-trunk {
-  padding-top: 1.85rem;
-}
-
-.tree-trunk::before {
-  content: "";
-  position: absolute;
-  top: 0.62rem;
-  right: calc(100% / 16);
-  left: calc(100% / 16);
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    var(--tree-stroke),
-    var(--line-strong) 42%,
-    var(--blue-ink)
-  );
-}
-
-.tree-branches {
-  margin-top: 0.35rem;
-  padding-top: 2.75rem;
-}
-
-.tree-side-branches {
-  margin-top: 0.35rem;
-  padding-top: 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(8.4rem, 1fr));
+  gap: clamp(0.62rem, 1.15vw, 0.95rem);
+  padding: 1.4rem 0 0 clamp(1.05rem, 1.75vw, 1.45rem);
 }
 
 .tree-side-branches::before,
 .tree-side-branches::after,
+.tree-trunk::before,
+.tree-trunk::after,
 .tree-branches::before,
 .tree-branches::after {
   content: "";
   position: absolute;
-  background: var(--tree-stroke);
   pointer-events: none;
 }
 
-.tree-side-branches::before {
-  top: -0.35rem;
-  left: calc((100% / 8 * 3) + (100% / 16));
-  width: 4px;
-  height: 2.1rem;
-  border-radius: 999px;
-}
-
-.tree-side-branches::after {
-  top: 1.72rem;
-  right: calc((100% / 8 * 2) + (100% / 16));
-  left: calc((100% / 8 * 2) + (100% / 16));
+.tree-trunk::before,
+.tree-side-branches::before,
+.tree-branches::before {
+  top: 1.95rem;
+  left: 0;
+  width: clamp(1.05rem, 1.75vw, 1.45rem);
   height: 4px;
   border-radius: 999px;
+  background: var(--tree-stroke);
 }
 
-.tree-branches::before {
-  top: -0.35rem;
-  left: calc(100% - (100% / 16));
-  width: 4px;
-  height: 2.35rem;
-  border-radius: 999px;
+.tree-trunk::after,
+.tree-side-branches::after {
+  top: 0;
+  left: clamp(1.05rem, 1.75vw, 1.45rem);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .tree-branches::after {
-  top: 1.96rem;
-  right: calc(100% / 16);
-  left: calc((100% / 8 * 5) + (100% / 16));
-  height: 4px;
-  border-radius: 999px;
+  top: 0;
+  left: clamp(1.05rem, 1.75vw, 1.45rem);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.tree-branch-100 {
-  grid-column: 6;
+.tree-trunk::after {
+  content: "Ruta principal";
 }
 
-.tree-branch-250 {
-  grid-column: 7;
+.tree-side-branches::after {
+  content: "Ramas exploratorias";
 }
 
-.tree-branch-bigmap {
-  grid-column: 8;
-}
-
-.tree-side-autocurriculum {
-  grid-column: 3;
-}
-
-.tree-side-maze {
-  grid-column: 4;
-}
-
-.tree-side-memory {
-  grid-column: 5;
+.tree-branches::after {
+  content: "Escalado desde 50x50";
 }
 
 .tree-node {
@@ -436,19 +415,13 @@ figcaption {
 .tree-node::before {
   content: "";
   position: absolute;
-  top: -1.25rem;
-  left: 50%;
-  width: 4px;
-  height: 1.25rem;
+  top: 1.28rem;
+  left: calc(clamp(1.05rem, 1.75vw, 1.45rem) * -1);
+  width: clamp(1.05rem, 1.75vw, 1.45rem);
+  height: 4px;
   border-radius: 999px;
   background: var(--tree-stroke);
-  transform: translateX(-50%);
   pointer-events: none;
-}
-
-.tree-branch::before {
-  top: -0.78rem;
-  height: 0.78rem;
 }
 
 .tree-node.root {
@@ -670,6 +643,11 @@ figcaption {
   margin-top: 1.4em;
 }
 
+.rollout-sequence {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.25em;
+}
+
 .video-grid figure,
 .figure-grid figure {
   margin: 0;
@@ -824,7 +802,7 @@ figcaption {
 }
 
 .policy-tabs button[data-policy="auto250fail"]::before {
-  background-image: url("assets/posters/tree-autocurriculum.svg");
+  background-image: url("assets/posters/tree-autocurriculum.jpg");
 }
 
 .policy-tabs button[data-policy="bigmap50"]::before {
@@ -1067,69 +1045,32 @@ li + li {
 }
 
 @media (max-width: 940px) {
+  .experiment-lineage {
+    padding-left: 1rem;
+    gap: 1rem;
+  }
+
   .tree-trunk,
   .tree-side-branches,
   .tree-branches {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.8rem;
-    padding-left: 1.35rem;
+    padding: 1.35rem 0 0 1.05rem;
   }
 
-  .tree-trunk {
-    padding-top: 0;
-  }
-
-  .tree-trunk::before {
-    top: 0.25rem;
-    bottom: -0.95rem;
-    left: 0.42rem;
-    width: 4px;
-    height: auto;
-    background: var(--tree-stroke);
-  }
-
-  .tree-branches {
-    margin-top: 0;
-    padding-top: 0.4rem;
-  }
-
-  .tree-side-branches {
-    margin-top: 0;
-    padding-top: 0.4rem;
-    padding-left: 1.35rem;
-  }
-
+  .tree-trunk::before,
   .tree-side-branches::before {
-    top: -0.95rem;
-    bottom: 0.25rem;
-    left: 0.42rem;
-    width: 4px;
-    height: auto;
-  }
-
-  .tree-side-branches::after {
-    display: none;
+    top: 1.92rem;
+    left: 0;
+    width: 1.05rem;
+    height: 4px;
   }
 
   .tree-branches::before {
-    top: -0.95rem;
-    bottom: 0.25rem;
-    left: 0.42rem;
-    width: 4px;
-    height: auto;
-  }
-
-  .tree-branches::after {
-    display: none;
-  }
-
-  .tree-branch-100,
-  .tree-branch-250,
-  .tree-branch-bigmap,
-  .tree-side-autocurriculum,
-  .tree-side-maze,
-  .tree-side-memory {
-    grid-column: auto;
+    top: 1.92rem;
+    left: 0;
+    width: 1.05rem;
+    height: 4px;
   }
 
   .tree-node {
@@ -1140,13 +1081,11 @@ li + li {
     min-height: 0;
   }
 
-  .tree-node::before,
-  .tree-branch::before {
+  .tree-node::before {
     top: 1.2rem;
-    left: -0.95rem;
-    width: 0.95rem;
+    left: -1.05rem;
+    width: 1.05rem;
     height: 4px;
-    transform: none;
   }
 
   .tree-node img {
