@@ -35,6 +35,9 @@
           <a class="button" href="#tree-title">Árbol de experimentos</a>
         </span>
         <span class="link">
+          <a class="button" href="#audit-ledger">Ledger completo</a>
+        </span>
+        <span class="link">
           <a class="button" href="#sandbox">Sandbox de política</a>
         </span>
       </div>
@@ -94,7 +97,8 @@
           Fue una serie de separaciones: primero definimos qué significa resolver
           el entorno, después aislamos el cuello de botella de cobertura, luego
           probamos qué cambió el comportamiento, registramos las ramas que no
-          funcionaron, y recién al final miramos escalado con cuidado.
+          funcionaron, auditamos ramas y cambios locales, y recién al final
+          miramos escalado con cuidado.
         </p>
         <div class="takeaway-grid">
           <div>
@@ -123,6 +127,15 @@
             </p>
           </div>
           <div>
+            <span class="kicker">auditoría 2026-07-04</span>
+            <strong>334 commits / 16 familias</strong>
+            <p>
+              El árbol se reconstruyó desde todos los refs visibles, 25 configs,
+              17 notebooks, 145 directorios de corrida, 230 runs W&B locales y
+              7771 archivos indexados fuera de entornos locales.
+            </p>
+          </div>
+          <div>
             <span class="kicker">1000x1000 solo actor</span>
             <strong>prueba de estrés</strong>
             <p>
@@ -142,7 +155,9 @@
           imágenes son fotogramas reales de rollouts cuando hay checkpoint o
           video preservado; cuando una rama quedó como infraestructura o
           diagnóstico, usamos una visualización generada desde la configuración
-          o las métricas locales y lo decimos explícitamente.
+          o las métricas locales y lo decimos explícitamente. Los nodos morados
+          son ledger o documentación: no son mejores políticas, sino piezas que
+          hacen trazable el árbol completo.
         </p>
         <nav
           id="experiment-lineage"
@@ -321,6 +336,269 @@
         </div>
       </section>
 
+      <section id="audit-ledger" class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">0c</span>
+          <div>
+            <h2>Auditoría completa del árbol</h2>
+            <p>
+              Antes de cerrar esta versión se reconstruyó el árbol desde todos
+              los commits alcanzables, refs visibles, cambios locales,
+              configuraciones, notebooks, directorios de corrida, runs W&B
+              locales, logs y archivos experimentales del checkout. El resultado
+              no es una historia pulida: es un ledger para que ninguna línea de
+              investigación desaparezca.
+            </p>
+          </div>
+        </div>
+
+        <div class="takeaway-grid">
+          <div>
+            <span class="kicker">git</span>
+            <strong>334 commits / 13 refs</strong>
+            <p>
+              Todos los commits alcanzables por refs locales/remotos visibles se
+              clasificaron por familia. La base limpia auditada fue
+              <code>21d3cdf</code>; el ledger quedó documentado después.
+            </p>
+          </div>
+          <div>
+            <span class="kicker">experimentos</span>
+            <strong>25 configs / 17 notebooks</strong>
+            <p>
+              Los contratos de entrenamiento se leyeron desde
+              <code>experiments/*.json</code> y notebooks, no solo desde nombres
+              de carpetas o videos.
+            </p>
+          </div>
+          <div>
+            <span class="kicker">evidencia local</span>
+            <strong>145 runs / 230 W&B</strong>
+            <p>
+              Se indexaron carpetas con summaries, evals, métricas, planes o
+              configs, además de runs W&B locales. El API cloud de W&B quedó
+              bloqueado por <code>relogin required</code>.
+            </p>
+          </div>
+          <div>
+            <span class="kicker">superficie total</span>
+            <strong>7771 archivos</strong>
+            <p>
+              El índice excluye <code>.git</code>, entornos locales y la propia
+              salida de auditoría, pero incluye artefactos generados relevantes.
+            </p>
+          </div>
+        </div>
+
+        <p class="summary">
+          El índice completo vive en
+          <a href="planning/experiment-tree-audit/README.md"><code>docs/planning/experiment-tree-audit/README.md</code></a>.
+          Esta página usa esa taxonomía para separar resultados principales,
+          diagnósticos, ramas solo visibles por branch, infraestructura y assets
+          de presentación.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Familia auditada</th>
+              <th>Commits</th>
+              <th>Archivos</th>
+              <th>Configs / notebooks</th>
+              <th>Runs / W&B local</th>
+              <th>Ubicación en el árbol</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>foundation-task-contract</code></td>
+              <td>8</td>
+              <td>11</td>
+              <td>0 / 0</td>
+              <td>0 / 0</td>
+              <td>Semántica del mundo, entrega, fuentes agotables y rollout aleatorio.</td>
+            </tr>
+            <tr id="jax-core">
+              <td><code>jax-mappo-training-core</code></td>
+              <td>21</td>
+              <td>155</td>
+              <td>1 / 0</td>
+              <td>0 / 13</td>
+              <td>Entrenador JAX, MAPPO, evaluación, checkpoints, recursos y ramas multi-device.</td>
+            </tr>
+            <tr>
+              <td><code>autocurriculum-exploration-baselines</code></td>
+              <td>29</td>
+              <td>20</td>
+              <td>4 / 4</td>
+              <td>0 / 0</td>
+              <td>Baselines de exploración, autocurrículos y superficies tempranas de lanzamiento.</td>
+            </tr>
+            <tr>
+              <td><code>communication-memory-bytes</code></td>
+              <td>94</td>
+              <td>327</td>
+              <td>1 / 1</td>
+              <td>10 / 27</td>
+              <td>Bits, memoria externa, write-head, write-cost, no-write y R8-R12.</td>
+            </tr>
+            <tr>
+              <td><code>ant-count-25x25-autoresearch</code></td>
+              <td>75</td>
+              <td>256</td>
+              <td>0 / 1</td>
+              <td>52 / 0</td>
+              <td>Desbloqueo 25x25: moldeado, cantidad de hormigas, CAP y visión.</td>
+            </tr>
+            <tr>
+              <td><code>source-layout-50x50</code></td>
+              <td>4</td>
+              <td>444</td>
+              <td>4 / 4</td>
+              <td>2 / 3</td>
+              <td>Geometría de fuentes 50x50: padded, proximity, smooth, rare y vectores.</td>
+            </tr>
+            <tr>
+              <td><code>critic-full-layout-50x50</code></td>
+              <td>29</td>
+              <td>127</td>
+              <td>6 / 4</td>
+              <td>3 / 0</td>
+              <td>Full-layout 50x50, crítico espacial, shared writes y costos.</td>
+            </tr>
+            <tr>
+              <td><code>sixty-ant-50x50-stabilization</code></td>
+              <td>6</td>
+              <td>35</td>
+              <td>4 / 1</td>
+              <td>0 / 0</td>
+              <td>Frontera actual 50x50 con 60 hormigas, 8 bits e identidad.</td>
+            </tr>
+            <tr>
+              <td><code>hundred-bridge-maze-stress</code></td>
+              <td>16</td>
+              <td>2457</td>
+              <td>1 / 1</td>
+              <td>16 / 173</td>
+              <td>Puente 100x100, laberintos, stress maze y evidencia W&B del sitio.</td>
+            </tr>
+            <tr>
+              <td><code>twofifty-frontier-reset</code></td>
+              <td>15</td>
+              <td>2755</td>
+              <td>4 / 1</td>
+              <td>25 / 11</td>
+              <td>250x250, half-scale, reset-boundary, distancia, set/resnet y truncación.</td>
+            </tr>
+            <tr>
+              <td><code>bigmap-deployment-rendering</code></td>
+              <td>10</td>
+              <td>593</td>
+              <td>0 / 0</td>
+              <td>6 / 1</td>
+              <td>Despliegues solo-actor grandes, render, paletas y sandbox JS.</td>
+            </tr>
+            <tr id="adversarial-roles">
+              <td><code>adversarial-roles-side-branches</code></td>
+              <td>14</td>
+              <td>0</td>
+              <td>0 / 0</td>
+              <td>0 / 0</td>
+              <td>Frozen opponent, timed-release y probes visibles solo por refs.</td>
+            </tr>
+            <tr id="report-site-assets">
+              <td><code>report-site-paper-assets</code></td>
+              <td>8</td>
+              <td>65</td>
+              <td>0 / 0</td>
+              <td>0 / 0</td>
+              <td>Informe, GitHub Pages, plots, videos, posters, cronología y figuras.</td>
+            </tr>
+            <tr>
+              <td><code>infra-tests-ci-cleanup</code></td>
+              <td>3</td>
+              <td>522</td>
+              <td>0 / 0</td>
+              <td>31 / 2</td>
+              <td>Tests, CI, packaging, limpieza de caches y documentación de soporte.</td>
+            </tr>
+            <tr>
+              <td><code>curated-results-and-vault</code></td>
+              <td>0</td>
+              <td>4</td>
+              <td>0 / 0</td>
+              <td>0 / 0</td>
+              <td>Índices curados, placeholders de vault y retención de evidencia.</td>
+            </tr>
+            <tr>
+              <td><code>unclassified-review-needed</code></td>
+              <td>2</td>
+              <td>0</td>
+              <td>0 / 0</td>
+              <td>0 / 0</td>
+              <td>Filas deliberadamente no escondidas; requieren inspección manual antes de citar.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Ref visible</th>
+              <th>Familia</th>
+              <th>Lectura para el informe/sitio</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>main</code>, <code>origin/main</code>, <code>origin/HEAD</code></td>
+              <td><code>critic-full-layout-50x50</code></td>
+              <td>Base remota fusionada con la línea de crítico/full-layout 50x50.</td>
+            </tr>
+            <tr>
+              <td><code>report-writing-site</code>, <code>origin/report-writing-site</code></td>
+              <td><code>report-site-paper-assets</code></td>
+              <td>Rama actual de informe, sitio, videos, plots y árbol narrativo.</td>
+            </tr>
+            <tr id="multi-device-write-cost">
+              <td><code>feat/multi-device-jax-mappo</code>, <code>origin/feat/multi-device-jax-mappo</code></td>
+              <td><code>jax-mappo-training-core</code></td>
+              <td>Rama no fusionada de rendimiento/multi-device y experimentos x150/write-cost.</td>
+            </tr>
+            <tr id="half-scale-resnet">
+              <td><code>train-half-scale-resnet</code></td>
+              <td><code>twofifty-frontier-reset</code></td>
+              <td>Lanzamiento half-scale resnet 250x250: evidencia de dirección, no resultado final comparable.</td>
+            </tr>
+            <tr id="lethal-cookies">
+              <td><code>origin/lethal_cookies</code></td>
+              <td><code>hundred-bridge-maze-stress</code></td>
+              <td>Pruebas de laberinto/proximidad, arena en L y bolsillos laterales; sin métricas locales finales comparables.</td>
+            </tr>
+            <tr>
+              <td><code>origin/research/adversarial-marl-experiments</code></td>
+              <td><code>adversarial-roles-side-branches</code></td>
+              <td>Frozen-opponent y roles adversariales documentados como probes laterales.</td>
+            </tr>
+            <tr>
+              <td><code>origin/research/timed-release-roles</code></td>
+              <td><code>adversarial-roles-side-branches</code></td>
+              <td>Continuación parked de roles cooperativos con liberación temporal.</td>
+            </tr>
+            <tr>
+              <td><code>origin/vision_shrink_curriculum</code></td>
+              <td><code>ant-count-25x25-autoresearch</code></td>
+              <td>Continuación CAP/visión de 25x25; parte del árbol de cobertura, no de la frontera 50x50.</td>
+            </tr>
+            <tr>
+              <td><code>origin/repo/research-integration-cleanup</code></td>
+              <td><code>jax-mappo-training-core</code></td>
+              <td>Integración, tests y limpieza de soporte; relevante para reproducibilidad, no para métricas.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <section>
         <h2>Mapa de lectura</h2>
         <p class="summary">
@@ -331,6 +609,7 @@
         <nav class="story-nav" aria-label="Secciones de la historia experimental">
           <a href="#visual-evidence">0. Evidencia</a>
           <a href="#traceability">0b. Trazabilidad</a>
+          <a href="#audit-ledger">0c. Auditoría</a>
           <a href="#world">1. Mundo</a>
           <a href="#size-curriculum">1b. Tamaños</a>
           <a href="#small-scale">2. Cuello</a>
@@ -2074,7 +2353,8 @@
     <footer>
       <p>
         Construido desde commits locales, configuraciones, métricas, videos,
-        figuras generadas, checkpoints exportados y el borrador del informe.
+        figuras generadas, checkpoints exportados, refs visibles, runs W&B
+        locales y el borrador del informe.
       </p>
     </footer>
 

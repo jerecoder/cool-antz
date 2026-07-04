@@ -34,7 +34,7 @@
 \maketitle
 
 \begin{abstract}
-Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el umbral de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de puntos guardados, escritura compartida y penalizaciones de escritura. También hubo ramas que no deben desaparecer de la historia: autocurrículos que avanzaban sin entrega real, laberintos entrenados como exploración pero no como forrajeo comparable, pruebas de estrés de transferencia que fallaron sin recogidas y barridos de memoria que aumentaban escritura sin probar comunicación útil. En 250x250 apareció una lección negativa: el retorno moldeado puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
+Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el umbral de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de puntos guardados, escritura compartida y penalizaciones de escritura. También hubo ramas que no deben desaparecer de la historia: autocurrículos que avanzaban sin entrega real, laberintos entrenados como exploración pero no como forrajeo comparable, pruebas de estrés de transferencia que fallaron sin recogidas y barridos de memoria que aumentaban escritura sin probar comunicación útil. Para cerrar el relato se auditó el checkout completo: commits, refs, notebooks, configs, corridas locales, W\&B local, logs y artefactos quedaron clasificados por familia. En 250x250 apareció una lección negativa: el retorno moldeado puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
 \end{abstract}
 
 \section{Motivación}
@@ -105,6 +105,79 @@ Artefacto & Qué fija & Riesgo si se omite \\
 \run{metrics.jsonl} & Evolución por update: entregas, pickups, cobertura, bytes, entropía, KL, gradientes y pérdidas. & Confundir un pico, una caída o una métrica moldeada con desempeño final. \\
 \run{summary.json} & Estado final y, cuando existe, métricas del mejor checkpoint. & Mezclar último checkpoint con checkpoint seleccionado. \\
 Videos locales / W\&B & Comportamiento visible: búsqueda, recogida, regreso al hub, saturación de bytes o movimiento sin entrega. & Usar un video vistoso como sustituto de eventos reales. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Auditoría de árbol y ramas visibles}
+
+Para que el informe y el sitio no cuenten solo los resultados más presentables, se generó un ledger exhaustivo en \run{docs/planning/experiment-tree-audit}. La auditoría tomó como base el checkout limpio en \run{21d3cdf} y clasificó cada commit alcanzable, cada ref visible, cada configuración actual, cada notebook, cada directorio local de evidencia, cada run W\&B local y cada archivo experimental indexable. La salida no reemplaza la interpretación causal; fija el inventario de lo que existe y obliga a ubicar incluso las ramas que no dejaron un resultado final comparable.
+
+\begin{table}[h]
+\centering
+\caption{Cobertura del ledger de auditoría usado para actualizar el árbol.}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.18\linewidth}X}
+\toprule
+Superficie auditada & Cantidad & Qué significa para la lectura \\
+\midrule
+Commits alcanzables & 334 & Historia completa visible desde refs locales y remotos. \\
+Refs visibles & 13 & Incluye ramas fusionadas, rama del sitio e investigaciones no fusionadas. \\
+Cambios path-level & 1651 & Permite ubicar cada cambio de archivo dentro de una familia experimental. \\
+Configs \run{experiments/*.json} & 25 & Contratos explícitos de entrenamiento y evaluación. \\
+Notebooks & 17 & Superficies de lanzamiento, análisis, videos y exploración. \\
+Directorios de runs & 145 & Evidencia local con summaries, métricas, evals, planes o configs. \\
+Runs W\&B locales & 230 & Carpetas locales indexadas; el API cloud quedó bloqueado por \run{relogin required}. \\
+Logs & 9 & Registros operacionales preservados. \\
+Archivos indexados & 7771 & Superficie del checkout fuera de \run{.git}, entornos locales y la propia salida de auditoría. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[p]
+\centering
+\scriptsize
+\caption{Familias del árbol completo. La columna ``ubicación'' indica cómo deben aparecer en el sitio y en la lectura del informe, no una afirmación causal.}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}X}
+\toprule
+Familia & Evidencia & Ubicación en el árbol \\
+\midrule
+\run{foundation-task-contract} & 8 commits, 11 archivos & Nacimiento del entorno: sprites, reset, fuentes agotables, entrega y rollout aleatorio. \\
+\run{jax-mappo-training-core} & 21 commits, 155 archivos, 13 W\&B locales & JAX, MAPPO, trainer, eval, checkpoints, recursos y ramas multi-device. \\
+\run{autocurriculum-exploration-baselines} & 29 commits, 4 configs, 4 notebooks & Forage/exploration/autocurrículos tempranos y lanzadores base. \\
+\run{communication-memory-bytes} & 94 commits, 10 runs, 27 W\&B locales & Bits, memoria externa, write-head, no-write, write-cost y R8--R12. \\
+\run{ant-count-25x25-autoresearch} & 75 commits, 52 runs & Desbloqueo 25x25 por distancia, cobertura, cantidad de hormigas, CAP y visión. \\
+\run{source-layout-50x50} & 4 commits, 4 configs, 4 notebooks & Fuente sparse 50x50: padded, proximity, smooth, rare, vectores y previews. \\
+\run{critic-full-layout-50x50} & 29 commits, 6 configs, 3 runs & Cambio a crítico espacial, full-layout, shared writes, costo y continuaciones 8-ant. \\
+\run{sixty-ant-50x50-stabilization} & 6 commits, 4 configs, 1 notebook & Frontera 50x50 con 60 hormigas, 8 bits, identidad y estabilización. \\
+\run{hundred-bridge-maze-stress} & 16 commits, 16 runs, 173 W\&B locales & Puente 100x100, laberinto entrenado como exploración y stress maze 100x100. \\
+\run{twofifty-frontier-reset} & 15 commits, 25 runs, 11 W\&B locales & 250x250, half-scale, resnet/set critics, reset-boundary, truncación y distancia. \\
+\run{bigmap-deployment-rendering} & 10 commits, 6 runs & Render y despliegue solo-actor grande: 1000x1000, paletas y sandbox JS. \\
+\run{adversarial-roles-side-branches} & 14 commits & Frozen-opponent, timed-release roles y probes visibles solo por branch. \\
+\run{report-site-paper-assets} & 8 commits, 65 archivos & Informe, sitio, plots, videos, posters, planificación y figuras generadas. \\
+\run{infra-tests-ci-cleanup} & 3 commits, 522 archivos, 31 runs & Tests, CI, packaging, limpieza de almacenamiento y soporte no experimental. \\
+\run{curated-results-and-vault} & 4 archivos & Índices curados y placeholders de vault; evidencia retenida, no experimento nuevo. \\
+\run{unclassified-review-needed} & 2 commits & Bucket explícito para evidencia que no debe usarse en el paper sin inspección manual. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[p]
+\centering
+\scriptsize
+\caption{Refs visibles que fijan ramas del árbol. Las ramas no fusionadas se documentan como evidencia o dirección exploratoria, no como resultados comparables salvo que tengan métricas preservadas.}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.34\linewidth}>{\raggedright\arraybackslash}p{0.35\linewidth}X}
+\toprule
+Ref & Familia & Lectura \\
+\midrule
+\run{main}, \run{origin/main}, \run{origin/HEAD} & \run{critic-full-layout-50x50} & Base remota fusionada con la línea de crítico/full-layout 50x50. \\
+\run{report-writing-site}, \run{origin/report-writing-site} & \run{report-site-paper-assets} & Rama actual del informe, sitio, videos, plots y árbol narrativo. \\
+\run{feat/multi-device-jax-mappo}, \run{origin/feat/multi-device-jax-mappo} & \run{jax-mappo-training-core} & Rendimiento/multi-device y experimentos x150/write-cost; no se lee como resultado principal. \\
+\run{train-half-scale-resnet} & \run{twofifty-frontier-reset} & Lanzamiento half-scale resnet 250x250: dirección de escala, no resultado final comparable. \\
+\run{origin/lethal_cookies} & \run{hundred-bridge-maze-stress} & Arena en L, laberinto/proximidad y bolsillos letales; sin métricas locales finales comparables. \\
+\run{origin/research/adversarial-marl-experiments} & \run{adversarial-roles-side-branches} & Frozen-opponent y roles adversariales documentados como probes laterales. \\
+\run{origin/research/timed-release-roles} & \run{adversarial-roles-side-branches} & Continuación parked de roles cooperativos con liberación temporal. \\
+\run{origin/vision_shrink_curriculum} & \run{ant-count-25x25-autoresearch} & Continuación CAP/visión de 25x25; pertenece al árbol de cobertura, no a la frontera 50x50. \\
+\run{origin/repo/research-integration-cleanup} & \run{jax-mappo-training-core} & Integración, tests y limpieza de soporte; relevante para reproducibilidad. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -333,6 +406,7 @@ No funcionó o no quedó demostrado:
     \item los autocurrículos como solución general: podían avanzar o acumular retorno moldeado sin entrega real;
     \item el flujo de laberintos como evidencia comparable de forrajeo: hubo video W\&B de exploración 50x50 y una prueba de estrés 100x100, pero ninguna muestra entrega cooperativa entrenada en laberinto;
     \item las ramas R8--R12 de memoria como prueba de comunicación: algunas aumentaron dependencia de bytes, pero no mejoraron simultáneamente la tarea;
+    \item las ramas adversariales, timed-release y lethal-cookies como resultados principales: quedan ubicadas en el árbol por refs y commits, pero no tienen el mismo paquete de métricas, videos y evaluaciones que las líneas centrales;
     \item despliegue determinista como criterio único de éxito;
     \item interpretar retorno moldeado como entrega real;
     \item afirmar comunicación emergente causal sin ablaciones emparejadas de no-write, shuffled-write y costo de escritura.
@@ -346,13 +420,13 @@ La segunda limitación es semántica. La memoria externa existe y se usa en el s
 
 La tercera limitación es de escala. El resultado 60-ant 50x50 es muy bueno, pero usa muchos agentes y escritura saturada. Puede ser la dirección de ingeniería correcta, pero no responde por sí solo la pregunta de comunicación compacta.
 
-La cuarta limitación es de trazabilidad negativa. Algunas ramas importantes, como laberintos y cuadernos laterales de prueba de estrés, quedaron mejor representadas por código, commits, videos diagnósticos y metadatos que por evaluaciones finales comparables. En este informe se incluyen porque explican decisiones del proyecto, pero no se usan como evidencia cuantitativa de desempeño. El video W\&B de laberinto y la prueba 100x100 muestran comportamiento, no una métrica de forrajeo cooperativo resuelta.
+La cuarta limitación es de trazabilidad negativa. Algunas ramas importantes, como laberintos, lethal-cookies, roles adversariales, timed-release, multi-device/write-cost y cuadernos laterales de prueba de estrés, quedaron mejor representadas por código, commits, refs, videos diagnósticos y metadatos que por evaluaciones finales comparables. En este informe se incluyen porque explican decisiones del proyecto, pero no se usan como evidencia cuantitativa de desempeño. El video W\&B de laberinto y la prueba 100x100 muestran comportamiento, no una métrica de forrajeo cooperativo resuelta.
 
 \section{Conclusión}
 
 El proyecto produjo una historia clara. Primero hubo que corregir la semántica de la tarea: entregar comida, no solo encontrarla. Luego hubo que hacer aprendible el crédito: moldeado de distancia, más agentes y despliegue muestreado. Después apareció el detalle más importante para 50x50: el crítico centralizado espacial. Ese cambio reestructura el aprendizaje y debe figurar como una causa mayor. La memoria por bytes sigue siendo una hipótesis interesante, no una conclusión demostrada.
 
-La contribución honesta del trabajo no es ``resolvimos comunicación emergente''. Es más precisa: construimos un entorno de forrajeo multi-agente con memoria externa, identificamos qué cambios desbloquean cada escala, alcanzamos solución robusta en 25x25 y resultados muy fuertes en 50x50 bajo crítico espacial, y mostramos que en 250x250 el retorno moldeado puede engañar si no se mide entrega real.
+La contribución honesta del trabajo no es ``resolvimos comunicación emergente''. Es más precisa: construimos un entorno de forrajeo multi-agente con memoria externa, identificamos qué cambios desbloquean cada escala, alcanzamos solución robusta en 25x25 y resultados muy fuertes en 50x50 bajo crítico espacial, mostramos que en 250x250 el retorno moldeado puede engañar si no se mide entrega real, y dejamos un árbol auditado donde también figuran las ramas que fallaron, quedaron incompletas o solo sobreviven como infraestructura experimental.
 
 \appendix
 \section{Trabajo futuro}
@@ -362,6 +436,8 @@ El informe cierra la historia experimental disponible en el checkout actual. Que
 \begin{enumerate}
     \item congelar una tabla canónica de runs y checkpoints por familia;
     \item agregar una tabla de hiperparámetros por familia, especialmente \run{critic_architecture}, \run{food_count}, \run{food_sources}, número de hormigas, bits y modo de evaluación;
+    \item regenerar la tabla cloud de W\&B después de \run{wandb relogin}, porque esta auditoría solo pudo garantizar exhaustividad local;
+    \item inspeccionar manualmente el bucket \run{unclassified-review-needed} antes de usarlo como evidencia en el paper;
     \item correr ablaciones emparejadas mínimas para comunicación: sin escritura, bytes permutados y mismo costo entre 4 y 8 bits;
     \item repetir laberintos con contrato de forrajeo comparable si se quiere convertir la prueba de estrés en experimento principal: misma plantilla de métricas, 60 hormigas, fuente lejana, recogidas, entregas, eficiencia y tiempo de convergencia.
 \end{enumerate}

@@ -347,6 +347,11 @@ figcaption {
   stroke: var(--blue-ink);
 }
 
+.tree-edge.audit {
+  stroke: #6d5d8f;
+  stroke-dasharray: 4 7;
+}
+
 .tree-node-frame {
   fill: var(--panel);
   stroke: #d8c8aa;
@@ -378,6 +383,10 @@ figcaption {
 
 .tree-link.side .tree-node-rail {
   fill: var(--brick);
+}
+
+.tree-link.audit .tree-node-rail {
+  fill: #6d5d8f;
 }
 
 .tree-node-image {

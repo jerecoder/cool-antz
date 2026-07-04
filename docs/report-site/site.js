@@ -9,6 +9,27 @@
     kind: "root",
     children: [
       {
+        id: "jax-core",
+        href: "#jax-core",
+        label: "JAX/MAPPO core",
+        small: "trainer, eval y multi-device",
+        poster: "report-site/assets/posters/tree-world.jpg",
+        alt: "Fotograma usado como marcador de la infraestructura JAX y MAPPO",
+        kind: "side",
+        row: 1,
+      },
+      {
+        id: "audit-ledger",
+        href: "#audit-ledger",
+        label: "Auditoría completa",
+        small: "334 commits, 7771 archivos",
+        poster: "report-site/assets/posters/tree-memory.jpg",
+        alt: "Gráfico de métricas usado como marcador de trazabilidad completa",
+        kind: "audit",
+        row: 2,
+        depthOffset: 1,
+      },
+      {
         id: "size-curriculum",
         href: "#size-curriculum",
         label: "Currículo de tamaño",
@@ -63,6 +84,16 @@
                             kind: "main",
                             children: [
                               {
+                                id: "lethal-cookies",
+                                href: "#lethal-cookies",
+                                label: "Lethal cookies",
+                                small: "rama maze/radius",
+                                poster: "report-site/assets/posters/tree-maze.jpg",
+                                alt: "Fotograma de laberinto usado como marcador de la rama lethal cookies",
+                                kind: "side",
+                                row: 2,
+                              },
+                              {
                                 id: "critic50",
                                 href: "#critic50",
                                 label: "Cambio de crítico",
@@ -71,6 +102,16 @@
                                 alt: "Fotograma de una política 50x50 con crítico strided_cnn",
                                 kind: "main",
                                 children: [
+                                  {
+                                    id: "multi-device-write-cost",
+                                    href: "#multi-device-write-cost",
+                                    label: "Multi-device / costo",
+                                    small: "x150, write cost y ramas",
+                                    poster: "report-site/assets/posters/tree-critic50.jpg",
+                                    alt: "Fotograma usado como marcador de ramas multi-device y costo de escritura",
+                                    kind: "side",
+                                    row: 1,
+                                  },
                                   {
                                     id: "frontier50",
                                     href: "#frontier50",
@@ -99,6 +140,17 @@
                                         kind: "scale",
                                       },
                                       {
+                                        id: "half-scale-resnet",
+                                        href: "#half-scale-resnet",
+                                        label: "Half-scale resnet",
+                                        small: "rama de lanzamiento 250",
+                                        poster: "report-site/assets/posters/tree-large-scale-250.jpg",
+                                        alt: "Fotograma 250x250 usado como marcador de la rama half-scale resnet",
+                                        kind: "scale",
+                                        row: 2,
+                                        depthOffset: 2,
+                                      },
+                                      {
                                         id: "bigmap",
                                         href: "#bigmap",
                                         label: "1000x1000 solo actor",
@@ -106,6 +158,18 @@
                                         poster: "report-site/assets/posters/tree-bigmap.jpg",
                                         alt: "Fotograma del despliegue solo actor 1000x1000",
                                         kind: "scale",
+                                        depthOffset: 3,
+                                      },
+                                      {
+                                        id: "report-site-assets",
+                                        href: "#report-site-assets",
+                                        label: "Informe y sitio",
+                                        small: "plots, posters, videos",
+                                        poster: "report-site/assets/posters/tree-bigmap.jpg",
+                                        alt: "Fotograma del sitio usado como marcador de assets de informe",
+                                        kind: "audit",
+                                        row: 2,
+                                        depthOffset: 4,
                                       },
                                     ],
                                   },
@@ -123,6 +187,7 @@
                         poster: "report-site/assets/posters/tree-autocurriculum.jpg",
                         alt: "Fotograma real del autocurrículo 250x250 con entrega cero",
                         kind: "side",
+                        row: 1,
                       },
                       {
                         id: "maze-pipeline",
@@ -132,6 +197,8 @@
                         poster: "report-site/assets/posters/tree-maze.jpg",
                         alt: "Fotograma del currículo de laberintos 50x50 entrenado en W&B",
                         kind: "side",
+                        row: 1,
+                        depthOffset: 2,
                       },
                       {
                         id: "memory-autoresearch",
@@ -141,6 +208,19 @@
                         poster: "report-site/assets/posters/tree-memory.jpg",
                         alt: "Gráfico de entregas en pruebas normal, sin lectura de bytes y sin escritura",
                         kind: "side",
+                        row: 1,
+                        depthOffset: 1,
+                      },
+                      {
+                        id: "adversarial-roles",
+                        href: "#adversarial-roles",
+                        label: "Roles adversariales",
+                        small: "frozen opponent y timed release",
+                        poster: "report-site/assets/posters/tree-bits-ants.jpg",
+                        alt: "Fotograma usado como marcador de ramas laterales adversariales y de roles",
+                        kind: "side",
+                        row: 2,
+                        depthOffset: 3,
                       },
                     ],
                   },
@@ -228,8 +308,9 @@
       const branches = (node.children || []).filter((child) => child !== primary);
       const scaleBranch = parent.kind === "frontier" || branches.every((child) => child.kind === "scale");
       branches.forEach((branch, index) => {
-        const branchDepth = depth + (scaleBranch ? index + 1 : index);
-        const row = 1;
+        const defaultDepthOffset = scaleBranch ? index + 1 : index;
+        const branchDepth = depth + (branch.depthOffset ?? defaultDepthOffset);
+        const row = branch.row ?? 1;
         const child = makeLayoutNode(branch, branchDepth, row);
         edges.push({ parent, child });
       });
