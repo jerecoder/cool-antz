@@ -2,17 +2,18 @@
   const modal = document.querySelector("#experiment-modal");
   const modalTitle = document.querySelector("#modal-title");
   const modalBody = document.querySelector("#modal-body");
-  const cards = Array.from(document.querySelectorAll("[data-experiment-card]"));
   const closeButtons = Array.from(document.querySelectorAll("[data-modal-close]"));
+  const detailRoot = document.querySelector(".library-details");
 
-  if (!modal || !modalTitle || !modalBody || cards.length === 0) {
+  if (!modal || !modalTitle || !modalBody || !detailRoot) {
     return;
   }
 
   let lastFocused = null;
 
   function getExperiment(id) {
-    return document.getElementById(id);
+    if (!id) return null;
+    return detailRoot.querySelector(`#${CSS.escape(id)}`);
   }
 
   function focusFirstControl() {
@@ -68,15 +69,18 @@
     }
   }
 
-  cards.forEach((card) => {
-    card.addEventListener("click", (event) => {
-      const id = card.dataset.experimentCard;
-      if (!id) {
-        return;
-      }
-      event.preventDefault();
-      openExperiment(id, true);
-    });
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-experiment-card], a[href^='#']");
+    if (!trigger) return;
+
+    const explicitId = trigger.dataset ? trigger.dataset.experimentCard : "";
+    const href = trigger.getAttribute("href") || "";
+    const hashId = trigger.hash ? trigger.hash.slice(1) : href.replace(/^#/, "");
+    const id = explicitId || hashId;
+
+    if (!getExperiment(id)) return;
+    event.preventDefault();
+    openExperiment(id, true);
   });
 
   closeButtons.forEach((button) => {
