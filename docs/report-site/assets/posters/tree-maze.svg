@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img" aria-label="Esquema de laberinto usado como rama exploratoria">
+  <rect width="320" height="220" fill="#f3efe5"/>
+  <rect x="18" y="18" width="284" height="184" fill="#2f3d43"/>
+  <path d="M48 54 H250 V96 H214 V82 H80 V154 H234 V128 H266 V178 H48 Z" fill="#efe4cf"/>
+  <rect x="56" y="62" width="28" height="28" fill="#314551"/>
+  <rect x="222" y="134" width="30" height="30" fill="#7b8f4c"/>
+  <circle cx="70" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="96" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="122" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="148" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="174" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="200" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="226" cy="76" r="6" fill="#f7d778"/>
+  <circle cx="242" cy="96" r="6" fill="#f7d778"/>
+  <circle cx="242" cy="120" r="6" fill="#f7d778"/>
+  <circle cx="232" cy="148" r="6" fill="#8d3f2f"/>
+</svg>

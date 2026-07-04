@@ -302,6 +302,7 @@ figcaption {
 }
 
 .tree-trunk,
+.tree-side-branches,
 .tree-branches {
   position: relative;
   display: grid;
@@ -334,12 +335,35 @@ figcaption {
   padding-top: 2.75rem;
 }
 
+.tree-side-branches {
+  margin-top: 0.35rem;
+  padding-top: 2.5rem;
+}
+
+.tree-side-branches::before,
+.tree-side-branches::after,
 .tree-branches::before,
 .tree-branches::after {
   content: "";
   position: absolute;
   background: var(--tree-stroke);
   pointer-events: none;
+}
+
+.tree-side-branches::before {
+  top: -0.35rem;
+  left: calc((100% / 7 * 3) + (100% / 14));
+  width: 4px;
+  height: 2.1rem;
+  border-radius: 999px;
+}
+
+.tree-side-branches::after {
+  top: 1.72rem;
+  right: calc(100% / 14);
+  left: calc((100% / 7 * 2) + (100% / 14));
+  height: 4px;
+  border-radius: 999px;
 }
 
 .tree-branches::before {
@@ -368,6 +392,18 @@ figcaption {
 
 .tree-branch-bigmap {
   grid-column: 7;
+}
+
+.tree-side-autocurriculum {
+  grid-column: 3;
+}
+
+.tree-side-maze {
+  grid-column: 4;
+}
+
+.tree-side-memory {
+  grid-column: 5;
 }
 
 .tree-node {
@@ -419,6 +455,10 @@ figcaption {
 .tree-node.frontier {
   border-top-color: var(--blue-ink);
   background: #fffaf0;
+}
+
+.tree-node.side {
+  border-top-color: var(--brick);
 }
 
 .tree-node img {
@@ -977,6 +1017,7 @@ li + li {
 
 @media (max-width: 940px) {
   .tree-trunk,
+  .tree-side-branches,
   .tree-branches {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.8rem;
@@ -1001,6 +1042,24 @@ li + li {
     padding-top: 0.4rem;
   }
 
+  .tree-side-branches {
+    margin-top: 0;
+    padding-top: 0.4rem;
+    padding-left: 1.35rem;
+  }
+
+  .tree-side-branches::before {
+    top: -0.95rem;
+    bottom: 0.25rem;
+    left: 0.42rem;
+    width: 4px;
+    height: auto;
+  }
+
+  .tree-side-branches::after {
+    display: none;
+  }
+
   .tree-branches::before {
     top: -0.95rem;
     bottom: 0.25rem;
@@ -1015,7 +1074,10 @@ li + li {
 
   .tree-branch-100,
   .tree-branch-250,
-  .tree-branch-bigmap {
+  .tree-branch-bigmap,
+  .tree-side-autocurriculum,
+  .tree-side-maze,
+  .tree-side-memory {
     grid-column: auto;
   }
 

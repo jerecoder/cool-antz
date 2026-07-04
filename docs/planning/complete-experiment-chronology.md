@@ -301,6 +301,29 @@ Reasoning consequence: the cleanest claim is that distance-shaped four-ant
 MAPPO solves held-out 25x25 under sampled movement. Rare 50x50 remains
 unsolved, though navigation vectors help discovery.
 
+Autocurriculum and memory side branches from the same period:
+
+| Branch | Contract | Result | Interpretation |
+| --- | --- | --- | --- |
+| one-ant `autocurriculum.json` | 1 ant, 12 food, 2 sources, 1 bit, active 4x4 -> 50x50 | returns fell from `12.281` at 4x4 to `0.719` at 25x25 and `0.156` at 50x50 | growing the active board did not solve credit/exploration |
+| R8 byte-trail | 50x50 autocurriculum memory probe | normal `394`, no-byte-read `397`, no-write `397` | delivered well but not through bytes |
+| R9 byte protocol | stronger memory shaping | normal `124`, ablations `56` | made bytes more causal but damaged foraging |
+| R10 lighter protocol | lighter memory shaping | normal `260`, ablations `248` | weak absolute result and small gap |
+| R11 sparse continuation | preserve sparse behavior | normal `378`, no-byte-read/no-write `395` | no useful causal gain |
+| R12 | interrupted | no final probe | no interpretable result |
+
+Reasoning consequence: the memory line is a negative causal result. It shows
+why nonzero byte maps and videos are not enough; success needs both an ablation
+gap and preserved delivery.
+
+The spawn-radius rare-map follow-up
+`DISTANCE_CAP8_BIGMAP_RARE_NAVVECTOR_SPAWN_RADIUS_CURRICULUM` was incomplete,
+not a negative proof. It warm-started from the held-out selected rare-map
+checkpoint, kept 8 ants, 50x50, 23 food, 2 sources, random hub/food/spawn, and
+hub/nearest-food vectors. Stages `50x50_spawn8` and `50x50_spawn16` completed
+with train returns `5.898` and `7.209`; the unrestricted final stage stopped at
+`130/500` updates and no final `summary.json` is preserved.
+
 ### 2026-06-23 to 2026-06-25: Notebook Consolidation And 50x50 Spatial Critic Branch
 
 Key commits:
@@ -341,6 +364,45 @@ Reasoning consequence: do not tell the story as "full layout, shared writes,
 or more ants caused the 50x50 improvement" without naming the spatial critic
 change. That critic changed the value-learning problem.
 
+### 2026-06-24 to 2026-07-01: Maze/Labyrinth Side Branches
+
+This branch is important because it is a pipeline/evidence failure, not a
+measured policy-success result.
+
+Tracked maze curriculum:
+
+| Config | Grid | Ants | Food | Sources | Bits | Actor r | Critic | Contract |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `maze_exploration_curriculum.json` | 50x50 max | 1 | 48 | 12 | 2 | 1 | MLP | generated wide-corridor mazes, stage sizes 10x10 through 50x50 |
+
+Verified config details:
+
+- `reward_mode=explore`
+- `no_food_termination=true`
+- `terminate_on_full_coverage=true`
+- `maze_obstacles=true`
+- `maze_corridor_width=3`
+- `maze_wall_width=1`
+- `maze_seed=17`
+- `num_envs=16`, `num_steps=80`, `max_steps=6250`
+
+The code/tests support maze obstacle generation, blocking, observation, open-cell
+reset placement, and rollout rendering. However, the current local `runs/`
+tree does not preserve a completed maze training/evaluation artifact with
+delivered food, success, efficiency, or convergence metrics. Therefore the maze
+curriculum should not be presented as an empirical success.
+
+Side branch `origin/lethal_cookies` commit `58ea666` split the old proximity
+source notebook into cookie-radius and maze notebooks. The maze notebook
+prepared a 41x41 L-shaped stress-test inside a 50x50 arena with 5-wide
+corridors, 20 rollout ants, a normal source at the end of the corridor, and no
+lethal food in the long rollout. Its training call was commented out in the
+notebook, and no final MP4/metric payload is preserved in the current checkout.
+
+Reasoning consequence: count the labyrinth path as a failed or incomplete
+evidence branch. It explains why obstacle/maze support existed, but it should
+not support claims about learned foraging performance.
+
 ### 2026-06-28 to 2026-06-30: 250x250 Half-Scale Branch
 
 This run family is mostly represented by local run artifacts and later configs.
@@ -370,6 +432,13 @@ Reasoning consequence: 250x250 is a cautionary branch. Shaped return and byte
 maps can look alive while raw delivery is zero. The reset-boundary intervention
 is real progress, but it is not proof of general 250x250 foraging or byte
 communication.
+
+More precise failure evidence:
+
+- `half_scale_distance_autocurriculum_source_teacher_250x250`: `delivery_events=0`, `pickup_events=0`, `env_return=0`, `episode_return=14.641`, four completed distance stages up to distance 32, `mean_carrying_ants=447`, and final nonzero byte fraction `0.862`.
+- `diagnosis-20260629T180833Z`: `delivery_events=0`, `pickup_events=0`, `shaping_return=26.25`, two completed stages up to distance 8, `mean_carrying_ants=257`, and byte fraction `0.899`.
+- The no-decay long eval at d12 showed pickup-without-delivery: mean deliveries `0.392`, median `0`, pickup-to-delivery mean `0.00803`, and undelivered pickups mean `13.745`.
+- `nodecay-stratified-longwindow-d12-from-rbfinal-250x250/SMOKE_STRATIFIED_GPU` has a launch manifest for d4/d8/d12 stratified windows, but `metrics.jsonl`, `fresh_eval_metrics.jsonl`, and `long_eval_metrics.jsonl` are empty after an operational abort. Treat it as no-result, not as a failed experiment.
 
 ### 2026-07-01: 8-Bit Shared-Write Continuation
 
@@ -490,6 +559,9 @@ All 257 commits were scanned. Date density:
 - Strong: the 50x50 spatial-critic branch must be separated from earlier MLP
   critic experiments.
 - Strong: 250x250 shaping return can be misleading without raw delivery metrics.
+- Strong: the labyrinth/maze branch is not a comparable result in the preserved
+  evidence; it is a pipeline branch with implementation evidence but no final
+  local metric artifact.
 - Tentative: 60-ant 50x50 behavior is very strong but confounded.
 - Not proven: byte communication is causally responsible for the best results.
 
@@ -502,8 +574,10 @@ The report website should show the same chronology visually:
 3. 25x25 unlock: distance shaping plus ant coverage, with sampled-vs-greedy
    comparison.
 4. Communication caution: bit sweeps and no-write evidence.
-5. 50x50 transition: the critic-architecture boundary.
-6. 60-ant frontier: strong behavior and saturated-write caveat.
-7. 250x250/100x100 diagnostics: real deliveries versus shaped activity.
-8. Transparency panel: what is proven, what is confounded, and which ablations
+5. Negative side branches: autocurricula, memory-shaping R8-R12, and labyrinth
+   pipeline evidence that did not become main results.
+6. 50x50 transition: the critic-architecture boundary.
+7. 60-ant frontier: strong behavior and saturated-write caveat.
+8. 250x250/100x100 diagnostics: real deliveries versus shaped activity.
+9. Transparency panel: what is proven, what is confounded, and which ablations
    are still needed.

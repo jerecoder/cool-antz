@@ -93,8 +93,8 @@
           El desarrollo no fue una subida lineal de mapas chicos a mapas grandes.
           Fue una serie de separaciones: primero definimos qué significa resolver
           el entorno, después aislamos el cuello de botella de cobertura, luego
-          probamos qué cambió el comportamiento, y recién al final miramos
-          escalado con cuidado.
+          probamos qué cambió el comportamiento, registramos las ramas que no
+          funcionaron, y recién al final miramos escalado con cuidado.
         </p>
         <div class="takeaway-grid">
           <div>
@@ -110,7 +110,7 @@
             <strong>372-373/375</strong>
             <p>
               Las continuaciones seleccionadas escalan muy bien, aunque siguen
-              dependiendo de checkpoint y temperatura de despliegue.
+              dependiendo del punto guardado y la temperatura de despliegue.
             </p>
           </div>
           <div>
@@ -143,7 +143,7 @@
         <nav class="experiment-lineage" aria-label="Árbol navegable de experimentos">
           <div class="tree-trunk" aria-label="Tronco: desde el entorno hasta la frontera 50x50">
             <a class="tree-node root" href="#world">
-              <img src="report-site/assets/posters/tree-world.jpg" alt="Fotograma del baseline aleatorio">
+              <img src="report-site/assets/posters/tree-world.jpg" alt="Fotograma de la línea base aleatoria">
               <span class="tree-label">Mundo y métrica</span>
               <small>entrega, fuentes, bytes</small>
             </a>
@@ -155,7 +155,7 @@
             <a class="tree-node" href="#unlock25">
               <img src="report-site/assets/posters/tree-unlock25.jpg" alt="Fotograma 25x25 con 4 hormigas">
               <span class="tree-label">Desbloqueo 25x25</span>
-              <small>4 hormigas + shaping</small>
+              <small>4 hormigas + moldeado</small>
             </a>
             <a class="tree-node" href="#bits-ants">
               <img src="report-site/assets/posters/tree-bits-ants.jpg" alt="Fotograma del currículo de cantidad de hormigas">
@@ -176,6 +176,24 @@
               <img src="report-site/assets/posters/tree-frontier50.jpg" alt="Fotograma de la política 50x50 de 60 hormigas">
               <span class="tree-label">Frontera 60 hormigas</span>
               <small>123.90625/125</small>
+            </a>
+          </div>
+
+          <div class="tree-side-branches" aria-label="Ramas exploratorias que no quedaron como línea principal">
+            <a class="tree-node side tree-side-autocurriculum" href="#autocurriculum">
+              <img src="report-site/assets/posters/tree-autocurriculum.svg" alt="Esquema de autocurrículo con progreso aparente y entrega cero">
+              <span class="tree-label">Autocurrículos</span>
+              <small>etapas y moldeado no bastaron</small>
+            </a>
+            <a class="tree-node side tree-side-maze" href="#maze-pipeline">
+              <img src="report-site/assets/posters/tree-maze.svg" alt="Esquema del flujo de laberinto">
+              <span class="tree-label">Laberinto</span>
+              <small>flujo sin evidencia final</small>
+            </a>
+            <a class="tree-node side tree-side-memory" href="#memory-autoresearch">
+              <img src="report-site/assets/posters/tree-memory.svg" alt="Esquema de memoria externa con ablaciones">
+              <span class="tree-label">Memoria R8-R12</span>
+              <small>más causalidad, menos forrajeo</small>
             </a>
           </div>
 
@@ -212,6 +230,9 @@
           <a href="#small-scale">2. Cuello</a>
           <a href="#unlock25">3. 25x25</a>
           <a href="#bits-ants">4. Bytes</a>
+          <a href="#autocurriculum">4a. Autocurrículos</a>
+          <a href="#maze-pipeline">4b. Laberinto</a>
+          <a href="#memory-autoresearch">4c. Memoria</a>
           <a href="#rare50">5. 50x50 raro</a>
           <a href="#critic50">6. Crítico</a>
           <a href="#frontier50">7. 60 hormigas</a>
@@ -513,7 +534,7 @@
               <h3>Qué medimos</h3>
               <p>
                 Retorno de entrenamiento por etapa y evidencia posterior de
-                comida entregada en ablations. Supervivencia como éxito no fue
+                comida entregada en ablaciones. Supervivencia como éxito no fue
                 medida de forma completa en todos los puntos.
               </p>
             </div>
@@ -528,8 +549,255 @@
               <h3>Lectura de resultados</h3>
               <p>
                 La hipótesis de memoria por bytes queda abierta. Para volverla
-                causal hacen falta ablations emparejadas: no-write, no-byte-read
+                causal hacen falta ablaciones emparejadas: no-write, no-byte-read
                 y byte-shuffle con costos comparables.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="autocurriculum" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">4a</span>
+          <div>
+            <h2>Autocurrículos: el progreso aparente no era suficiente</h2>
+            <p>
+              El proyecto probó currículos donde el entorno crecía o acercaba la
+              dificultad en función del éxito. Fueron importantes porque
+              mostraron una falla recurrente: una política puede activar etapas,
+              acumular retorno moldeado o cargar comida sin cerrar el ciclo de
+              entrega.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <img
+              src="report-site/assets/plots/fig_250x250_diagnostics.png"
+              alt="Diagnóstico de autocurrículo 250x250 con entrega, pickup, retorno y bytes"
+            >
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> No hay un video
+              dedicado conservado para cada autocurrículo fallido. La evidencia
+              visual más honesta es el diagnóstico 250x250, porque separa
+              entrega real de retorno moldeado y actividad de bytes.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Probar si una única política podía aprender una familia de
+                tareas cada vez más difíciles: primero con una grilla activa que
+                crecía dentro de observaciones 50x50, y después con
+                autocurrículo de distancia en 250x250.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto del baseline</h3>
+              <p>
+                En la versión 50x50, el contrato era 1 hormiga, 12 comidas, 2
+                fuentes, 1 bit, radio 1 y una grilla activa de 4x4 a 50x50. En
+                la versión 250x250, el contrato pasó a 500 hormigas, 5000
+                comidas, una fuente rica, 4 bits, radio 2 y crítico
+                <code>set_cnn</code>.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Entregas, pickups, retorno del entorno, retorno moldeado,
+                cantidad media de hormigas cargando, fracción de bytes no nulos
+                y ventanas sin entrega. La eficiencia no fue la métrica central
+                de estos diagnósticos.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                La figura 250x250 muestra el error de lectura: mirar solo
+                retorno o bytes no alcanza. Hay que mirar entregas y pickups
+                como eventos de tarea.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                El autocurrículo 50x50 aumentó el tablero, no la competencia
+                transferible: el reporte archivado cae de <code>12.281</code>
+                en 4x4 a <code>0.719</code> en 25x25 y <code>0.156</code> en
+                50x50. En 250x250, una corrida resumida tuvo
+                <code>delivery_events=0</code>, <code>pickup_events=0</code>,
+                <code>env_return=0</code>, <code>episode_return=14.641</code>,
+                4 etapas completadas hasta distancia 32,
+                <code>mean_carrying_ants=447</code> y
+                <code>final_mean_nonzero_byte_fraction=0.862</code>. Otra
+                diagnosis mostró <code>delivery_events=0</code>,
+                <code>pickup_events=0</code>, <code>shaping_return=26.25</code>,
+                2 etapas hasta distancia 8 y fracción de bytes
+                <code>0.899</code>. La conclusión fue cambiar la medición y el
+                reset, no entrenar ciegamente más tiempo.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="maze-pipeline" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">4b</span>
+          <div>
+            <h2>Laberinto: una rama de infraestructura, no una rama de resultado</h2>
+            <p>
+              También hubo una línea de laberintos. Es importante incluirla
+              porque representa una decisión de diseño que no terminó como
+              evidencia principal del informe.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <img
+              src="report-site/assets/posters/tree-maze.svg"
+              alt="Esquema del laberinto en L usado como prueba de estrés"
+            >
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> Este panel es un
+              esquema: no encontramos un MP4 local conservado para esta rama.
+              Por eso no la presentamos como éxito empírico.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Probar si las políticas locales podían sostener exploración y
+                retorno en pasillos con obstáculos, donde la memoria externa
+                podría ser más útil que en un mapa abierto.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto del baseline</h3>
+              <p>
+                La configuración preservada <code>maze_exploration_curriculum.json</code>
+                usa laberintos generados de 10x10 a 50x50, una hormiga, 48
+                comidas, 12 fuentes, 2 bits, radio 1, crítico MLP, pasillos de
+                ancho 3 y paredes de ancho 1. En la rama
+                <code>origin/lethal_cookies</code>, el cuaderno de laberinto define
+                una prueba de estrés 41x41 en L dentro de 50x50, pasillos de ancho 5,
+                20 hormigas y una fuente normal al final.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Para el flujo preservado se verificó soporte de obstáculos,
+                reinicios y renderizado. No hay métricas locales preservadas de
+                comida recolectada, supervivencia, eficiencia o convergencia que
+                permitan compararlo con las ramas principales.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                El cuaderno de la rama lateral preparaba un render largo, pero
+                la llamada de entrenamiento estaba comentada y no hay archivo
+                multimedia final en <code>runs/</code>. Por eso esta sección usa un
+                esquema y no un video.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                El fallo fue de evidencia y foco experimental: la infraestructura
+                de laberintos existió, pero no produjo una corrida comparable.
+                La decisión razonable fue volver al forrajeo abierto, donde sí
+                había métricas y videos auditables.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="memory-autoresearch" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">4c</span>
+          <div>
+            <h2>Memoria y autoresearch: más escritura no equivale a comunicación</h2>
+            <p>
+              La línea de memoria intentó separar uso causal de bytes de simple
+              actividad visual. Esa distinción es clave para no vender como
+              comunicación lo que solo puede ser exploración, saturación o
+              retorno moldeado.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <img
+              src="report-site/assets/plots/fig_bits_vs_ants.png"
+              alt="Comparación de bits de escritura y cantidad de hormigas"
+            >
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> La figura resume la
+              primera señal negativa: aumentar bits no fue el desbloqueo
+              principal. Las ramas R8-R12 agregan ablaciones, pero no tienen una
+              figura final equivalente.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Demostrar que los bytes causaban mejores decisiones, no solo que
+                aparecían pintados en la grilla.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto del baseline</h3>
+              <p>
+                Se agregaron pruebas <code>normal</code>,
+                <code>no_byte_read</code> y <code>no_write</code>, además de
+                recompensas como <code>delivery_byte_trail_bonus</code>,
+                <code>byte_follow_bonus</code> y variantes R8-R12 desde
+                puntos guardados fuertes.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Entregas absolutas, brecha contra ablaciones, retorno, actividad
+                de escritura y desempeño de forrajeo. El criterio correcto era
+                doble: que <code>normal</code> superara las ablaciones y que la
+                tarea principal no se degradara.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                Los videos de bytes son ilustrativos, pero no prueban causalidad.
+                La evidencia decisiva debía ser la brecha cuantitativa contra
+                ablaciones.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                El punto guardado sparse casi no dependía de bytes. R8 entregó bien
+                pero no por memoria: <code>normal=394</code>,
+                <code>no_byte_read=397</code>, <code>no_write=397</code>. R9
+                hizo más causal el uso de bytes pero dañó el forrajeo:
+                <code>normal=124</code> contra ablaciones de <code>56</code>.
+                R10 fue más liviano pero débil: <code>260</code> contra
+                <code>248</code>. R11 preservó conducta sparse sin ganancia
+                causal: <code>378</code> contra <code>395</code> y
+                <code>395</code>. R12 quedó interrumpido. La conclusión queda
+                abierta: hay memoria externa disponible, pero la causalidad de
+                comunicación no quedó demostrada.
               </p>
             </div>
           </div>
@@ -571,7 +839,7 @@
               <h3>Cambio respecto del baseline</h3>
               <p>
                 Se agregaron señales vectoriales hacia el hormiguero y hacia la
-                comida más cercana, junto con selección de checkpoint.
+                comida más cercana, junto con selección de puntos guardados.
               </p>
             </div>
             <div>
@@ -595,8 +863,13 @@
                 hormiguero llegó a <code>12.328/23</code>; hormiguero más vector
                 a comida llegó a
                 <code>15.203/23</code>; selección held-out llegó a
-                <code>16.198/23</code>. Ayudar a descubrir sí importó, pero no
-                resolvió el 50x50 raro.
+                <code>16.198/23</code>. La rama de radio de spawn intentó
+                continuar desde ahí con etapas <code>spawn8</code>,
+                <code>spawn16</code> y spawn completo: las dos primeras etapas
+                terminaron con retornos de entrenamiento <code>5.898</code> y
+                <code>7.209</code>, pero la etapa final se detuvo en
+                <code>130/500</code> actualizaciones. Ayudar a descubrir sí importó,
+                pero no resolvió el 50x50 raro.
               </p>
             </div>
           </div>
@@ -692,7 +965,7 @@
             </video>
             <figcaption>
               <strong>Video / evidencia visual.</strong> Rollout real del
-              checkpoint 50x50, 60 hormigas, 125 comida, 2 fuentes, 8 bits,
+              punto guardado 50x50, 60 hormigas, 125 comida, 2 fuentes, 8 bits,
               800x800.
             </figcaption>
           </figure>
@@ -724,7 +997,7 @@
             <div>
               <h3>Video / evidencia visual</h3>
               <p>
-                El rollout 50x50 usa el checkpoint exportado real y muestra la
+                El despliegue 50x50 usa el punto guardado exportado real y muestra la
                 política local de 60 hormigas casi vaciando la tarea.
               </p>
             </div>
@@ -788,7 +1061,7 @@
               <h3>Cambio respecto del baseline</h3>
               <p>
                 Se usaron ramas puente con 120 hormigas y selección de
-                checkpoint/temperatura, no entrenamiento desde cero.
+                punto guardado/temperatura, no entrenamiento desde cero.
               </p>
             </div>
             <div>
@@ -875,7 +1148,14 @@
                 El fallo directo fue informativo: retorno moldeado y bytes podían
                 crecer sin entrega. Reset-boundary recuperó progreso real:
                 <code>654</code> entregas finales y alrededor de
-                <code>1003</code> en el mejor tramo de entrenamiento.
+                <code>1003</code> en el mejor tramo de entrenamiento. Pero las
+                continuaciones siguieron siendo frágiles: byte-decay terminó con
+                <code>175</code> entregas, y una evaluación larga d12 de la rama
+                no-decay mostró media <code>0.392</code>, mediana
+                <code>0</code> y <code>pickup_to_delivery=0.008</code>. El
+                intento estratificado d4/d8/d12 dejó manifiesto de lanzamiento,
+                pero métricas vacías por aborto operacional; no cuenta como
+                resultado experimental.
               </p>
             </div>
           </div>
@@ -961,7 +1241,7 @@
           <div>
             <h2>Sandbox interactivo: política real 50x50</h2>
             <p>
-              Este runner usa los pesos exportados del actor del checkpoint
+              Este sandbox usa los pesos exportados del actor del punto guardado
               entrenado para 50x50. Podés mover el hormiguero y las fuentes de
               comida, y correr la política en el navegador.
             </p>
@@ -1116,6 +1396,18 @@
               <td>Abierto</td>
               <td>Hay escritura y a veces saturación, pero no alcanza como prueba causal.</td>
               <td>Faltan no-write, no-byte-read, byte-shuffle y costos emparejados.</td>
+            </tr>
+            <tr>
+              <td>Los autocurrículos resolvieron el escalado.</td>
+              <td>No demostrado</td>
+              <td>En 250x250 hubo retorno moldeado y muchas hormigas cargando con <code>delivery_events=0</code>.</td>
+              <td>Los umbrales deben depender de entrega real, no solo retorno moldeado o avance de etapa.</td>
+            </tr>
+            <tr>
+              <td>El flujo de laberinto produjo un resultado comparable.</td>
+              <td>No</td>
+              <td>Hay implementación, tests y notebooks, pero no métricas locales preservadas ni MP4 final.</td>
+              <td>Debe citarse como rama exploratoria fallida, no como experimento exitoso.</td>
             </tr>
             <tr>
               <td>250x250 está resuelto en general.</td>

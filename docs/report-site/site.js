@@ -34,7 +34,7 @@
         ["hormigas", "4"],
         ["comida", "23 bocados / 12 fuentes"],
         ["bits", "3"],
-        ["checkpoint", "ant_count_25x25_3_bits/4_ants"],
+        ["punto guardado", "ant_count_25x25_3_bits/4_ants"],
         ["obs. del actor", "151 rasgos legacy"],
         ["crítico", "MLP"],
         ["retorno del entorno en entrenamiento", "7.8125"],
@@ -55,7 +55,7 @@
         ["ventana activa", "250x250 dentro de [375, 624]"],
         ["hormigas en render", "500"],
         ["comida en render", "5000 bocados / 6 fuentes"],
-        ["tarea del checkpoint", "continuación hard375 100x100"],
+        ["tarea del punto guardado", "continuación hard375 100x100"],
         ["configuración de evaluación", "120 hormigas, 375 comida, 6 fuentes"],
         ["crítico", "linaje set_cnn"],
         ["entregado en evaluación", "372 / 375"],
@@ -64,21 +64,21 @@
         ["tasa de evaluación", "0.803 entregas / 1000 pasos-hormiga"],
       ],
       caveat:
-        "La geometría del video es 1000x1000 con 500 hormigas y 5000 comida. La etiqueta 100x100 pertenece al linaje del checkpoint y a la tarea de evaluación.",
+        "La geometría del video es 1000x1000 con 500 hormigas y 5000 comida. La etiqueta 100x100 pertenece al linaje del punto guardado y a la tarea de evaluación.",
     },
     reset250: {
       label: "reset 250",
-      title: "Checkpoint reset-boundary 250x250",
+      title: "Punto guardado reset-boundary 250x250",
       src: "report-site/assets/videos/reset-boundary-250x250.mp4",
       caption:
-        "Video local del checkpoint reset-boundary de la rama diagnóstica fixed8 250x250, codificado como 1008x1008.",
+        "Video local del punto guardado reset-boundary de la rama diagnóstica fixed8 250x250, codificado como 1008x1008.",
       metrics: [
         ["grilla de tarea", "250x250"],
         ["video codificado", "1008x1008"],
         ["fotogramas", "600 a 8 fps"],
         ["hormigas", "500"],
         ["comida", "5000 bocados / 1 fuente"],
-        ["familia del checkpoint", "fixed8-reset-boundary256"],
+        ["familia del punto guardado", "fixed8-reset-boundary256"],
         ["crítico", "set_cnn"],
         ["entregas finales", "654"],
         ["recogidas finales", "869"],
@@ -86,7 +86,7 @@
         ["punto diagnóstico", "entrega cruda separada del retorno moldeado"],
       ],
       caveat:
-        "Esta rama muestra progreso local real de entrega dentro de la configuración reset/distancia 250x250.",
+        "Esta rama muestra progreso local real de entrega dentro de la configuración reset/distancia 250x250; no demuestra que el autocurrículo 250x250 general haya quedado resuelto.",
     },
     random: {
       label: "azar",

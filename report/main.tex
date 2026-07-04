@@ -34,7 +34,7 @@
 \maketitle
 
 \begin{abstract}
-Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el gate de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de checkpoints, escritura compartida y penalizaciones de escritura. En 250x250 apareció una lección negativa: el retorno con shaping puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
+Este informe resume una serie de experimentos de aprendizaje por refuerzo multi-agente en un entorno de forrajeo. El objetivo era entrenar hormigas locales que encontraran comida, la llevaran al hub y, eventualmente, usaran una memoria externa discreta para coordinarse. La historia experimental no fue lineal. El principal progreso no vino de ``más comunicación'' por sí sola, sino de definir correctamente la tarea, hacer que la señal de crédito fuera aprendible, aumentar la cobertura con más agentes y cambiar la arquitectura del crítico centralizado. En 25x25 se obtuvo una política que resuelve el umbral de 23 entregas bajo movimiento muestreado. En 50x50 la mejora más importante coincide con el paso de un crítico MLP plano a un crítico espacial \run{strided_cnn}; dentro de esa familia se llegó a resultados fuertes pero todavía confundidos con más hormigas, selección de puntos guardados, escritura compartida y penalizaciones de escritura. También hubo ramas que no deben desaparecer de la historia: autocurrículos que avanzaban sin entrega real, un flujo de laberintos sin resultado preservado comparable y barridos de memoria que aumentaban escritura sin probar comunicación útil. En 250x250 apareció una lección negativa: el retorno moldeado puede crecer aunque las entregas reales sean cero. La conclusión honesta es que el sistema aprendió forrajeo multi-agente útil y escaló mejor de lo esperado, pero todavía no demuestra causalmente comunicación emergente mediante bytes.
 \end{abstract}
 
 \section{Motivación}
@@ -46,14 +46,14 @@ La motivación no es solo maximizar una métrica. La pregunta interesante es sem
 \begin{itemize}
     \item desempeño: cuánta comida se entrega, con qué tasa de éxito y con cuántos pasos;
     \item mecanismo: qué cambios de entorno, política o crítico hicieron posible el desempeño;
-    \item comportamiento: si los videos muestran búsqueda, transporte y retorno, o solo movimiento con shaping.
+    \item comportamiento: si los videos muestran búsqueda, transporte y retorno, o solo movimiento con retorno moldeado.
 \end{itemize}
 
 El trabajo se ubica cerca de MAPPO \cite{yu2022mappo}, PPO \cite{schulman2017ppo}, GAE \cite{schulman2015gae} y aprendizaje de comunicación multi-agente como CommNet y DIAL \cite{sukhbaatar2016commnet,foerster2016dial}. La diferencia práctica es que aquí la comunicación no es un canal diferentiable directo entre agentes. Es una memoria discreta escrita en celdas del ambiente. Eso hace que la atribución causal sea más difícil: ver bytes no-cero no implica que esos bytes estén coordinando la política.
 
 \section{Entorno y semántica}
 
-La semántica del entorno cambió de manera decisiva durante el proyecto. En la versión relevante para este informe, \metric{food_count} no significa posiciones independientes de comida. Significa mordidas totales. \metric{food_sources} controla cuántas fuentes concentran esas mordidas y cada fuente se agota. La recompensa cruda principal es la entrega en el hub: una unidad entregada da \(+1\). La recogida puede tener bonus de shaping en algunas corridas, pero no es el objetivo final.
+La semántica del entorno cambió de manera decisiva durante el proyecto. En la versión relevante para este informe, \metric{food_count} no significa posiciones independientes de comida. Significa mordidas totales. \metric{food_sources} controla cuántas fuentes concentran esas mordidas y cada fuente se agota. La recompensa cruda principal es la entrega en el hub: una unidad entregada da \(+1\). La recogida puede tener bonus de moldeado en algunas corridas, pero no es el objetivo final.
 
 Esta distinción cambia la interpretación de todos los resultados. Un resultado de \(23/23\) en 25x25 no significa visitar 23 puntos aislados. Significa completar 23 entregas desde 6 fuentes agotables. Cambiar \metric{food_sources} con \metric{food_count} fijo cambia la geometría de la tarea, la repetición de rutas y la dificultad de redescubrir fuentes.
 
@@ -106,7 +106,7 @@ La causa más plausible no fue falta de bits. Era una mezcla de horizonte largo,
 
 \subsection{El desbloqueo 25x25}
 
-El primer resultado fuerte aparece al combinar shaping de distancia, más hormigas y más capacidad. \run{DISTANCE_SHAPE} ya hacía parcialmente aprendible el gate 25x25: \(13.75/23\) en greedy, pero solo \(7/23\) muestreado. \run{DISTANCE_CAP4} cambia a cuatro hormigas y hidden size mayor; allí la evaluación muestreada llega a \(23/23\) con éxito \(1.0\), aunque el modo greedy cae a \(2.75/23\).
+El primer resultado fuerte aparece al combinar moldeado de distancia, más hormigas y más capacidad. \run{DISTANCE_SHAPE} ya hacía parcialmente aprendible el umbral 25x25: \(13.75/23\) en greedy, pero solo \(7/23\) muestreado. \run{DISTANCE_CAP4} cambia a cuatro hormigas y hidden size mayor; allí la evaluación muestreada llega a \(23/23\) con éxito \(1.0\), aunque el modo greedy cae a \(2.75/23\).
 
 \begin{figure}[h]
 \centering
@@ -128,9 +128,31 @@ Los barridos tempranos de bits no muestran un salto claro de capacidad. En una l
 \label{fig:bits-ants}
 \end{figure}
 
+\subsection{Autocurrículos que no cerraron el ciclo}
+
+El proyecto probó autocurrículos de dos tipos. El primero era un entorno 50x50 acolchado donde la grilla activa empezaba chica y crecía después de cumplir un umbral de entregas. La idea era razonable: entrenar una única política contra observaciones de tamaño fijo, pero exponerle dificultad progresiva. En la práctica, esta rama quedó por debajo del desbloqueo por cobertura y moldeado de distancia. El contrato relevante era una política de una hormiga, 12 unidades de comida, 2 fuentes, 1 bit de escritura, radio de visión 1, crítico MLP y grilla activa 4x4--50x50. El reporte archivado muestra que el autocurrículo aumentó el tablero sin producir competencia transferible: retorno completado \(12.281\) en 4x4, \(0.719\) en 25x25 y \(0.156\) en 50x50.
+
+El segundo tipo fue más importante como diagnóstico: autocurrículo de distancia en 250x250 con 500 hormigas, 5000 comidas, una fuente rica, 4 bits, radio 2 y crítico \run{set_cnn}. Allí el problema no era que ``no pasara nada''. Pasaba demasiado: retorno moldeado, agentes cargando, bytes activos y cambios de etapa podían coexistir con entrega real nula. Una corrida resumida reporta \metric{delivery_events}=0, \metric{pickup_events}=0, \metric{env_return}=0, \metric{episode_return}=14.641, cuatro etapas completadas hasta distancia 32, \metric{mean_carrying_ants}=447 y \metric{final_mean_nonzero_byte_fraction}=0.862. Una diagnosis posterior muestra \metric{delivery_events}=0, \metric{pickup_events}=0, \metric{shaping_return}=26.25, dos etapas completadas hasta distancia 8, \metric{mean_carrying_ants}=257 y fracción final de bytes no-cero 0.899.
+
+La lectura es metodológica: los umbrales de un autocurrículo no pueden confiar solo en progreso moldeado, actividad de bytes o cantidad de agentes cargando. Deben depender de eventos de tarea, especialmente entregas y tasa pickup-entrega. Este fracaso motivó reportar \metric{pickup_to_delivery_rate}, \metric{undelivered_pickup_events}, ventanas sin entrega y evaluaciones \run{normal}/\run{no_byte_read}/\run{no_write}. También explica por qué la recuperación \run{reset-boundary} de 250x250 debe presentarse como cambio de contrato de reset y distancia, no como prueba de que el autocurrículo general quedó resuelto.
+
+\subsection{Laberintos: una rama de infraestructura sin resultado comparable}
+
+Otra rama exploró laberintos. En la rama actual queda el config \run{maze_exploration_curriculum.json}: laberintos generados de 10x10 a 50x50, una hormiga, 48 unidades de comida, 12 fuentes, 2 bits, radio 1, crítico MLP, \metric{max_steps}=6250, 16 entornos por 80 pasos, \metric{reward_mode}=\run{explore}, pasillos de ancho 3, paredes de ancho 1 y semilla 17. La infraestructura de obstáculos sí quedó implementada y testeada: obstáculos bloquean movimiento, aparecen en observaciones, los resets ubican hub/comida/hormigas en celdas abiertas y los layouts pueden cambiar tras truncación.
+
+También existió una rama lateral \run{origin/lethal_cookies}. Allí el cuaderno de maze preparaba una prueba de estrés 41x41 en forma de L dentro de una arena 50x50, con pasillos de ancho 5, 20 hormigas, una fuente normal al final y, en una variante hermana, bolsillos laterales para fuentes letales. Sin embargo, esa rama no tiene en el checkout actual métricas locales preservadas de entrega, supervivencia, eficiencia o convergencia, y la llamada de entrenamiento del cuaderno de maze estaba comentada.
+
+Por eso el laberinto debe contarse como fracaso de flujo/evidencia, no como fracaso cuantitativo de política. La idea era válida para probar memoria espacial bajo obstáculos, pero no produjo una corrida comparable con las ramas principales. La decisión experimental fue volver al forrajeo abierto, donde sí existían curvas, videos, puntos guardados y métricas de entrega.
+
+\subsection{Memoria y autoresearch: escribir no basta}
+
+La línea de memoria intentó convertir la observación cualitativa de bytes escritos en una afirmación causal. El criterio correcto era más exigente: una política con bytes debía superar pruebas \run{no_byte_read} y \run{no_write}, y al mismo tiempo mantener o mejorar comida entregada. Los barridos R8--R12 y las recompensas \run{delivery_byte_trail_bonus}, \run{byte_follow_bonus} y variantes relacionadas fueron diseñados para esa pregunta.
+
+La conclusión no fue positiva. El punto guardado sparse apenas dependía de los bytes. R8 entregó bien pero no a través de memoria: \run{normal}=394, \run{no_byte_read}=397 y \run{no_write}=397. R9 produjo una brecha más causal, pero dañó el forrajeo: \run{normal}=124 contra ablaciones de 56. R10 fue más liviano, aunque todavía débil: 260 contra 248. R11 preservó conducta sparse sin ganancia causal: 378 contra 395 y 395. R12 quedó interrumpido antes de un resultado final confiable. Junto con el resultado \run{DISTANCE_CAP4_NO_WRITE} de \(22/23\), esto impide afirmar que la memoria externa causó los mejores resultados. Lo que sí queda demostrado es más modesto: el entorno ofrece una memoria discreta y las políticas pueden escribirla; falta probar que esa información escrita mejore decisiones de forma robusta.
+
 \subsection{50x50 raro y ayudas vectoriales}
 
-Cuando la comida se vuelve rara en 50x50, el problema cambia. El agente debe descubrir fuentes con baja probabilidad y luego sostener ciclos. La línea base rara llega a \(10.96/23\). Agregar visión de radio 2 no ayuda. Agregar vector al hub mejora poco. Agregar vector al hub y a la comida cercana sube a \(15.20/23\), y selección held-out llega a \(16.20/23\) en la confirmación final.
+Cuando la comida se vuelve rara en 50x50, el problema cambia. El agente debe descubrir fuentes con baja probabilidad y luego sostener ciclos. La línea base rara llega a \(10.96/23\). Agregar visión de radio 2 no ayuda. Agregar vector al hub mejora poco. Agregar vector al hub y a la comida cercana sube a \(15.20/23\), y selección held-out llega a \(16.20/23\) en la confirmación final. La rama posterior de radio de spawn fue inconclusa, no negativa: completó \run{spawn8} con retorno de entrenamiento 5.898, \run{spawn16} con 7.209 y se detuvo en \(130/500\) actualizaciones de la etapa final sin \run{summary.json}.
 
 \begin{figure}[h]
 \centering
@@ -152,11 +174,11 @@ La línea 50x50 eficiente inicial usa el crítico MLP por defecto y entrega \(21
 
 El mejor resultado local de 8 hormigas en esa familia es \run{shared_writes_write_cost_from_shared_best}: \(69.375/125\), éxito \(0.125\). Es progreso real, pero no una solución completa. También tiene escritura no-cero muy alta, alrededor de \(0.94\), por lo que no alcanza para afirmar que haya un código compacto e interpretable.
 
-La línea reciente de 60 hormigas es la frontera actual del repo. Una evaluación de 64 episodios del checkpoint estabilizado reporta \(123.90625/125\), fracción \(0.99125\), éxito \(0.90625\). Esto es fuerte como ingeniería de comportamiento 50x50, pero cambia demasiadas cosas a la vez: 60 hormigas, 8 bits, actor con identidades repetidas, continuación desde checkpoint, critic \run{strided_cnn}, selección por evaluación, temperaturas y escritura casi saturada. Debe presentarse como resultado prometedor, no como prueba causal de comunicación.
+La línea reciente de 60 hormigas es la frontera actual del repo. Una evaluación de 64 episodios del punto guardado estabilizado reporta \(123.90625/125\), fracción \(0.99125\), éxito \(0.90625\). Esto es fuerte como ingeniería de comportamiento 50x50, pero cambia demasiadas cosas a la vez: 60 hormigas, 8 bits, actor con identidades repetidas, continuación desde un punto guardado, crítico \run{strided_cnn}, selección por evaluación, temperaturas y escritura casi saturada. Debe presentarse como resultado prometedor, no como prueba causal de comunicación.
 
-\subsection{250x250: la trampa del shaping}
+\subsection{250x250: la trampa del retorno moldeado}
 
-La escala 250x250 mostró el fracaso más informativo. Corridas con \run{resnet_cnn} o \run{strided_cnn} en una fuente terminan con cero pickups y cero entregas. En la familia \run{set_cnn}, el autocurriculum de distancia puede producir retorno positivo de shaping, muchos agentes cargando y byte maps saturados, pero todavía cero entregas finales. Es exactamente el tipo de resultado que un informe debe separar de la métrica objetivo.
+La escala 250x250 mostró el fracaso más informativo. Corridas con \run{resnet_cnn} o \run{strided_cnn} en una fuente terminan con cero pickups y cero entregas. En la familia \run{set_cnn}, el autocurrículo de distancia puede producir retorno positivo de moldeado, muchos agentes cargando y mapas de bytes saturados, pero todavía cero entregas finales. Es exactamente el tipo de resultado que un informe debe separar de la métrica objetivo.
 
 \begin{figure}[h]
 \centering
@@ -165,7 +187,9 @@ La escala 250x250 mostró el fracaso más informativo. Corridas con \run{resnet_
 \label{fig:250}
 \end{figure}
 
-El cambio \run{fixed8-reset-boundary256} sí mejora la entrega local: el resumen final tiene \(654\) entregas y \(869\) pickups. La evaluación fresh-window del mismo linaje selecciona \run{reset_boundary_final} como campeón por mediana de entregas. Aun así, esto no resuelve la escala general. Es una intervención de reset y distancia dentro de una familia de crítico distinta.
+El cambio \run{fixed8-reset-boundary256} sí mejora la entrega local: el resumen final tiene \(654\) entregas y \(869\) pickups, y el mejor tramo de entrenamiento llega a alrededor de 1003 entregas. La evaluación fresh-window del mismo linaje selecciona \run{reset_boundary_final} como campeón por mediana de entregas. Aun así, esto no resuelve la escala general. Es una intervención de reset y distancia dentro de una familia de crítico distinta.
+
+Las continuaciones posteriores refuerzan esa lectura. \run{byte-decay} redujo ocupación de bytes pero terminó con 175 entregas. La evaluación larga d12 de la rama no-decay mostró una media de 0.392 entregas, mediana 0, \metric{pickup_to_delivery_rate}=0.008 y 13.745 pickups no entregados en promedio. El intento estratificado d4/d8/d12 dejó manifiesto y configuración, pero los archivos \run{metrics.jsonl}, \run{fresh_eval_metrics.jsonl} y \run{long_eval_metrics.jsonl} quedaron vacíos después de un aborto operacional tipo exit 137. No es evidencia contra la hipótesis; simplemente no produjo un resultado interpretable.
 
 \section{Evolución cualitativa del comportamiento}
 
@@ -184,7 +208,7 @@ Funcionó, con evidencia fuerte:
 
 \begin{itemize}
     \item redefinir la tarea alrededor de entregas reales y fuentes agotables;
-    \item usar shaping de distancia para atravesar el horizonte largo inicial;
+    \item usar moldeado de distancia para atravesar el horizonte largo inicial;
     \item aumentar cobertura con más hormigas;
     \item evaluar políticas muestreadas cuando el comportamiento aprendido vive en la distribución;
     \item cambiar el crítico centralizado a una arquitectura espacial para 50x50.
@@ -203,24 +227,29 @@ No funcionó o no quedó demostrado:
 
 \begin{itemize}
     \item aumentar bits como único mecanismo de escala;
+    \item los autocurrículos como solución general: podían avanzar o acumular retorno moldeado sin entrega real;
+    \item el flujo de laberintos como evidencia empírica comparable: hubo implementación y tests, pero no una corrida preservada con métricas finales;
+    \item las ramas R8--R12 de memoria como prueba de comunicación: algunas aumentaron dependencia de bytes, pero no mejoraron simultáneamente la tarea;
     \item deployment greedy como criterio único de éxito;
-    \item interpretar retorno con shaping como entrega real;
+    \item interpretar retorno moldeado como entrega real;
     \item afirmar comunicación emergente causal sin ablaciones matched de no-write, shuffled-write y write-cost.
 \end{itemize}
 
 \section{Limitaciones}
 
-La limitación principal es experimental: muchas corridas son continuaciones con varios cambios simultáneos. Por eso este informe habla de ``intervenciones'' y no de ablations puros salvo donde haya evidencia comparable. También hay diferencias entre checkpoint final, mejor checkpoint, selección held-out y resúmenes W\&B. Esas diferencias importan porque varias corridas tienen pico temprano y luego degradación.
+La limitación principal es experimental: muchas corridas son continuaciones con varios cambios simultáneos. Por eso este informe habla de ``intervenciones'' y no de ablaciones puras salvo donde haya evidencia comparable. También hay diferencias entre punto guardado final, mejor punto guardado, selección held-out y resúmenes W\&B. Esas diferencias importan porque varias corridas tienen pico temprano y luego degradación.
 
 La segunda limitación es semántica. La memoria externa existe y se usa en el sentido de que hay acciones de escritura y bytes no-cero. Pero todavía falta demostrar que la información escrita cause mejores decisiones. Para eso hacen falta evaluaciones como: congelar política y borrar bytes, permutar bytes entre celdas, bloquear escritura solo en test, igualar costos entre 4 y 8 bits, y comparar \run{mlp} contra \run{strided_cnn} con el mismo entorno.
 
 La tercera limitación es de escala. El resultado 60-ant 50x50 es muy bueno, pero usa muchos agentes y escritura saturada. Puede ser la dirección de ingeniería correcta, pero no responde por sí solo la pregunta de comunicación compacta.
 
+La cuarta limitación es de trazabilidad negativa. Algunas ramas importantes, como laberintos y cuadernos laterales de prueba de estrés, quedaron mejor representadas por código y commits que por artefactos finales de evaluación. En este informe se incluyen porque explican decisiones del proyecto, pero no se usan como evidencia cuantitativa de desempeño.
+
 \section{Conclusión}
 
-El proyecto produjo una historia clara. Primero hubo que corregir la semántica de la tarea: entregar comida, no solo encontrarla. Luego hubo que hacer aprendible el crédito: shaping de distancia, más agentes y despliegue muestreado. Después apareció el detalle más importante para 50x50: el crítico centralizado espacial. Ese cambio reestructura el aprendizaje y debe figurar como una causa mayor. La memoria por bytes sigue siendo una hipótesis interesante, no una conclusión demostrada.
+El proyecto produjo una historia clara. Primero hubo que corregir la semántica de la tarea: entregar comida, no solo encontrarla. Luego hubo que hacer aprendible el crédito: moldeado de distancia, más agentes y despliegue muestreado. Después apareció el detalle más importante para 50x50: el crítico centralizado espacial. Ese cambio reestructura el aprendizaje y debe figurar como una causa mayor. La memoria por bytes sigue siendo una hipótesis interesante, no una conclusión demostrada.
 
-La contribución honesta del trabajo no es ``resolvimos comunicación emergente''. Es más precisa: construimos un entorno de forrajeo multi-agente con memoria externa, identificamos qué cambios desbloquean cada escala, alcanzamos solución robusta en 25x25 y resultados muy fuertes en 50x50 bajo crítico espacial, y mostramos que en 250x250 el shaping puede engañar si no se mide entrega real.
+La contribución honesta del trabajo no es ``resolvimos comunicación emergente''. Es más precisa: construimos un entorno de forrajeo multi-agente con memoria externa, identificamos qué cambios desbloquean cada escala, alcanzamos solución robusta en 25x25 y resultados muy fuertes en 50x50 bajo crítico espacial, y mostramos que en 250x250 el retorno moldeado puede engañar si no se mide entrega real.
 
 \appendix
 \section{Checklist para la versión final}
@@ -231,6 +260,7 @@ Antes de entregar, faltan tres pasos:
     \item Elegir qué runs entran como tabla final y congelar sus checkpoints.
     \item Agregar una tabla de hiperparámetros por familia, especialmente \run{critic_architecture}, \run{food_count}, \run{food_sources}, número de hormigas, bits y modo de evaluación.
     \item Correr ablaciones matched mínimas para comunicación: no-write, byte shuffle y mismo costo entre 4 y 8 bits.
+    \item Decidir si se rerunnea el flujo de laberintos o si queda explícitamente fuera del conjunto empírico final.
 \end{enumerate}
 
 \bibliographystyle{plain}
