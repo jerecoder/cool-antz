@@ -39,7 +39,7 @@
         ["train episode return", "12.545"],
       ],
       caveat:
-        "This video is the ant-count curriculum artifact. The DISTANCE_CAP4 23/23 result comes from separate local evaluation files with a 6-source task contract.",
+        "This video is the ant-count curriculum artifact. The DISTANCE_CAP4 23/23 result comes from separate local evaluation files with a 6-source task setup.",
     },
     bridge100: {
       title: "1000x1000 bridge bigmap render",
@@ -53,7 +53,7 @@
         ["render ants", "500"],
         ["render food", "5000 bites / 6 sources"],
         ["checkpoint task", "100x100 hard375 continuation"],
-        ["eval contract", "120 ants, 375 food, 6 sources"],
+        ["eval setup", "120 ants, 375 food, 6 sources"],
         ["critic", "set_cnn lineage"],
         ["eval delivered", "372 / 375"],
         ["eval success", "0.625 over 24 episodes"],

@@ -45,11 +45,13 @@
         <h2>Project Overview</h2>
         <p class="summary">
           Cool Antz is a multi-agent reinforcement learning project about
-          cooperative foraging. A colony of ants moves in a gridworld, finds
-          food sources, carries food back to a hub, and can write discrete byte
-          values into the map. The research question is: what makes reliable
-          delivery behavior emerge, and when does the external byte grid become
-          useful memory for the colony?
+          cooperative foraging. We trained colonies of simple local actors in a
+          gridworld where food has to be discovered, carried home, and depleted
+          over repeated trips. The interesting part is that the ants can also
+          write small byte values into the map. That turns the project into a
+          question about coordination: which changes actually make delivery
+          reliable, and when does the byte grid begin to look like useful
+          external memory rather than harmless motion?
         </p>
         <div class="intro-grid">
           <div>
@@ -82,15 +84,17 @@
       <section class="development-order">
         <h2>How this page is ordered</h2>
         <p class="summary">
-          The development became understandable in layers rather than as a
-          simple march from small maps to large maps. This page follows that
-          reasoning order: first the task definition, then the learning
-          bottlenecks, then the interventions that changed behavior, and
-          finally the frontier results and remaining ablations.
+          The work did not become clear as a simple march from small maps to
+          large maps. It became clear when we separated the questions. First we
+          define the world and the score. Then we follow the failures that
+          showed what was missing. After that, the page builds through the
+          interventions that changed behavior, the experiments that separated
+          coverage from communication, and the larger-scale results that are
+          promising but still need sharper ablations.
         </p>
         <ol class="order-list">
           <li>
-            <strong>Define the task.</strong>
+            <strong>Define the world.</strong>
             Delivery from depleting food sources is the objective.
           </li>
           <li>
@@ -105,7 +109,7 @@
           </li>
           <li>
             <strong>Scale carefully.</strong>
-            50x50, 100x100, and 250x250 are shown with their exact contracts,
+            50x50, 100x100, and 250x250 are shown with their exact setups,
             plots, and videos.
           </li>
           <li>
@@ -139,10 +143,10 @@
           Each chapter below has the same structure: what we tried, what the
           result was, what we concluded, and which plot or video supports it.
           The labels separate task geometry, render resolution, checkpoint
-          lineage, and evaluation contract.
+          lineage, and evaluation setup.
         </p>
         <nav class="story-nav" aria-label="Experiment story sections">
-          <a href="#contract">1. Task contract</a>
+          <a href="#world">1. The world</a>
           <a href="#small-scale">2. Bottleneck</a>
           <a href="#unlock25">3. 25x25 unlock</a>
           <a href="#bits-ants">4. Bits vs coverage</a>
@@ -155,34 +159,46 @@
         </nav>
       </section>
 
-      <section id="contract" class="story-chapter">
+      <section id="world" class="story-chapter">
         <div class="chapter-header">
           <span class="chapter-number">1</span>
           <div>
-            <h2>Task Contract: Delivery Is the Objective</h2>
+            <h2>The World: Ants, Food, and a Home Base</h2>
             <p>
-              The first major boundary in the repo is semantic. Food is an
-              integer grid: <code>food_count</code> is total deliverable bites
-              and <code>food_sources</code> is the number of depleted source
-              cells that share those bites. The score that matters is delivery
-              back to the hub.
+              The experiment starts with a small world. There is a grid, a home
+              base, several food sources, and a colony of ants. The ants do not
+              get a map of the whole world. Each one sees only a small local
+              patch, moves one step at a time, and can leave a discrete byte
+              value on the cell it visits.
             </p>
           </div>
         </div>
 
         <div class="evidence-pair">
           <div>
-            <h3>Experiment Design</h3>
+            <h3>What the ants are trying to do</h3>
             <p>
-              The environment lets each ant choose movement and a write value:
+              A food source is not just a decorative tile. It contains some
+              number of bites. An ant must find a source, pick up one bite,
+              carry it back to the home base, and deliver it. Then the source
+              still has to be visited again until all of its bites are gone.
+            </p>
+            <p>
+              That detail matters because it turns the task into a loop:
+              search, pickup, return, deliver, repeat. A policy that only
+              wanders, or only finds food once, has not learned the foraging
+              behavior we care about.
+            </p>
+            <p>
+              Formally, each ant chooses movement and a write value at each
+              step:
             </p>
             <pre><code>MultiDiscrete([5, 2^B] * N)</code></pre>
             <p>
-              During deployment the actor is local. During MAPPO training, the
-              critic is centralized. That means critic architecture affects
-              learning even when the final policy still sees only local food,
-              ant count, byte bits, hub, border, identity, carrying, and facing
-              features.
+              The movement is one of stay, up, right, down, or left. The write
+              value is one of the possible byte values. The byte grid is the
+              memory mechanism we wanted to study: can ants leave useful
+              information in the world for themselves or for other ants?
             </p>
           </div>
           <figure>
@@ -199,20 +215,22 @@
 
         <div class="result-columns">
           <div>
-            <h3>Result</h3>
+            <h3>What we measure</h3>
             <p>
-              The report-safe contract is delivery-only foraging with depleting
-              sources. A result such as <code>23/23</code> means all 23 bites
-              were delivered after being discovered, picked up, and returned.
+              The main score is delivered food. A result such as
+              <code>23/23</code> means the colony delivered all 23 bites back
+              to the home base. It is stronger than merely finding food or
+              picking it up.
             </p>
           </div>
           <div>
-            <h3>Conclusion</h3>
+            <h3>Why the setup matters</h3>
             <p>
-              Earlier pickup-heavy runs become background context. Every later
-              claim states food count, source count, ant count, write bits,
-              critic family, evaluation mode, and whether the metric is raw
-              delivery or shaped return.
+              Changing the number of sources changes the geography of the
+              problem. The same 23 bites spread across many sources is a
+              different task from 23 bites concentrated in a few places. That
+              is why the later results always name food count, source count,
+              ant count, write bits, critic family, and evaluation mode.
             </p>
           </div>
         </div>
@@ -243,21 +261,21 @@
             </figcaption>
           </figure>
           <div>
-            <h3>Experiment Design</h3>
+            <h3>What we tried</h3>
             <p>
               The early families swept communication bits from 2 to 8 and then
               swept ant count over 2, 3, 4, 6, and 8 ants on 25x25 with 3 write
               bits. These comparisons came before the final held-out evaluation
               gates and served as a diagnosis step.
             </p>
-            <h3>Result</h3>
+            <h3>What happened</h3>
             <p>
               On the 25x25 anchor, 2, 3, 5, and 8 bits stayed near
               <code>0.31</code> to <code>0.44</code> env return. The ant-count
               sweep climbed from <code>4.8125</code> env return with 2 ants to
               <code>10.875</code> with 8 ants.
             </p>
-            <h3>Conclusion</h3>
+            <h3>What we learned</h3>
             <p>
               The first bottleneck was coverage and credit. More agents made
               the sparse delivery process easier to learn than a larger byte
@@ -300,10 +318,18 @@
               write bits, 23 food, 12 sources, 800x800 MP4. This real local
               rollout comes from the ant-count vault. The
               <code>DISTANCE_CAP4</code> 23/23 result below is a separate
-              evaluation row with a 6-source task contract.
+              evaluation row with a 6-source task setup.
             </figcaption>
           </figure>
         </div>
+
+        <p class="story-note">
+          This is the first hinge in the story. Distance shaping made the
+          source-to-hub loop easier to learn, but the clean success appeared
+          when the colony also had enough agents to cover the map and when
+          evaluation sampled from the policy instead of always taking the most
+          likely move.
+        </p>
 
         <table>
           <thead>
@@ -366,20 +392,20 @@
             </figcaption>
           </figure>
           <div>
-            <h3>Experiment Design</h3>
+            <h3>What we tried</h3>
             <p>
               Two pressures were tested early: more possible byte values and
               more ants. The communication-bit family changed write bits, while
               the ant-count curriculum held 3 bits and increased team size.
             </p>
-            <h3>Result</h3>
+            <h3>What happened</h3>
             <p>
               The bit sweep produced no clear scale jump. The ant-count
               curriculum gave the clearer signal. In the 25x25 3-bit stage,
               final training env return rose through <code>4.8125</code>, <code>6.8125</code>,
               <code>7.8125</code>, <code>9.9375</code>, and <code>10.875</code>.
             </p>
-            <h3>Conclusion</h3>
+            <h3>What we learned</h3>
             <p>
               The interpretation is coverage first, communication as the next
               causal question. The byte hypothesis calls for matched no-write,
@@ -397,6 +423,15 @@
             family used in the coverage plot.
           </figcaption>
         </figure>
+
+        <p class="story-note">
+          This is why byte memory becomes a question rather than an assumption.
+          The byte channel is part of the system, and the ants use it heavily in
+          later runs, but the first visible improvement came from better
+          coverage. The next experiments therefore ask a narrower question:
+          after the colony can find and return food, which additional pieces
+          make the behavior scale?
+        </p>
       </section>
 
       <section id="rare50" class="story-chapter">
@@ -438,7 +473,7 @@
 
         <div class="result-columns">
           <div>
-            <h3>Result</h3>
+            <h3>What happened</h3>
             <p>
               The rare 50x50 base delivered <code>10.958/23</code>. A hub
               vector reached <code>12.328/23</code>. Hub plus food vector
@@ -447,7 +482,7 @@
             </p>
           </div>
           <div>
-            <h3>Conclusion</h3>
+            <h3>What we learned</h3>
             <p>
               Discovery aids helped. This supports an exploration
               interpretation: sparse layouts need reliable source discovery
@@ -455,6 +490,13 @@
             </p>
           </div>
         </div>
+
+        <p class="story-note">
+          The rare-source branch gives the page its exploration lens. A policy
+          that performs well on a friendlier layout may still fail when food is
+          hard to encounter. The vector hints did not solve everything, but they
+          showed that discovery pressure was a real part of the failure mode.
+        </p>
       </section>
 
       <section id="critic50" class="story-chapter">
@@ -482,7 +524,7 @@
             </figcaption>
           </figure>
           <div>
-            <h3>Experiment Design</h3>
+            <h3>What we tried</h3>
             <p>
               The efficient 50x50 continuation used an MLP critic on a 4-ant,
               48-food, 12-source setup. The proximity/full-layout family moved
@@ -490,13 +532,13 @@
               half-food full layout, shared writes, write cost, 8 bits, and
               larger ant teams.
             </p>
-            <h3>Result</h3>
+            <h3>What happened</h3>
             <p>
               The MLP branch delivered <code>21.5/48</code>. The 8-ant
               write-cost spatial-critic branch delivered <code>69.375/125</code>.
               The later 60-ant confirmed branch delivered <code>123.906/125</code>.
             </p>
-            <h3>Conclusion</h3>
+            <h3>What we learned</h3>
             <p>
               The spatial critic changed value learning. The report keeps this
               critic boundary visible alongside source layout, write bits, and
@@ -515,6 +557,13 @@
             frontier branch.
           </figcaption>
         </figure>
+
+        <p class="story-note">
+          From this point onward, the report keeps critic architecture in view.
+          It would be misleading to tell the 50x50 story as only "more ants" or
+          only "more bytes." The learning signal itself changed when the critic
+          began to represent the map spatially.
+        </p>
       </section>
 
       <section id="frontier50" class="story-chapter">
@@ -542,22 +591,22 @@
             </figcaption>
           </figure>
           <div>
-            <h3>Experiment Design</h3>
+            <h3>What we tried</h3>
             <p>
               The checkpoint used by the live sandbox is
               <code>best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl</code>.
-              Its exported contract is 50x50, 60 ants, 125 food, 2 sources,
+              Its exported setup is 50x50, 60 ants, 125 food, 2 sources,
               8 write bits, actor radius 2, repeated 8-way identity features,
               <code>write_while_moving=true</code>, and <code>strided_cnn</code>
               critic lineage.
             </p>
-            <h3>Result</h3>
+            <h3>What happened</h3>
             <p>
               The 64-episode confirmation reports <code>123.90625/125</code>,
               success <code>0.90625</code>, and write nonzero rate
               <code>0.998</code>.
             </p>
-            <h3>Conclusion</h3>
+            <h3>What we learned</h3>
             <p>
               This supports a strong behavior-engineering claim. The causal
               byte-memory question remains a follow-up because ant count, 8
@@ -566,6 +615,15 @@
             </p>
           </div>
         </div>
+
+        <p class="story-note">
+          This is the strongest current behavior artifact: a large local colony,
+          trained with the spatial-critic branch, nearly empties the 50x50 task.
+          It is also the point where the story has to stay transparent. The
+          result is strong, and several knobs changed together. The site
+          therefore presents the frontier behavior, names those coupled changes,
+          and makes the follow-up ablations visible.
+        </p>
       </section>
 
       <section id="large-scale" class="story-chapter">
@@ -656,7 +714,7 @@
           <thead>
             <tr>
               <th>Branch</th>
-              <th>Evaluation contract</th>
+              <th>Evaluation setup</th>
               <th>Result</th>
               <th>What it means</th>
             </tr>
@@ -682,6 +740,14 @@
             </tr>
           </tbody>
         </table>
+
+        <p class="story-note">
+          These larger branches are useful because they separate "activity" from
+          "solved foraging." A high shaped return, frequent pickup, or saturated
+          byte writing can be informative, but the report keeps raw delivery on
+          the page so the reader can see when the colony is actually completing
+          the full loop.
+        </p>
       </section>
 
       <section id="sandbox" class="story-chapter">

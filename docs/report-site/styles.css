@@ -149,6 +149,12 @@ figcaption {
   font-size: 1.08rem;
 }
 
+.project-overview .summary,
+.development-order .summary {
+  margin-left: 0;
+  text-align: left;
+}
+
 .intro-grid,
 .takeaway-grid {
   display: grid;
@@ -250,6 +256,12 @@ figcaption {
 
 .story-chapter > .summary {
   text-align: left;
+}
+
+.story-note {
+  max-width: 54em;
+  margin: 1.1em 0;
+  color: #3f3f3f;
 }
 
 .chapter-header {
@@ -643,5 +655,11 @@ li + li {
   table {
     display: block;
     overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  th,
+  td {
+    min-width: 8.5em;
   }
 }
