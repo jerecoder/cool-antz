@@ -1,0 +1,42 @@
+{
+  "name": "adversarial_frozen_opponent_probe",
+  "backend": "jax",
+  "description": "Experimental two-team JAX MAPPO probe with one learner against one frozen opponent.",
+  "args": {
+    "exp_name": "jax_mappo_adversarial_frozen_probe",
+    "seed": 17,
+    "allow_random_init": true,
+    "total_timesteps": 8,
+    "num_envs": 1,
+    "num_steps": 2,
+    "num_minibatches": 1,
+    "update_epochs": 1,
+    "log_interval": 1,
+    "width": 5,
+    "height": 5,
+    "num_ants_per_team": 1,
+    "food_count": 2,
+    "food_sources": 1,
+    "max_steps": 8,
+    "actor_vision_radius": 1,
+    "write_bits": 1,
+    "write_while_moving": true,
+    "opponent_action_mode": "deterministic",
+    "eval_episodes": 1,
+    "eval_action_mode": "deterministic",
+    "side_swap_eval": true,
+    "hidden_size": 16,
+    "quiet": true
+  },
+  "metadata": {
+    "workflow": "adversarial_frozen_opponent",
+    "status": "experimental",
+    "guardrails": [
+      "actor warm-start only when a compatible checkpoint is supplied",
+      "fresh adversarial critic",
+      "one learner against one frozen opponent",
+      "signed local actor observations",
+      "no cooperative runner changes"
+    ]
+  }
+}
