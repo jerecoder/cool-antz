@@ -34,8 +34,8 @@
   const configLimits = {
     gridSize: { min: 15, max: 120 },
     antCount: { min: 1, max: 500 },
-    foodCount: { min: 1, max: 5000 },
-    sourceCount: { min: 1, max: 64 },
+    foodCount: { min: 0, max: 100000 },
+    sourceCount: { min: 0, max: Number.MAX_SAFE_INTEGER },
   };
   const uiText = {
     run: "Ejecutar",
@@ -53,7 +53,7 @@
     },
     placement: {
       hub: "Hormiguero",
-      food: "Comida",
+      food: "Cookie +1",
       erase: "Borrar",
     },
     actionModes: {
@@ -81,6 +81,7 @@
   let placementMode = "food";
   let hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
   let foodSources = buildDefaultFoodSources();
+  let foodAmounts = distributeFoodAmounts(foodSources, env.food_count);
   let rngState = 0x5eed1234;
   let animationFrame = 0;
   let canvasCssSize = 0;
@@ -95,9 +96,9 @@
     return Math.max(min, Math.min(max, parsed));
   }
 
-  function maxSourceCountFor(gridSize, foodCount) {
+  function maxSourceCountFor(gridSize) {
     const usableCells = Math.max(1, gridSize * gridSize - 1);
-    return Math.max(1, Math.min(configLimits.sourceCount.max, usableCells, foodCount));
+    return Math.max(0, usableCells);
   }
 
   function readIntegerControl(control, limits, fallback, maxOverride = limits.max) {
@@ -116,7 +117,7 @@
   }
 
   function syncConfigControls() {
-    const sourceMax = maxSourceCountFor(env.width, env.food_count);
+    const sourceMax = maxSourceCountFor(env.width);
     writeIntegerControl(configControls.gridSize, env.width);
     writeIntegerControl(configControls.antCount, env.num_ants);
     writeIntegerControl(configControls.foodCount, env.food_count);
@@ -158,7 +159,7 @@
       Math.max(0, Math.min(env.width - 1, Math.round((env.width - 1) * xRatio))),
       Math.max(0, Math.min(env.height - 1, Math.round((env.height - 1) * yRatio))),
     ]);
-    const scaledSources = uniqueSources(scaled);
+    const scaledSources = uniqueSources(scaled, env.food_sources);
     if (scaledSources.length >= env.food_sources) {
       return scaledSources;
     }
@@ -168,15 +169,76 @@
         fallback.push([x, y]);
       }
     }
-    return uniqueSources([...scaledSources, ...fallback]);
+    return uniqueSources([...scaledSources, ...fallback], env.food_sources);
   }
 
   function completeFoodSources(sources) {
-    const cleaned = uniqueSources(sources);
+    const cleaned = uniqueSources(sources, env.food_sources);
     if (cleaned.length >= env.food_sources) {
       return cleaned;
     }
-    return uniqueSources([...cleaned, ...buildDefaultFoodSources()]);
+    return uniqueSources([...cleaned, ...buildDefaultFoodSources()], env.food_sources);
+  }
+
+  function distributeFoodAmounts(sources, totalFood) {
+    const cleanSources = uniqueSources(sources);
+    const amounts = new Map();
+    if (cleanSources.length === 0) {
+      return amounts;
+    }
+    const normalizedTotal = Math.max(cleanSources.length, Math.round(totalFood));
+    const base = Math.floor(normalizedTotal / cleanSources.length);
+    const extra = normalizedTotal % cleanSources.length;
+    cleanSources.forEach((source, index) => {
+      amounts.set(positionKey(source), base + (index < extra ? 1 : 0));
+    });
+    return amounts;
+  }
+
+  function totalFoodAmount() {
+    return Array.from(foodAmounts.values()).reduce((sum, amount) => sum + amount, 0);
+  }
+
+  function setDistributedFoodLayout(sources, totalFood) {
+    foodSources = uniqueSources(sources);
+    env.food_sources = foodSources.length;
+    env.food_count = foodSources.length === 0 ? 0 : Math.max(foodSources.length, totalFood);
+    foodAmounts = distributeFoodAmounts(foodSources, env.food_count);
+  }
+
+  function syncFoodLayoutFromAmounts() {
+    const cleanSources = uniqueSources(foodSources).filter((source) => {
+      const amount = foodAmounts.get(positionKey(source)) || 0;
+      return amount > 0;
+    });
+    const cleanAmounts = new Map();
+    cleanSources.forEach((source) => {
+      cleanAmounts.set(positionKey(source), Math.max(1, Math.round(foodAmounts.get(positionKey(source)))));
+    });
+    foodSources = cleanSources;
+    foodAmounts = cleanAmounts;
+    env.food_sources = foodSources.length;
+    env.food_count = totalFoodAmount();
+  }
+
+  function addFoodAt(position) {
+    if (samePosition(position, hub)) {
+      return;
+    }
+    const source = copyPosition(position);
+    const key = positionKey(source);
+    if (!foodSources.some((candidate) => samePosition(candidate, source))) {
+      foodSources = uniqueSources([...foodSources, source]);
+    }
+    foodAmounts.set(key, (foodAmounts.get(key) || 0) + 1);
+    syncFoodLayoutFromAmounts();
+  }
+
+  function removeFoodAt(position) {
+    const key = positionKey(position);
+    foodAmounts.delete(key);
+    foodSources = foodSources.filter((source) => !samePosition(source, position));
+    syncFoodLayoutFromAmounts();
   }
 
   function updateSandboxTitle() {
@@ -205,25 +267,25 @@
       configLimits.antCount,
       env.num_ants,
     );
-    const foodCount = readIntegerControl(
+    let foodCount = readIntegerControl(
       configControls.foodCount,
       configLimits.foodCount,
       env.food_count,
     );
-    const sourceMax = maxSourceCountFor(gridSize, foodCount);
+    const sourceMax = maxSourceCountFor(gridSize);
     const sourceCount = readIntegerControl(
       configControls.sourceCount,
       configLimits.sourceCount,
       env.food_sources,
       sourceMax,
     );
+    foodCount = sourceCount === 0 ? 0 : Math.max(foodCount, sourceCount);
 
     env.width = gridSize;
     env.height = gridSize;
     env.num_ants = antCount;
     env.food_count = foodCount;
     env.food_sources = sourceCount;
-    syncConfigControls();
 
     if (previousWidth !== env.width || previousHeight !== env.height) {
       hub = scalePosition(hub, previousWidth, previousHeight, env.width, env.height);
@@ -231,7 +293,8 @@
         scalePosition(source, previousWidth, previousHeight, env.width, env.height),
       );
     }
-    foodSources = completeFoodSources(foodSources);
+    setDistributedFoodLayout(completeFoodSources(foodSources), foodCount);
+    syncConfigControls();
     resetRun();
   }
 
@@ -255,10 +318,13 @@
     return `${position[0]},${position[1]}`;
   }
 
-  function uniqueSources(sources) {
+  function uniqueSources(sources, limit = Infinity) {
     const seen = new Set();
     const result = [];
     sources.forEach((position) => {
+      if (result.length >= limit) {
+        return;
+      }
       const x = Math.max(0, Math.min(env.width - 1, Math.round(position[0])));
       const y = Math.max(0, Math.min(env.height - 1, Math.round(position[1])));
       const clean = [x, y];
@@ -268,7 +334,7 @@
         result.push(clean);
       }
     });
-    return result.slice(0, env.food_sources);
+    return result;
   }
 
   function buildFoodGrid() {
@@ -277,10 +343,11 @@
     if (sources.length === 0) {
       return grid;
     }
-    const base = Math.floor(env.food_count / sources.length);
-    const extra = env.food_count % sources.length;
-    sources.forEach(([x, y], index) => {
-      grid[y][x] += base + (index < extra ? 1 : 0);
+    sources.forEach(([x, y]) => {
+      const amount = Math.max(0, Math.round(foodAmounts.get(positionKey([x, y])) || 0));
+      if (amount > 0) {
+        grid[y][x] += amount;
+      }
     });
     return grid;
   }
@@ -307,7 +374,8 @@
   function resetLayout() {
     setRunning(false);
     hub = [Math.floor(env.width / 2), Math.floor(env.height / 2)];
-    foodSources = buildDefaultFoodSources();
+    setDistributedFoodLayout(buildDefaultFoodSources(), env.food_count);
+    syncConfigControls();
     resetRun();
   }
 
@@ -644,7 +712,7 @@
     metrics.remaining.textContent = `${remainingFood()}`;
     metrics.carrying.textContent = `${carryingCount()} / ${env.num_ants}`;
     metrics.bytes.textContent = `${nonzeroBytes()} ${uiText.tiles}`;
-    metrics.sources.textContent = `${foodSourceCount()} / ${env.food_sources}`;
+    metrics.sources.textContent = `${foodSourceCount()} posiciones`;
     if (remainingFood() <= 0) {
       setStatus(uiText.statuses.complete);
     } else if (state.step >= env.max_steps) {
@@ -781,19 +849,13 @@
     setRunning(false);
     if (placementMode === "hub") {
       hub = copyPosition(position);
-      foodSources = foodSources.filter((source) => !samePosition(source, hub));
+      removeFoodAt(hub);
     } else if (placementMode === "food") {
-      if (!samePosition(position, hub)) {
-        const exists = foodSources.some((source) => samePosition(source, position));
-        if (!exists) {
-          const roomForNewSource = uniqueSources(foodSources).length < env.food_sources;
-          const baseSources = roomForNewSource ? foodSources : foodSources.slice(0, -1);
-          foodSources = uniqueSources([...baseSources, position]);
-        }
-      }
+      addFoodAt(position);
     } else if (placementMode === "erase") {
-      foodSources = foodSources.filter((source) => !samePosition(source, position));
+      removeFoodAt(position);
     }
+    syncConfigControls();
     resetRun();
   }
 
