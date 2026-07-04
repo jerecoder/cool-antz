@@ -1076,6 +1076,68 @@
             </div>
           </div>
         </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <video controls preload="metadata" playsinline>
+              <source src="report-site/assets/videos/maze-100x100-60ants-one-far-source.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Prueba de estrés posterior.</strong> Actor estabilizado
+              50x50 de 60 hormigas desplegado en un laberinto 100x100 con una
+              sola fuente lejana. El rollout usa
+              <code>sampled_move_greedy_write</code>, temperatura de movimiento
+              <code>0.525</code> y escritura greedy.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Ver si la mejor política abierta de 60 hormigas podía transferir
+                navegación local a un laberinto grande con una única fuente
+                lejos del hormiguero.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto de la línea base</h3>
+              <p>
+                Se mantuvo el actor 50x50 entrenado en forrajeo abierto, pero
+                se ejecutó actor-only en una grilla 100x100 con paredes de
+                laberinto. El hormiguero quedó en <code>[6, 5]</code> y la
+                fuente efectiva en <code>[81, 70]</code>, a 172 pasos por los
+                pasillos del layout seleccionado.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Pickups, entregas, comida restante, celdas visitadas y tiles de
+                bytes no nulos durante <code>60000</code> pasos simulados.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                El MP4 muestra la política real de 60 hormigas con paredes
+                visibles para el actor por el canal local de borde/obstáculo.
+                Es una prueba de generalización fuera de distribución, no un
+                checkpoint entrenado para laberintos.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                La corrida corregida no tuvo pickups ni entregas:
+                <code>0/125</code> entregado, <code>125/125</code> comida
+                restante, <code>887</code> celdas visitadas y <code>886</code>
+                tiles de bytes no nulos. La política ve paredes, pero su
+                entrenamiento principal no contenía paredes internas; la falla
+                es evidencia contra una transferencia directa al laberinto.
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="memory-autoresearch" class="story-chapter subchapter">
@@ -1986,6 +2048,7 @@
               <button type="button" data-policy="ant8">25x25 8h</button>
               <button type="button" data-policy="bridge100">100x100 en 1000</button>
               <button type="button" data-policy="maze50">laberinto entrenado 50x50</button>
+              <button type="button" data-policy="maze100stress">stress laberinto 100</button>
               <button type="button" data-policy="auto250fail">auto 250 fallo</button>
               <button type="button" data-policy="reset250">250 reset</button>
               <button type="button" data-policy="bigmap50">stress 1000</button>

@@ -487,6 +487,34 @@
       caveat:
         "La colección de modelos preserva checkpoints de laberinto hasta 24x24; el artefacto 50x50 disponible es el video W&B del currículo entrenado. No debe evaluarse como entrega de comida porque esa rama optimizaba exploración.",
     },
+    maze100stress: {
+      label: "stress laberinto 100",
+      title: "Stress 100x100: actor 50x50 de 60 hormigas en laberinto",
+      src: "report-site/assets/videos/maze-100x100-60ants-one-far-source.mp4",
+      caption:
+        "Prueba actor-only corregida con la temperatura estándar: política abierta 50x50 de 60 hormigas, una fuente lejana y paredes de laberinto visibles por el canal local borde/obstáculo.",
+      metrics: [
+        ["política", "best estabilizado 50x50 / 60 hormigas / 8 bits"],
+        ["entrenada para", "forrajeo abierto 50x50, no laberinto"],
+        ["grilla", "100x100"],
+        ["laberinto", "layout efectivo seed 111"],
+        ["hormigas", "60"],
+        ["comida", "125 bocados / 1 fuente"],
+        ["hormiguero", "[6, 5]"],
+        ["fuente efectiva", "[81, 70]"],
+        ["distancia por pasillos", "172 pasos"],
+        ["acción", "sampled_move_greedy_write"],
+        ["temperatura", "movimiento 0.525, escritura greedy"],
+        ["horizonte", "60000 pasos simulados"],
+        ["video codificado", "800x800, 3001 fotogramas, 60 fps"],
+        ["entregado", "0 / 125"],
+        ["pickups", "0"],
+        ["celdas visitadas", "887"],
+        ["bytes no nulos", "886 tiles"],
+      ],
+      caveat:
+        "Las paredes sí entran al actor por el mismo canal local de borde/obstáculo, pero son paredes internas fuera de la distribución de entrenamiento del actor abierto. Este video muestra una falla de transferencia directa, no un fallo de renderizado ni un éxito de laberinto.",
+    },
     reset250: {
       label: "reset 250",
       title: "Punto guardado reset-boundary 250x250",
