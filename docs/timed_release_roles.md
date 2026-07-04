@@ -99,32 +99,49 @@ checkpoint and keeps the source recipe where possible:
 - `actor_vision_radius = 2`
 - shared writes
 - `write_while_moving = true`
-- critic: `mlp`
+- critic: `strided_cnn`
 - `gamma = 0.997`
 - `pickup_bonus = 0.05`
 - max episode steps: `2000`
 - best checkpoint metric: `eval_mean_delivered_fraction`
 - eval/render action mode: `sampled_move_greedy_write`
 
-Local PC runtime profile:
+L4 runtime profile:
 
-- `num_envs = 12`
-- `num_steps = 96`
-- `total_timesteps = 576000`
-- updates: `500`
-- chunk size in notebook: `100` updates
+- `num_envs = 128`
+- `num_steps = 256`
+- `total_timesteps = 16384000`
+- base updates: `500`
+- continuation updates from the latest chunk: `5000`
+- chunk size in notebook: `500` updates
+- best-eval checkpointing during continuation: every chunk
+- W&B target: `jerefigueiredo-universidad-de-san-andr-s/cool-antz`
 
 The source run used a larger `64 x 256` rollout profile and a `strided_cnn`
-critic. This timed-release config uses the adversarial local pilot shape,
-`12 x 96`, plus a fresh MLP critic so one update stays cheap on the local CPU.
-The local profile intentionally does not preserve the source run's `20000`-update
-budget; this branch is a CPU-sized role-probe first.
+critic. On the L4 instance, a short shape sweep selected `128 x 256`: it keeps
+the source rollout horizon and spans the `150`-step release interval while
+running near the measured throughput ceiling for this implementation. The local
+profile intentionally does not preserve the source run's `20000`-update budget;
+this is the GPU-backed role-probe profile. The first notebook probe covered
+updates `0-500`; the current continuation profile starts from the latest terminal
+chunk checkpoint and plans updates `500-5500`.
 
-Warm start policy:
+Measured steady-state throughput, excluding first-update compile/autotune:
 
-- copy the source cooperative actor body, movement head, and write head;
-- reinitialize the critic as MLP;
-- reinitialize the optimizer.
+| Profile | Env steps/update | Env steps/s | GPU memory |
+| --- | ---: | ---: | ---: |
+| `256 x 128` | `32768` | `47607` | `17116 MiB` |
+| `128 x 256` | `32768` | `46746` | `17116 MiB` |
+| `192 x 128` | `24576` | `46682` | `8924 MiB` |
+| `96 x 384` | `36864` | `45883` | `16860 MiB` |
+| `96 x 256` | `24576` | `44435` | `8668 MiB` |
+| `64 x 256` | `16384` | `40961` | `8668 MiB` |
+
+Checkpoint policy:
+
+- load the source cooperative actor body, movement head, and write head;
+- load the source `strided_cnn` critic;
+- load the source optimizer state.
 
 Policy temperature:
 
@@ -152,20 +169,27 @@ RUN_TRAINING = True
 MAX_CHUNKS_TO_RUN = 1
 ```
 
-This runs one `100`-update chunk, then evaluation/rendering can be used to check
+This runs one chunk, then evaluation/rendering can be used to check
 that the release mechanics and role metrics look sane.
 
-The notebook disables in-loop best-checkpoint evaluation during chunk training by
-default. It saves the chunk checkpoint, then the evaluation cell runs the cheaper
-4-episode held-out role diagnostic with the configured eval temperature.
+The notebook can run in-loop best-checkpoint evaluation during chunk training.
+For continuation, this is enabled by the experiment metadata. Training itself
+continues from the terminal chunk checkpoint, while the notebook's
+`ACTIVE_CHECKPOINT` switches to the best-eval checkpoint when one has been saved
+so the evaluation and rendering cells inspect the strongest model seen so far.
+Because notebook chunks are now `500` updates, each continuation chunk lands on
+the global `500`-update best-eval cadence. Each scoring chunk writes a candidate
+best checkpoint first; the notebook only promotes it to the global best
+checkpoint if it beats the saved global best metric.
 
-After the first sanity pass:
+After the first sanity pass, or for the current L4 continuation:
 
 ```python
 MAX_CHUNKS_TO_RUN = None
 ```
 
-That lets the notebook continue through the configured `500`-update budget.
+That lets the notebook read `training_chunks.json`, continue from the latest
+terminal chunk, and append the configured continuation budget.
 
 ## Evaluation Metrics
 
