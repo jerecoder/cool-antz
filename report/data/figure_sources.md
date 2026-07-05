@@ -21,3 +21,7 @@ Las barras mezclan denominadores solo cuando la figura lo declara: por eso cada 
 - filas: 12
 ## behavior montage
 - filas: 8
+
+## autocurriculum active-size verification
+- fuente: `report/data/autocurriculum_active_size_gcloud.csv`
+- origen remoto: `antz-l4-runner:runs/gcloud/autocurriculum_active_size_20260705T195414Z`
