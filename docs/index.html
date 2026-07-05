@@ -95,43 +95,171 @@
           <span class="kicker">ambiente principal</span>
           <h2 id="environment-title">El ambiente principal de entrenamiento</h2>
           <p>
-            Esta sección presenta el entorno sobre el que entrenamos: objetivo,
-            espacio de acciones, agentes, rewards y métricas. Todavía no entra
-            en la historia experimental; prepara el terreno.
+            La tarea visible es buscar comida, pero el experimento apunta a
+            otra cosa: ver si agentes locales, sin memoria recurrente y sin
+            coordenadas globales, pueden construir una memoria compartida sobre
+            el entorno. Para volver al hub, repetir entregas y coordinarse, las
+            hormigas tienen que aprender a usar el mapa como soporte externo:
+            escribir marcas, leer rastros y aprovechar señales dejadas por
+            otros agentes.
+          </p>
+          <p>
+            Si la política recibiera la posición del hub o pudiera guardar
+            memoria interna con una arquitectura recurrente, el problema sería
+            otro. Acá la restricción fue deliberada: durante entrenamiento el
+            crítico podía usar información global para asignar crédito, pero la
+            política evaluada era local y feed-forward.
           </p>
         </div>
 
         <div class="environment-layout">
-          <figure class="media-frame">
-            <video autoplay loop muted playsinline controls preload="metadata">
-              <source src="report-site/assets/videos/random-rollout.mp4" type="video/mp4">
-            </video>
-            <figcaption>
-              Slot de video del ambiente. Puede quedar el random rollout o
-              reemplazarse por un clip más limpio del entorno base.
-            </figcaption>
-          </figure>
+          <div class="environment-media-stack">
+            <figure class="media-frame">
+              <video autoplay loop muted playsinline controls preload="metadata">
+                <source src="report-site/assets/videos/random-rollout.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                <strong>Rollout aleatorio.</strong> Sirve para leer los objetos:
+                hormigas, comida, hub y valores escritos en el mapa.
+              </figcaption>
+            </figure>
+            <figure class="media-frame">
+              <video autoplay loop muted playsinline controls preload="metadata">
+                <source src="report-site/assets/videos/forage-25x25-4ants.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                <strong>Ciclo objetivo.</strong> Una política útil no sólo se
+                mueve: encuentra comida, vuelve, entrega y reutiliza señales.
+              </figcaption>
+            </figure>
+            <figure class="media-frame">
+              <video autoplay loop muted playsinline controls preload="metadata">
+                <source src="report-site/assets/videos/curriculum-efficient-50x50.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                <strong>Escala final.</strong> El mismo problema podía crecer en
+                mapa, fuentes, hormigas y memoria escrita.
+              </figcaption>
+            </figure>
+          </div>
 
           <div class="environment-grid">
             <article>
               <span class="kicker">objetivo</span>
               <h3>Cerrar ciclos fuente-hub</h3>
-              <p>Slot para explicar la tarea sin todavía entrar en resultados.</p>
+              <p>
+                Cada hormiga debe encontrar comida, cargar un bocado, volver al
+                hub y repetir hasta agotar las fuentes. El reward base es
+                <code>+1</code> por entrega; tocar comida una vez no alcanza.
+              </p>
+            </article>
+            <article>
+              <span class="kicker">restricción</span>
+              <h3>Sin memoria recurrente propia</h3>
+              <p>
+                No usamos políticas con LSTM, GRU ni hidden state persistente.
+                La política evaluada es feed-forward: decide desde lo que ve en
+                el instante actual.
+              </p>
             </article>
             <article>
               <span class="kicker">acciones</span>
-              <h3>Mover, cargar, entregar, escribir</h3>
-              <p>Slot para detallar el espacio de acciones y la memoria externa.</p>
+              <h3>Mover y escribir</h3>
+              <p>
+                Para <code>N</code> hormigas, el env usa:
+              </p>
+              <p>
+                <code class="environment-formula">MultiDiscrete([5, 2 ** write_bits] * N)</code>
+              </p>
+              <p>
+                Cada agente elige un par <code>(move, write_value)</code>.
+              </p>
+              <ul class="environment-spec-list">
+                <li><code>move</code>: stay, up, right, down, left.</li>
+                <li><code>write_value</code>: entero entre <code>0</code> y <code>2 ** write_bits - 1</code>.</li>
+                <li>Usamos escritura al mover: el valor se aplica sobre el tile de llegada si es escribible.</li>
+                <li>No se escribe sobre hub ni sobre una celda que todavía tiene comida.</li>
+              </ul>
             </article>
             <article>
-              <span class="kicker">agentes</span>
-              <h3>Política compartida, observación local</h3>
-              <p>Slot para diferenciar actor local y crítico centralizado.</p>
+              <span class="kicker">actor</span>
+              <h3>Observación local exacta</h3>
+              <p>
+                Todas las hormigas comparten actor. Cada una recibe una
+                observación local orientada por su facing; en la línea final
+                usamos radio <code>2</code>.
+              </p>
+              <ul class="environment-spec-list">
+                <li><code>food</code>: conteo local normalizado por comida por fuente.</li>
+                <li><code>ants_count</code>: ocupación local normalizada por cantidad de hormigas.</li>
+                <li><code>bytes</code>: bitmasks locales, una capa por bit escribible.</li>
+                <li><code>hub</code>: máscara local si el hub entra en visión.</li>
+                <li><code>border/obstacles</code>: máscara de borde y obstáculos.</li>
+                <li><code>agent_identity</code>: one-hot de identidad para romper simetría y permitir especialización.</li>
+                <li>Estado propio: carrying flag y facing one-hot.</li>
+              </ul>
             </article>
             <article>
-              <span class="kicker">reward</span>
-              <h3>La métrica manda</h3>
-              <p>Slot para separar reward, entrega, éxito y falsos positivos.</p>
+              <span class="kicker">memoria externa</span>
+              <h3>Escribir sobre el mapa</h3>
+              <p>
+                Cada celda puede guardar un valor discreto definido por
+                <code>write_bits</code>. Esa capa escrita era la memoria que
+                queríamos que emergiera: rastros de retorno, marcas de
+                exploración o señales útiles para otras hormigas.
+              </p>
+              <p>
+                La escritura sólo se aplica sobre tiles escribibles: no sobre el
+                hub ni sobre una celda que todavía tiene comida.
+              </p>
+            </article>
+            <article>
+              <span class="kicker">estado env</span>
+              <h3>Observación completa del simulador</h3>
+              <p>
+                El estado base del entorno conserva
+                <code>ants_pos</code>, <code>ants_carrying</code>,
+                <code>ants_facing</code>, <code>ants_count</code>,
+                <code>food</code>, <code>bytes</code>,
+                <code>obstacles</code> y <code>hub_pos</code>.
+              </p>
+              <p>
+                Esa vista existe para simular y entrenar; no es lo que recibe
+                crudo la política evaluada.
+              </p>
+            </article>
+            <article>
+              <span class="kicker">entrenamiento</span>
+              <h3>Crítico global, actor local</h3>
+              <p>
+                MAPPO usa un crítico centralizado para asignar crédito durante
+                entrenamiento. Recibe posiciones de hormigas, carrying, facing,
+                mapas globales de ocupación, comida, bytes, posición del hub,
+                tamaño activo del grid y features auxiliares globales.
+              </p>
+              <p>
+                En evaluación no actúa ese estado global: sólo corre el actor
+                local compartido.
+              </p>
+            </article>
+            <article>
+              <span class="kicker">randomización</span>
+              <h3>Evitar memorizar layouts</h3>
+              <p>
+                Entrenamos con hub y comida randomizados para que la solución no
+                sea recordar coordenadas. La política tiene que aprender un
+                procedimiento: explorar, marcar, volver y reutilizar señales.
+              </p>
+            </article>
+            <article class="environment-wide">
+              <span class="kicker">perillas</span>
+              <h3>Una familia de entornos</h3>
+              <p>
+                El mismo env podía escalarse variando tamaño de mapa, cantidad
+                de hormigas, comida total, número de fuentes, distancia
+                fuente-hub en layouts fijos, radio de visión, cantidad de bits,
+                máximo de pasos y obstáculos.
+              </p>
             </article>
           </div>
         </div>
@@ -229,7 +357,7 @@
                 <h3>Crecer el mapa</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
                 <p class="step-claim">
                   El primer avance no vino de entrenar más fuerte, sino de
@@ -267,10 +395,9 @@
                   </p>
                 </div>
                 <p>
-                  La lectura no fue descartar currículos, sino hacerlos más
-                  exigentes. Si el mapa crecía antes de validar maestría, la
-                  política podía arrastrar hábitos frágiles hacia etapas más
-                  difíciles.
+                  La falla no era “mapa grande” en abstracto. El experimento
+                  mezclaba dos problemas que después tuvimos que separar:
+                  cobertura multi-agente y descubrimiento de fuentes escasas.
                 </p>
               </div>
             </div>
@@ -309,16 +436,78 @@
             <div class="step-header">
               <span class="step-index">1C</span>
               <div>
-                <span class="kicker">curriculum manual</span>
+                <span class="kicker">currículo manual</span>
                 <h3>Más ants, más map</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para explicar el salto de mapa y colonia sin garantizar maestría.</p>
+                <p class="step-claim">
+                  El problema no era solo agrandar el mapa: también había que
+                  evitar que las primeras etapas se resolvieran por saturación
+                  de hormigas.
+                </p>
+                <p>
+                  Si dejábamos demasiados agentes en arenas chicas, el
+                  comportamiento podía parecer útil sin haber aprendido una
+                  estrategia transferible. Por eso probamos una progresión más
+                  balanceada: subir mapa y colonia al mismo tiempo.
+                </p>
+                <p>
+                  El setup recorría una escalera de dificultad:
+                  <code>4x4 / 1</code>, <code>6x6 / 1</code>,
+                  <code>8x8 / 2</code>, <code>10x10 / 2</code>,
+                  <code>12x12 / 3</code>, <code>16x16 / 4</code>,
+                  <code>20x20 / 5</code>, <code>25x25 / 6</code>,
+                  <code>32x32 / 8</code>, <code>40x40 / 10</code> y
+                  <code>50x50 / 10</code>. Cada etapa intentaba mantener el
+                  desafío vivo: ni mapa demasiado grande sin cobertura, ni mapa
+                  chico resuelto por densidad.
+                </p>
+                <p>
+                  El fallo apareció en el criterio de avance. Llegar a
+                  <code>16x16</code> con <code>4</code> hormigas no significaba
+                  que la política hubiera aprendido ese mapa. El rollout muestra
+                  actividad y contacto con la tarea, pero no ciclos
+                  fuente-hormiguero confiables.
+                </p>
+                <div class="experiment-note" aria-label="Lectura del currículo manual">
+                  <span class="kicker">lectura</span>
+                  <p class="experiment-note-lead">
+                    La hipótesis estaba mejor planteada, pero el salto seguía
+                    ocurriendo antes de validar maestría.
+                  </p>
+                  <p>
+                    La progresión hacía más honesta la dificultad, pero todavía
+                    dependía del calendario del experimento. Necesitábamos una
+                    señal clara de que una etapa estaba dominada antes de pasar
+                    a la siguiente.
+                  </p>
+                  <p class="experiment-note-reading">
+                    De ahí sale el siguiente bloque: validation gates.
+                  </p>
+                </div>
               </div>
-              <div class="evidence-slot">16x16 / 4 ants</div>
+            </div>
+            <div class="step-video-sequence step-video-sequence-two" aria-label="Rollouts del currículo de mapa y hormigas">
+              <figure>
+                <video autoplay loop muted playsinline controls preload="metadata">
+                  <source src="report-site/assets/videos/map-ant-curriculum-08x08-2ants.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>8x8 / 2 ants.</strong> La etapa chica deja de ser una
+                  arena saturada y empieza a pedir coordinación real.
+                </figcaption>
+              </figure>
+              <figure class="step-media">
+                <video autoplay loop muted playsinline controls preload="metadata">
+                  <source src="report-site/assets/videos/map-ant-curriculum-16x16-4ants.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>16x16 / 4 ants.</strong> Al crecer, la actividad ya
+                  no alcanza para decir que el escenario está aprendido.
+                </figcaption>
+              </figure>
             </div>
           </li>
 
@@ -330,12 +519,82 @@
                 <h3>Validation gates</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para contar que las gates mejoran el salto, pero no capturan el hack visual.</p>
+                <p class="step-claim">
+                  Las gates resolvieron una parte del problema: ya no
+                  avanzábamos de etapa sólo porque el calendario lo decía.
+                </p>
+                <p>
+                  Después del currículo de mapa y colonia, cambiamos el criterio
+                  de promoción. Una etapa sólo podía pasar si demostraba dominio
+                  en evaluaciones determinísticas y muestreadas: entrega casi
+                  completa, éxito suficiente, pickup-to-delivery alto y episodios
+                  dentro de una ventana razonable de pasos.
+                </p>
+                <dl class="metric-grid">
+                  <div>
+                    <dt>entrega mínima</dt>
+                    <dd><code>delivered_fraction &gt;= 0.95</code></dd>
+                  </div>
+                  <div>
+                    <dt>success rate</dt>
+                    <dd><code>success_rate &gt;= 0.75</code></dd>
+                  </div>
+                  <div>
+                    <dt>pickup to delivery</dt>
+                    <dd><code>pickup_to_delivery &gt;= 0.90</code></dd>
+                  </div>
+                  <div>
+                    <dt>longitud máxima</dt>
+                    <dd><code>0.65</code> del máximo de pasos</dd>
+                  </div>
+                </dl>
+                <p>
+                  El cambio funcionó como freno. La cadena pasó
+                  <code>10x10 / 2</code>, <code>12x12 / 3</code>,
+                  <code>16x16 / 4</code> y <code>20x20 / 5</code>, pero dejó de
+                  escalar automáticamente cuando <code>25x25 / 6</code> no pudo
+                  sostener todas las condiciones. Ahí el mejor gate score quedó
+                  en <code>0.875</code>, cerca de pasar, pero sin cumplir todos
+                  los criterios a la vez.
+                </p>
+                <div class="experiment-note" aria-label="Resultado de validation gates">
+                  <span class="kicker">resultado</span>
+                  <p class="experiment-note-lead">
+                    En <code>16x16 / 4 ants</code>, el attempt
+                    <code>099</code> alcanzó gate score <code>1.0</code>.
+                  </p>
+                  <p>
+                    La evaluación determinística entregó
+                    <strong>13.875/14</strong> con success <strong>0.875</strong>;
+                    la muestreada entregó <strong>13.688/14</strong> con success
+                    <strong>0.875</strong>.
+                  </p>
+                  <p class="experiment-note-reading">
+                    El número era excelente, pero el rollout mostró el límite:
+                    pasar métricas de entrega no garantizaba una estrategia
+                    transferible.
+                  </p>
+                </div>
+                <p>
+                  La lectura fue más fina que “falló”. Las gates corrigieron el
+                  salto prematuro, pero también dejaron expuesto que necesitábamos
+                  validar la semántica de la política, no sólo contar entregas.
+                </p>
               </div>
-              <div class="evidence-slot">video de escaleras + gate score</div>
+            </div>
+            <div class="step-video-sequence step-video-sequence-single" aria-label="Rollout pasado por validation gates">
+              <figure>
+                <video autoplay loop muted playsinline controls preload="metadata">
+                  <source src="report-site/assets/videos/map-ant-validation-gates-16x16-stairs.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>16x16 / 4 ants, attempt 099.</strong> Las métricas
+                  pasan, pero el patrón visual de “escaleras” muestra que la
+                  gate todavía no captura qué tipo de solución se aprendió.
+                </figcaption>
+              </figure>
             </div>
           </li>
 

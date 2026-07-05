@@ -349,11 +349,31 @@ figcaption {
   color: var(--muted);
 }
 
+.environment-section .section-intro {
+  max-width: 68em;
+  margin-bottom: 1.55em;
+}
+
+.environment-section .section-intro p {
+  max-width: 64em;
+}
+
+.environment-section .section-intro p + p {
+  margin-top: 0.85em;
+  border-top: 1px solid rgba(178, 142, 83, 0.28);
+  padding-top: 0.85em;
+}
+
 .environment-layout {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 1.35em;
+  grid-template-columns: minmax(16rem, 0.62fr) minmax(0, 1.38fr);
+  gap: 1.55em;
   align-items: start;
+}
+
+.environment-media-stack {
+  display: grid;
+  gap: 1.05em;
 }
 
 .media-frame {
@@ -387,12 +407,41 @@ figcaption {
   padding-top: 0.8em;
 }
 
+.environment-wide {
+  grid-column: 1 / -1;
+}
+
 .environment-grid h3 {
   margin: 0 0 0.35em;
 }
 
 .environment-grid p {
   margin: 0;
+}
+
+.environment-grid p + p {
+  margin-top: 0.65em;
+}
+
+.environment-spec-list {
+  display: grid;
+  gap: 0.35em;
+  margin: 0.7em 0 0;
+  padding-left: 1.1em;
+  color: var(--muted);
+  line-height: 1.48;
+}
+
+.environment-spec-list li::marker {
+  color: var(--accent);
+}
+
+.environment-formula {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.18em 0.32em;
+  white-space: normal;
 }
 
 #policy-search > .chapter-header {
@@ -474,8 +523,24 @@ figcaption {
   padding-left: 5rem;
 }
 
+.step-layout-wide {
+  grid-template-columns: 1fr;
+}
+
 .step-copy p {
   max-width: 42em;
+}
+
+.step-layout-wide .step-copy p {
+  max-width: 63em;
+}
+
+.step-layout-wide .experiment-note {
+  max-width: 63em;
+}
+
+.step-layout-wide .experiment-note p {
+  max-width: none;
 }
 
 .step-claim {
@@ -567,6 +632,20 @@ figcaption {
   gap: 0.9em;
   margin-top: 1.05em;
   padding-left: 5rem;
+}
+
+.step-video-sequence-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-left: 0;
+}
+
+.step-video-sequence-single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 32rem;
+  margin-inline: auto;
+  padding-left: 0;
 }
 
 .step-video-sequence figure {
