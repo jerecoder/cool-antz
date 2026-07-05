@@ -359,76 +359,183 @@
             </div>
             <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="step-claim">
-                  El primer avance no vino de entrenar más fuerte, sino de
-                  cambiar la escala del problema.
-                </p>
                 <p>
-                  Después de la baseline, el enfoque más directo fue convertir
-                  el entorno completo en una secuencia: entrenar primero en
-                  arenas chicas, conservar la política y aumentar el mapa. La
+                  Después de la baseline, el primer avance fue formular el
+                  escalado como curriculum learning: entrenar en arenas chicas,
+                  conservar la política y aumentar gradualmente el mapa. La
                   hipótesis era que una estrategia local de búsqueda y retorno
                   podía sobrevivir al crecimiento del tablero.
+                </p>
+                <p>
+                  La limitación apareció rápido: una política útil en mapas
+                  chicos no se trasladaba bien, por sí sola, a mapas grandes. El
+                  mismo comportamiento que cerraba ciclos cortos empezaba a
+                  perder sentido cuando las fuentes quedaban lejos y la
+                  recompensa de entrega se volvía escasa.
+                </p>
+                <p>
+                  Ese enfoque también exponía un límite de representación. En
+                  ese momento el actor miraba apenas un cuadrado local de
+                  <code>3x3</code> y tenía un solo bit de escritura. Si miramos
+                  solamente el canal escrito de esas nueve celdas, había
+                  <code>2^9</code> patrones locales posibles; la observación
+                  completa incluía más señales, como comida, hormigas, borde,
+                  orientación y si la hormiga cargaba comida, pero el protocolo
+                  externo seguía siendo muy angosto.
                 </p>
                 <p>
                   La idea funcionó hasta cierto punto. Los rollouts ya no eran
                   puro movimiento sin dirección: aparecían ciclos de comida,
                   retorno y nueva búsqueda. Pero al agrandar el mapa, el costo
                   de descubrir fuentes y sostener cobertura empezó a dominar.
+                  En mapas chicos, rebotar contra paredes todavía daba pistas
+                  útiles; en mapas grandes, las paredes quedaban lejos y la señal
+                  de reward por entrega se volvía mucho más escasa. Además, era
+                  conceptualmente incómodo depender tanto de los bordes: en un
+                  entorno natural, las hormigas no deberían necesitar paredes
+                  artificiales para organizar el retorno.
                 </p>
                 <div class="experiment-note" aria-label="Resultado del currículo de tamaño">
                   <span class="kicker">resultado</span>
-                  <p class="experiment-note-lead">
-                    En la corrida preservada de <code>8x8</code> a
-                    <code>50x50</code>, el mejor punto evaluado llegó a
-                    <strong>22.5/48</strong>.
+                  <p>
+                    En
+                    <a
+                      href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/lg00ey5u"
+                      target="_blank"
+                      rel="noreferrer"
+                    >este</a>
+                    run,
+                    el curriculum <code>8x8 -> 50x50</code> muestra el patrón
+                    que nos importaba: el entrenamiento gana actividad local,
+                    pero la retención no escala de forma limpia.
                   </p>
                   <p>
-                    La eficiencia fue de <strong>0.9</strong> comidas por
-                    <code>1000</code> pasos-hormiga: un salto real frente a la
-                    baseline, pero todavía lejos de una política estable.
+                    La matriz retrospectiva, evaluada de forma greedy para
+                    medir retención, deja al checkpoint final con buen desempeño
+                    en <code>8x8</code> y bastante señal en <code>16x16</code>,
+                    pero cae a 12.5% de su mejor valor en
+                    <code>25x25</code> y a 0% en
+                    <code>35x35</code>. Para los rollouts visuales usamos
+                    escritura greedy y movimiento sampleado con temperatura
+                    <code>0.525</code>; esos videos muestran capacidad residual,
+                    no una solución robusta.
                   </p>
-                  <p class="experiment-note-reading">
-                    El currículo de tamaño enseñaba actividad local; no
-                    garantizaba que la política dominara el mapa antes de pasar
-                    a la siguiente etapa.
+                  <p>
+                    La lectura no fue descartar curriculum learning, sino hacerlo
+                    más exigente: no alcanzaba con subir el tamaño del mapa por
+                    calendario. Hacían falta gates de validación por tamaño,
+                    métricas normalizadas por pasos-hormiga y una representación
+                    que no obligara a resolver comunicación global con un canal
+                    local tan estrecho.
                   </p>
                 </div>
                 <p>
-                  La falla no era “mapa grande” en abstracto. El experimento
-                  mezclaba dos problemas que después tuvimos que separar:
-                  cobertura multi-agente y descubrimiento de fuentes escasas.
+                  Si el mapa crecía antes de validar maestría, la política podía
+                  arrastrar hábitos frágiles hacia etapas más difíciles. El
+                  resultado era actividad visible, pero no necesariamente un
+                  protocolo de regreso estable. La falla no era “mapa grande” en
+                  abstracto: el experimento mezclaba dos problemas que después
+                  tuvimos que separar, cobertura multi-agente y descubrimiento
+                  de fuentes escasas.
                 </p>
               </div>
             </div>
-            <div class="step-video-sequence" aria-label="Secuencia visual del currículo de tamaño">
+            <div class="figure-grid size-curriculum-figures" aria-label="Métricas del currículo de tamaño">
               <figure>
-                <video autoplay loop muted playsinline controls preload="metadata">
-                  <source src="report-site/assets/videos/curriculum-efficient-08x08.mp4" type="video/mp4">
-                </video>
+                <a
+                  class="zoomable-plot"
+                  href="report-site/assets/plots/fig_size_curriculum_training.png"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Abrir gráfico de entrenamiento en tamaño completo"
+                >
+                  <img
+                    src="report-site/assets/plots/fig_size_curriculum_training.png"
+                    alt="Reward medio y eventos de pickup y delivery durante el curriculum de tamaño"
+                    loading="lazy"
+                  >
+                </a>
                 <figcaption>
-                  <strong>8x8.</strong> El currículo sí desbloquea ciclos
-                  locales de búsqueda y retorno.
+                  El reward medio cae al crecer el mapa. Los pickups persisten
+                  mejor que las entregas, pero estos eventos vienen de ventanas
+                  cortas de entrenamiento.
                 </figcaption>
               </figure>
-              <figure>
-                <video autoplay loop muted playsinline controls preload="metadata">
-                  <source src="report-site/assets/videos/curriculum-efficient-25x25.mp4" type="video/mp4">
+            </div>
+            <div class="step-video-sequence stage-video-grid" aria-label="Rollouts del probe de tamaño con temperatura 0.525">
+              <figure aria-label="Rollout 8x8">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 8x8">
+                  <source src="report-site/assets/videos/size-probe-mt0525-08x08.mp4" type="video/mp4">
                 </video>
-                <figcaption>
-                  <strong>25x25.</strong> La tarea empieza a depender de
-                  cobertura sostenida, no solo de navegación corta.
-                </figcaption>
+                <figcaption>8x8</figcaption>
               </figure>
-              <figure>
-                <video autoplay loop muted playsinline controls preload="metadata">
-                  <source src="report-site/assets/videos/curriculum-efficient-50x50.mp4" type="video/mp4">
+              <figure aria-label="Rollout 12x12">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 12x12">
+                  <source src="report-site/assets/videos/size-probe-mt0525-12x12.mp4" type="video/mp4">
                 </video>
-                <figcaption>
-                  <strong>50x50.</strong> Hay actividad visible, pero todavía
-                  no una solución robusta.
-                </figcaption>
+                <figcaption>12x12</figcaption>
               </figure>
+              <figure aria-label="Rollout 16x16">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 16x16">
+                  <source src="report-site/assets/videos/size-probe-mt0525-16x16.mp4" type="video/mp4">
+                </video>
+                <figcaption>16x16</figcaption>
+              </figure>
+              <figure aria-label="Rollout 20x20">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 20x20">
+                  <source src="report-site/assets/videos/size-probe-mt0525-20x20.mp4" type="video/mp4">
+                </video>
+                <figcaption>20x20</figcaption>
+              </figure>
+              <figure aria-label="Rollout 25x25">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 25x25">
+                  <source src="report-site/assets/videos/size-probe-mt0525-25x25.mp4" type="video/mp4">
+                </video>
+                <figcaption>25x25</figcaption>
+              </figure>
+              <figure aria-label="Rollout 30x30">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 30x30">
+                  <source src="report-site/assets/videos/size-probe-mt0525-30x30.mp4" type="video/mp4">
+                </video>
+                <figcaption>30x30</figcaption>
+              </figure>
+              <figure aria-label="Rollout 35x35">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 35x35">
+                  <source src="report-site/assets/videos/size-probe-mt0525-35x35.mp4" type="video/mp4">
+                </video>
+                <figcaption>35x35</figcaption>
+              </figure>
+              <figure aria-label="Rollout 40x40">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 40x40">
+                  <source src="report-site/assets/videos/size-probe-mt0525-40x40.mp4" type="video/mp4">
+                </video>
+                <figcaption>40x40</figcaption>
+              </figure>
+              <figure aria-label="Rollout 45x45">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 45x45">
+                  <source src="report-site/assets/videos/size-probe-mt0525-45x45.mp4" type="video/mp4">
+                </video>
+                <figcaption>45x45</figcaption>
+              </figure>
+              <figure aria-label="Rollout 50x50">
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 50x50">
+                  <source src="report-site/assets/videos/size-probe-mt0525-50x50.mp4" type="video/mp4">
+                </video>
+                <figcaption>50x50</figcaption>
+              </figure>
+            </div>
+            <div class="behavior-reading" aria-label="Lectura de los rollouts del currículo de tamaño">
+              <p>
+                La transición visual es más informativa que un único score. Hasta
+                <code>25x25</code>, la política combina búsqueda local, pickup y
+                retorno con bastante frecuencia. A partir de <code>30x30</code>,
+                la misma observación local produce mucha exploración, pero la
+                probabilidad de cerrar el circuito comida-hormiguero cae: las
+                paredes aparecen menos, las fuentes tardan más en entrar al
+                campo local y la escritura deja de parecer un protocolo global.
+                El <code>50x50</code> muestreado muestra que queda una habilidad
+                residual de forrajeo; lo que falta es robustez y repetibilidad.
+              </p>
             </div>
           </li>
 
