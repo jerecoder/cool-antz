@@ -373,6 +373,19 @@ def make_timed_release_env(args: Any) -> TimedReleaseJaxEnv:
         maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
         maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
         maze_seed=int(getattr(args, "maze_seed", 0)),
+        maze_layout_count=int(getattr(args, "maze_layout_count", 64)),
+        random_wall_obstacles=bool(getattr(args, "random_wall_obstacles", False)),
+        random_wall_count_min=int(getattr(args, "random_wall_count_min", 1)),
+        random_wall_count_max=int(getattr(args, "random_wall_count_max", 3)),
+        random_wall_length_min=int(getattr(args, "random_wall_length_min", 4)),
+        random_wall_length_max=int(getattr(args, "random_wall_length_max", 14)),
+        random_wall_width=int(getattr(args, "random_wall_width", 1)),
+        random_wall_l_turn_probability=float(
+            getattr(args, "random_wall_l_turn_probability", 0.5)
+        ),
+        random_wall_center_window_size=int(
+            getattr(args, "random_wall_center_window_size", 0)
+        ),
     )
     return TimedReleaseJaxEnv(
         base_env,

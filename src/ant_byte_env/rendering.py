@@ -318,7 +318,11 @@ def render_jax_checkpoint(
             writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
             frames_written += 1
             if terminated or truncated:
-                if not bool(getattr(args, "maze_obstacles", False)) or max_frames is None:
+                uses_obstacle_layouts = bool(
+                    getattr(args, "maze_obstacles", False)
+                    or getattr(args, "random_wall_obstacles", False)
+                )
+                if not uses_obstacle_layouts or max_frames is None:
                     break
                 if frames_written >= frame_limit:
                     break
@@ -543,6 +547,19 @@ def _env_from_args(
         "maze_corridor_width": int(getattr(args, "maze_corridor_width", 3)),
         "maze_wall_width": int(getattr(args, "maze_wall_width", 1)),
         "maze_seed": int(getattr(args, "maze_seed", 0)),
+        "maze_layout_count": int(getattr(args, "maze_layout_count", 64)),
+        "random_wall_obstacles": bool(getattr(args, "random_wall_obstacles", False)),
+        "random_wall_count_min": int(getattr(args, "random_wall_count_min", 1)),
+        "random_wall_count_max": int(getattr(args, "random_wall_count_max", 3)),
+        "random_wall_length_min": int(getattr(args, "random_wall_length_min", 4)),
+        "random_wall_length_max": int(getattr(args, "random_wall_length_max", 14)),
+        "random_wall_width": int(getattr(args, "random_wall_width", 1)),
+        "random_wall_l_turn_probability": float(
+            getattr(args, "random_wall_l_turn_probability", 0.5)
+        ),
+        "random_wall_center_window_size": int(
+            getattr(args, "random_wall_center_window_size", 0)
+        ),
         "render_mode": render_mode,
     }
     if tile_size is not None:

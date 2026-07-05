@@ -101,6 +101,40 @@ def _prefer_cookie_distance(
     return jnp.where(enough_ring, ring_mask, candidate_mask)
 
 
+def _prefer_hub_distance_range(
+    *,
+    args: argparse.Namespace,
+    env: JaxAntByteForagingEnv,
+    flat_indices: jax.Array,
+    hub_positions: jax.Array,
+    candidate_mask: jax.Array,
+    required_count: int = 1,
+) -> jax.Array:
+    max_distance = int(getattr(args, "lethal_food_max_distance", 0))
+    if max_distance <= 0:
+        return candidate_mask
+
+    min_distance = int(getattr(args, "lethal_food_min_distance", 1))
+    flat_x = flat_indices % env.width
+    flat_y = flat_indices // env.width
+    hub_x = hub_positions[:, 0:1]
+    hub_y = hub_positions[:, 1:2]
+    distance = jnp.maximum(
+        jnp.abs(flat_x[None, :] - hub_x),
+        jnp.abs(flat_y[None, :] - hub_y),
+    )
+    near_hub_mask = (
+        candidate_mask
+        & (distance >= min_distance)
+        & (distance <= max_distance)
+    )
+    enough_near_hub = (
+        jnp.sum(near_hub_mask.astype(jnp.int32), axis=1, keepdims=True)
+        >= int(required_count)
+    )
+    return jnp.where(enough_near_hub, near_hub_mask, candidate_mask)
+
+
 def _prefer_hub_center_window(
     *,
     args: argparse.Namespace,
@@ -303,6 +337,7 @@ def _sample_food_positions(
     previous_food: jax.Array | None,
     source_count: int | None = None,
     exclude_food: jax.Array | None = None,
+    prefer_lethal_distance: bool = False,
 ) -> jax.Array:
     source_count = int(
         getattr(env, "source_count", 0) if source_count is None else source_count
@@ -321,14 +356,24 @@ def _sample_food_positions(
         candidate_mask=candidate_mask,
         required_count=source_count,
     )
-    candidate_mask = _prefer_cookie_distance(
-        args=args,
-        env=env,
-        flat_indices=flat_indices,
-        hub_positions=hub_positions,
-        candidate_mask=candidate_mask,
-        required_count=source_count,
-    )
+    if not prefer_lethal_distance or int(getattr(args, "lethal_food_max_distance", 0)) <= 0:
+        candidate_mask = _prefer_cookie_distance(
+            args=args,
+            env=env,
+            flat_indices=flat_indices,
+            hub_positions=hub_positions,
+            candidate_mask=candidate_mask,
+            required_count=source_count,
+        )
+    if prefer_lethal_distance:
+        candidate_mask = _prefer_hub_distance_range(
+            args=args,
+            env=env,
+            flat_indices=flat_indices,
+            hub_positions=hub_positions,
+            candidate_mask=candidate_mask,
+            required_count=source_count,
+        )
     if exclude_food is not None:
         exclude_mask = exclude_food.reshape((args.num_envs, -1)) > 0
         preferred_mask = candidate_mask & jnp.logical_not(exclude_mask)
@@ -435,6 +480,7 @@ def reset_batch(
             previous_food=None,
             source_count=int(getattr(env, "lethal_source_count", 0)),
             exclude_food=safe_source_grid,
+            prefer_lethal_distance=True,
         )
         if int(getattr(env, "lethal_food_count", 0)) > 0:
             states, obs, _ = jax.vmap(

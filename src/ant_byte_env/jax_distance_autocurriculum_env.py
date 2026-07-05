@@ -90,6 +90,15 @@ class JaxAntByteDistanceCurriculumEnv:
         maze_corridor_width: int = 3,
         maze_wall_width: int = 1,
         maze_seed: int = 0,
+        maze_layout_count: int = 64,
+        random_wall_obstacles: bool = False,
+        random_wall_count_min: int = 1,
+        random_wall_count_max: int = 3,
+        random_wall_length_min: int = 4,
+        random_wall_length_max: int = 14,
+        random_wall_width: int = 1,
+        random_wall_l_turn_probability: float = 0.5,
+        random_wall_center_window_size: int = 0,
     ) -> None:
         self._validate_args(
             width=width,
@@ -140,6 +149,15 @@ class JaxAntByteDistanceCurriculumEnv:
             maze_corridor_width=maze_corridor_width,
             maze_wall_width=maze_wall_width,
             maze_seed=maze_seed,
+            maze_layout_count=maze_layout_count,
+            random_wall_obstacles=random_wall_obstacles,
+            random_wall_count_min=random_wall_count_min,
+            random_wall_count_max=random_wall_count_max,
+            random_wall_length_min=random_wall_length_min,
+            random_wall_length_max=random_wall_length_max,
+            random_wall_width=random_wall_width,
+            random_wall_l_turn_probability=random_wall_l_turn_probability,
+            random_wall_center_window_size=random_wall_center_window_size,
         )
         self.source_count = self.base_env.source_count
         self.open_cell_count = self.base_env.open_cell_count

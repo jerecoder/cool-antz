@@ -16,3 +16,12 @@ vault/*
 results/curated/artifacts/
 notebooks/.ipynb_checkpoints/
 uv.lock
+
+# Generated lethal-cookie report/site artifacts.
+docs/lethal-cookies-site/
+docs/figures/experiment_reconstruction/
+docs/scripts/__pycache__/
+docs/scripts/build_lethal_cookies_site_assets.py
+docs/scripts/generate_experiment_reconstruction_assets.py
+docs/experiment_reconstruction.*
+/experiment_reconstruction.*

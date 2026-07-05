@@ -54,6 +54,7 @@ from ant_byte_env.training.jax_mappo import (
     warm_start_actor_params,
 )
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
+from ant_byte_env.training.jax_mappo.env_factory import make_jax_mappo_env
 from ant_byte_env.training.jax_mappo.layout_audit import LayoutAuditTracker
 from ant_byte_env.training.jax_mappo.transfer_actor import adapt_movement_head_layer
 from ant_byte_env.training.jax_mappo.transfer_shapes import (
@@ -454,6 +455,70 @@ def test_jax_reset_batch_can_cluster_food_around_two_macro_sources() -> None:
         hub_end = hub_start + args.hub_center_window_size
         assert np.all(hub_positions[env_index] >= hub_start)
         assert np.all(hub_positions[env_index] < hub_end)
+
+
+def test_jax_reset_batch_uses_lethal_range_over_safe_same_distance() -> None:
+    args = _rollout_args(
+        [
+            "--num-envs",
+            "4",
+            "--width",
+            "24",
+            "--height",
+            "24",
+            "--hub-center-window-size",
+            "4",
+            "--food-count",
+            "8",
+            "--food-sources",
+            "8",
+            "--lethal-food-count",
+            "1",
+            "--lethal-food-sources",
+            "1",
+            "--lethal-food-min-distance",
+            "1",
+            "--lethal-food-max-distance",
+            "2",
+            "--cookie-distance",
+            "7",
+            "--max-steps",
+            "2",
+            "--random-hub",
+            "--random-food",
+            "--random-food-same-distance",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        lethal_food_count=args.lethal_food_count,
+        lethal_food_source_count=args.lethal_food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        hub_center_window_size=args.hub_center_window_size,
+        write_bits=args.write_bits,
+    )
+
+    states, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(2029))
+    safe_grids = np.asarray(states.initial_food)
+    lethal_grids = np.asarray(states.lethal_food)
+    hub_positions = np.asarray(obs["hub_pos"])
+
+    for env_index, hub_pos in enumerate(hub_positions):
+        safe_positions = np.argwhere(safe_grids[env_index] > 0)[:, ::-1]
+        lethal_positions = np.argwhere(lethal_grids[env_index] > 0)[:, ::-1]
+
+        assert safe_positions.shape == (args.food_sources, 2)
+        assert lethal_positions.shape == (1, 2)
+        safe_distances = np.max(np.abs(safe_positions - hub_pos), axis=1)
+        lethal_distance = int(np.max(np.abs(lethal_positions[0] - hub_pos)))
+        assert set(safe_distances.tolist()) == {args.cookie_distance}
+        assert args.lethal_food_min_distance <= lethal_distance <= args.lethal_food_max_distance
 
 
 @pytest.mark.parametrize("maze_obstacles", [False, True])
@@ -3764,6 +3829,85 @@ def test_jax_parse_args_accepts_hub_center_window_size() -> None:
 
     assert args.random_hub is True
     assert args.hub_center_window_size == 4
+
+
+def test_jax_parse_args_accepts_random_wall_options() -> None:
+    args = parse_args(
+        [
+            "--width",
+            "20",
+            "--height",
+            "20",
+            "--random-wall-obstacles",
+            "--maze-layout-count",
+            "7",
+            "--random-wall-count-min",
+            "2",
+            "--random-wall-count-max",
+            "5",
+            "--random-wall-length-min",
+            "3",
+            "--random-wall-length-max",
+            "9",
+            "--random-wall-width",
+            "2",
+            "--random-wall-l-turn-probability",
+            "0.75",
+            "--random-wall-center-window-size",
+            "12",
+        ]
+    )
+
+    assert args.random_wall_obstacles is True
+    assert args.maze_layout_count == 7
+    assert args.random_wall_count_min == 2
+    assert args.random_wall_count_max == 5
+    assert args.random_wall_length_min == 3
+    assert args.random_wall_length_max == 9
+    assert args.random_wall_width == 2
+    assert args.random_wall_l_turn_probability == 0.75
+    assert args.random_wall_center_window_size == 12
+
+
+def test_jax_parse_args_accepts_lethal_food_distance_band() -> None:
+    args = parse_args(["--lethal-food-min-distance", "2", "--lethal-food-max-distance", "7"])
+
+    assert args.lethal_food_min_distance == 2
+    assert args.lethal_food_max_distance == 7
+
+
+def test_jax_env_factory_passes_random_wall_options() -> None:
+    args = _rollout_args(
+        [
+            "--width",
+            "20",
+            "--height",
+            "20",
+            "--random-wall-obstacles",
+            "--maze-layout-count",
+            "5",
+            "--random-wall-count-min",
+            "2",
+            "--random-wall-count-max",
+            "4",
+            "--random-wall-length-min",
+            "3",
+            "--random-wall-length-max",
+            "8",
+            "--random-wall-width",
+            "2",
+            "--random-wall-center-window-size",
+            "10",
+        ]
+    )
+
+    env = make_jax_mappo_env(args)
+
+    assert isinstance(env, JaxAntByteForagingEnv)
+    assert env.random_wall_obstacles is True
+    assert env.obstacle_bank.shape == (5, 20, 20)
+    assert env.random_wall_width == 2
+    assert env.random_wall_center_window_size == 10
 
 
 def test_jax_parse_args_accepts_food_cluster_options() -> None:

@@ -1051,9 +1051,8 @@ def expand_critic_input_for_ant_count(
 def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     import jax
 
-    from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
-    from ant_byte_env.jax_env import JaxAntByteForagingEnv
     from ant_byte_env.training.jax_mappo.cli import parse_args
+    from ant_byte_env.training.jax_mappo.env_factory import make_jax_mappo_env
     from ant_byte_env.training.jax_mappo.observations import (
         build_actor_observations,
         build_central_observations,
@@ -1062,44 +1061,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
     args = parse_args(list(argv))
-    env_kwargs = {
-        "width": args.width,
-        "height": args.height,
-        "num_ants": args.num_ants,
-        "food_count": args.food_count,
-        "food_source_count": args.food_sources,
-        "max_steps": args.max_steps,
-        "random_food": args.random_food,
-        "random_hub": args.random_hub,
-        "random_ant_spawn": args.random_ant_spawn,
-        "random_ant_spawn_radius": args.random_ant_spawn_radius,
-        "step_penalty": args.step_penalty,
-        "completion_bonus": getattr(args, "completion_bonus", 0.0),
-        "write_penalty": args.write_penalty,
-        "write_bits": args.write_bits,
-        "write_while_moving": args.write_while_moving,
-        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
-    }
-    if bool(getattr(args, "autocurriculum", False)):
-        env = JaxAntByteAutoCurriculumEnv(
-            **env_kwargs,
-            start_size=args.autocurriculum_start_size,
-            success_cookies=args.autocurriculum_success_cookies,
-            actor_vision_radius=args.actor_vision_radius,
-        )
-    else:
-        env = JaxAntByteForagingEnv(
-            **env_kwargs,
-            hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
-            terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
-            terminate_on_full_coverage=bool(
-                getattr(args, "terminate_on_full_coverage", False)
-            ),
-            maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
-            maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
-            maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
-            maze_seed=int(getattr(args, "maze_seed", 0)),
-        )
+    env = make_jax_mappo_env(args)
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
     food_scale = food_observation_scale(
         food_count=args.food_count,

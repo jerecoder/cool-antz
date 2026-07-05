@@ -13,6 +13,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame
 
 from ant_byte_env.maze import (
+    generate_random_wall_obstacles,
     generate_wide_corridor_maze,
     nearest_open_flat_lookup,
     open_flat_indices,
@@ -175,6 +176,14 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         maze_wall_width: int = 1,
         maze_seed: int = 0,
         maze_layout_count: int = 64,
+        random_wall_obstacles: bool = False,
+        random_wall_count_min: int = 1,
+        random_wall_count_max: int = 3,
+        random_wall_length_min: int = 4,
+        random_wall_length_max: int = 14,
+        random_wall_width: int = 1,
+        random_wall_l_turn_probability: float = 0.5,
+        random_wall_center_window_size: int = 0,
         seed: int | None = None,
     ) -> None:
         self._validate_constructor_args(
@@ -193,9 +202,18 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             random_ant_spawn_radius=random_ant_spawn_radius,
             layout_margin=layout_margin,
             hub_center_window_size=hub_center_window_size,
+            maze_obstacles=maze_obstacles,
             maze_corridor_width=maze_corridor_width,
             maze_wall_width=maze_wall_width,
             maze_layout_count=maze_layout_count,
+            random_wall_obstacles=random_wall_obstacles,
+            random_wall_count_min=random_wall_count_min,
+            random_wall_count_max=random_wall_count_max,
+            random_wall_length_min=random_wall_length_min,
+            random_wall_length_max=random_wall_length_max,
+            random_wall_width=random_wall_width,
+            random_wall_l_turn_probability=random_wall_l_turn_probability,
+            random_wall_center_window_size=random_wall_center_window_size,
         )
 
         self.width = width
@@ -226,6 +244,14 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.maze_wall_width = int(maze_wall_width)
         self.maze_seed = int(maze_seed)
         self.maze_layout_count = int(maze_layout_count)
+        self.random_wall_obstacles = bool(random_wall_obstacles)
+        self.random_wall_count_min = int(random_wall_count_min)
+        self.random_wall_count_max = int(random_wall_count_max)
+        self.random_wall_length_min = int(random_wall_length_min)
+        self.random_wall_length_max = int(random_wall_length_max)
+        self.random_wall_width = int(random_wall_width)
+        self.random_wall_l_turn_probability = float(random_wall_l_turn_probability)
+        self.random_wall_center_window_size = int(random_wall_center_window_size)
         self._obstacle_bank = self._build_obstacle_bank()
         self._set_obstacle_grid(self._obstacle_bank[0])
         self.write_value_count = write_value_count(self.write_bits)
@@ -478,9 +504,18 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         random_ant_spawn_radius: int | None,
         layout_margin: int,
         hub_center_window_size: int,
+        maze_obstacles: bool,
         maze_corridor_width: int,
         maze_wall_width: int,
         maze_layout_count: int,
+        random_wall_obstacles: bool,
+        random_wall_count_min: int,
+        random_wall_count_max: int,
+        random_wall_length_min: int,
+        random_wall_length_max: int,
+        random_wall_width: int,
+        random_wall_l_turn_probability: float,
+        random_wall_center_window_size: int,
     ) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("width and height must be positive.")
@@ -512,12 +547,32 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
             raise ValueError("hub_center_window_size must be non-negative.")
         if int(hub_center_window_size) > min(width, height):
             raise ValueError("hub_center_window_size must fit inside the grid.")
+        if maze_obstacles and random_wall_obstacles:
+            raise ValueError("maze_obstacles and random_wall_obstacles are mutually exclusive.")
         if maze_corridor_width <= 0:
             raise ValueError("maze_corridor_width must be positive.")
         if maze_wall_width <= 0:
             raise ValueError("maze_wall_width must be positive.")
         if maze_layout_count <= 0:
             raise ValueError("maze_layout_count must be positive.")
+        if random_wall_count_min <= 0:
+            raise ValueError("random_wall_count_min must be positive.")
+        if random_wall_count_max < random_wall_count_min:
+            raise ValueError("random_wall_count_max must be at least random_wall_count_min.")
+        if random_wall_length_min <= 0:
+            raise ValueError("random_wall_length_min must be positive.")
+        if random_wall_length_max < random_wall_length_min:
+            raise ValueError("random_wall_length_max must be at least random_wall_length_min.")
+        if random_wall_width <= 0:
+            raise ValueError("random_wall_width must be positive.")
+        if random_wall_obstacles and random_wall_width >= min(width, height):
+            raise ValueError("random_wall_width must be smaller than both grid axes.")
+        if not 0.0 <= float(random_wall_l_turn_probability) <= 1.0:
+            raise ValueError("random_wall_l_turn_probability must be between 0 and 1.")
+        if int(random_wall_center_window_size) < 0:
+            raise ValueError("random_wall_center_window_size must be non-negative.")
+        if int(random_wall_center_window_size) > min(width, height):
+            raise ValueError("random_wall_center_window_size must fit inside the grid.")
         if (
             not isinstance(write_bits, (int, np.integer))
             or write_bits <= 0
@@ -997,7 +1052,7 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         self.open_cell_count = int(self.open_flat_indices.size)
 
     def _build_obstacle_bank(self) -> np.ndarray:
-        if not self.maze_obstacles:
+        if not self.maze_obstacles and not self.random_wall_obstacles:
             return np.zeros((1, self.height, self.width), dtype=bool)
         return np.stack(
             [
@@ -1008,6 +1063,22 @@ class AntByteForagingEnv(gym.Env[ObsType, np.ndarray]):
         )
 
     def _build_obstacle_grid(self, *, seed: int) -> np.ndarray:
+        if self.random_wall_obstacles:
+            obstacles = generate_random_wall_obstacles(
+                width=self.width,
+                height=self.height,
+                wall_count_min=self.random_wall_count_min,
+                wall_count_max=self.random_wall_count_max,
+                wall_length_min=self.random_wall_length_min,
+                wall_length_max=self.random_wall_length_max,
+                wall_width=self.random_wall_width,
+                l_turn_probability=self.random_wall_l_turn_probability,
+                center_window_size=self.random_wall_center_window_size,
+                seed=seed,
+            )
+            if not np.any(~obstacles):
+                raise ValueError("random wall obstacle layout must contain at least one open cell.")
+            return obstacles
         if not self.maze_obstacles:
             return np.zeros((self.height, self.width), dtype=bool)
         obstacles = generate_wide_corridor_maze(
