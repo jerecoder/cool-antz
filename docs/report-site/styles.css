@@ -823,6 +823,131 @@ figcaption {
   color: var(--muted);
 }
 
+#chapter-3-lethal-cookies > .chapter-header {
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  margin-bottom: 1.6em;
+  border-block: 2px solid var(--line);
+  padding: 1.2em 0 1.3em;
+}
+
+#chapter-3-lethal-cookies > .chapter-header .chapter-number {
+  width: 3.1rem;
+  height: 3.1rem;
+  font-size: 1.1rem;
+}
+
+#chapter-3-lethal-cookies > .chapter-header h2 {
+  max-width: 20em;
+  margin: 0.05em 0 0.35em;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  line-height: 1.05;
+}
+
+#chapter-3-lethal-cookies > .chapter-header p {
+  max-width: 60em;
+  font-size: 1.08rem;
+}
+
+.lethal-mechanism-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.62fr);
+  gap: 1.35em;
+  align-items: start;
+}
+
+.lethal-mechanism-layout .step-copy p,
+.lethal-mechanism-layout .experiment-note p,
+.lethal-media-layout .step-copy p,
+.lethal-media-layout .experiment-note p {
+  max-width: none;
+}
+
+.lethal-fact-panel {
+  border-block: 1px solid var(--line);
+  padding: 0.85em 0 0.95em;
+}
+
+.lethal-fact-panel p {
+  margin: 0.7em 0 0;
+  color: var(--muted);
+  line-height: 1.42;
+}
+
+.lethal-fact-grid {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0.75em 0 0;
+}
+
+.lethal-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 1em 0;
+}
+
+.lethal-media-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.72fr);
+}
+
+.lethal-side-stack {
+  display: grid;
+  gap: 1.1em;
+  align-self: start;
+}
+
+.lethal-side-stack figure {
+  margin: 0;
+}
+
+.lethal-gif-card video,
+.lethal-gif-card img,
+.lethal-figure-grid video,
+.lethal-figure-grid img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper-warm);
+  object-fit: contain;
+}
+
+.lethal-gif-card video,
+.lethal-gif-card img {
+  aspect-ratio: 1 / 1;
+}
+
+.lethal-gif-card figcaption a {
+  border-bottom: 1px solid currentColor;
+  color: var(--blue-ink);
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.lethal-figure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1em;
+  margin-top: 1.05em;
+  padding-left: 5rem;
+}
+
+.lethal-figure-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lethal-figure-grid figure {
+  margin: 0;
+}
+
+.lethal-figure-grid img,
+.lethal-figure-grid video {
+  aspect-ratio: 4 / 3;
+}
+
+.lethal-figure-grid figcaption {
+  margin: 0.55em 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
 #chapter-4-adversarial > .chapter-header {
   grid-template-columns: 4.5rem minmax(0, 1fr);
   margin-bottom: 1.6em;
@@ -1668,6 +1793,22 @@ li + li {
   .chapter-placeholder {
     margin-left: 0;
   }
+
+  .lethal-mechanism-layout,
+  .lethal-media-layout {
+    grid-template-columns: 1fr;
+    padding-left: 0;
+  }
+
+  .lethal-figure-grid,
+  .lethal-figure-grid-three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-left: 0;
+  }
+
+  .lethal-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1765,6 +1906,12 @@ li + li {
   }
 
   .step-video-sequence {
+    padding-left: 0;
+  }
+
+  .lethal-figure-grid,
+  .lethal-figure-grid-three {
+    grid-template-columns: 1fr;
     padding-left: 0;
   }
 

@@ -38,6 +38,9 @@
           <a class="button" href="#policy-search">Política óptima</a>
         </span>
         <span class="link">
+          <a class="button" href="#chapter-3-lethal-cookies">Cap. 3 lethal cookies</a>
+        </span>
+        <span class="link">
           <a class="button" href="#chapter-4-adversarial">Cap. 4 adversarial</a>
         </span>
         <span class="link">
@@ -401,13 +404,8 @@
                 <div class="experiment-note" aria-label="Resultado del currículo de tamaño">
                   <span class="kicker">resultado</span>
                   <p>
-                    En
-                    <a
-                      href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/7x48rdlw"
-                      target="_blank"
-                      rel="noreferrer"
-                    >este</a>
-                    run repetimos el curriculum <code>8x8 -> 50x50</code> sin
+                    En una corrida del curriculum <code>8x8 -> 50x50</code>
+                    repetimos el entrenamiento sin
                     shaping durante el probe: el reward de entrenamiento es
                     reward de entorno, es decir, entrega de comida al
                     hormiguero. El warm-start venía de un checkpoint anterior,
@@ -988,27 +986,498 @@
         </div>
       </section>
 
-      <section id="chapter-3-lethal-cookies" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-3-title">
+      <section id="chapter-3-lethal-cookies" class="story-chapter simple-chapter lethal-chapter" aria-labelledby="chapter-3-title">
         <div class="chapter-header">
           <span class="chapter-number">3</span>
           <div>
-            <span class="kicker">placeholder</span>
+            <span class="kicker">seguridad y evidencia social</span>
             <h2 id="chapter-3-title">Lethal Cookies - La traición de las galletas</h2>
             <p>
-              Capítulo para introducir entornos donde algunas galletas dejan de
-              ser recompensa obvia y pasan a ser riesgo: exploración, señales de
-              peligro y políticas que deben aprender a no perseguir todo lo que
-              parece comida.
+              Esta rama agrega una dificultad distinta al forrajeo clásico:
+              algunas galletas se ven exactamente igual que las normales, pero
+              matan a la hormiga que intenta tomarlas. La idea era ver si la
+              colonia podía aprender una regla social simple: una galleta junto
+              a hormigas muertas no debería tratarse igual que una galleta sin
+              cadáveres alrededor.
             </p>
           </div>
         </div>
-        <div class="chapter-placeholder">
-          <span class="kicker">pendiente</span>
-          <p>
-            Acá se documentarán la definición del env, el reward, los videos y
-            los primeros resultados con cookies letales.
-          </p>
-        </div>
+
+        <ol class="story-steps chapter-steps lethal-steps" aria-label="Subsecciones del capítulo lethal cookies">
+          <li class="story-step" id="lethal-mechanism">
+            <div class="step-header">
+              <span class="step-index">3A</span>
+              <div>
+                <span class="kicker">mecanismo</span>
+                <h3>Veneno indistinguible, cadáveres observables</h3>
+              </div>
+            </div>
+            <div class="step-layout step-layout-wide lethal-mechanism-layout">
+              <div class="step-copy">
+                <p class="step-claim">
+                  La galleta letal no está marcada en la observación: para la
+                  política se ve como comida común hasta que una hormiga muere.
+                </p>
+                <p>
+                  En el estado interno del entorno, la comida segura y la comida
+                  letal se guardan en grillas separadas. En la observación, en
+                  cambio, ambas se proyectan al mismo canal de comida visible.
+                  Esa decisión es central: el actor no recibe un canal que diga
+                  "esto es veneno".
+                </p>
+                <p>
+                  Lo nuevo es la señal social. Cuando hay comida letal, el
+                  entorno agrega <code>dead_ants_count</code>. Si ese canal está
+                  presente, el actor lo incorpora como otro parche local
+                  orientado; el crítico lo recibe como mapa global durante
+                  entrenamiento.
+                </p>
+                <div class="experiment-note">
+                  <span class="kicker">qué se mantiene</span>
+                  <p class="experiment-note-lead">
+                    No cambia la forma de actuar de las hormigas.
+                  </p>
+                  <p>
+                    El actor sigue produciendo dos decisiones por hormiga:
+                    movimiento y escritura. El entorno sigue premiando entregas
+                    en el nido y mantiene la memoria escrita en el mapa. La
+                    diferencia es que ahora una acción de pickup sobre comida
+                    letal mata a la hormiga, deja su cuerpo como señal local y
+                    agrega una penalización por muerte.
+                  </p>
+                </div>
+              </div>
+              <aside class="lethal-fact-panel" aria-label="Definición técnica del cambio lethal cookies">
+                <span class="kicker">definición técnica</span>
+                <dl class="metric-grid lethal-fact-grid">
+                  <div>
+                    <dt>input actor</dt>
+                    <dd>canales locales orientados: <code>food</code>, <code>ants_count</code>, <code>dead_ants_count</code>, bits de <code>bytes</code>, hub y borde/obstáculos; más identidad, carga y facing</dd>
+                  </div>
+                  <div>
+                    <dt>input crítico</dt>
+                    <dd>posiciones, carga, facing, mapas globales de vivas/muertas, comida visible, bytes, hub y tamaño de grilla</dd>
+                  </div>
+                  <div>
+                    <dt>output actor</dt>
+                    <dd><code>move</code> en 5 acciones + <code>write_value</code> en <code>2 ** write_bits</code></dd>
+                  </div>
+                  <div>
+                    <dt>output crítico</dt>
+                    <dd>un valor escalar para estimar ventaja durante MAPPO</dd>
+                  </div>
+                  <div>
+                    <dt>muerte</dt>
+                    <dd>pickup letal mata, congela el cuerpo y descuenta <code>death_penalty</code></dd>
+                  </div>
+                </dl>
+                <p>
+                  En la configuración base se usó una fuente segura y una fuente
+                  letal, ambas con 50 unidades, <code>death_penalty=1.0</code> y
+                  warm-start desde el checkpoint positivo.
+                </p>
+              </aside>
+            </div>
+          </li>
+
+          <li class="story-step" id="lethal-open-results">
+            <div class="step-header">
+              <span class="step-index">3B</span>
+              <div>
+                <span class="kicker">experimento base</span>
+                <h3>Lethal cookies en mapa abierto</h3>
+              </div>
+            </div>
+            <div class="step-layout lethal-media-layout">
+              <div class="step-copy">
+                <p class="step-claim">
+                  El mapa abierto no se resolvió de forma robusta, pero sí dejó
+                  una señal visual útil.
+                </p>
+                  <p>
+                    En este primer escenario, la política debía seguir forrajeando
+                    mientras aprendía a no tomar la fuente peligrosa. El setting
+                    era un mapa abierto de 50x50, con muchas galletas distribuidas
+                    en el mapa y fuentes seguras y letales muestreadas en
+                    posiciones aleatorias. La fracción entregada mide qué proporción de las
+                    galletas seguras disponibles terminó efectivamente en el nido.
+                  </p>
+                  <p>
+                    La corrida larga de 160 mil updates terminó cerca de reward 0.
+                    La interpretación más clara es que la política encontró una
+                    respuesta conservadora: no agarrar galletas para no arriesgar
+                    una muerte. Eso evita la penalización letal, pero también
+                    abandona el objetivo de forrajear.
+                  </p>
+                  <p>
+                    Para corregir ese colapso se subió el <code>pickup_bonus</code>:
+                    un término de reward de shaping que se suma cuando una hormiga
+                    levanta una galleta. Sí es reward, pero no es la reward
+                    principal de entrega al nido; sólo incentiva que la política
+                    vuelva a intentar pickups. Con ese empuje, el mejor checkpoint
+                    de 80 mil updates vuelve a tomar riesgo, recupera entregas y
+                    mejora la fracción entregada. Aun así, la curva sigue siendo
+                    inestable: no es una convergencia limpia, sino una política
+                    parcialmente útil.
+                </p>
+                <p>
+                  El rollout de evaluación donde mejor se ve esa corrida de 80
+                  mil updates es el anillo controlado: muchas galletas seguras
+                  alrededor del nido y una fuente letal cercana. Ahí se ve que,
+                  aunque el entrenamiento sea irregular, la política sí aprende
+                  a ignorar la galleta letal asociada a cadáveres mientras sigue
+                  explotando comida segura.
+                </p>
+                <dl class="metric-grid lethal-metric-grid" aria-label="Métricas de lethal cookies abierto">
+                  <div>
+                    <dt>mejor caso abierto</dt>
+                    <dd>4.75 entregas</dd>
+                  </div>
+                  <div>
+                    <dt>fracción entregada</dt>
+                    <dd>9.5%</dd>
+                  </div>
+                  <div>
+                    <dt>retorno evaluación</dt>
+                    <dd>4.375</dd>
+                  </div>
+                  <div>
+                    <dt>lectura</dt>
+                    <dd>parcial, no resuelto</dd>
+                  </div>
+                </dl>
+              </div>
+              <figure class="step-media lethal-gif-card">
+                <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/lethal-cookies/media/hub_ring_poster.jpg">
+                  <source src="report-site/assets/lethal-cookies/media/hub_ring.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>Anillo seguro con fuente letal cercana.</strong> La
+                  colonia toma galletas normales y evita la fuente asociada a
+                  cadáveres. <a href="report-site/assets/lethal-cookies/media/hub_ring.gif">GIF</a>
+                </figcaption>
+              </figure>
+            </div>
+            <div class="lethal-figure-grid">
+              <figure>
+                <img src="report-site/assets/lethal-cookies/figures/lethal_open_fraction.png" alt="Fracción entregada en lethal cookies abierto">
+                <figcaption>
+                  La mejor fracción queda por debajo del 10%; esto es señal
+                  parcial, no solución del entorno abierto.
+                </figcaption>
+              </figure>
+              <figure>
+                <img src="report-site/assets/lethal-cookies/figures/training_return_lethal_open.png" alt="Retornos de entrenamiento en lethal cookies abierto">
+                <figcaption>
+                  La corrida de 160 mil updates cae hacia una política de no
+                  agarrar galletas; con más <code>pickup_bonus</code>, la de 80
+                  mil updates vuelve a explorar pickups, aunque todavía con
+                  mucha variación.
+                </figcaption>
+              </figure>
+            </div>
+          </li>
+
+          <li class="story-step" id="lethal-random-walls">
+            <div class="step-header">
+              <span class="step-index">3C</span>
+              <div>
+                <span class="kicker">evolución curricular</span>
+                <h3>De random walls a near-nest walls</h3>
+              </div>
+            </div>
+            <div class="step-layout lethal-media-layout">
+              <div class="step-copy">
+                <p class="step-claim">
+                  El problema apareció al evaluar la política de mapa abierto en
+                  laberintos fijos.
+                </p>
+                  <p>
+                    En esos rollouts de test apareció una falla doble. Por un
+                    lado, la política no seguía trayectorias consistentes cuando
+                    la observación quedaba cortada por paredes. Por otro, cuando
+                    la cookie letal aparecía cerca de pasillos o cuartos laterales,
+                    la asociación entre cadáveres cercanos y fuente peligrosa
+                    dejaba de ser confiable.
+                  </p>
+                  <p>
+                    Una hipótesis razonable es que el entrenamiento abierto había
+                    visto cookies letales en una geometría demasiado específica:
+                    fuentes letales cerca del hormiguero y normalmente lejos de paredes.
+                    El agente podía aprender una regla local útil para ese caso,
+                    pero no para una cookie letal mezclada con obstáculos. En el
+                    mismo rollout de laberinto, incluso cuando una hormiga no
+                    moría al encontrar la fuente letal, tampoco lograba salir del
+                    cuarto y continuar el recorrido de forma estable.
+                </p>
+              </div>
+              <figure class="step-media lethal-gif-card">
+                <video autoplay loop muted playsinline controls preload="metadata">
+                  <source src="report-site/assets/lethal-cookies/media/maze_side_pocket_pretransfer.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                    <strong>Laberinto fijo de test.</strong> Las paredes degradan la
+                    navegación y vuelven frágil la asociación entre cadáveres y
+                    fuente letal cerca de cuartos laterales.
+                </figcaption>
+              </figure>
+            </div>
+            <div class="step-layout lethal-media-layout">
+              <div class="step-copy">
+                <p class="step-claim">
+                  La solución fue incluir paredes en la distribución de
+                  entrenamiento.
+                </p>
+                <p>
+                  Random walls usó segmentos de pared aleatorios, comida segura
+                    y comida letal en el mismo mapa. La dificultad ya no era sólo
+                    "no tomar cookies letales"; también había que rodear obstáculos,
+                  mantener rutas útiles y seguir entregando comida.
+                </p>
+                  <p>
+                    En evaluación, random walls volvió a mostrar una señal
+                    positiva: la colonia podía dejar sin tomar la cookie letal.
+                    Como subresultado, en una escena con una única fuente letal
+                    cerca de comida segura se ve que el cadáver puede inducir una
+                    zona local de exclusión, incluso cuando la hormiga muerta no
+                    está exactamente en el mismo tile que la galleta.
+                  </p>
+                  <p>
+                    El límite fue la navegación. Todavía no se veían trayectorias
+                    satisfactorias alrededor de paredes: con varias galletas cerca
+                    del hormiguero, la política podía conseguir reward sin aprender
+                    recorridos largos condicionados por obstáculos. Ese diagnóstico
+                    motivó el siguiente experimento.
+                </p>
+                <dl class="metric-grid lethal-metric-grid" aria-label="Métricas de random walls">
+                  <div>
+                    <dt>setting</dt>
+                    <dd>random walls</dd>
+                  </div>
+                  <div>
+                    <dt>entregas</dt>
+                    <dd>2.5</dd>
+                  </div>
+                  <div>
+                    <dt>fracción</dt>
+                    <dd>5%</dd>
+                  </div>
+                  <div>
+                    <dt>lectura</dt>
+                    <dd>positivo débil</dd>
+                  </div>
+                </dl>
+              </div>
+              <figure class="step-media lethal-gif-card">
+                <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/lethal-cookies/media/random_walls_poster.jpg">
+                  <source src="report-site/assets/lethal-cookies/media/random_walls.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                    <strong>Paredes aleatorias con cookies letales.</strong> Entrenamiento
+                  y evaluación mezclan dificultad espacial con evidencia social.
+                  <a href="report-site/assets/lethal-cookies/media/random_walls.gif">GIF</a>
+                </figcaption>
+              </figure>
+            </div>
+              <div class="step-layout lethal-media-layout">
+                <div class="step-copy">
+                  <p class="step-claim">
+                    Near-nest walls fue el tercer paso: un setting más controlado
+                    para forzar navegación con paredes sin quitar cookies letales.
+                  </p>
+                  <p>
+                    Esta variante redujo la cantidad de comida segura y la ubicó
+                    lejos del hormiguero, de modo que entregar comida exigiera
+                    recorrer trayectorias más largas y esquivar paredes. La fuente
+                    letal se mantuvo en el entorno para que la política no olvidara
+                    el problema original: algunas cookies visualmente normales
+                    matan al agente si las toma.
+                  </p>
+                  <p>
+                    En los rollouts de evaluación mostrados, la cookie letal no se
+                    dejó pegada al hormiguero: se la colocó más lejos para
+                    verificar que la política no estuviera aprendiendo solamente
+                    una regla de cercanía al nido. La pregunta era si la colonia
+                    podía usar cadáveres y paredes como señales locales, no sólo
+                    evitar una zona fija.
+                  </p>
+                  <p>
+                    El resultado principal es que las hormigas empiezan a esquivar
+                    paredes de forma activa: sus trayectorias cambian con los
+                    obstáculos y aun así mantienen la fuente letal sin explotar.
+                    Por eso el resultado es más fuerte que random walls, aunque
+                    sigue siendo acotado a una distribución guiada.
+                  </p>
+                <dl class="metric-grid lethal-metric-grid" aria-label="Métricas de near-nest walls">
+                  <div>
+                    <dt>setting</dt>
+                    <dd>near-nest</dd>
+                  </div>
+                  <div>
+                    <dt>entregas</dt>
+                    <dd>12/12</dd>
+                  </div>
+                  <div>
+                    <dt>fracción</dt>
+                    <dd>100%</dd>
+                  </div>
+                  <div>
+                    <dt>lectura</dt>
+                    <dd>éxito acotado</dd>
+                  </div>
+                </dl>
+              </div>
+              <figure class="step-media lethal-gif-card">
+                <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/lethal-cookies/media/near_nest_poster.jpg">
+                  <source src="report-site/assets/lethal-cookies/media/near_nest.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                    <strong>Near-nest walls.</strong> Completa la comida segura
+                    con fuente letal presente, pero en una distribución mucho más
+                  controlada.
+                </figcaption>
+              </figure>
+            </div>
+            <div class="lethal-figure-grid">
+              <figure>
+                <img src="report-site/assets/lethal-cookies/figures/lethal_curriculum_fraction.png" alt="Fracción entregada en variantes con veneno">
+                  <figcaption>
+                    La fracción deja clara la diferencia entre la señal parcial de
+                    random walls y el éxito acotado de near-nest.
+                  </figcaption>
+              </figure>
+              <figure>
+                <img src="report-site/assets/lethal-cookies/figures/lethal_curriculum_delivered_food.png" alt="Entregas en variantes con veneno">
+                <figcaption>
+                  Near-nest es el resultado completo dentro de esta familia, no
+                  una prueba de generalización universal.
+                </figcaption>
+              </figure>
+            </div>
+          </li>
+
+          <li class="story-step terminal-step" id="lethal-transfer">
+            <div class="step-header">
+              <span class="step-index">3D</span>
+              <div>
+                <span class="kicker">transferencia y futuro</span>
+                <h3>Transfer 60: recompensa mejor, política peor</h3>
+              </div>
+            </div>
+              <div class="step-layout lethal-media-layout">
+                <div class="step-copy">
+                  <p class="step-claim">
+                    La idea era combinar navegación ya convergida con el
+                    aprendizaje de paredes y cookies letales.
+                  </p>
+                  <p>
+                    El experimento de transferencia retomó la idea de near-nest
+                    walls, pero arrancando desde un checkpoint ya convergido en el
+                    mapa abierto sin lethal cookies. Ese checkpoint entregaba el
+                    100% de las galletas y tenía una conducta reconocible: recorría
+                    el mapa con una especie de barrido horario.
+                  </p>
+                  <p>
+                    La hipótesis era que esa navegación previa iba a sobrevivir al
+                    fine-tuning con paredes y cookies letales. En las curvas la
+                    continuación podía parecer prometedora, pero al mirar la
+                    política aparecía un modo de falla claro: muchas hormigas
+                    terminaban yendo hacia la izquierda y evitando agarrar galletas
+                    antes que arriesgarse a tomar una letal. En otras palabras, el
+                    fine-tuning empeoró la navegación: la política sacrificó
+                    cobertura del mapa y pickups para reducir la probabilidad de
+                    tocar una cookie letal.
+                  </p>
+                <p>
+                  La comparación corta contra larga resume el problema. Con 100
+                  updates, la transferencia todavía conserva parte del
+                  comportamiento útil: 8.125 entregas y 67.7% de la tarea. Con
+                  1000 updates, cae a 3.875 entregas, 32.3% y retorno de
+                  evaluación negativo. La métrica agregada no alcanza para
+                  describir la pérdida de navegación.
+                </p>
+                <dl class="metric-grid lethal-metric-grid" aria-label="Métricas de transferencia con 60 hormigas">
+                  <div>
+                    <dt>100 updates</dt>
+                    <dd>8.125 entregas</dd>
+                  </div>
+                  <div>
+                    <dt>fracción temprana</dt>
+                    <dd>67.7%</dd>
+                  </div>
+                  <div>
+                    <dt>1000 updates</dt>
+                    <dd>3.875 entregas</dd>
+                  </div>
+                  <div>
+                    <dt>retorno tardío</dt>
+                    <dd>-46.125</dd>
+                  </div>
+                </dl>
+                <div class="experiment-note">
+                  <span class="kicker">laberinto de transferencia</span>
+                  <p class="experiment-note-lead">
+                    El laberinto muestra una mejora y una pérdida al mismo
+                    tiempo.
+                  </p>
+                  <p>
+                    En la prueba en L, las hormigas logran entrar a un cuarto
+                    con una galleta letal y la ignoran satisfactoriamente. Pero
+                    también se ve el costo: navegan peor, pierden la capacidad
+                    de salir del cuarto de forma consistente y no continúan el
+                    laberinto para completar la tarea.
+                  </p>
+                </div>
+                <div class="experiment-note">
+                  <span class="kicker">trabajo futuro</span>
+                  <p class="experiment-note-lead">
+                    La penalización por muerte debería entrar como curriculum,
+                    no como castigo rígido desde el comienzo.
+                  </p>
+                  <p>
+                    Una línea natural es hacer scheduling de
+                    <code>death_penalty</code>: empezar con una penalidad que
+                    permita explorar y aprender qué fuentes son útiles, y
+                    endurecerla gradualmente cuando la política ya conserva
+                    navegación. También conviene seleccionar checkpoints con
+                    métricas de cobertura o diversidad de trayectorias, no sólo
+                    con retorno agregado.
+                  </p>
+                </div>
+              </div>
+                <div class="lethal-side-stack">
+                  <figure class="step-media lethal-gif-card">
+                    <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/lethal-cookies/media/random_walls_active_poster.jpg">
+                      <source src="report-site/assets/lethal-cookies/media/random_walls_active.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>
+                      <strong>Transferencia tardía.</strong> Hay navegación parcial,
+                      pero también sesgo espacial: una política que evita arriesgarse
+                      puede dejar de forrajear. <a href="report-site/assets/lethal-cookies/media/random_walls_active.gif">GIF</a>
+                    </figcaption>
+                  </figure>
+                  <figure class="step-media lethal-gif-card">
+                    <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/lethal-cookies/media/maze_stress_poster.jpg">
+                      <source src="report-site/assets/lethal-cookies/media/maze_stress.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>
+                      <strong>Laberinto en L.</strong> Ignora la galleta letal dentro
+                      del cuarto, pero la navegación posterior queda degradada.
+                    </figcaption>
+                  </figure>
+                </div>
+              </div>
+              <div class="lethal-figure-grid">
+                <figure>
+                  <img src="report-site/assets/lethal-cookies/figures/summary_delivered_food.png" alt="Entregas absolutas incluyendo transferencia">
+                  <figcaption>
+                  Las entregas absolutas deben leerse junto con los videos: más
+                  recompensa no siempre implica mejor política.
+                </figcaption>
+              </figure>
+            </div>
+          </li>
+        </ol>
       </section>
 
       <section id="chapter-4-adversarial" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-4-title">
