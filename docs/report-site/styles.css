@@ -756,6 +756,18 @@ figcaption {
   background-image: url("assets/posters/tree-world.jpg");
 }
 
+.policy-tabs button[data-policy="directBaseline"]::before {
+  background-image: url("assets/posters/tree-direct-baseline.jpg");
+}
+
+.policy-tabs button[data-policy="mapAntCurriculum16"]::before {
+  background-image: url("assets/posters/tree-map-ant-curriculum.jpg");
+}
+
+.policy-tabs button[data-policy="mapAntGates16"]::before {
+  background-image: url("assets/posters/tree-map-ant-validation-gates.jpg");
+}
+
 .policy-tabs button[data-policy].active::before,
 .policy-tabs button[data-policy]:hover::before {
   border-color: #d2b178;

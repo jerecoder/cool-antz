@@ -19,6 +19,17 @@
         row: 1,
       },
       {
+        id: "direct-baseline",
+        href: "#direct-baseline",
+        label: "Baseline directa",
+        small: "10000 updates, 0/48",
+        poster: "report-site/assets/posters/tree-direct-baseline.jpg",
+        alt: "Fotograma del rollout R5 de reward shaping usado como evidencia de baseline directa fallida",
+        kind: "side",
+        row: 1,
+        depthOffset: 2,
+      },
+      {
         id: "audit-ledger",
         href: "#audit-ledger",
         label: "Auditoría completa",
@@ -38,6 +49,28 @@
         alt: "Fotograma del currículo temprano de tamaño de mapa",
         kind: "main",
         children: [
+          {
+            id: "map-ant-curriculum",
+            href: "#map-ant-curriculum",
+            label: "Curriculum manual",
+            small: "16x16 sin gates",
+            poster: "report-site/assets/posters/tree-map-ant-curriculum.jpg",
+            alt: "Fotograma del curriculum manual 16x16 con 4 hormigas",
+            kind: "side",
+            row: 2,
+            depthOffset: 2,
+          },
+          {
+            id: "map-ant-validation-gates",
+            href: "#map-ant-validation-gates",
+            label: "Validation gates",
+            small: "métricas pasan, escaleras",
+            poster: "report-site/assets/posters/tree-map-ant-validation-gates.jpg",
+            alt: "Fotograma del curriculum con validation gates y comportamiento en escaleras",
+            kind: "side",
+            row: 3,
+            depthOffset: 2,
+          },
           {
             id: "small-scale",
             href: "#small-scale",
@@ -652,6 +685,69 @@
       ],
       caveat:
         "Este ancla visual de línea base muestra la tarea antes de que el entrenamiento entre en la historia.",
+    },
+    directBaseline: {
+      label: "baseline directa",
+      title: "Baseline directa con reward shaping R5",
+      src: "report-site/assets/videos/direct-goal-reward-r5-excerpt.mp4",
+      caption:
+        "Excerpt de 75 segundos del rollout R5: un intento posterior con pickup_bonus=0.1 que muestra actividad, pero no una política robusta.",
+      metrics: [
+        ["video codificado", "800x800"],
+        ["fotogramas", "600 a 8 fps"],
+        ["baseline sparse", "50x50, 10 hormigas, 48 comida, 12 fuentes"],
+        ["baseline sparse updates", "10000 / 12.8M pasos"],
+        ["eval sparse determinista", "0.0/48, éxito 0.0"],
+        ["eval sparse muestreada", "0.0/48, éxito 0.0"],
+        ["R5 shaping", "pickup_bonus=0.1, 2.0M pasos"],
+        ["eval R5 determinista", "0.0/48, éxito 0.0"],
+        ["eval R5 muestreada", "8.125/48, éxito 0.0"],
+        ["pickups R5 muestreados", "15.625"],
+      ],
+      caveat:
+        "La lectura principal es negativa: después de entrenar directo, las métricas muestran que el entorno necesitaba currículos y estrategias alternativas.",
+    },
+    mapAntCurriculum16: {
+      label: "curriculum 16x16",
+      title: "Curriculum manual mapa+hormigas sin gates",
+      src: "report-site/assets/videos/map-ant-curriculum-16x16-4ants.mp4",
+      caption:
+        "Excerpt del rollout 16x16 con 4 hormigas del run map_ant_curriculum_1bit_sources2: un curriculum manual que crecía en mapa y colonia sin validar maestría antes de saltar.",
+      metrics: [
+        ["grilla de tarea", "16x16"],
+        ["hormigas", "4"],
+        ["familia", "map_ant_curriculum_1bit_sources2"],
+        ["bits de escritura", "1"],
+        ["checkpoint visual", "jax_mappo_forage_stage1_16x16_4_ants"],
+        ["video codificado", "800x800"],
+        ["fotogramas", "600 a 8 fps"],
+        ["duración", "75 s"],
+        ["lectura", "llegar a la etapa no equivale a dominarla"],
+      ],
+      caveat:
+        "Este artefacto se usa como evidencia visual del salto sin gates. No lo presentamos como benchmark cuantitativo 16x16 porque la evaluación preservada de esa carpeta no corresponde a este stage.",
+    },
+    mapAntGates16: {
+      label: "gates 16x16",
+      title: "Validation gates: 16x16 attempt 099",
+      src: "report-site/assets/videos/map-ant-validation-gates-16x16-stairs.mp4",
+      caption:
+        "Rollout completo del attempt 099 en 16x16 con 4 hormigas: las métricas pasan las gates, pero el video muestra el hack de escaleras.",
+      metrics: [
+        ["stage", "16x16, 4 hormigas"],
+        ["comida / fuentes", "14 bocados / 1 fuente"],
+        ["max steps", "1024"],
+        ["thresholds", "delivered >=0.95, success >=0.75, pickup-to-delivery >=0.9"],
+        ["largo máximo gate", "<=665 pasos"],
+        ["gate score", "1.0 en attempt 099"],
+        ["determinista", "13.875/14, éxito 0.875"],
+        ["det pickup-to-delivery", "0.996, largo 395.5"],
+        ["muestreada", "13.6875/14, éxito 0.875"],
+        ["sample pickup-to-delivery", "0.990, largo 464.1"],
+        ["video codificado", "800x800, 494 fotogramas a 8 fps"],
+      ],
+      caveat:
+        "Las gates corrigieron el salto ciego, pero no bastaron para aceptar la política: el comportamiento visual revela una solución explotada por el entorno.",
     },
     bigmap50: {
       label: "stress 1000",

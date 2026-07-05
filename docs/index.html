@@ -611,7 +611,10 @@
           <a href="#traceability">0b. Trazabilidad</a>
           <a href="#audit-ledger">0c. Auditoría</a>
           <a href="#world">1. Mundo</a>
+          <a href="#direct-baseline">1a. Baseline</a>
           <a href="#size-curriculum">1b. Tamaños</a>
+          <a href="#map-ant-curriculum">1c. Curriculum manual</a>
+          <a href="#map-ant-validation-gates">1d. Validation gates</a>
           <a href="#small-scale">2. Cuello</a>
           <a href="#unlock25">3. 25x25</a>
           <a href="#bits-ants">4. Bytes</a>
@@ -691,6 +694,85 @@
               <strong>Video / evidencia visual.</strong> Línea base aleatoria,
               576x576, 301 cuadros a 12 fps. Sirve para ver la tarea antes de que
               aparezca una política útil.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="direct-baseline" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">1a</span>
+          <div>
+            <h2>Baseline directa: entrenar así nomás no alcanzó</h2>
+            <p>
+              La dificultad no fue solo definir el entorno, sino entrenarlo. El
+              intento directo con MAPPO llegó a <code>10000</code> updates sin
+              descubrir ciclos fuente-hormiguero confiables: las métricas
+              quedaron en cero y el movimiento resultante parecía casi aleatorio.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Probar si una política podía aprender la tarea final desde cero:
+                mapa <code>50x50</code>, 10 hormigas, 48 unidades de comida, 12
+                fuentes, 5 bits de escritura y observación local de radio 1, con
+                comida y hormiguero aleatorizados.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto de la línea base</h3>
+              <p>
+                Ya no era solo una política aleatoria: era el primer entrenamiento
+                directo del entorno. La expectativa era que, con suficiente
+                interacción, MAPPO descubriera por sí solo el ciclo de buscar,
+                cargar, volver y entregar.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                Entrega media, fracción entregada, éxito, largo de episodio y
+                retorno. El resultado principal fue la evaluación shuffled tras
+                <code>12.8M</code> pasos: tanto en modo determinista como
+                muestreado entregó <code>0.0/48</code> y tuvo éxito
+                <code>0.0</code>.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                El video mostrado corresponde al intento posterior R5 con
+                <code>pickup_bonus=0.1</code>. Lo usamos porque visualmente deja
+                ver actividad, escritura y exploración; aun así, no resuelve la
+                tarea de forma robusta.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                R5 mejoró la evaluación muestreada hasta <code>8.125/48</code>,
+                con <code>15.625</code> pickups medios, pero la evaluación
+                determinista siguió en <code>0.0/48</code> y el éxito quedó en
+                <code>0.0</code>. La conclusión fue clara: entrenar directo era
+                demasiado frágil y necesitábamos currículos, shaping más
+                controlado y variantes del entorno.
+              </p>
+            </div>
+          </div>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/direct-goal-reward-r5-excerpt.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> Excerpt de 75 segundos
+              del rollout R5 con reward shaping. Es más informativo que el
+              baseline sparse puro, pero se interpreta como evidencia negativa:
+              actividad no significa aprendizaje robusto de entrega.
             </figcaption>
           </figure>
         </div>
@@ -854,6 +936,158 @@
               mezclados: cobertura multi-agente y descubrimiento de fuentes
               escasas.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="map-ant-curriculum" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">1c</span>
+          <div>
+            <h2>Curriculum manual: crecer sin validar maestría</h2>
+            <p>
+              Este intento no era autocurriculum: era una secuencia manual que
+              aumentaba mapa y cantidad de hormigas. La parte débil fue el
+              criterio de avance. Si una etapa se da por buena sin comprobar que
+              la política domina el desafío anterior, el siguiente tamaño hereda
+              exploración parcial en vez de una base estable.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/map-ant-curriculum-16x16-4ants.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Video / evidencia visual.</strong> Excerpt del stage
+              <code>16x16</code> con <code>4</code> hormigas del run
+              <code>map_ant_curriculum_1bit_sources2</code>. La actividad no
+              alcanza para tratar el mapa como dominado.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                Escalar desde tareas chicas hacia mapas más grandes aumentando
+                también la colonia, esperando que los ciclos locales de
+                búsqueda, pickup y retorno se conservaran.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto de la línea base</h3>
+              <p>
+                En vez de entrenar directo el ambiente completo, se reutilizaban
+                checkpoints entre etapas de mapa y hormigas. El salto de etapa
+                seguía siendo manual y no dependía de una prueba formal de
+                maestría.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                En esta corrida la evidencia útil para el reporte es visual:
+                llegar a <code>16x16</code> no implicaba que la política hubiera
+                aprendido el mapa de forma robusta.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                El rollout muestra movimiento y contacto con la tarea, pero no
+                ciclos fuente-hormiguero confiables. Esa diferencia entre
+                actividad y dominio fue el problema central.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                El curriculum manual era mejor hipótesis que entrenar todo de
+                cero, pero todavía podía avanzar demasiado pronto. La siguiente
+                iteración necesitaba gates explícitas: cantidad de entregas,
+                pickup-to-delivery y largo máximo de episodio antes de cambiar
+                de contrato.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="map-ant-validation-gates" class="story-chapter subchapter">
+        <div class="chapter-header">
+          <span class="chapter-number">1d</span>
+          <div>
+            <h2>Validation gates: pasar de etapa no era suficiente</h2>
+            <p>
+              La respuesta al salto ciego fue exigir señales mínimas de
+              maestría antes de transferir: entregas, tasa de éxito,
+              pickup-to-delivery y un límite de pasos. Eso volvió más serio el
+              curriculum, pero también dejó a la vista otro problema: una
+              política puede pasar métricas y aun así explotar detalles del
+              entorno.
+            </p>
+          </div>
+        </div>
+
+        <div class="evidence-pair">
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/map-ant-validation-gates-16x16-stairs.mp4" type="video/mp4">
+            </video>
+            <figcaption>
+              <strong>Video / evidencia visual.</strong>
+              <code>16x16</code>, <code>4</code> hormigas, attempt
+              <code>099</code>. Las gates pasan, pero el rollout revela el hack
+              de escaleras.
+            </figcaption>
+          </figure>
+          <div class="experiment-template">
+            <div>
+              <h3>Objetivo / hipótesis</h3>
+              <p>
+                No avanzar por cantidad de updates, sino por desempeño validado
+                en la etapa actual. La política debía demostrar entrega y
+                retorno antes de recibir un mapa más grande.
+              </p>
+            </div>
+            <div>
+              <h3>Cambio respecto del curriculum anterior</h3>
+              <p>
+                Se agregaron gates en evaluación determinista y muestreada:
+                fracción entregada, success rate, pickup-to-delivery y largo de
+                episodio menor a una fracción del horizonte máximo.
+              </p>
+            </div>
+            <div>
+              <h3>Qué medimos</h3>
+              <p>
+                En <code>16x16</code> con <code>14</code> comidas, el attempt
+                <code>099</code> logró gate score <code>1.0</code>. Entregó
+                <code>13.875/14</code> en determinista y <code>13.6875/14</code>
+                en muestreado, con success <code>0.875</code> en ambos modos.
+              </p>
+            </div>
+            <div>
+              <h3>Video / evidencia visual</h3>
+              <p>
+                El clip es el punto donde las métricas ya no alcanzan como
+                explicación completa: el comportamiento forma escaleras y
+                aprovecha la dinámica del entorno en vez de mostrar una política
+                limpia de navegación.
+              </p>
+            </div>
+            <div>
+              <h3>Lectura de resultados</h3>
+              <p>
+                Las gates resolvieron el problema de saltar sin maestría, pero
+                abrieron otro diagnóstico. Había que validar no solo cuánto se
+                entrega, sino cómo se consigue, porque una política puede
+                satisfacer el contrato numérico y seguir siendo un mal resultado
+                experimental.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -2340,6 +2574,9 @@
               <button type="button" data-policy="reset250">250 reset</button>
               <button type="button" data-policy="bigmap50">stress 1000</button>
               <button type="button" data-policy="random">azar</button>
+              <button type="button" data-policy="directBaseline">baseline directa</button>
+              <button type="button" data-policy="mapAntCurriculum16">curriculum 16x16</button>
+              <button type="button" data-policy="mapAntGates16">gates 16x16</button>
             </div>
             <dl id="policy-metrics" class="metrics-list"></dl>
             <p id="policy-caveat" class="caveat"></p>
