@@ -793,6 +793,195 @@ figcaption {
   padding-block: 1.25em;
 }
 
+.future-chapter {
+  border-top: 1px solid var(--line);
+  padding-top: clamp(1.15em, 2.5vw, 1.7em);
+}
+
+.future-chapter .chapter-header {
+  margin-bottom: 0.85em;
+}
+
+.future-chapter .chapter-header h2 {
+  max-width: 18em;
+}
+
+.future-chapter .chapter-header p {
+  max-width: 60em;
+}
+
+.chapter-placeholder {
+  margin-left: 4.2em;
+  border-left: 3px solid var(--line-strong);
+  background: #fffaf0;
+  padding: 0.75em 0 0.75em 1em;
+}
+
+.chapter-placeholder p {
+  max-width: 58em;
+  margin: 0.35em 0 0;
+  color: var(--muted);
+}
+
+#chapter-4-adversarial > .chapter-header {
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  margin-bottom: 1.6em;
+  border-block: 2px solid var(--line);
+  padding: 1.2em 0 1.3em;
+}
+
+#chapter-4-adversarial > .chapter-header .chapter-number {
+  width: 3.1rem;
+  height: 3.1rem;
+  font-size: 1.1rem;
+}
+
+#chapter-4-adversarial > .chapter-header h2 {
+  max-width: 20em;
+  margin: 0.05em 0 0.35em;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  line-height: 1.05;
+}
+
+#chapter-4-adversarial > .chapter-header p {
+  max-width: 58em;
+  font-size: 1.08rem;
+}
+
+.chapter-steps {
+  margin-left: 0;
+}
+
+#adversarial-env .adversarial-env-layout {
+  grid-template-columns: 1fr;
+  gap: 1.1em;
+}
+
+.adversarial-env-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(18rem, 0.72fr);
+  gap: 1.35em;
+  align-items: start;
+}
+
+.adversarial-env-top .step-copy p,
+.adversarial-env-top .experiment-note p {
+  max-width: none;
+}
+
+.adversarial-env-question .experiment-note-lead {
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+
+.adversarial-env-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1em 1.25em;
+}
+
+.adversarial-env-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 0.8em;
+}
+
+.adversarial-env-panel h4 {
+  margin: 0.1em 0 0.4em;
+  color: #243039;
+  font-size: 1.16rem;
+  line-height: 1.2;
+}
+
+.adversarial-env-panel p {
+  max-width: none;
+  margin: 0;
+}
+
+.adversarial-env-panel p + p,
+.adversarial-env-panel p + .environment-spec-list,
+.adversarial-env-panel .metric-grid + p {
+  margin-top: 0.65em;
+}
+
+.adversarial-env-panel .metric-grid {
+  margin: 0.7em 0;
+}
+
+.adversarial-env-wide {
+  grid-column: 1 / -1;
+}
+
+.adversarial-setup-layout {
+  gap: 1.1em;
+}
+
+.adversarial-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(17rem, 0.68fr);
+  gap: 1.25em;
+  align-items: start;
+}
+
+.adversarial-setup-grid .step-copy p,
+.adversarial-setup-grid .experiment-note p {
+  max-width: none;
+}
+
+.adversarial-protocol-panel {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 0.8em 0 0.9em;
+}
+
+.adversarial-protocol-panel h4 {
+  margin: 0.1em 0 0.6em;
+  color: #243039;
+  font-size: 1.16rem;
+  line-height: 1.2;
+}
+
+.adversarial-protocol-list {
+  display: grid;
+  gap: 0.7em;
+  margin: 0;
+}
+
+.adversarial-protocol-list div {
+  border-top: 1px solid rgba(178, 142, 83, 0.38);
+  padding-top: 0.55em;
+}
+
+.adversarial-protocol-list dt {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adversarial-protocol-list dd {
+  margin: 0.25em 0 0;
+  color: #243039;
+  font-weight: bold;
+  line-height: 1.3;
+}
+
+.adversarial-setup-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adversarial-frozen-baseline {
+  max-width: none;
+}
+
+.adversarial-frozen-baseline p {
+  max-width: none;
+}
+
+.adversarial-baseline-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .tree-svg {
   display: block;
   min-width: 1120px;
@@ -1475,6 +1664,10 @@ li + li {
   .tree-svg {
     min-width: 980px;
   }
+
+  .chapter-placeholder {
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1546,6 +1739,10 @@ li + li {
   .environment-layout,
   .environment-grid,
   .step-layout,
+  .adversarial-env-top,
+  .adversarial-env-details,
+  .adversarial-setup-grid,
+  .adversarial-setup-secondary,
   .step-video-sequence,
   .metric-grid,
   .intro-grid,

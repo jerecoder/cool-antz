@@ -38,6 +38,9 @@
           <a class="button" href="#policy-search">Política óptima</a>
         </span>
         <span class="link">
+          <a class="button" href="#chapter-4-adversarial">Cap. 4 adversarial</a>
+        </span>
+        <span class="link">
           <a class="button" href="evidence-ledger.html">Ledger de evidencia</a>
         </span>
       </div>
@@ -953,9 +956,9 @@
 
       <section id="training-close" class="story-chapter simple-chapter closing-block">
         <div class="chapter-header">
-          <span class="chapter-number">2</span>
+          <span class="chapter-number">1</span>
           <div>
-            <span class="kicker">cierre</span>
+            <span class="kicker">cierre del primer capítulo</span>
             <h2>Hasta acá llega el bloque de entrenamiento de política</h2>
             <p>
               Slot de conclusión: después de baseline, currículos, reinicios y
@@ -963,6 +966,426 @@
               una primera política válida. Desde ahí empieza otra historia.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section id="chapter-2-large-maps" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-2-title">
+        <div class="chapter-header">
+          <span class="chapter-number">2</span>
+          <div>
+            <span class="kicker">placeholder</span>
+            <h2 id="chapter-2-title">Mapas más grandes, hormigueros enormes</h2>
+            <p>
+              Capítulo para contar qué pasa después de obtener una política
+              válida: escalar tamaño de mapa, cantidad de hormigas, cobertura,
+              congestión y comunicación en colonias mucho más grandes.
+            </p>
+          </div>
+        </div>
+        <div class="chapter-placeholder">
+          <span class="kicker">pendiente</span>
+          <p>
+            Acá van rollouts y métricas de escalado: mapas grandes, más agentes,
+            eficiencia por pasos-hormiga y límites de coordinación.
+          </p>
+        </div>
+      </section>
+
+      <section id="chapter-3-lethal-cookies" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-3-title">
+        <div class="chapter-header">
+          <span class="chapter-number">3</span>
+          <div>
+            <span class="kicker">placeholder</span>
+            <h2 id="chapter-3-title">Lethal Cookies - La traición de las galletas</h2>
+            <p>
+              Capítulo para introducir entornos donde algunas galletas dejan de
+              ser recompensa obvia y pasan a ser riesgo: exploración, señales de
+              peligro y políticas que deben aprender a no perseguir todo lo que
+              parece comida.
+            </p>
+          </div>
+        </div>
+        <div class="chapter-placeholder">
+          <span class="kicker">pendiente</span>
+          <p>
+            Acá se documentarán la definición del env, el reward, los videos y
+            los primeros resultados con cookies letales.
+          </p>
+        </div>
+      </section>
+
+      <section id="chapter-4-adversarial" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-4-title">
+        <div class="chapter-header">
+          <span class="chapter-number">4</span>
+          <div>
+            <span class="kicker">placeholder</span>
+            <h2 id="chapter-4-title">Entrenamiento adversarial - Dos hormigueros en búsqueda de galletas</h2>
+            <p>
+              Capítulo para reconstruir la historia del entorno adversarial:
+              dos colonias compitiendo por comida, pérdida de la política
+              previa al empezar a entrenar, anclaje con KL para no olvidar y el
+              primer resultado estable con un equipo freeze y otro en training.
+            </p>
+          </div>
+        </div>
+        <ol class="story-steps chapter-steps" aria-label="Bloques pendientes del capítulo adversarial">
+          <li class="story-step" id="adversarial-env">
+            <div class="step-header">
+              <span class="step-index">4A</span>
+              <div>
+                <span class="kicker">nuevo problema</span>
+                <h3>El entorno adversarial</h3>
+              </div>
+            </div>
+            <div class="step-layout adversarial-env-layout">
+              <div class="adversarial-env-top">
+                <div class="step-copy">
+                  <p class="step-claim">
+                    El ambiente adversarial no cambia la mecánica central de
+                    AntByte: cambia quién puede usar y modificar la memoria
+                    escrita en el mundo.
+                  </p>
+                  <p>
+                    Partimos del mismo AntByte: hormigas locales, comida
+                    dispersa, escritura sobre el mapa y políticas sin memoria
+                    recurrente. La diferencia es que ahora hay dos colonias
+                    sobre el mismo tablero: dos hubs, comida compartida y un
+                    único grid de bytes que ambos equipos pueden leer y
+                    sobrescribir.
+                  </p>
+                  <div class="experiment-note" aria-label="Cambios del entorno adversarial">
+                    <span class="kicker">qué cambia</span>
+                    <ul class="environment-spec-list">
+                      <li>Una colonia pasa a ser dos equipos.</li>
+                      <li>Un hub pasa a ser dos hubs.</li>
+                      <li><code>N</code> hormigas pasan a ser <code>2N</code>.</li>
+                      <li>Comida y bytes siguen siendo compartidos.</li>
+                      <li>Cada hormiga entrega sólo en el hub de su equipo.</li>
+                    </ul>
+                  </div>
+                  <div class="experiment-note adversarial-env-question" aria-label="Pregunta central del entorno adversarial">
+                    <span class="kicker">pregunta central</span>
+                    <p class="experiment-note-lead">
+                      Antes buscábamos que una colonia aprendiera a usar el
+                      mundo como memoria propia.
+                    </p>
+                    <p>
+                      En el ambiente adversarial, la pregunta es si esa misma
+                      memoria compartida también puede usarse para manipular el
+                      mapa, empeorar el retorno del rival y disputar el control
+                      de las señales escritas.
+                    </p>
+                  </div>
+                </div>
+                <figure class="step-media">
+                  <video autoplay loop muted playsinline controls preload="metadata">
+                    <source src="report-site/assets/videos/adversarial-midpoint-greedy-full-writes.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>
+                    <strong>Diagnóstico del ambiente adversarial.</strong> Rojo
+                    y azul representan equipos/roles. Los números sobre celdas
+                    coloreadas son valores escritos en el mapa; los números
+                    sobre hormigas indican varias hormigas del mismo equipo
+                    ocupando el mismo tile.
+                  </figcaption>
+                </figure>
+              </div>
+
+              <div class="adversarial-env-details" aria-label="Definición técnica del ambiente adversarial">
+                <article class="adversarial-env-panel">
+                  <span class="kicker">acciones</span>
+                  <h4>El mismo espacio, duplicado por equipo</h4>
+                  <p>
+                    El espacio de acciones no cambió respecto del ambiente
+                    principal: cada hormiga sigue eligiendo
+                    <code>(move, write_value)</code>. Lo que cambia es la
+                    cantidad de agentes: si cada equipo tiene <code>N</code>
+                    hormigas, el env adversarial compone acciones para
+                    <code>2N</code> hormigas.
+                  </p>
+                  <p>
+                    <code class="environment-formula">MultiDiscrete([5, 2 ** write_bits] * 2N)</code>
+                  </p>
+                  <p>
+                    Movimiento, escritura al mover y restricciones de escritura
+                    mantienen la misma semántica del entorno base.
+                  </p>
+                </article>
+
+                <article class="adversarial-env-panel">
+                  <span class="kicker">reward</span>
+                  <h4>Ventaja relativa entre colonias</h4>
+                  <dl class="metric-grid" aria-label="Reward adversarial por equipo">
+                    <div>
+                      <dt>reward rojo</dt>
+                      <dd><code>entregas_rojo - entregas_azul</code></dd>
+                    </div>
+                    <div>
+                      <dt>reward azul</dt>
+                      <dd><code>entregas_azul - entregas_rojo</code></dd>
+                    </div>
+                  </dl>
+                  <p>
+                    Cada entrega propia suma <code>+1</code>; cada entrega rival
+                    resta <code>-1</code>. El objetivo deja de ser sólo
+                    recolectar comida: pasa a ser maximizar la diferencia entre
+                    colonias.
+                  </p>
+                </article>
+
+                <article class="adversarial-env-panel adversarial-env-wide">
+                  <span class="kicker">observación</span>
+                  <h4>La misma observación local, ahora desde una perspectiva de equipo</h4>
+                  <p>
+                    El actor conserva la estructura local del ambiente principal.
+                    No recibe posición global del hub rival ni visión global de
+                    hormigas enemigas. El cambio es de perspectiva: lo que antes
+                    era ocupación y hub ahora se interpreta como propio o rival.
+                  </p>
+                  <ul class="environment-spec-list">
+                    <li>Comida, bordes, obstáculos, carga, facing, identidad y bytes mantienen su semántica base.</li>
+                    <li><code>ants</code>: hormigas propias positivas; hormigas rivales negativas.</li>
+                    <li><code>hub</code>: hub propio positivo; hub rival negativo si entra en visión.</li>
+                    <li>El grid de bytes es compartido: ambos equipos leen y escriben sobre la misma memoria externa.</li>
+                  </ul>
+                </article>
+              </div>
+            </div>
+          </li>
+
+          <li class="story-step" id="adversarial-setup">
+            <div class="step-header">
+              <span class="step-index">4B</span>
+              <div>
+                <span class="kicker">setup experimental</span>
+                <h3>De política cooperativa a rival congelado</h3>
+              </div>
+            </div>
+            <div class="step-layout step-layout-wide adversarial-setup-layout">
+              <div class="adversarial-setup-grid">
+                <div class="step-copy">
+                  <p class="step-claim">
+                    La experimentación adversarial no arrancó con self-play
+                    completo: entrenamos un equipo contra un rival congelado.
+                  </p>
+                  <p>
+                    Si dos políticas cambiaban al mismo tiempo, cualquier fallo
+                    podía venir del reward, del entorno, de la transferencia o
+                    de la propia inestabilidad de self-play. Por eso fijamos un
+                    oponente y dejamos que el learner se adaptara contra una
+                    dinámica estable.
+                  </p>
+                  <p>
+                    Ambos equipos arrancaron desde el mejor actor cooperativo
+                    del primer capítulo. No queríamos que el adversarial volviera
+                    a aprender desde cero cómo buscar comida; queríamos medir si
+                    una política que ya sabía forrajear podía aprender una señal
+                    nueva sobre un medio compartido.
+                  </p>
+                  <div class="experiment-note" aria-label="Crítico adversarial inicializado desde cero">
+                    <span class="kicker">crítico</span>
+                    <p class="experiment-note-lead">
+                      Se transfirió el actor, pero no el crítico.
+                    </p>
+                    <p>
+                      El crítico cooperativo estimaba valor de entrega; el nuevo
+                      objetivo era ventaja relativa:
+                      <code>own deliveries - opponent deliveries</code>. Por
+                      eso el crítico adversarial arrancó de cero y usamos una
+                      arquitectura MLP para esta rama experimental.
+                    </p>
+                  </div>
+                </div>
+                <aside class="adversarial-protocol-panel" aria-label="Protocolo frozen opponent">
+                  <span class="kicker">protocolo</span>
+                  <h4>Un actor útil, dos roles</h4>
+                  <dl class="adversarial-protocol-list">
+                    <div>
+                      <dt>learner</dt>
+                      <dd>actor cooperativo warm-started, entrenable</dd>
+                    </div>
+                    <div>
+                      <dt>opponent</dt>
+                      <dd>mismo actor cooperativo, congelado</dd>
+                    </div>
+                    <div>
+                      <dt>transferencia</dt>
+                      <dd>actor body, move head y write head</dd>
+                    </div>
+                    <div>
+                      <dt>checkpoint fuente</dt>
+                      <dd><code>50x50</code>, <code>8</code> hormigas, <code>125</code> comida, <code>2</code> fuentes, radio <code>2</code>, <code>4</code> bits</dd>
+                    </div>
+                  </dl>
+                </aside>
+              </div>
+
+              <div class="adversarial-setup-grid adversarial-setup-secondary">
+                <article class="adversarial-env-panel">
+                  <span class="kicker">train vs test</span>
+                  <h4>Randomizar para entrenar, fijar para mirar</h4>
+                  <p>
+                    Durante entrenamiento seguimos randomizando hubs y comida
+                    para evitar que la política memorizara layouts. Además
+                    armamos escenarios fijos de diagnóstico, casi como un modo
+                    juego, para mirar comportamiento con menos ruido.
+                  </p>
+                  <p>
+                    Esos mapas fijos no eran prueba de robustez general:
+                    servían para ver si aparecía una interacción adversarial
+                    legible.
+                  </p>
+                </article>
+                <article class="adversarial-env-panel">
+                  <span class="kicker">métricas</span>
+                  <h4>Ya no alcanza contar comida propia</h4>
+                  <ul class="environment-spec-list">
+                    <li><code>own_deliveries</code> y <code>opponent_deliveries</code>.</li>
+                    <li><code>delivery_difference</code>: ventaja directa del learner.</li>
+                    <li><code>win_rate</code>: episodios con diferencia positiva.</li>
+                    <li>Pickups por equipo y longitud de episodio.</li>
+                    <li><code>side-swapped gap</code> para detectar sesgos de lado/orden.</li>
+                  </ul>
+                </article>
+              </div>
+
+              <div class="experiment-note adversarial-frozen-baseline" aria-label="Baseline frozen versus frozen">
+                <span class="kicker">baseline frozen vs frozen</span>
+                <p class="experiment-note-lead">
+                  Antes de entrenar, enfrentamos dos copias congeladas del mismo
+                  actor para validar que el entorno no estuviera obviamente
+                  sesgado.
+                </p>
+                <dl class="metric-grid adversarial-baseline-metrics">
+                  <div>
+                    <dt>episodios</dt>
+                    <dd>8</dd>
+                  </div>
+                  <div>
+                    <dt>win rate</dt>
+                    <dd>0.5</dd>
+                  </div>
+                  <div>
+                    <dt>entregas</dt>
+                    <dd>27.0 vs 24.125</dd>
+                  </div>
+                  <div>
+                    <dt>diferencia media</dt>
+                    <dd>2.875</dd>
+                  </div>
+                </dl>
+                <p class="experiment-note-reading">
+                  La lectura fue suficiente para seguir: el frozen opponent no
+                  era random y el setup no hacía ganar siempre al mismo lado.
+                </p>
+              </div>
+            </div>
+          </li>
+
+          <li class="story-step" id="adversarial-first-results">
+            <div class="step-header">
+              <span class="step-index">4C</span>
+              <div>
+                <span class="kicker">primeros resultados</span>
+                <h3>Aprender a competir sin olvidar cómo forrajear</h3>
+              </div>
+            </div>
+            <div class="step-layout">
+              <div class="step-copy">
+                <p class="draft-note">Frase central pendiente.</p>
+                <p>
+                  Mostrar los primeros rollouts: el entorno funciona, pero el
+                  learner pierde conducta útil antes de aprender una estrategia
+                  adversarial estable.
+                </p>
+              </div>
+              <div class="evidence-slot">primeros rollouts + métricas iniciales</div>
+            </div>
+          </li>
+
+          <li class="story-step" id="adversarial-stabilizers">
+            <div class="step-header">
+              <span class="step-index">4D</span>
+              <div>
+                <span class="kicker">estabilización</span>
+                <h3>Curriculum, evaluación y anclaje</h3>
+              </div>
+            </div>
+            <div class="step-layout">
+              <div class="step-copy">
+                <p class="draft-note">Frase central pendiente.</p>
+                <p>
+                  Separar las mejoras: curriculum de comida y layout,
+                  checkpointing por evaluación, side swaps y behavior anchor
+                  para sostener la política base.
+                </p>
+              </div>
+              <div class="evidence-slot">curvas, checkpoints y comparación</div>
+            </div>
+          </li>
+
+          <li class="story-step" id="adversarial-selected-result">
+            <div class="step-header">
+              <span class="step-index">4E</span>
+              <div>
+                <span class="kicker">resultado seleccionado</span>
+                <h3>Una ventaja real contra el frozen opponent</h3>
+              </div>
+            </div>
+            <div class="step-layout">
+              <div class="step-copy">
+                <p class="draft-note">Frase central pendiente.</p>
+                <p>
+                  Presentar métricas y videos del mejor checkpoint,
+                  distinguiendo evaluación randomizada, escena fixed-center y
+                  lectura de sensibilidad al layout.
+                </p>
+              </div>
+              <div class="evidence-slot">video final + tabla de métricas</div>
+            </div>
+          </li>
+
+          <li class="story-step terminal-step" id="adversarial-future-work">
+            <div class="step-header">
+              <span class="step-index">4F</span>
+              <div>
+                <span class="kicker">trabajo futuro</span>
+                <h3>De explotar un rival a entrenar juego adversarial</h3>
+              </div>
+            </div>
+            <div class="step-layout">
+              <div class="step-copy">
+                <p class="draft-note">Frase central pendiente.</p>
+                <p>
+                  Cerrar con ablations de escritura, pool de oponentes, métricas
+                  alrededor del hub rival y el paso pendiente hacia self-play.
+                </p>
+              </div>
+              <div class="evidence-slot">ablations pendientes + próximos pasos</div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section id="chapter-5-temporal-roles" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-5-title">
+        <div class="chapter-header">
+          <span class="chapter-number">5</span>
+          <div>
+            <span class="kicker">placeholder</span>
+            <h2 id="chapter-5-title">Roles temporales</h2>
+            <p>
+              Capítulo para separar otra línea de investigación: roles que
+              cambian en el tiempo, especialización transitoria y coordinación
+              cuando no todos los agentes deberían hacer lo mismo en cada fase.
+            </p>
+          </div>
+        </div>
+        <div class="chapter-placeholder">
+          <span class="kicker">pendiente</span>
+          <p>
+            Acá irán los entornos de roles temporales, resultados prematuros y
+            preguntas abiertas.
+          </p>
         </div>
       </section>
     </main>
