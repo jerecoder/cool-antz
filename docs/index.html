@@ -8,7 +8,7 @@
       name="description"
       content="Historia principal del proyecto Cool Antz: cómo pasamos de entrenamientos fallidos a la primera política válida de forrajeo multiagente."
     >
-    <link rel="icon" href="report-site/assets/sprites/ant.png">
+    <link rel="icon" type="image/png" href="report-site/assets/sprites/ant-north.png">
     <link rel="stylesheet" href="report-site/styles.css">
   </head>
   <body class="simple-report">
@@ -400,25 +400,29 @@
                   <p>
                     En
                     <a
-                      href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/lg00ey5u"
+                      href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/7x48rdlw"
                       target="_blank"
                       rel="noreferrer"
                     >este</a>
-                    run,
-                    el curriculum <code>8x8 -> 50x50</code> muestra el patrón
-                    que nos importaba: el entrenamiento gana actividad local,
-                    pero la retención no escala de forma limpia.
+                    run repetimos el curriculum <code>8x8 -> 50x50</code> sin
+                    shaping durante el probe: el reward de entrenamiento es
+                    reward de entorno, es decir, entrega de comida al
+                    hormiguero. El warm-start venía de un checkpoint anterior,
+                    así que no es una genealogía pura desde cero; aun así, la
+                    parte que usamos para medir escalado ya no agrega bonuses de
+                    pickup, visita, distancia ni bytes.
                   </p>
                   <p>
                     La matriz retrospectiva, evaluada de forma greedy para
-                    medir retención, deja al checkpoint final con buen desempeño
-                    en <code>8x8</code> y bastante señal en <code>16x16</code>,
-                    pero cae a 12.5% de su mejor valor en
-                    <code>25x25</code> y a 0% en
-                    <code>35x35</code>. Para los rollouts visuales usamos
-                    escritura greedy y movimiento sampleado con temperatura
-                    <code>0.525</code>; esos videos muestran capacidad residual,
-                    no una solución robusta.
+                    medir retención, deja al checkpoint final con 31% de su
+                    mejor valor en <code>8x8</code> y 67% en
+                    <code>16x16</code>, pero cae a 14% en
+                    <code>25x25</code> y a 0% en <code>35x35</code>. En
+                    <code>50x50</code> queda una señal no nula
+                    (<code>0.52</code> comidas cada 1000 pasos-hormiga), pero el
+                    valor absoluto es demasiado bajo para leerlo como una
+                    solución. Para los rollouts visuales usamos escritura greedy
+                    y movimiento sampleado con temperatura <code>0.525</code>.
                   </p>
                   <p>
                     La lectura no fue descartar curriculum learning, sino hacerlo
@@ -451,14 +455,14 @@
                 >
                   <img
                     src="report-site/assets/plots/fig_size_curriculum_training.png"
-                    alt="Reward medio y eventos de pickup y delivery durante el curriculum de tamaño"
+                    alt="Retorno del entorno y eventos de pickup y delivery durante el curriculum de tamaño sin shaping"
                     loading="lazy"
                   >
                 </a>
                 <figcaption>
-                  El reward medio cae al crecer el mapa. Los pickups persisten
-                  mejor que las entregas, pero estos eventos vienen de ventanas
-                  cortas de entrenamiento.
+                  El retorno del entorno se vuelve más bajo e irregular al
+                  crecer el mapa. Los pickups persisten mejor que las entregas,
+                  pero estos eventos vienen de ventanas cortas de entrenamiento.
                 </figcaption>
               </figure>
             </div>
@@ -527,14 +531,15 @@
             <div class="behavior-reading" aria-label="Lectura de los rollouts del currículo de tamaño">
               <p>
                 La transición visual es más informativa que un único score. Hasta
-                <code>25x25</code>, la política combina búsqueda local, pickup y
-                retorno con bastante frecuencia. A partir de <code>30x30</code>,
-                la misma observación local produce mucha exploración, pero la
-                probabilidad de cerrar el circuito comida-hormiguero cae: las
-                paredes aparecen menos, las fuentes tardan más en entrar al
-                campo local y la escritura deja de parecer un protocolo global.
-                El <code>50x50</code> muestreado muestra que queda una habilidad
-                residual de forrajeo; lo que falta es robustez y repetibilidad.
+                <code>25x25</code>, todavía aparecen búsqueda local, pickups y
+                entregas en ventanas cortas. A partir de <code>30x30</code>, la
+                misma observación local produce exploración y escritura visible,
+                pero cada vez menos retorno estable: las paredes aparecen menos,
+                las fuentes tardan más en entrar al campo local y los rastros
+                dejan de funcionar como protocolo global. Los videos son
+                rollouts sampleados de cada checkpoint, no la matriz greedy de
+                retención; sirven para ver el cambio de comportamiento, no para
+                leer conteos de delivery exactos.
               </p>
             </div>
           </li>
