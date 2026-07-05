@@ -78,6 +78,34 @@
         </div>
       </section>
 
+      <section class="atlas-guide" aria-labelledby="guide-title">
+        <h2 id="guide-title">Cómo usar esta biblioteca</h2>
+        <p class="summary">
+          La página separa las piezas del proyecto por función. Las fichas de
+          experimento son familias de corridas con una pregunta concreta; las
+          notas de soporte explican cómo leer métricas, artefactos y ramas; el
+          sandbox permite inspeccionar una política exportada sin convertirlo en
+          un resultado nuevo.
+        </p>
+        <div class="guide-grid">
+          <a class="guide-card" href="#world" data-detail-link="world">
+            <span class="kicker">contrato</span>
+            <strong>Mundo y métrica</strong>
+            <p>Define por qué una entrega completa pesa más que movimiento, pickups o bytes pintados.</p>
+          </a>
+          <a class="guide-card" href="#visual-evidence" data-detail-link="visual-evidence">
+            <span class="kicker">evidencia</span>
+            <strong>Videos + métricas</strong>
+            <p>Explica qué aporta cada video, curva, summary y figura antes de abrir fichas.</p>
+          </a>
+          <a class="guide-card" href="#traceability" data-detail-link="traceability">
+            <span class="kicker">lectura</span>
+            <strong>Cómo leemos una corrida</strong>
+            <p>Une config, checkpoint, evaluación, artefacto visual y límites de claim.</p>
+          </a>
+        </div>
+      </section>
+
       <section class="environment-section" aria-labelledby="env-title">
         <h2 id="env-title">Entornos y perillas</h2>
         <p class="summary">
@@ -132,11 +160,40 @@
         </div>
       </section>
 
+      <section id="how-to-read" class="method-section" aria-labelledby="read-title">
+        <h2 id="read-title">Cómo leemos una corrida</h2>
+        <p class="summary">
+          Cada resultado se lee como un paquete: configuración viva, protocolo de
+          evaluación, métrica principal, checkpoint seleccionado y artefacto
+          visual. Por eso la biblioteca diferencia <code>env_return</code> y
+          entregas reales de <code>episode_return</code> moldeado, y marca cuando
+          una evidencia es una continuación, un diagnóstico o un stress actor-only.
+        </p>
+        <div class="reading-grid">
+          <article>
+            <span class="kicker">1</span>
+            <h3>Setup</h3>
+            <p>Mapa, hormigas, fuentes, bits, reward shaping, crítico, temperatura y checkpoint inicial.</p>
+          </article>
+          <article>
+            <span class="kicker">2</span>
+            <h3>Medición</h3>
+            <p>Entregas, éxito, pasos por comida, cobertura, escritura y estabilidad de optimización.</p>
+          </article>
+          <article>
+            <span class="kicker">3</span>
+            <h3>Claim</h3>
+            <p>Qué sostiene la evidencia, qué queda como hipótesis y qué no se debe vender como causal.</p>
+          </article>
+        </div>
+      </section>
+
       <section class="experiment-tree" aria-labelledby="tree-title">
         <h2 id="tree-title">Mapa de familias de experimentos</h2>
         <p class="summary">
           El árbol muestra relaciones entre familias, no una obligación de leer
-          todo como escalera lineal. Cada nodo abre la ficha correspondiente.
+          todo como escalera lineal. Algunos nodos abren fichas de experimento;
+          otros abren notas de soporte o ramas deferidas.
         </p>
         <nav
           id="experiment-lineage"
@@ -150,208 +207,176 @@
       <section id="library-grid" class="library-section" aria-labelledby="library-title">
         <h2 id="library-title">Biblioteca de experimentos</h2>
         <p class="summary">
-          Las tarjetas no son capítulos de paper. Son entradas de consulta:
-          hipótesis, contexto, intervención, evidencia y lectura. El informe
-          narrativo queda disponible para leer el hilo completo.
+          Estas tarjetas son solo familias de corridas. Cada una abre una ficha
+          con pregunta, hipótesis, setup, medición, evidencia, resultado, lectura
+          y límites. Las notas metodológicas quedaron fuera de la grilla para que
+          el índice no mezcle experimentos con apéndices.
         </p>
 
         <div class="experiment-card-grid">
-          <a class="experiment-card" href="#world" data-experiment-card="world">
-            <img src="report-site/assets/posters/tree-world.jpg" alt="Rollout aleatorio del entorno base">
-            <span class="card-meta">Base · diagnóstico</span>
-            <strong>Mundo, métrica y rollout aleatorio</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> Antes de entrenar había que fijar qué cuenta como resolver la tarea.</p>
-            <p><b>Resultado.</b> La entrega, no el contacto con comida, quedó como unidad de lectura.</p>
-          </a>
-
-          <a class="experiment-card media-contain" href="#visual-evidence" data-experiment-card="visual-evidence">
-            <img src="report-site/assets/plots/fig_logged_metrics_story.png" alt="Métricas registradas de entrenamiento y evaluación">
-            <span class="card-meta">Evidencia · trazabilidad</span>
-            <strong>Evidencia visual y métricas</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> Un video final no basta para contar lo que pasó.</p>
-            <p><b>Resultado.</b> Se separan rollouts, entregas, cobertura, escritura y estabilidad de optimización.</p>
-          </a>
-
-          <a class="experiment-card media-contain" href="#traceability" data-experiment-card="traceability">
-            <img src="report-site/assets/plots/fig_behavior_montage.jpg" alt="Montaje de comportamiento usado para trazabilidad">
-            <span class="card-meta">Evidencia · lectura</span>
-            <strong>Cómo leemos una corrida</strong>
-            <span class="status-chip status-infra">infraestructura</span>
-            <p><b>Hipótesis.</b> Config, métricas, checkpoints y videos deben leerse juntos.</p>
-            <p><b>Resultado.</b> La biblioteca explicita qué artefacto sostiene cada afirmación.</p>
-          </a>
-
-          <a class="experiment-card" href="#audit-ledger" data-experiment-card="audit-ledger">
-            <img src="report-site/assets/posters/tree-memory.jpg" alt="Marcador visual de la auditoría del árbol experimental">
-            <span class="card-meta">Auditoría · ledger</span>
-            <strong>Auditoría completa del árbol</strong>
-            <span class="status-chip status-infra">infraestructura</span>
-            <p><b>Hipótesis.</b> Ninguna rama relevante debía perderse al armar el reporte.</p>
-            <p><b>Resultado.</b> Ledger de 334 commits, 25 configs, 17 notebooks y runs locales.</p>
-          </a>
-
-          <a class="experiment-card media-contain" href="#direct-goal-baseline" data-experiment-card="direct-goal-baseline">
+          <a class="experiment-card featured-card media-contain" href="#direct-goal-baseline" data-experiment-card="direct-goal-baseline">
             <img src="report-site/assets/posters/tree-world.jpg" alt="Referencia visual del entorno base para la línea base directa">
-            <span class="card-meta">Baseline · sparse reward</span>
-            <strong>Baseline directo 50x50</strong>
-            <span class="status-chip status-failed">falló</span>
-            <p><b>Hipótesis.</b> El objetivo final podía aprenderse desde cero sin shaping.</p>
-            <p><b>Resultado.</b> Queda como baseline negativo principal, no como política frontera.</p>
+            <div class="card-body">
+              <span class="card-meta">Baseline · sparse reward</span>
+              <strong>Baseline directo 50x50</strong>
+              <span class="status-chip status-failed">falló</span>
+              <p class="card-result">Control negativo: sparse desde cero no se presenta como frontera.</p>
+              <span class="card-evidence">Config + notebook + evidencia histórica separada</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#size-curriculum" data-experiment-card="size-curriculum">
             <img src="report-site/assets/posters/tree-size-curriculum.jpg" alt="Currículo de tamaño de mapa">
-            <span class="card-meta">Currículo · tamaño</span>
-            <strong>Currículo de tamaño</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> Una política chica podía transferirse al crecer el mapa.</p>
-            <p><b>Resultado.</b> Enseñó actividad local, pero no transferencia robusta.</p>
+            <div class="card-body">
+              <span class="card-meta">Currículo · tamaño</span>
+              <strong>Currículo de tamaño</strong>
+              <span class="status-chip status-partial">parcial</span>
+              <p class="card-result">Actividad local transferida, pero 50x50 quedó frágil.</p>
+              <span class="card-evidence">Videos 8x8-50x50 + métricas auditadas</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#small-scale" data-experiment-card="small-scale">
             <img src="report-site/assets/posters/tree-small-scale.jpg" alt="Mapa 25x25 con pocas hormigas">
-            <span class="card-meta">Base · cuello de botella</span>
-            <strong>Mapas chicos y cobertura</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> El fallo inicial podía ser falta de cobertura antes que falta de memoria.</p>
-            <p><b>Resultado.</b> Cantidad de hormigas movió más la señal que aumentar bits.</p>
+            <div class="card-body">
+              <span class="card-meta">Base · cuello de botella</span>
+              <strong>Mapas chicos y cobertura</strong>
+              <span class="status-chip status-partial">parcial</span>
+              <p class="card-result">La cantidad de hormigas movió la señal antes que los bits.</p>
+              <span class="card-evidence">Figura 25x25 + rollouts por cantidad</span>
+            </div>
           </a>
 
-          <a class="experiment-card" href="#unlock25" data-experiment-card="unlock25">
+          <a class="experiment-card featured-card" href="#unlock25" data-experiment-card="unlock25">
             <img src="report-site/assets/posters/tree-unlock25.jpg" alt="Rollout 25x25 con cuatro hormigas">
-            <span class="card-meta">Base · currículo</span>
-            <strong>Desbloqueo 25x25</strong>
-            <span class="status-chip status-strong">resultado fuerte</span>
-            <p><b>Hipótesis.</b> Cobertura, shaping y muestreo podían cerrar la tarea 25x25.</p>
-            <p><b>Resultado.</b> <code>DISTANCE_CAP4</code> llega a <code>23/23</code> en modo muestreado.</p>
+            <div class="card-body">
+              <span class="card-meta">Base · currículo</span>
+              <strong>Desbloqueo 25x25</strong>
+              <span class="status-chip status-strong">resultado fuerte</span>
+              <p class="card-result"><code>DISTANCE_CAP4</code> llega a <code>23/23</code> en modo muestreado.</p>
+              <span class="card-evidence">Video 25x25 + tabla greedy/sampled</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#bits-ants" data-experiment-card="bits-ants">
             <img src="report-site/assets/posters/tree-bits-ants.jpg" alt="Currículo de cantidad de hormigas">
-            <span class="card-meta">Comunicación · cobertura</span>
-            <strong>Bits vs cantidad de hormigas</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> Los bytes podían ayudar solo con suficiente cobertura física.</p>
-            <p><b>Resultado.</b> La hipótesis de memoria queda abierta; cobertura aparece primero.</p>
+            <div class="card-body">
+              <span class="card-meta">Comunicación · cobertura</span>
+              <strong>Bits vs cantidad de hormigas</strong>
+              <span class="status-chip status-partial">parcial</span>
+              <p class="card-result">Cobertura aparece antes que cualquier claim causal de bytes.</p>
+              <span class="card-evidence">Curva ant-count + figura bits/ants</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#autocurriculum" data-experiment-card="autocurriculum">
             <img src="report-site/assets/posters/tree-autocurriculum.jpg" alt="Autocurrículo 250x250 con entrega cero">
-            <span class="card-meta">Currículo · diagnóstico</span>
-            <strong>Autocurrículos</strong>
-            <span class="status-chip status-failed">falló</span>
-            <p><b>Hipótesis.</b> Aumentar dificultad por etapas podía sostener transferencia.</p>
-            <p><b>Resultado.</b> Hubo retorno moldeado y bytes, pero no entregas robustas.</p>
+            <div class="card-body">
+              <span class="card-meta">Currículo · diagnóstico</span>
+              <strong>Autocurrículos</strong>
+              <span class="status-chip status-failed">falló</span>
+              <p class="card-result">Retorno moldeado y bytes no se convirtieron en entregas robustas.</p>
+              <span class="card-evidence">Video fallo 250x250 + diagnósticos</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#maze-pipeline" data-experiment-card="maze-pipeline">
             <img src="report-site/assets/posters/tree-maze.jpg" alt="Laberinto entrenado y prueba de estrés">
-            <span class="card-meta">Laberinto · exploración</span>
-            <strong>Laberintos</strong>
-            <span class="status-chip status-infra">infraestructura</span>
-            <p><b>Hipótesis.</b> Pasillos y obstáculos podían aislar navegación y memoria espacial.</p>
-            <p><b>Resultado.</b> Hubo pipeline y evidencia visual, no forrajeo comparable resuelto.</p>
+            <div class="card-body">
+              <span class="card-meta">Laberinto · exploración</span>
+              <strong>Laberintos</strong>
+              <span class="status-chip status-diagnostic">diagnóstico</span>
+              <p class="card-result">Pipeline y evidencia visual, no forrajeo abierto comparable resuelto.</p>
+              <span class="card-evidence">Videos maze 50x50 y stress 100x100</span>
+            </div>
           </a>
 
           <a class="experiment-card media-contain" href="#memory-autoresearch" data-experiment-card="memory-autoresearch">
             <img src="report-site/assets/plots/fig_memory_r8_r12_ablation.png" alt="Ablaciones de memoria R8-R12">
-            <span class="card-meta">Memoria · autoresearch</span>
-            <strong>Memoria R8-R12</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> Las ablaciones podían distinguir comunicación de pintura de bytes.</p>
-            <p><b>Resultado.</b> La dependencia causal aparece solo cuando se daña el forrajeo.</p>
+            <div class="card-body">
+              <span class="card-meta">Memoria · autoresearch</span>
+              <strong>Memoria R8-R12</strong>
+              <span class="status-chip status-diagnostic">diagnóstico</span>
+              <p class="card-result">Las ablaciones no cierran comunicación causal fuerte.</p>
+              <span class="card-evidence">Figura R8-R11 normal/no-read/no-write</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#source-layouts" data-experiment-card="source-layouts">
             <img src="report-site/assets/posters/tree-source-layouts.jpg" alt="Currículos de fuentes dispersas">
-            <span class="card-meta">50x50 · fuentes</span>
-            <strong>Fuentes dispersas</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> Descubrir comida escasa era un cuello distinto del retorno al hub.</p>
-            <p><b>Resultado.</b> Padded falló; proximity avanzó pero no resolvió la frontera.</p>
-          </a>
-
-          <a class="experiment-card media-contain" href="#ablation-ledger" data-experiment-card="ablation-ledger">
-            <img src="report-site/assets/plots/fig_bits_vs_ants.png" alt="Figura de bits y hormigas usada para lectura de ablaciones">
-            <span class="card-meta">Ablaciones · lectura</span>
-            <strong>Ablaciones que cambiaron la interpretación</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> Algunas corridas importan porque cambian qué podemos afirmar.</p>
-            <p><b>Resultado.</b> No-write, no-byte-read, write-cost y truncación limitan los claims.</p>
+            <div class="card-body">
+              <span class="card-meta">50x50 · fuentes</span>
+              <strong>Fuentes dispersas</strong>
+              <span class="status-chip status-partial">parcial</span>
+              <p class="card-result">Padded falló; proximity avanzó sin cerrar la frontera.</p>
+              <span class="card-evidence">Videos padded/proximity + tabla del informe</span>
+            </div>
           </a>
 
           <a class="experiment-card media-contain" href="#rare50" data-experiment-card="rare50">
             <img src="report-site/assets/plots/fig_rare_50x50.png" alt="Comparación 50x50 raro">
-            <span class="card-meta">50x50 · navegación</span>
-            <strong>50x50 raro</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> Con fuentes escasas, descubrir la fuente precede a optimizar entrega.</p>
-            <p><b>Resultado.</b> Los vectores ayudaron a leer el problema, pero no cerraron el entorno raro.</p>
+            <div class="card-body">
+              <span class="card-meta">50x50 · navegación</span>
+              <strong>50x50 raro</strong>
+              <span class="status-chip status-partial">parcial</span>
+              <p class="card-result">Los vectores ayudaron a leer el problema; no cerraron el entorno raro.</p>
+              <span class="card-evidence">Video raro + figura de navegación</span>
+            </div>
           </a>
 
           <a class="experiment-card media-contain" href="#critic50" data-experiment-card="critic50">
             <img src="report-site/assets/plots/fig_critic_50x50.png" alt="Frontera de arquitectura del crítico 50x50">
-            <span class="card-meta">50x50 · crítico</span>
-            <strong>Frontera del crítico 50x50</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> La arquitectura del crítico podía limitar la asignación de crédito.</p>
-            <p><b>Resultado.</b> El salto queda ligado al crítico espacial y al paquete de intervención.</p>
+            <div class="card-body">
+              <span class="card-meta">50x50 · crítico</span>
+              <strong>Frontera del crítico 50x50</strong>
+              <span class="status-chip status-diagnostic">diagnóstico</span>
+              <p class="card-result">Salto asociado al crítico espacial y al paquete de intervención.</p>
+              <span class="card-evidence">Figura crítico + rollout 8 hormigas</span>
+            </div>
           </a>
 
-          <a class="experiment-card" href="#frontier50" data-experiment-card="frontier50">
+          <a class="experiment-card featured-card" href="#frontier50" data-experiment-card="frontier50">
             <img src="report-site/assets/posters/tree-frontier50.jpg" alt="Política 50x50 con 60 hormigas">
-            <span class="card-meta">50x50 · frontera</span>
-            <strong>60 hormigas en 50x50</strong>
-            <span class="status-chip status-strong">resultado fuerte</span>
-            <p><b>Hipótesis.</b> Con cobertura y crítico adecuado, 50x50 podía cerrarse casi por completo.</p>
-            <p><b>Resultado.</b> La política llega a <code>123.90625/125</code> con éxito <code>0.90625</code>.</p>
+            <div class="card-body">
+              <span class="card-meta">50x50 · frontera</span>
+              <strong>60 hormigas en 50x50</strong>
+              <span class="status-chip status-strong">resultado fuerte</span>
+              <p class="card-result"><code>123.90625/125</code> entregas, éxito <code>0.90625</code>.</p>
+              <span class="card-evidence">Video frontera + sandbox exportado</span>
+            </div>
           </a>
 
-          <a class="experiment-card media-contain" href="#large-scale" data-experiment-card="large-scale">
-            <img src="report-site/assets/curves/curve_50x50_efficiency_sweep.svg" alt="Curva de eficiencia usada para leer escalado">
-            <span class="card-meta">Escalado · marco</span>
-            <strong>Entrenamiento, continuación y stress</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> Escalar no significaba una sola cosa.</p>
-            <p><b>Resultado.</b> La biblioteca separa entrenamiento, continuación seleccionada y despliegue actor-only.</p>
-          </a>
-
-          <a class="experiment-card" href="#large-scale-100" data-experiment-card="large-scale-100">
+          <a class="experiment-card featured-card" href="#large-scale-100" data-experiment-card="large-scale-100">
             <img src="report-site/assets/posters/tree-large-scale-100.jpg" alt="Puente 100x100">
-            <span class="card-meta">Escalado · continuación</span>
-            <strong>Puente 100x100</strong>
-            <span class="status-chip status-strong">resultado fuerte</span>
-            <p><b>Hipótesis.</b> Una continuación seleccionada podía llevar el comportamiento a 100x100.</p>
-            <p><b>Resultado.</b> Las ramas puente llegan a <code>372-373/375</code>.</p>
+            <div class="card-body">
+              <span class="card-meta">Escalado · continuación</span>
+              <strong>Puente 100x100</strong>
+              <span class="status-chip status-strong">resultado fuerte</span>
+              <p class="card-result">Continuaciones seleccionadas llegan a <code>372-373/375</code>.</p>
+              <span class="card-evidence">Video puente + curva 100x100</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#large-scale-250" data-experiment-card="large-scale-250">
             <img src="report-site/assets/posters/tree-large-scale-250.jpg" alt="Reset-boundary 250x250">
-            <span class="card-meta">Escalado · diagnóstico</span>
-            <strong>250x250 reset-boundary</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> El fallo 250x250 podía venir de resets, distancia y retorno moldeado.</p>
-            <p><b>Resultado.</b> Reset-boundary recupera entregas reales, pero no resuelve toda la escala.</p>
+            <div class="card-body">
+              <span class="card-meta">Escalado · diagnóstico</span>
+              <strong>250x250 reset-boundary</strong>
+              <span class="status-chip status-partial">parcial</span>
+              <p class="card-result">Recupera entregas reales, pero la escala sigue abierta.</p>
+              <span class="card-evidence">Video reset + curva 250x250</span>
+            </div>
           </a>
 
           <a class="experiment-card" href="#bigmap" data-experiment-card="bigmap">
             <img src="report-site/assets/posters/tree-bigmap.jpg" alt="Política 50x50 desplegada en 1000x1000">
-            <span class="card-meta">Escalado · estrés</span>
-            <strong>1000x1000 solo actor</strong>
-            <span class="status-chip status-diagnostic">diagnóstico</span>
-            <p><b>Hipótesis.</b> Un actor 50x50 podía revelar estabilidad local en una grilla enorme.</p>
-            <p><b>Resultado.</b> Es despliegue actor-only, no entrenamiento de punta a punta.</p>
-          </a>
-
-          <a class="experiment-card" href="#adversarial-roles" data-experiment-card="adversarial-roles">
-            <img src="report-site/assets/posters/tree-bits-ants.jpg" alt="Marcador visual para roles adversariales">
-            <span class="card-meta">Rama lateral · roles</span>
-            <strong>Adversarial y timed-release</strong>
-            <span class="status-chip status-partial">parcial</span>
-            <p><b>Hipótesis.</b> Cambiar roles podía revelar dependencia de cooperación y timing.</p>
-            <p><b>Resultado.</b> Queda como línea lateral documentada, no como resultado principal.</p>
+            <div class="card-body">
+              <span class="card-meta">Escalado · estrés</span>
+              <strong>1000x1000 solo actor</strong>
+              <span class="status-chip status-diagnostic">diagnóstico</span>
+              <p class="card-result">Actor 50x50 en stress enorme; no entrenamiento 1000x1000.</p>
+              <span class="card-evidence">Video actor-only 1000x1000</span>
+            </div>
           </a>
         </div>
       </section>
@@ -511,6 +536,63 @@
         </div>
       </section>
 
+      <section id="appendix" class="support-section" aria-labelledby="appendix-title">
+        <h2 id="appendix-title">Soporte, auditoría y líneas pendientes</h2>
+        <p class="summary">
+          Estas entradas siguen siendo importantes para explicar el proyecto, pero
+          no son tarjetas de experimento en esta fase. Funcionan como metodología,
+          infraestructura, ledger de decisiones o ramas que todavía necesitan una
+          ficha propia con evidencia comparable.
+        </p>
+        <div class="support-link-grid">
+          <a class="support-link" href="#ablation-ledger" data-detail-link="ablation-ledger">
+            <span class="kicker">lectura</span>
+            <strong>Ablaciones que cambiaron claims</strong>
+            <p>No-write, no-byte-read, write-cost y truncación como límites de interpretación.</p>
+          </a>
+          <a class="support-link" href="#large-scale" data-detail-link="large-scale">
+            <span class="kicker">marco</span>
+            <strong>Escalado: entrenar, continuar, desplegar</strong>
+            <p>Separa 100x100, 250x250 y 1000x1000 para no sobreleer videos grandes.</p>
+          </a>
+          <a class="support-link" href="#audit-ledger" data-detail-link="audit-ledger">
+            <span class="kicker">auditoría</span>
+            <strong>Ledger del árbol completo</strong>
+            <p>Ramas, commits, notebooks, configs y runs locales usados como inventario.</p>
+          </a>
+          <a class="support-link" href="#jax-core" data-detail-link="jax-core">
+            <span class="kicker">infra</span>
+            <strong>JAX/MAPPO core</strong>
+            <p>Superficie común de entrenamiento, evaluación, checkpoints y transferencias.</p>
+          </a>
+          <a class="support-link" href="#multi-device-write-cost" data-detail-link="multi-device-write-cost">
+            <span class="kicker">infra + ablation</span>
+            <strong>Multi-device y costo de escritura</strong>
+            <p>Soporte de escalado y evidencia parcial sobre penalizar escritura saturada.</p>
+          </a>
+          <a class="support-link" href="#report-site-assets" data-detail-link="report-site-assets">
+            <span class="kicker">presentación</span>
+            <strong>Sitio, PDF y artefactos</strong>
+            <p>Assets usados para convertir corridas y figuras en una biblioteca navegable.</p>
+          </a>
+          <a class="support-link deferred-link" href="#adversarial-roles" data-detail-link="adversarial-roles">
+            <span class="kicker">pendiente</span>
+            <strong>Adversarial y timed-release</strong>
+            <p>Ramas laterales preservadas; no entran como resultado principal en esta fase.</p>
+          </a>
+          <a class="support-link deferred-link" href="#lethal-cookies" data-detail-link="lethal-cookies">
+            <span class="kicker">pendiente</span>
+            <strong>Poisoned / lethal cookies</strong>
+            <p>Cambio real de reglas que queda como línea a recuperar con métricas comparables.</p>
+          </a>
+          <a class="support-link deferred-link" href="#half-scale-resnet" data-detail-link="half-scale-resnet">
+            <span class="kicker">pendiente</span>
+            <strong>Half-scale resnet 250x250</strong>
+            <p>Diagnóstico de arquitectura separado del resultado reset-boundary.</p>
+          </a>
+        </div>
+      </section>
+
       <section class="library-details" hidden aria-hidden="true">
         <article id="world" data-title="Mundo, métrica y rollout aleatorio">
           <div class="detail-layout">
@@ -537,7 +619,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Antes de entrenar había que fijar qué significa resolver el entorno.</p></section>
               <section><h3>Contexto</h3><p>El riesgo era confundir movimiento, bytes o pickups aislados con forrajeo cooperativo.</p></section>
-              <section><h3>Qué cambiamos</h3><p>No cambia entrenamiento; define el contrato de tarea usado por las demás fichas.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>No cambia entrenamiento; define el contrato de tarea usado por las demás fichas.</p></section>
               <section><h3>Evidencia</h3><p>Rollout aleatorio y descripción de canales de observación, escritura y entrega.</p></section>
               <section><h3>Resultado</h3><p>La entrega completa queda como eje de lectura.</p></section>
               <section><h3>Lectura</h3><p>Sirve para separar actividad aparente de conducta útil.</p></section>
@@ -570,7 +652,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Un solo video final o un solo retorno no explican el proyecto.</p></section>
               <section><h3>Contexto</h3><p>Hubo corridas con actividad visual y retorno moldeado que no entregaban comida.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se corrige la lectura del informe: más métricas y más artefactos por familia.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se corrige la lectura del informe: más métricas y más artefactos por familia.</p></section>
               <section><h3>Evidencia</h3><p>Videos preservados y figura de métricas registradas.</p></section>
               <section><h3>Resultado</h3><p>La biblioteca permite entrar por evidencia visual sin perder la lectura técnica.</p></section>
               <section><h3>Lectura</h3><p>La evidencia visual es útil si está atada a métricas de tarea.</p></section>
@@ -580,40 +662,55 @@
           </div>
         </article>
 
-        <article id="direct-goal-baseline" data-title="Baseline directo 50x50">
+        <article
+          id="direct-goal-baseline"
+          data-title="Baseline directo 50x50"
+          data-status="falló"
+          data-status-class="status-failed"
+          data-summary="Control negativo del objetivo final sparse: la configuración mantenida no se presenta como frontera, y la evidencia histórica sparse se rotula aparte."
+          data-question="¿El objetivo final podía aprenderse desde cero con recompensa sparse, sin currículo ni shaping de distancia o pickup?"
+          data-setup="50x50, 8 hormigas, radio 2 / visión 5x5, 5 bits, 48 comidas, 25 fuentes, random hub/food, 12.8M timesteps, pickup_bonus=0 y distance_bonus=0."
+          data-measured="Entregas reales y env_return; la evidencia histórica sparse se cita separada de esta configuración mantenida."
+        >
           <div class="detail-layout">
-            <div class="detail-media">
-              <img src="report-site/assets/posters/tree-world.jpg" alt="Referencia visual del entorno base">
-              <p class="caption">Baseline negativo: objetivo final sparse desde cero.</p>
-            </div>
             <dl class="detail-facts">
               <div><dt>Estado</dt><dd>Falló / baseline negativo.</dd></div>
               <div><dt>Entorno</dt><dd>Forrajeo base 50x50.</dd></div>
-              <div><dt>Perillas</dt><dd>8 hormigas, radio 2, 5 bits, 48 comidas, 25 fuentes, sin shaping.</dd></div>
+              <div><dt>Setup actual</dt><dd>8 hormigas, radio 2, 5 bits, 48 comidas, 25 fuentes, sin shaping.</dd></div>
               <div><dt>Fuente</dt><dd><code>experiments/direct_goal_baseline.json</code>.</dd></div>
             </dl>
             <div class="technical-note">
               <h3>Datos técnicos</h3>
               <ul>
-                <li>Fuente remota revisada: <code>origin/research/baseline-wandb-integration</code>.</li>
+                <li>Config mantenida: <code>num_ants=8</code>, <code>food_sources=25</code>, <code>total_timesteps=12800000</code>.</li>
                 <li><code>exp_name=jax_mappo_direct_goal_baseline_8ants_r2</code>, <code>total_timesteps=12800000</code>.</li>
                 <li><code>pickup_bonus=0</code>, <code>distance_bonus=0</code>; baseline sparse real.</li>
+                <li>La evidencia histórica sparse anterior usaba otra superficie; se etiqueta aparte y no se mezcla con esta config.</li>
               </ul>
             </div>
             <div class="detail-grid">
-              <section><h3>Hipótesis</h3><p>El contrato final podía aprenderse directamente con recompensa sparse.</p></section>
-              <section><h3>Contexto</h3><p>Sirve como comparación honesta contra currículos, shaping y transferencias.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se entrena desde cero sin ayudas de distancia ni pickups moldeados.</p></section>
-              <section><h3>Evidencia</h3><p>Config y notebook de baseline con W&B; no se presenta como rollout fuerte.</p></section>
-              <section><h3>Resultado</h3><p>Queda documentado como baseline negativo principal.</p></section>
-              <section><h3>Lectura</h3><p>Ayuda a justificar por qué el proyecto exploró currículos y críticos espaciales.</p></section>
-              <section><h3>Qué no podemos afirmar</h3><p>No prueba imposibilidad de sparse reward; solo que esta configuración no fue la frontera.</p></section>
+              <section><h3>Hipótesis</h3><p>El contrato final podía aprenderse directamente con recompensa sparse si MAPPO encontraba suficientes ciclos comida-hormiguero desde cero.</p></section>
+              <section><h3>Contexto</h3><p>La línea base es necesaria para no presentar currículos, shaping, transferencias o críticos espaciales como decisiones arbitrarias.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se mantiene una config final-task sin ayudas de distancia ni pickups moldeados: el único éxito real es entregar comida al hub.</p></section>
+              <section><h3>Evidencia</h3><p>Config mantenida, notebook de baseline y revisión de la rama histórica. No hay video commiteado que se presente como rollout fuerte de esta config.</p></section>
+              <section><h3>Resultado</h3><p>Se documenta como baseline negativo principal: una comparación honesta contra las familias que sí introducen currículo, shaping o transferencias.</p></section>
+              <section><h3>Lectura</h3><p>El fallo es informativo porque la tarea combina exploración sparse, horizonte largo, observación local y coordinación multiagente.</p></section>
+              <section><h3>Qué no podemos afirmar</h3><p>No prueba que sparse reward sea imposible; solo que esta ruta no fue la frontera recuperada por el proyecto.</p></section>
               <section><h3>Artefactos</h3><p><code>experiments/direct_goal_baseline.json</code>, <code>notebooks/baselines/direct_goal.ipynb</code>.</p></section>
             </div>
           </div>
         </article>
 
-        <article id="size-curriculum" data-title="Currículo de tamaño">
+        <article
+          id="size-curriculum"
+          data-title="Currículo de tamaño"
+          data-status="parcial"
+          data-status-class="status-partial"
+          data-summary="La secuencia 8x8-50x50 enseñó actividad local, pero la transferencia al objetivo grande quedó frágil."
+          data-question="¿Una política entrenada en mapas chicos podía conservar comportamiento útil al crecer la arena?"
+          data-setup="Checkpoints 8x8 a 50x50, 4 hormigas, 1 bit, radio 1, comida/fuentes/horizonte crecientes."
+          data-measured="Comida entregada, éxito, eficiencia por pasos-hormiga y videos por tamaño preservado."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-size-curriculum.jpg">
@@ -638,7 +735,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Aprender en mapas chicos podía transferirse al crecer la arena.</p></section>
               <section><h3>Contexto</h3><p>Fue una de las primeras formas de hacer la tarea aprendible.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Aumentamos tamaño, comida, fuentes y horizonte conservando la política.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Aumentamos tamaño, comida, fuentes y horizonte conservando la política.</p></section>
               <section><h3>Evidencia</h3><p>Videos por tamaño desde 8x8 hasta 50x50.</p></section>
               <section><h3>Resultado</h3><p>Aprende actividad local, pero la transferencia se vuelve frágil.</p></section>
               <section><h3>Lectura</h3><p>Separó navegación local de descubrimiento de fuentes.</p></section>
@@ -648,7 +745,16 @@
           </div>
         </article>
 
-        <article id="small-scale" data-title="Mapas chicos y cobertura">
+        <article
+          id="small-scale"
+          data-title="Mapas chicos y cobertura"
+          data-status="parcial"
+          data-status-class="status-partial"
+          data-summary="El cuello inicial se leyó como cobertura física: más hormigas movieron la señal antes que más bits."
+          data-question="¿El fallo temprano era falta de memoria externa o falta de agentes cubriendo el mapa?"
+          data-setup="Barridos 25x25 de bits 2-8 y de 2, 3, 4, 6 y 8 hormigas con 3 bits."
+          data-measured="env_return, entregas, diferencia greedy/sampled y videos por cantidad de hormigas."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <img src="report-site/assets/plots/fig_25x25_modes.png" alt="Evaluaciones 25x25 con greedy y muestreado">
@@ -670,7 +776,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Más bits no bastan si la colonia no cubre el mapa.</p></section>
               <section><h3>Contexto</h3><p>La tarea era demasiado escasa para leer memoria sin resolver exploración.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Barridos de bits y cantidad de hormigas.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Barridos de bits y cantidad de hormigas.</p></section>
               <section><h3>Evidencia</h3><p>Figura 25x25 y rollouts preservados del currículo de hormigas.</p></section>
               <section><h3>Resultado</h3><p>Cobertura aparece como cuello de botella temprano.</p></section>
               <section><h3>Lectura</h3><p>Primero hay que producir visitas útiles, después preguntar por comunicación.</p></section>
@@ -680,7 +786,16 @@
           </div>
         </article>
 
-        <article id="unlock25" data-title="Desbloqueo 25x25">
+        <article
+          id="unlock25"
+          data-title="Desbloqueo 25x25"
+          data-status="resultado fuerte"
+          data-status-class="status-strong"
+          data-summary="DISTANCE_CAP4 llegó a 23/23 en modo muestreado; fue el primer solve claro de esta escala."
+          data-question="¿Cobertura, shaping de distancia y despliegue muestreado podían cerrar ciclos de entrega en 25x25?"
+          data-setup="Forrajeo base 25x25, 4 hormigas, 23 comidas, 6 fuentes, distance shaping y comparación greedy/sampled."
+          data-measured="Comida entregada, success rate, diferencia de modo de acción y ablation no-write."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-unlock25.jpg">
@@ -705,7 +820,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Cobertura, shaping y muestreo podían cerrar ciclos de entrega.</p></section>
               <section><h3>Contexto</h3><p>La colonia ya se movía, pero no entregaba de forma robusta.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Cuatro hormigas, distancia hacia objetivo y evaluación sampled.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Cuatro hormigas, distancia hacia objetivo y evaluación sampled.</p></section>
               <section><h3>Evidencia</h3><p>Video 25x25 y tabla greedy/sampled.</p></section>
               <section><h3>Resultado</h3><p>Primer solve limpio en esta escala.</p></section>
               <section><h3>Lectura</h3><p>El modo de despliegue no es detalle: cambia el comportamiento observado.</p></section>
@@ -715,7 +830,16 @@
           </div>
         </article>
 
-        <article id="bits-ants" data-title="Bits vs cantidad de hormigas">
+        <article
+          id="bits-ants"
+          data-title="Bits vs cantidad de hormigas"
+          data-status="parcial"
+          data-status-class="status-partial"
+          data-summary="La evidencia desplaza la pregunta: antes de causalidad de bytes aparece cobertura suficiente."
+          data-question="¿Aumentar memoria escrita ayuda por sí mismo, o primero hace falta suficiente cobertura física?"
+          data-setup="Una línea cambia bits; otra fija bits y cambia número de hormigas en 25x25."
+          data-measured="Retorno de entorno, entregas, videos por cantidad de agentes y curva ant-count."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <img src="report-site/assets/curves/curve_25x25_ant_count.svg" alt="Curva de retorno 25x25 por cantidad de hormigas">
@@ -738,7 +862,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>La memoria externa solo puede ayudar si la colonia cubre suficiente espacio.</p></section>
               <section><h3>Contexto</h3><p>El éxito 25x25 podía deberse a agentes, bits o despliegue.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Una línea cambia bits; otra fija bits y cambia hormigas.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Una línea cambia bits; otra fija bits y cambia hormigas.</p></section>
               <section><h3>Evidencia</h3><p>Curva del currículo de hormigas y rollouts por cantidad de agentes.</p></section>
               <section><h3>Resultado</h3><p>La cobertura produjo la señal más clara.</p></section>
               <section><h3>Lectura</h3><p>Los bytes pasan de conclusión a hipótesis pendiente.</p></section>
@@ -748,7 +872,16 @@
           </div>
         </article>
 
-        <article id="autocurriculum" data-title="Autocurrículos">
+        <article
+          id="autocurriculum"
+          data-title="Autocurrículos"
+          data-status="falló"
+          data-status-class="status-failed"
+          data-summary="Hubo retorno moldeado, cobertura y escritura, pero no entregas reales robustas."
+          data-question="¿Una política podía atravesar dificultad creciente sin handoffs manuales de etapa?"
+          data-setup="Etapas de distancia y área activa, reset variants, reward shaping y diagnósticos 50x50/250x250."
+          data-measured="delivery_events, pickup_events, episode_return moldeado, cobertura, escritura y videos de fallo."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-autocurriculum.jpg">
@@ -773,7 +906,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Una política podía aprender dificultad creciente por etapas.</p></section>
               <section><h3>Contexto</h3><p>El proyecto necesitaba escalar sin lanzar barridos manuales infinitos.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Etapas de distancia, área activa, resets y shaping.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Etapas de distancia, área activa, resets y shaping.</p></section>
               <section><h3>Evidencia</h3><p>Video 250x250 de fallo diagnóstico y figura de métricas.</p></section>
               <section><h3>Resultado</h3><p>El progreso aparente no equivalía a entregas.</p></section>
               <section><h3>Lectura</h3><p>La conclusión fue cambiar medición y reset, no entrenar ciegamente más.</p></section>
@@ -783,7 +916,16 @@
           </div>
         </article>
 
-        <article id="maze-pipeline" data-title="Laberintos">
+        <article
+          id="maze-pipeline"
+          data-title="Laberintos"
+          data-status="diagnóstico"
+          data-status-class="status-diagnostic"
+          data-summary="El entorno de laberintos tiene pipeline y evidencia visual, pero no es un solve comparable del forrajeo abierto."
+          data-question="¿Pasillos y obstáculos podían aislar navegación, exploración y memoria espacial?"
+          data-setup="Laberintos con paredes internas, reward explore, etapa entrenada 50x50 y stress actor-only 100x100."
+          data-measured="episode_return, remaining_food, completed_episodes, celdas visitadas y videos maze."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-maze.jpg">
@@ -810,7 +952,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>La geometría restringida podía aislar navegación y memoria espacial.</p></section>
               <section><h3>Contexto</h3><p>Es otro entorno: paredes internas cambian lo que ve y necesita la política.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Pasillos, paredes y modo de recompensa de exploración.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Pasillos, paredes y modo de recompensa de exploración.</p></section>
               <section><h3>Evidencia</h3><p>Video entrenado para laberinto y stress actor-only en 100x100.</p></section>
               <section><h3>Resultado</h3><p>La infraestructura funciona, pero no resuelve la pregunta central de forrajeo abierto.</p></section>
               <section><h3>Lectura</h3><p>No se compara contra 50x50 abierto usando entrega como si fuera la misma tarea.</p></section>
@@ -820,7 +962,16 @@
           </div>
         </article>
 
-        <article id="memory-autoresearch" data-title="Memoria R8-R12">
+        <article
+          id="memory-autoresearch"
+          data-title="Memoria R8-R12"
+          data-status="diagnóstico"
+          data-status-class="status-diagnostic"
+          data-summary="Las ablaciones R8-R12 no alcanzan para declarar comunicación causal fuerte por bytes."
+          data-question="¿Los bytes escritos causaban mejores decisiones o solo decoraban la trayectoria?"
+          data-setup="Runs R8-R12 con no-write, no-byte-read, delivery-byte-trail y byte-follow."
+          data-measured="Entregas normales contra no-byte-read/no-write, daño de forrajeo y estado de runs interrumpidos."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <img src="report-site/assets/plots/fig_memory_r8_r12_ablation.png" alt="Entregas R8-R11 normal, no-byte-read y no-write">
@@ -842,7 +993,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Los bytes podían causar mejores decisiones, no solo pintar la grilla.</p></section>
               <section><h3>Contexto</h3><p>Había escritura visual, pero eso no prueba comunicación.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Ablaciones de lectura/escritura y recompensas que incentivan seguir bytes.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Ablaciones de lectura/escritura y recompensas que incentivan seguir bytes.</p></section>
               <section><h3>Evidencia</h3><p>Figura R8-R11 normal, no-byte-read y no-write.</p></section>
               <section><h3>Resultado</h3><p>La dependencia aparece cuando baja el rendimiento de forrajeo.</p></section>
               <section><h3>Lectura</h3><p>La memoria externa está disponible; su causalidad útil no quedó demostrada.</p></section>
@@ -852,7 +1003,16 @@
           </div>
         </article>
 
-        <article id="source-layouts" data-title="Fuentes dispersas">
+        <article
+          id="source-layouts"
+          data-title="Fuentes dispersas"
+          data-status="parcial"
+          data-status-class="status-partial"
+          data-summary="Padded sources falló; proximity sources avanzó, pero no cerró la frontera 50x50."
+          data-question="¿El cuello era descubrir fuentes escasas o convertir pickups en entregas?"
+          data-setup="Geometrías padded, smooth y proximity con fuentes más escasas dentro del forrajeo base 50x50."
+          data-measured="Entregas, fuente encontrada, retorno al hub, videos de layouts y tabla de geometrías."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-source-layouts.jpg">
@@ -876,7 +1036,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Hacer sparse la comida podía entrenar descubrimiento de fuentes.</p></section>
               <section><h3>Contexto</h3><p>Encontrar comida y volver al hub eran cuellos distintos.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Distribución y cantidad de posiciones de fuente.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Distribución y cantidad de posiciones de fuente.</p></section>
               <section><h3>Evidencia</h3><p>Videos padded/proximity y tabla del informe.</p></section>
               <section><h3>Resultado</h3><p>Padded falló; proximity avanzó pero no cerró frontera.</p></section>
               <section><h3>Lectura</h3><p>La geometría de fuentes reveló el cuello de descubrimiento.</p></section>
@@ -908,7 +1068,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Las corridas negativas podían cambiar los límites de interpretación.</p></section>
               <section><h3>Contexto</h3><p>El informe necesitaba no esconder fallas que afectan claims.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se listan ablations y diagnósticos junto a resultados fuertes.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se listan ablations y diagnósticos junto a resultados fuertes.</p></section>
               <section><h3>Evidencia</h3><p>Tabla de ablation ledger en el informe.</p></section>
               <section><h3>Resultado</h3><p>Varias afirmaciones quedan más cautelosas.</p></section>
               <section><h3>Lectura</h3><p>El ledger evita vender progreso de ingeniería como conclusión causal.</p></section>
@@ -918,7 +1078,16 @@
           </div>
         </article>
 
-        <article id="rare50" data-title="50x50 raro">
+        <article
+          id="rare50"
+          data-title="50x50 raro"
+          data-status="parcial"
+          data-status-class="status-partial"
+          data-summary="Las señales de navegación ayudaron a diagnosticar descubrimiento vs retorno, pero no resolvieron la rareza."
+          data-question="¿Con comida escasa, el problema dominante era descubrir la fuente antes de optimizar entrega?"
+          data-setup="50x50 con fuentes raras, 4 hormigas y señales/vectorizaciones de navegación."
+          data-measured="Entregas, comportamiento de búsqueda, retorno al hub, figura comparativa y rollout preservado."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-rare50.jpg">
@@ -943,7 +1112,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Cuando la comida es escasa, el primer problema es descubrir la fuente.</p></section>
               <section><h3>Contexto</h3><p>Una política puede saber volver y aun así casi nunca encontrar comida.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Geometría sparse y señales de navegación.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Geometría sparse y señales de navegación.</p></section>
               <section><h3>Evidencia</h3><p>Video 50x50 raro y figura de vectores.</p></section>
               <section><h3>Resultado</h3><p>Mejora diagnóstica, no solve.</p></section>
               <section><h3>Lectura</h3><p>Descubrimiento y retorno deben tratarse por separado.</p></section>
@@ -953,7 +1122,16 @@
           </div>
         </article>
 
-        <article id="critic50" data-title="Frontera del crítico 50x50">
+        <article
+          id="critic50"
+          data-title="Frontera del crítico 50x50"
+          data-status="diagnóstico"
+          data-status-class="status-diagnostic"
+          data-summary="El salto queda asociado al crítico espacial y al paquete de intervención, no a una ablation pura."
+          data-question="¿La arquitectura del crítico centralizado era un límite para asignar crédito en 50x50?"
+          data-setup="Comparación MLP/strided_cnn dentro de la línea 50x50 con escritura compartida y costo de escritura."
+          data-measured="Entrega, estabilidad de entrenamiento, rollout 8-hormigas y figura de frontera del crítico."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-critic50.jpg">
@@ -978,7 +1156,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>La arquitectura del crítico podía ser el límite de 50x50.</p></section>
               <section><h3>Contexto</h3><p>El actor local no ve todo; el crítico centralizado sí guía crédito global.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Crítico espacial y paquete de entrenamiento asociado.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Crítico espacial y paquete de entrenamiento asociado.</p></section>
               <section><h3>Evidencia</h3><p>Figura de crítico y rollout 8-hormigas.</p></section>
               <section><h3>Resultado</h3><p>El comportamiento mejora de forma marcada.</p></section>
               <section><h3>Lectura</h3><p>Fue una frontera causal plausible, pero no una ablation pura.</p></section>
@@ -988,7 +1166,16 @@
           </div>
         </article>
 
-        <article id="frontier50" data-title="60 hormigas en 50x50">
+        <article
+          id="frontier50"
+          data-title="60 hormigas en 50x50"
+          data-status="resultado fuerte"
+          data-status-class="status-strong"
+          data-summary="La política de 60 hormigas llega a 123.90625/125 con éxito 0.90625; la escritura saturada limita el claim causal."
+          data-question="¿Cobertura alta, identidad, shared writes, write-cost y crítico adecuado podían cerrar 50x50 casi por completo?"
+          data-setup="Forrajeo base 50x50, 60 hormigas, 8 bits, shared writes, write-cost, identidad y checkpoint estabilizado."
+          data-measured="Comida entregada, success rate, nonzero write rate, rollout frontera y checkpoint exportado al sandbox."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-frontier50.jpg">
@@ -1012,7 +1199,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Con cobertura suficiente y crítico adecuado, 50x50 podía resolverse casi por completo.</p></section>
               <section><h3>Contexto</h3><p>Es la frontera entrenada más fuerte de la biblioteca.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Escalado de hormigas, escritura compartida, costo, bits e identidad.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Escalado de hormigas, escritura compartida, costo, bits e identidad.</p></section>
               <section><h3>Evidencia</h3><p>Video frontera, métricas finales y sandbox exportado.</p></section>
               <section><h3>Resultado</h3><p>La política casi vacía el entorno.</p></section>
               <section><h3>Lectura</h3><p>Es el mejor punto para demostrar comportamiento cooperativo en el entorno base.</p></section>
@@ -1044,7 +1231,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Escalar podía significar entrenar, continuar o simplemente desplegar el actor.</p></section>
               <section><h3>Contexto</h3><p>Sin esta separación, los videos grandes se podrían sobreinterpretar.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Separamos las familias grandes por tipo de evidencia.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Separamos las familias grandes por tipo de evidencia.</p></section>
               <section><h3>Evidencia</h3><p>Curvas, videos 100x100/250x250/1000x1000 y summaries de runs.</p></section>
               <section><h3>Resultado</h3><p>El reporte distingue resultado entrenado, puente por continuación y stress visual.</p></section>
               <section><h3>Lectura</h3><p>Permite mostrar escala sin declarar solves que no fueron entrenados así.</p></section>
@@ -1054,7 +1241,16 @@
           </div>
         </article>
 
-        <article id="large-scale-100" data-title="Puente 100x100">
+        <article
+          id="large-scale-100"
+          data-title="Puente 100x100"
+          data-status="resultado fuerte"
+          data-status-class="status-strong"
+          data-summary="Las continuaciones seleccionadas llegan a 372-373/375; es puente desde checkpoint, no entrenamiento scratch."
+          data-question="¿Un comportamiento fuerte 50x50 podía transferirse a 100x100 mediante continuación seleccionada?"
+          data-setup="Forrajeo base 100x100, continuación desde frontera 50x50, selección de checkpoint y temperatura de despliegue."
+          data-measured="Entregas sobre 375, curva puente, video 100x100 y caveat de continuación."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-large-scale-100.jpg">
@@ -1079,7 +1275,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Una continuación seleccionada podía escalar la política a 100x100.</p></section>
               <section><h3>Contexto</h3><p>Después de 50x50 fuerte, la pregunta era escalado por transferencia.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Tamaño de grilla, continuación y temperatura.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Tamaño de grilla, continuación y temperatura.</p></section>
               <section><h3>Evidencia</h3><p>Video puente y curva 100x100.</p></section>
               <section><h3>Resultado</h3><p>La continuación escala muy bien en puntos seleccionados.</p></section>
               <section><h3>Lectura</h3><p>Es fuerte como puente, no como independencia total del checkpoint.</p></section>
@@ -1089,7 +1285,16 @@
           </div>
         </article>
 
-        <article id="large-scale-250" data-title="250x250 reset-boundary">
+        <article
+          id="large-scale-250"
+          data-title="250x250 reset-boundary"
+          data-status="parcial"
+          data-status-class="status-partial"
+          data-summary="Reset-boundary recupera entregas reales, pero 250x250 sigue siendo una frontera abierta."
+          data-question="¿El fallo 250x250 venía de resets, distancia, truncación o lectura de retorno moldeado?"
+          data-setup="Forrajeo base 250x250 con reset-boundary, distancia/autocurriculum, truncación y transferencia."
+          data-measured="delivery_events, pickup_events, pico vs final, curva reset y video de diagnóstico."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-large-scale-250.jpg">
@@ -1114,7 +1319,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>El fallo 250x250 venía de resets, distancia, truncación y lectura moldeada.</p></section>
               <section><h3>Contexto</h3><p>Era la frontera grande donde actividad y entrega se separaban mucho.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Reset-boundary, distancia y variantes de continuación.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Reset-boundary, distancia y variantes de continuación.</p></section>
               <section><h3>Evidencia</h3><p>Video reset-boundary, curva y figura diagnóstica.</p></section>
               <section><h3>Resultado</h3><p>Se recuperan entregas reales, pero la escala sigue abierta.</p></section>
               <section><h3>Lectura</h3><p>Es una recuperación útil, no un solve general de 250x250.</p></section>
@@ -1124,7 +1329,16 @@
           </div>
         </article>
 
-        <article id="bigmap" data-title="1000x1000 solo actor">
+        <article
+          id="bigmap"
+          data-title="1000x1000 solo actor"
+          data-status="diagnóstico"
+          data-status-class="status-diagnostic"
+          data-summary="El actor 50x50 produce entregas en una grilla 1000x1000, pero no fue entrenado end-to-end a esa escala."
+          data-question="¿El actor aprendido localmente mantenía estabilidad visual cuando se lo desplegaba en una grilla enorme?"
+          data-setup="Despliegue actor-only de la política 50x50 en 1000x1000, 500 hormigas y 5000 comidas."
+          data-measured="Primera entrega, entregas acumuladas, duración del render y caveat actor-only."
+        >
           <div class="detail-layout">
             <div class="detail-media">
               <video controls muted loop playsinline preload="metadata" poster="report-site/assets/posters/tree-bigmap.jpg">
@@ -1148,7 +1362,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>El actor 50x50 podía mantener comportamiento local en una grilla enorme.</p></section>
               <section><h3>Contexto</h3><p>Era una prueba visual de estrés posterior, no un experimento de entrenamiento grande.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Solo el despliegue: más grilla, hormigas y comida.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Solo el despliegue: más grilla, hormigas y comida.</p></section>
               <section><h3>Evidencia</h3><p>Video 1000x1000 actor-only.</p></section>
               <section><h3>Resultado</h3><p>Hay entregas reales bajo despliegue grande.</p></section>
               <section><h3>Lectura</h3><p>Demuestra estabilidad local visual, no entrenamiento end-to-end.</p></section>
@@ -1175,7 +1389,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>La evidencia se debe leer por configuración, métricas y artefactos juntos.</p></section>
               <section><h3>Contexto</h3><p>Los runs tuvieron múltiples fuentes de verdad.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se agrega una ficha de metodología de lectura.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se agrega una ficha de metodología de lectura.</p></section>
               <section><h3>Evidencia</h3><p>Índices, summaries, videos, checkpoints y audit ledger.</p></section>
               <section><h3>Resultado</h3><p>La biblioteca puede explicar por qué una corrida se cita o se descarta.</p></section>
               <section><h3>Lectura</h3><p>Evita sobreleer una métrica aislada.</p></section>
@@ -1206,7 +1420,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Para el reporte, ninguna línea de investigación debía desaparecer.</p></section>
               <section><h3>Contexto</h3><p>El proyecto acumuló ramas, notebooks, configs, videos y runs locales.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se reconstruyó el árbol desde refs visibles y artefactos locales.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se reconstruyó el árbol desde refs visibles y artefactos locales.</p></section>
               <section><h3>Evidencia</h3><p>Tablas TSV, README y mega-audit.</p></section>
               <section><h3>Resultado</h3><p>La biblioteca tiene una taxonomía verificable.</p></section>
               <section><h3>Lectura</h3><p>El ledger es evidencia de trazabilidad, no una política mejor.</p></section>
@@ -1233,7 +1447,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>La integración necesitaba una base de entrenamiento ordenada y reutilizable.</p></section>
               <section><h3>Contexto</h3><p>Muchas ramas dependían de la misma API MAPPO.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se preserva el core modular y se referencian workflows laterales.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se preserva el core modular y se referencian workflows laterales.</p></section>
               <section><h3>Evidencia</h3><p>Tests, configs y audit ledger.</p></section>
               <section><h3>Resultado</h3><p>Base común para experimentos JAX.</p></section>
               <section><h3>Lectura</h3><p>Importa para reproducibilidad, no para claim empírico.</p></section>
@@ -1261,7 +1475,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Cambiar roles podía revelar dependencia de cooperación, timing y oponentes congelados.</p></section>
               <section><h3>Contexto</h3><p>Estas ramas no son la línea principal de forrajeo abierto.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Roles, frozen opponent, liberación temporal y críticos CNN en ramas específicas.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Roles, frozen opponent, liberación temporal y críticos CNN en ramas específicas.</p></section>
               <section><h3>Evidencia</h3><p>Configs, notebooks y tests de las ramas remotas.</p></section>
               <section><h3>Resultado</h3><p>Queda incorporado al índice como investigación lateral.</p></section>
               <section><h3>Lectura</h3><p>No se presenta como resultado fuerte sin videos/métricas comparables.</p></section>
@@ -1289,7 +1503,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Cambiar reglas de cookies podía separar búsqueda útil de comportamiento riesgoso.</p></section>
               <section><h3>Contexto</h3><p>Es un cambio real de entorno, no una perilla del forrajeo base.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Reglas de cookies/letalidad y layouts laterales.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Reglas de cookies/letalidad y layouts laterales.</p></section>
               <section><h3>Evidencia</h3><p>Auditoría de branch y notebooks; no resultado comparable final.</p></section>
               <section><h3>Resultado</h3><p>Queda documentado como línea a recuperar, no como claim.</p></section>
               <section><h3>Lectura</h3><p>Debe entrar en una fase posterior si se recuperan artefactos.</p></section>
@@ -1316,7 +1530,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Reducir costo computacional y penalizar escritura podía estabilizar escalado.</p></section>
               <section><h3>Contexto</h3><p>50x50/60 hormigas necesitaba más recursos y control de spam de bytes.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Multi-device, write-cost y continuaciones.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Multi-device, write-cost y continuaciones.</p></section>
               <section><h3>Evidencia</h3><p>Configs, audit ledger y ablation table.</p></section>
               <section><h3>Resultado</h3><p>Útil como soporte; no claim causal fuerte.</p></section>
               <section><h3>Lectura</h3><p>Separar ingeniería de rendimiento de resultado empírico.</p></section>
@@ -1343,7 +1557,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>Una arquitectura/resolución alternativa podía aliviar 250x250.</p></section>
               <section><h3>Contexto</h3><p>La frontera grande era inestable.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Half-scale y resnet en rama de lanzamiento.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Half-scale y resnet en rama de lanzamiento.</p></section>
               <section><h3>Evidencia</h3><p>Audit ledger y configs de 250x250.</p></section>
               <section><h3>Resultado</h3><p>No queda como resultado principal.</p></section>
               <section><h3>Lectura</h3><p>Debe verse como diagnóstico de arquitectura.</p></section>
@@ -1373,7 +1587,7 @@
             <div class="detail-grid">
               <section><h3>Hipótesis</h3><p>El proyecto se entiende mejor si los artefactos son navegables.</p></section>
               <section><h3>Contexto</h3><p>El informe formal ya existía, pero era demasiado lineal para mostrar el laboratorio completo.</p></section>
-              <section><h3>Qué cambiamos</h3><p>Se reorganiza el sitio como biblioteca sin eliminar el informe narrativo.</p></section>
+              <section><h3>Cómo lo probamos</h3><p>Se reorganiza el sitio como biblioteca sin eliminar el informe narrativo.</p></section>
               <section><h3>Evidencia</h3><p>Assets importados desde <code>origin/report-writing-site@0d748c3</code>.</p></section>
               <section><h3>Resultado</h3><p>Hay dos lecturas: narrativa y visualizador de experimentos.</p></section>
               <section><h3>Lectura</h3><p>Es una mejora de comunicación del proyecto.</p></section>
@@ -1394,19 +1608,23 @@
 
     <div class="library-modal" id="experiment-modal" hidden>
       <div class="library-modal-backdrop" data-modal-close></div>
-      <section
+      <div
         class="library-modal-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        aria-describedby="modal-body"
       >
         <div class="library-modal-header">
           <p class="eyebrow">Ficha de experimento</p>
-          <h2 id="modal-title">Experimento</h2>
+          <div class="modal-title-line">
+            <h2 id="modal-title" tabindex="-1">Experimento</h2>
+            <span id="modal-status" class="status-chip" hidden></span>
+          </div>
           <button type="button" class="modal-close" data-modal-close aria-label="Cerrar ficha">×</button>
         </div>
         <div class="library-modal-body" id="modal-body"></div>
-      </section>
+      </div>
     </div>
 
     <script src="report-site/site.js"></script>

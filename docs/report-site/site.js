@@ -384,14 +384,8 @@
       const link = createSvg("a");
       link.setAttribute("href", node.href);
       link.setAttribute("class", `tree-link ${node.kind || "main"}`);
+      link.setAttribute("data-detail-link", node.id);
       link.setAttribute("aria-label", `${node.label}: ${node.small}`);
-      link.addEventListener("click", (event) => {
-        const target = document.querySelector(node.href);
-        if (!target) return;
-        event.preventDefault();
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        history.pushState(null, "", node.href);
-      });
 
       const group = createSvg("g");
       group.setAttribute("transform", `translate(${node.x} ${node.y})`);

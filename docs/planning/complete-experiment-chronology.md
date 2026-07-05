@@ -503,7 +503,7 @@ This table covers every `experiments/*.json` config currently tracked.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- |
 | `autocurriculum.json` | 50x50 | 1 | 12 | 2 | 1 | 1 | MLP | 10000 | 16 x 80 | scratch |
 | `communication_bits.json` | 25x25 | 1 | 23 | 6 | 2 | 1 | MLP | 2500 | 16 x 80 | 25x25 forage checkpoint |
-| `direct_goal_baseline.json` | 50x50 | 10 | 48 | 25 | 5 | 1 | MLP | 10000 | 16 x 80 | scratch |
+| `direct_goal_baseline.json` | 50x50 | 8 | 48 | 25 | 5 | 2 | MLP | 10000 | 16 x 80 | scratch |
 | `exploration_curriculum.json` | 50x50 | 1 | 48 | 12 | 1 | 1 | MLP | 6250 | 16 x 80 | scratch |
 | `exploration_to_forage_50x50.json` | 50x50 | 4 | 48 | 12 | 1 | 1 | MLP | 6250 | 16 x 256 | efficient 50x50 checkpoint |
 | `exploration_to_forage_padded_sources_50x50.json` | 50x50 | 4 | 18 | 2 | 1 | 1 | MLP | 1000 | 16 x 256 | 20x20 efficient checkpoint |

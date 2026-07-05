@@ -6,8 +6,10 @@ evidence safely in the report.
 ## Baselines
 
 `direct_goal_baseline` is the main negative baseline because it trains the
-final 50x50, 10-ant, 5-bit target directly from sparse delivery reward. It
-answers whether the target task is solved without curriculum or shaping.
+maintained final 50x50, 8-ant, radius-2, 5-bit target directly from sparse
+delivery reward. It answers whether the target task is solved without curriculum
+or shaping. Older sparse-sweep notes used different surfaces; keep those
+historical results labeled separately from the maintained config.
 
 `smoke` is not a research baseline. It exists to catch broken CLI, dependency,
 or run-directory plumbing.

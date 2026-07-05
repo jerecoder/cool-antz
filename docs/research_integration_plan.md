@@ -13,7 +13,7 @@ the later curricula exist.
 | Surface | Role | Integration decision |
 | --- | --- | --- |
 | `experiments/smoke.json` | Tiny Torch MAPPO plumbing check. | Keep as an engineering smoke test, not a research result. |
-| `experiments/direct_goal_baseline.json` | Sparse final-task JAX MAPPO baseline: 50x50, 10 ants, 5 write bits, randomized food and hub, no shaping. | Keep as the negative-control baseline. Document that it asks MAPPO to solve the final target from scratch with only delivery reward. |
+| `experiments/direct_goal_baseline.json` | Maintained sparse final-task JAX MAPPO baseline: 50x50, 8 ants, radius-2 actor vision, 5 write bits, randomized food and hub, no shaping. | Keep as the negative-control baseline. Document that it asks MAPPO to solve the final target from scratch with only delivery reward, while keeping older sparse-sweep surfaces labeled separately. |
 | `notebooks/baselines/direct_goal.ipynb` | Notebook-facing direct baseline. | Keep grouped under `notebooks/baselines/`. Add rationale text in docs rather than bloating the notebook. |
 | `research/direct-goal-repro-sweep` | Sparse hyperparameter and reward-shaping branch. | Port only durable evidence/rationale. Do not overwrite the current baseline config with older branch settings. |
 
