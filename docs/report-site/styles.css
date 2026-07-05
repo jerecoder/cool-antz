@@ -735,6 +735,25 @@ figcaption {
   outline: 2px solid var(--accent);
 }
 
+.vision-range-figures {
+  grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.8fr);
+  margin: 1.15em 0;
+}
+
+.vision-range-figures img,
+.vision-range-figures video {
+  display: block;
+  background: var(--paper-warm);
+}
+
+.vision-range-figures video {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 0;
+  border: 1px solid var(--line);
+  object-fit: contain;
+}
+
 .behavior-reading {
   margin-top: 1.1em;
   padding-left: 5rem;

@@ -718,12 +718,149 @@
                 <h3>Curriculum de radio de visión</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para explicar cómo cambiar el radio de visión modifica la dificultad de exploración, memoria local y retorno.</p>
+                <p class="step-claim">
+                  El planteamiento fue usar el radio de visión como currículo:
+                  empezar con una política que observa casi todo el tablero y,
+                  recién después, exigirle operar con una observación local.
+                </p>
+                <p>
+                  La hipótesis inicial era que una hormiga con visión global
+                  tenía una tarea más fácil: si podía ver dónde estaban las
+                  galletas, no tenía que descubrir fuentes a ciegas. Entonces el
+                  plan era aprender primero en ese caso aparentemente benigno y
+                  usar esa política como punto de partida para radios cada vez
+                  más chicos.
+                </p>
+                <p>
+                  En este experimento, radio <code>25</code> significaba que
+                  cada decisión del actor recibía una observación
+                  <code>51x51</code>: <code>2601</code> celdas con canales de
+                  comida, hormigas, bits escritos, hub y borde/obstáculos, más
+                  señales propias como si la hormiga carga comida y hacia dónde
+                  mira. En la versión densa, esa grilla se aplana y entra a un
+                  MLP que termina en dos heads de acción: movimiento y
+                  escritura. El crítico, usado durante entrenamiento, mira una
+                  observación centralizada para estimar valor, pero la acción
+                  ejecutada sale del actor local de cada hormiga.
+                </p>
+                <p>
+                  Ahí aparece el problema: una ventana <code>51x51</code> no es
+                  una pista pequeña, es un espacio visual enorme. La red tiene
+                  que aprender qué posiciones importan dentro de miles de
+                  entradas posibles. Además, las hormigas no tienen memoria
+                  recurrente interna: en cada paso la política decide desde la
+                  observación actual y lo que haya quedado escrito en la grilla.
+                  Por eso el actor tiene que aprender una regla reactiva que,
+                  aplicada paso a paso, cierre el ciclo comida-hub: acercarse,
+                  hacer pickup, volver y repetir. Ver más no resuelve
+                  automáticamente esa asignación de crédito.
+                </p>
+                <p>
+                  Luego, si el radio de visión grande convergía, la idea era
+                  achicar la ventana haciendo warm-start. En la versión con
+                  primera capa densa, esa capa recibe una lista larga de valores:
+                  primero las celdas de comida, después las de hormigas, después
+                  los bits, y así. Si pasamos de <code>51x51</code> a
+                  <code>41x41</code>, la nueva observación corresponde al
+                  sub-tensor central de la observación anterior. Conservamos las
+                  conexiones que miraban esas coordenadas centrales, porque
+                  siguen existiendo en el nuevo radio, y descartamos las
+                  conexiones asociadas al anillo exterior. No se reinventa toda
+                  la red: las capas internas, los heads de acción y el crítico
+                  quedan como estaban; sólo cambia la entrada compatible con el
+                  nuevo tamaño.
+                </p>
+                <p>
+                  Como respuesta a esa dificultad, también se probó un enfoque
+                  convolucional con el objetivo de ayudar a la convergencia. La
+                  motivación era que filtros compartidos explotaran la estructura
+                  espacial de la grilla antes de pasar al MLP, en lugar de
+                  obligar a la red a tratar cada celda como una variable
+                  independiente. Pero incluso con ese cambio, y con un entorno
+                  deliberadamente denso en galletas para darle muchas
+                  oportunidades de pickup, la política no logró una conducta
+                  greedy de pickup estable ni convergió de forma confiable.
+                </p>
+                <div class="figure-grid vision-range-figures" aria-label="Evidencia del currículo de radio de visión">
+                  <figure>
+                    <a
+                      class="zoomable-plot"
+                      href="report-site/assets/plots/fig_vision_range_51x51_reward.png"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Abrir gráfico de retorno real del radio 25"
+                    >
+                      <img
+                        src="report-site/assets/plots/fig_vision_range_51x51_reward.png"
+                        alt="Retorno real durante el entrenamiento con radio de visión 25"
+                        loading="lazy"
+                      >
+                    </a>
+                    <figcaption>
+                      <strong>Radio 25 / ventana 51x51.</strong> El retorno real
+                      queda pegado a cero durante casi todo el entrenamiento. Los
+                      picos aparecen tarde y no forman una meseta estable.
+                    </figcaption>
+                  </figure>
+                  <figure>
+                    <video
+                      autoplay
+                      loop
+                      muted
+                      playsinline
+                      controls
+                      preload="metadata"
+                      aria-label="Rollout greedy de una política con visión 51x51"
+                    >
+                      <source src="report-site/assets/videos/vision-range-51x51.mp4" type="video/mp4">
+                      <a href="report-site/assets/videos/vision-range-51x51.gif">Abrir GIF alternativo</a>
+                    </video>
+                    <figcaption>
+                      <strong>Rollout greedy de la política 51x51.</strong> Esta
+                      variante usaba capas convolucionales para facilitar la
+                      lectura espacial. A pesar de la alta densidad de galletas,
+                      la inspección visual no deja ver pickups claros y tampoco
+                      muestra una conducta confiable de retorno al hub.
+                    </figcaption>
+                  </figure>
+                </div>
+                <div class="experiment-note" aria-label="Lectura del currículo de radio de visión">
+                  <span class="kicker">resultado</span>
+                  <p class="experiment-note-lead">
+                    La etapa de visión completa no produjo una base estable para
+                    transferir. Ver el mapa entero no alcanzó para aprender una
+                    política robusta de forrajeo.
+                  </p>
+                  <p>
+                    La curva resume el problema mejor que un único mejor punto:
+                    el <code>92.7%</code> de los updates registrados tuvo
+                    retorno real cero; la media fue <code>0.35</code> y el
+                    percentil 90 también fue <code>0</code>. Sí hubo picos
+                    aislados, incluido un máximo de <code>73</code>, pero esos
+                    picos no se sostuvieron. Para leer el comportamiento de
+                    pickup hay que apoyarse en el rollout visual: la métrica dura
+                    del gráfico es entrega al hub.
+                  </p>
+                  <p class="experiment-note-reading">
+                    La lectura es que la visión global introdujo demasiados
+                    grados de libertad. La política tenía que resolver a la vez
+                    selección espacial, navegación, pickup y retorno. Cuando la
+                    señal positiva aparece sólo en picos, el checkpoint siguiente
+                    no hereda una habilidad sólida sino una política frágil.
+                  </p>
+                </div>
+                <p>
+                  En retrospectiva, el experimento enseñó que “más información”
+                  no era lo mismo que “problema más fácil”. Con radio gigante, la
+                  red tenía que aprender a seleccionar señales relevantes dentro
+                  de una entrada enorme antes de poder aprender el comportamiento
+                  de forrajeo. Como esa base era frágil, el warm-start por
+                  recorte central no alcanzaba: al reducir el radio se preservaba
+                  estructura, pero no una estrategia ya dominada.
+                </p>
               </div>
-              <div class="evidence-slot">radio de visión + métricas</div>
             </div>
           </li>
 
