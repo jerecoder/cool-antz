@@ -424,6 +424,8 @@ def test_env_from_args_passes_hub_center_window_size() -> None:
         random_hub=True,
         layout_margin=10,
         hub_center_window_size=4,
+        random_wall_obstacles=True,
+        random_wall_center_window_size=12,
         step_penalty=0.0,
         write_penalty=0.0,
         write_bits=1,
@@ -434,6 +436,7 @@ def test_env_from_args_passes_hub_center_window_size() -> None:
     hub_x, hub_y = obs["hub_pos"]
 
     assert env.hub_center_window_size == 4
+    assert env.random_wall_center_window_size == 12
     assert 23 <= int(hub_x) < 27
     assert 23 <= int(hub_y) < 27
     env.close()

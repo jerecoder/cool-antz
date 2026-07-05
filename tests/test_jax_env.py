@@ -274,6 +274,47 @@ def test_jax_maze_obstacles_block_movement_and_are_observed() -> None:
     assert int(info.visited_cell_count) == 1
 
 
+def test_jax_random_wall_obstacles_block_movement_and_are_observed() -> None:
+    env = JaxAntByteForagingEnv(
+        width=12,
+        height=12,
+        num_ants=1,
+        food_count=0,
+        max_steps=250,
+        random_wall_obstacles=True,
+        random_wall_count_min=2,
+        random_wall_count_max=3,
+        random_wall_length_min=4,
+        random_wall_length_max=8,
+        random_wall_width=1,
+        random_wall_l_turn_probability=1.0,
+        maze_seed=17,
+        terminate_on_food_delivery=False,
+        terminate_on_full_coverage=True,
+    )
+    start_pos, wall_action = _open_cell_next_to_wall(np.asarray(env.obstacles))
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(5),
+        hub_pos=jnp.asarray(start_pos, dtype=jnp.int32),
+        obstacles=env.obstacles,
+    )
+
+    assert env.open_cell_count < env.width * env.height
+    assert int(jnp.sum(obs["obstacles"])) > 0
+    assert int(info.visited_cell_count) == 1
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.asarray(start_pos))
+
+    _, obs, _, terminated, truncated, info = env.step(
+        state,
+        jnp.array([wall_action, 0], dtype=jnp.int32),
+    )
+
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.asarray(start_pos))
+    assert not bool(terminated)
+    assert not bool(truncated)
+    assert int(info.visited_cell_count) == 1
+
+
 def test_jax_autocurriculum_reset_uses_fixed_shape_start_stage() -> None:
     env = JaxAntByteAutoCurriculumEnv(
         width=50,

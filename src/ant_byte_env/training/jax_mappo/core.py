@@ -224,16 +224,28 @@ def _facing_one_hot(ants_facing: jax.Array) -> jax.Array:
     )
 
 
-def _agent_identity_features(ants_pos: jax.Array) -> jax.Array:
+def _agent_identity_features(
+    ants_pos: jax.Array,
+    *,
+    agent_identity_types: int | None = None,
+) -> jax.Array:
     batch_size, num_agents = ants_pos.shape[:2]
     if num_agents <= 1:
         return jnp.zeros((batch_size, num_agents, 0), dtype=jnp.float32)
+    identity_count = (
+        num_agents if agent_identity_types is None else int(agent_identity_types)
+    )
+    if identity_count <= 1:
+        return jnp.zeros((batch_size, num_agents, 0), dtype=jnp.float32)
     identity = jax.nn.one_hot(
-        jnp.arange(num_agents),
-        num_agents,
+        jnp.arange(num_agents) % identity_count,
+        identity_count,
         dtype=jnp.float32,
     )
-    return jnp.broadcast_to(identity[None, :, :], (batch_size, num_agents, num_agents))
+    return jnp.broadcast_to(
+        identity[None, :, :],
+        (batch_size, num_agents, identity_count),
+    )
 
 
 def _ants_facing_or_default(obs: JaxObs) -> jax.Array:
@@ -377,6 +389,7 @@ def build_actor_observations(
     food_scale: int = 1,
     actor_vision_radius: int = DEFAULT_ACTOR_VISION_DEPTH,
     write_bits: int = DEFAULT_WRITE_BITS,
+    agent_identity_types: int | None = None,
     obs_width: int | None = None,
     obs_height: int | None = None,
 ) -> jax.Array:
@@ -462,7 +475,10 @@ def build_actor_observations(
             local_byte_bits,
             local_hub,
             local_border,
-            _agent_identity_features(obs["ants_pos"]),
+            _agent_identity_features(
+                obs["ants_pos"],
+                agent_identity_types=agent_identity_types,
+            ),
             own_carrying,
             own_facing,
         ]

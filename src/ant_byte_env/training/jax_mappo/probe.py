@@ -165,6 +165,7 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -175,6 +176,7 @@ def _load_probe_params(checkpoint_path: Path, args: argparse.Namespace) -> JaxMA
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
         target_num_ants=args.num_ants,
+        target_agent_identity_types=getattr(args, "agent_identity_types", None),
         target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
     )
     return jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
@@ -363,6 +365,7 @@ def _select_actions_from_batch(
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )

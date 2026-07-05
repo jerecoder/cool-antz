@@ -154,6 +154,7 @@ def collect_rollout(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )

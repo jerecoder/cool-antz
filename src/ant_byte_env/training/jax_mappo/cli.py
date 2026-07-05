@@ -112,6 +112,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Centered local actor-grid radius; the default radius 1 is a 3x3 grid.",
     )
     parser.add_argument("--num-ants", type=int, default=2)
+    parser.add_argument(
+        "--agent-identity-types",
+        type=int,
+        default=None,
+        help=(
+            "Number of repeating one-hot identity classes for actor observations. "
+            "Omit to use one identity per ant."
+        ),
+    )
     parser.add_argument("--food-count", type=int, default=4)
     parser.add_argument("--food-sources", type=int, default=1)
     parser.add_argument("--lethal-food-count", type=int, default=0)
@@ -291,6 +300,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=0,
         help="Seed for the generated maze layout.",
+    )
+    parser.add_argument(
+        "--maze-layout-count",
+        type=int,
+        default=64,
+        help="Number of obstacle layouts to pre-generate when obstacle sampling is enabled.",
+    )
+    parser.add_argument(
+        "--random-wall-obstacles",
+        action="store_true",
+        help="Generate random straight and L-shaped wall segments as obstacles.",
+    )
+    parser.add_argument("--random-wall-count-min", type=int, default=1)
+    parser.add_argument("--random-wall-count-max", type=int, default=3)
+    parser.add_argument("--random-wall-length-min", type=int, default=4)
+    parser.add_argument("--random-wall-length-max", type=int, default=14)
+    parser.add_argument("--random-wall-width", type=int, default=1)
+    parser.add_argument("--random-wall-l-turn-probability", type=float, default=0.5)
+    parser.add_argument(
+        "--random-wall-center-window-size",
+        type=int,
+        default=0,
+        help=(
+            "When positive with --random-wall-obstacles, prefer random wall starts "
+            "inside this centered square window."
+        ),
+    )
+    parser.add_argument("--lethal-food-min-distance", type=int, default=1)
+    parser.add_argument(
+        "--lethal-food-max-distance",
+        type=int,
+        default=0,
+        help=(
+            "When positive, prefer lethal food positions within this Chebyshev "
+            "distance from the hub. Zero keeps full-map lethal sampling."
+        ),
     )
     parser.add_argument("--pickup-bonus", type=float, default=0.25)
     parser.add_argument(
@@ -480,6 +525,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.set_defaults(best_eval_shuffle_positions=True)
     parser.add_argument("--load-model", type=Path, default=None)
     parser.add_argument(
+        "--reset-optimizer-on-load",
+        action="store_true",
+        help="Discard optimizer state from --load-model and start Adam fresh.",
+    )
+    parser.add_argument(
         "--run-dir",
         type=Path,
         default=None,
@@ -586,6 +636,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             raise ValueError("--lethal-food-count requires --random-food.")
         if args.autocurriculum:
             raise ValueError("--lethal-food-count is only supported for non-autocurriculum runs.")
+    if args.lethal_food_min_distance < 1:
+        raise ValueError("--lethal-food-min-distance must be at least 1.")
+    if args.lethal_food_max_distance < 0:
+        raise ValueError("--lethal-food-max-distance must be non-negative.")
+    if (
+        args.lethal_food_max_distance > 0
+        and args.lethal_food_max_distance < args.lethal_food_min_distance
+    ):
+        raise ValueError(
+            "--lethal-food-max-distance must be at least --lethal-food-min-distance."
+        )
     if args.food_cluster_count < 0:
         raise ValueError("--food-cluster-count must be non-negative.")
     if args.food_cluster_radius < 0:
@@ -627,6 +688,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--obs-height must be at least --height.")
     if args.actor_vision_radius < 0:
         raise ValueError("--actor-vision-radius must be non-negative.")
+    if args.agent_identity_types is not None and args.agent_identity_types <= 0:
+        raise ValueError("--agent-identity-types must be positive when set.")
     if args.random_ant_spawn_radius is not None and args.random_ant_spawn_radius < 0:
         raise ValueError("--random-ant-spawn-radius must be non-negative.")
     if args.layout_margin < 0:
@@ -641,6 +704,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--maze-corridor-width must be positive.")
     if args.maze_wall_width <= 0:
         raise ValueError("--maze-wall-width must be positive.")
+    if args.maze_layout_count <= 0:
+        raise ValueError("--maze-layout-count must be positive.")
+    if args.maze_obstacles and args.random_wall_obstacles:
+        raise ValueError("--maze-obstacles and --random-wall-obstacles are mutually exclusive.")
+    if args.random_wall_count_min <= 0:
+        raise ValueError("--random-wall-count-min must be positive.")
+    if args.random_wall_count_max < args.random_wall_count_min:
+        raise ValueError("--random-wall-count-max must be at least --random-wall-count-min.")
+    if args.random_wall_length_min <= 0:
+        raise ValueError("--random-wall-length-min must be positive.")
+    if args.random_wall_length_max < args.random_wall_length_min:
+        raise ValueError("--random-wall-length-max must be at least --random-wall-length-min.")
+    if args.random_wall_width <= 0:
+        raise ValueError("--random-wall-width must be positive.")
+    if args.random_wall_obstacles and args.random_wall_width >= min(args.width, args.height):
+        raise ValueError("--random-wall-width must be smaller than both grid axes.")
+    if not 0.0 <= args.random_wall_l_turn_probability <= 1.0:
+        raise ValueError("--random-wall-l-turn-probability must be between 0 and 1.")
+    if args.random_wall_center_window_size < 0:
+        raise ValueError("--random-wall-center-window-size must be non-negative.")
+    if args.random_wall_center_window_size > min(args.width, args.height):
+        raise ValueError("--random-wall-center-window-size must fit inside the map.")
     if args.write_bits <= 0 or args.write_bits > MAX_WRITE_BITS:
         raise ValueError(f"--write-bits must be an integer from 1 to {MAX_WRITE_BITS}.")
     if args.autocurriculum and not args.food_termination:
@@ -649,8 +734,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError(
             "--terminate-on-full-coverage is only supported for non-autocurriculum runs."
         )
-    if args.autocurriculum and args.maze_obstacles:
-        raise ValueError("--maze-obstacles is only supported for non-autocurriculum runs.")
+    if args.autocurriculum and (args.maze_obstacles or args.random_wall_obstacles):
+        raise ValueError("Obstacle generation is only supported for non-autocurriculum runs.")
     if args.write_bit_penalty < 0.0:
         raise ValueError("--write-bit-penalty must be non-negative.")
     if not 0.0 <= args.write_bit_penalty_decay <= 1.0:

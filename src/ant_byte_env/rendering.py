@@ -282,6 +282,7 @@ def render_jax_checkpoint(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -292,6 +293,7 @@ def render_jax_checkpoint(
             target_write_bits=args.write_bits,
             actor_vision_radius=args.actor_vision_radius,
             target_num_ants=int(getattr(args, "num_ants", 1)),
+            target_agent_identity_types=getattr(args, "agent_identity_types", None),
             target_critic_architecture=_target_critic_architecture(critic_kwargs),
         )
         params = jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])
@@ -323,7 +325,11 @@ def render_jax_checkpoint(
             writer.append_data(_render_frame(env, obs, args=args, show_vision=show_vision))
             frames_written += 1
             if terminated or truncated:
-                if not bool(getattr(args, "maze_obstacles", False)) or max_frames is None:
+                uses_obstacle_layouts = bool(
+                    getattr(args, "maze_obstacles", False)
+                    or getattr(args, "random_wall_obstacles", False)
+                )
+                if not uses_obstacle_layouts or max_frames is None:
                     break
                 if frames_written >= frame_limit:
                     break
@@ -425,6 +431,7 @@ def _compile_jax_action_selector(
             food_scale=food_scale,
             actor_vision_radius=args.actor_vision_radius,
             write_bits=args.write_bits,
+            agent_identity_types=getattr(args, "agent_identity_types", None),
             obs_width=args.obs_width,
             obs_height=args.obs_height,
         )
@@ -544,6 +551,19 @@ def _env_from_args(
         "maze_corridor_width": int(getattr(args, "maze_corridor_width", 3)),
         "maze_wall_width": int(getattr(args, "maze_wall_width", 1)),
         "maze_seed": int(getattr(args, "maze_seed", 0)),
+        "maze_layout_count": int(getattr(args, "maze_layout_count", 64)),
+        "random_wall_obstacles": bool(getattr(args, "random_wall_obstacles", False)),
+        "random_wall_count_min": int(getattr(args, "random_wall_count_min", 1)),
+        "random_wall_count_max": int(getattr(args, "random_wall_count_max", 3)),
+        "random_wall_length_min": int(getattr(args, "random_wall_length_min", 4)),
+        "random_wall_length_max": int(getattr(args, "random_wall_length_max", 14)),
+        "random_wall_width": int(getattr(args, "random_wall_width", 1)),
+        "random_wall_l_turn_probability": float(
+            getattr(args, "random_wall_l_turn_probability", 0.5)
+        ),
+        "random_wall_center_window_size": int(
+            getattr(args, "random_wall_center_window_size", 0)
+        ),
         "render_mode": render_mode,
     }
     if tile_size is not None:

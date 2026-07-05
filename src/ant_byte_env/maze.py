@@ -128,6 +128,192 @@ def generate_wide_corridor_maze(
     return obstacles
 
 
+def generate_random_wall_obstacles(
+    *,
+    width: int,
+    height: int,
+    wall_count_min: int = 1,
+    wall_count_max: int = 3,
+    wall_length_min: int = 4,
+    wall_length_max: int = 14,
+    wall_width: int = 1,
+    l_turn_probability: float = 0.5,
+    center_window_size: int = 0,
+    seed: int = 0,
+) -> np.ndarray:
+    """Return a boolean obstacle grid with random straight and L-shaped walls."""
+
+    width = int(width)
+    height = int(height)
+    wall_count_min = int(wall_count_min)
+    wall_count_max = int(wall_count_max)
+    wall_length_min = int(wall_length_min)
+    wall_length_max = int(wall_length_max)
+    wall_width = int(wall_width)
+    l_turn_probability = float(l_turn_probability)
+    center_window_size = int(center_window_size)
+    if width <= 0 or height <= 0:
+        raise ValueError("width and height must be positive.")
+    if wall_count_min <= 0:
+        raise ValueError("wall_count_min must be positive.")
+    if wall_count_max < wall_count_min:
+        raise ValueError("wall_count_max must be at least wall_count_min.")
+    if wall_length_min <= 0:
+        raise ValueError("wall_length_min must be positive.")
+    if wall_length_max < wall_length_min:
+        raise ValueError("wall_length_max must be at least wall_length_min.")
+    if wall_width <= 0:
+        raise ValueError("wall_width must be positive.")
+    if not 0.0 <= l_turn_probability <= 1.0:
+        raise ValueError("l_turn_probability must be between 0 and 1.")
+    if wall_width >= min(width, height):
+        raise ValueError("wall_width must be smaller than both grid axes.")
+    if center_window_size < 0:
+        raise ValueError("center_window_size must be non-negative.")
+    if center_window_size > min(width, height):
+        raise ValueError("center_window_size must fit inside the grid.")
+
+    rng = np.random.default_rng(int(seed))
+    obstacles = np.zeros((height, width), dtype=bool)
+    wall_count = int(rng.integers(wall_count_min, wall_count_max + 1))
+    max_axis_length = max(width, height)
+    placement_bounds = _center_window_bounds(
+        width=width,
+        height=height,
+        window_size=center_window_size,
+    )
+    for _ in range(wall_count):
+        horizontal = bool(rng.integers(0, 2))
+        length = int(rng.integers(wall_length_min, wall_length_max + 1))
+        endpoints = _paint_random_wall_segment(
+            obstacles,
+            horizontal=horizontal,
+            length=min(length, max_axis_length),
+            wall_width=wall_width,
+            rng=rng,
+            attach=None,
+            placement_bounds=placement_bounds,
+        )
+        if rng.random() >= l_turn_probability:
+            continue
+        length = int(rng.integers(wall_length_min, wall_length_max + 1))
+        _paint_random_wall_segment(
+            obstacles,
+            horizontal=not horizontal,
+            length=min(length, max_axis_length),
+            wall_width=wall_width,
+            rng=rng,
+            attach=endpoints[int(rng.integers(0, len(endpoints)))],
+            placement_bounds=None,
+        )
+
+    if not np.any(~obstacles):
+        raise ValueError("random wall obstacle layout must contain at least one open cell.")
+    return obstacles
+
+
+def _paint_random_wall_segment(
+    obstacles: np.ndarray,
+    *,
+    horizontal: bool,
+    length: int,
+    wall_width: int,
+    rng: np.random.Generator,
+    attach: tuple[int, int] | None,
+    placement_bounds: tuple[int, int, int, int] | None,
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    height, width = obstacles.shape
+    length = max(1, int(length))
+    wall_width = max(1, int(wall_width))
+    if horizontal:
+        length = min(length, width)
+        if attach is None:
+            x0 = _sample_wall_start(
+                rng,
+                axis_size=width,
+                span=length,
+                window_start=None if placement_bounds is None else placement_bounds[0],
+                window_end=None if placement_bounds is None else placement_bounds[1],
+            )
+            y0 = _sample_wall_start(
+                rng,
+                axis_size=height,
+                span=wall_width,
+                window_start=None if placement_bounds is None else placement_bounds[2],
+                window_end=None if placement_bounds is None else placement_bounds[3],
+            )
+        else:
+            anchor_x, anchor_y = attach
+            extend_right = bool(rng.integers(0, 2))
+            x0 = anchor_x if extend_right else anchor_x - length + wall_width
+            x0 = int(np.clip(x0, 0, max(width - length, 0)))
+            y0 = int(np.clip(anchor_y, 0, max(height - wall_width, 0)))
+        x1 = min(x0 + length, width)
+        y1 = min(y0 + wall_width, height)
+        obstacles[y0:y1, x0:x1] = True
+        return (x0, y0), (max(x0, x1 - wall_width), y0)
+
+    length = min(length, height)
+    if attach is None:
+        x0 = _sample_wall_start(
+            rng,
+            axis_size=width,
+            span=wall_width,
+            window_start=None if placement_bounds is None else placement_bounds[0],
+            window_end=None if placement_bounds is None else placement_bounds[1],
+        )
+        y0 = _sample_wall_start(
+            rng,
+            axis_size=height,
+            span=length,
+            window_start=None if placement_bounds is None else placement_bounds[2],
+            window_end=None if placement_bounds is None else placement_bounds[3],
+        )
+    else:
+        anchor_x, anchor_y = attach
+        extend_down = bool(rng.integers(0, 2))
+        x0 = int(np.clip(anchor_x, 0, max(width - wall_width, 0)))
+        y0 = anchor_y if extend_down else anchor_y - length + wall_width
+        y0 = int(np.clip(y0, 0, max(height - length, 0)))
+    x1 = min(x0 + wall_width, width)
+    y1 = min(y0 + length, height)
+    obstacles[y0:y1, x0:x1] = True
+    return (x0, y0), (x0, max(y0, y1 - wall_width))
+
+
+def _center_window_bounds(
+    *,
+    width: int,
+    height: int,
+    window_size: int,
+) -> tuple[int, int, int, int] | None:
+    if window_size <= 0:
+        return None
+    x_start = (width - window_size) // 2
+    y_start = (height - window_size) // 2
+    return x_start, x_start + window_size, y_start, y_start + window_size
+
+
+def _sample_wall_start(
+    rng: np.random.Generator,
+    *,
+    axis_size: int,
+    span: int,
+    window_start: int | None,
+    window_end: int | None,
+) -> int:
+    max_start = max(axis_size - span, 0)
+    if window_start is None or window_end is None:
+        return int(rng.integers(0, max_start + 1))
+
+    # Pick starts whose painted interval intersects the preferred centered window.
+    low = max(0, int(window_start) - int(span) + 1)
+    high = min(max_start, int(window_end) - 1)
+    if high < low:
+        return int(rng.integers(0, max_start + 1))
+    return int(rng.integers(low, high + 1))
+
+
 def open_flat_indices(obstacles: np.ndarray) -> np.ndarray:
     """Return sorted flattened indices for open cells."""
 

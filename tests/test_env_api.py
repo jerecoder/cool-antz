@@ -314,6 +314,39 @@ def test_maze_obstacles_block_movement_and_appear_in_observation() -> None:
     env.close()
 
 
+def test_random_wall_obstacles_block_movement_and_appear_in_observation() -> None:
+    env = AntByteForagingEnv(
+        width=12,
+        height=12,
+        num_ants=1,
+        food_count=0,
+        random_wall_obstacles=True,
+        random_wall_count_min=2,
+        random_wall_count_max=3,
+        random_wall_length_min=4,
+        random_wall_length_max=8,
+        random_wall_width=1,
+        random_wall_l_turn_probability=1.0,
+        maze_seed=17,
+    )
+    start_pos, wall_action = _open_cell_next_to_wall(env.obstacles)
+    obs, info = env.reset(
+        seed=5,
+        options={"hub_pos": start_pos, "obstacles": env.obstacles.copy()},
+    )
+
+    assert env.open_cell_count < env.width * env.height
+    assert int(obs["obstacles"].sum()) > 0
+    assert info["visited_cell_count"] == 1
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.asarray(start_pos, dtype=np.int32))
+
+    obs, _, _, _, info = env.step(np.array([wall_action, 0], dtype=np.int64))
+
+    np.testing.assert_array_equal(obs["ants_pos"][0], np.asarray(start_pos, dtype=np.int32))
+    assert info["visited_cell_count"] == 1
+    env.close()
+
+
 def test_maze_reset_places_hub_food_and_random_spawns_on_open_cells() -> None:
     env = AntByteForagingEnv(
         width=10,

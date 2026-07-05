@@ -286,6 +286,10 @@ def test_jax_parse_args_accepts_lethal_food_options() -> None:
             "4",
             "--lethal-food-sources",
             "2",
+            "--lethal-food-min-distance",
+            "2",
+            "--lethal-food-max-distance",
+            "5",
             "--death-penalty",
             "1.5",
         ]
@@ -293,6 +297,8 @@ def test_jax_parse_args_accepts_lethal_food_options() -> None:
 
     assert args.lethal_food_count == 4
     assert args.lethal_food_sources == 2
+    assert args.lethal_food_min_distance == 2
+    assert args.lethal_food_max_distance == 5
     assert args.death_penalty == 1.5
 
 
@@ -727,6 +733,139 @@ def test_jax_reset_batch_can_sample_safe_and_lethal_sources_at_same_distance() -
         assert np.max(np.abs(lethal_positions[0] - hub_pos)) == args.cookie_distance
 
 
+def test_jax_reset_batch_can_sample_lethal_source_near_hub() -> None:
+    args = _rollout_args(
+        [
+            "--num-envs",
+            "4",
+            "--width",
+            "20",
+            "--height",
+            "20",
+            "--layout-margin",
+            "2",
+            "--hub-center-window-size",
+            "4",
+            "--food-count",
+            "12",
+            "--food-sources",
+            "12",
+            "--lethal-food-count",
+            "1",
+            "--lethal-food-sources",
+            "1",
+            "--lethal-food-min-distance",
+            "2",
+            "--lethal-food-max-distance",
+            "5",
+            "--max-steps",
+            "2",
+            "--random-hub",
+            "--random-food",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        lethal_food_count=args.lethal_food_count,
+        lethal_food_source_count=args.lethal_food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        layout_margin=args.layout_margin,
+        hub_center_window_size=args.hub_center_window_size,
+        write_bits=args.write_bits,
+    )
+
+    states, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(2028))
+    safe_grids = np.asarray(states.initial_food)
+    lethal_grids = np.asarray(states.lethal_food)
+    hub_positions = np.asarray(obs["hub_pos"])
+
+    for env_index, hub_pos in enumerate(hub_positions):
+        lethal_positions = np.argwhere(lethal_grids[env_index] > 0)[:, ::-1]
+
+        assert lethal_positions.shape == (1, 2)
+        assert int(lethal_grids[env_index].sum()) == 1
+        assert (
+            safe_grids[env_index, lethal_positions[0, 1], lethal_positions[0, 0]]
+            == 0
+        )
+        distance = int(np.max(np.abs(lethal_positions[0] - hub_pos)))
+        assert args.lethal_food_min_distance <= distance <= args.lethal_food_max_distance
+
+
+def test_jax_reset_batch_uses_lethal_range_over_safe_same_distance() -> None:
+    args = _rollout_args(
+        [
+            "--num-envs",
+            "4",
+            "--width",
+            "24",
+            "--height",
+            "24",
+            "--hub-center-window-size",
+            "4",
+            "--food-count",
+            "8",
+            "--food-sources",
+            "8",
+            "--lethal-food-count",
+            "1",
+            "--lethal-food-sources",
+            "1",
+            "--lethal-food-min-distance",
+            "1",
+            "--lethal-food-max-distance",
+            "2",
+            "--food-cluster-count",
+            "8",
+            "--food-cluster-radius",
+            "0",
+            "--cookie-distance",
+            "7",
+            "--max-steps",
+            "2",
+            "--random-hub",
+            "--random-food",
+            "--random-food-same-distance",
+        ]
+    )
+    env = JaxAntByteForagingEnv(
+        width=args.width,
+        height=args.height,
+        num_ants=args.num_ants,
+        food_count=args.food_count,
+        food_source_count=args.food_sources,
+        lethal_food_count=args.lethal_food_count,
+        lethal_food_source_count=args.lethal_food_sources,
+        max_steps=args.max_steps,
+        random_food=args.random_food,
+        random_hub=args.random_hub,
+        hub_center_window_size=args.hub_center_window_size,
+        write_bits=args.write_bits,
+    )
+
+    states, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(2029))
+    safe_grids = np.asarray(states.initial_food)
+    lethal_grids = np.asarray(states.lethal_food)
+    hub_positions = np.asarray(obs["hub_pos"])
+
+    for env_index, hub_pos in enumerate(hub_positions):
+        safe_positions = np.argwhere(safe_grids[env_index] > 0)[:, ::-1]
+        lethal_positions = np.argwhere(lethal_grids[env_index] > 0)[:, ::-1]
+
+        assert safe_positions.shape == (args.food_sources, 2)
+        assert lethal_positions.shape == (1, 2)
+        safe_distances = np.max(np.abs(safe_positions - hub_pos), axis=1)
+        lethal_distance = int(np.max(np.abs(lethal_positions[0] - hub_pos)))
+        assert set(safe_distances.tolist()) == {args.cookie_distance}
+        assert args.lethal_food_min_distance <= lethal_distance <= args.lethal_food_max_distance
+
+
 @pytest.mark.parametrize("maze_obstacles", [False, True])
 def test_jax_collect_rollout_resets_truncated_envs_to_new_layout(
     maze_obstacles: bool,
@@ -1027,6 +1166,64 @@ def test_jax_actor_observation_changes_for_targets_inside_local_vision() -> None
     local_hub = np.asarray(actor_obs[0, 0, 3 * patch_size : 4 * patch_size])
     assert np.count_nonzero(local_food) == 1
     assert np.count_nonzero(local_hub) == 1
+
+
+def test_jax_actor_observation_can_use_repeating_identity_types() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=5,
+        num_ants=5,
+        food_count=1,
+        random_food=False,
+    )
+    _, obs, _ = env.reset(jax.random.PRNGKey(126))
+    obs = {key: jnp.expand_dims(value, axis=0) for key, value in obs.items()}
+
+    actor_obs = build_actor_observations(
+        obs,
+        food_scale=1,
+        actor_vision_radius=1,
+        write_bits=1,
+        agent_identity_types=2,
+    )
+
+    patch_size = actor_vision_patch_size(1)
+    identity_start = patch_size * (1 + 4)
+    identities = np.asarray(actor_obs[0, :, identity_start : identity_start + 2])
+
+    assert actor_obs.shape[-1] == actor_obs_dim_for_bits(
+        write_bits=1,
+        actor_vision_radius=1,
+        num_ants=5,
+        agent_identity_types=2,
+    )
+    np.testing.assert_allclose(
+        identities,
+        np.asarray(
+            [
+                [1.0, 0.0],
+                [0.0, 1.0],
+                [1.0, 0.0],
+                [0.0, 1.0],
+                [1.0, 0.0],
+            ],
+            dtype=np.float32,
+        ),
+    )
+
+    single_identity_obs = build_actor_observations(
+        obs,
+        food_scale=1,
+        actor_vision_radius=1,
+        write_bits=1,
+        agent_identity_types=1,
+    )
+    assert single_identity_obs.shape[-1] == actor_obs_dim_for_bits(
+        write_bits=1,
+        actor_vision_radius=1,
+        num_ants=5,
+        agent_identity_types=1,
+    )
 
 
 def test_jax_forage_curriculum_rewards_add_pickup_without_target_progress() -> None:
@@ -2907,6 +3104,107 @@ def test_jax_strided_cnn_checkpoint_transfer_adds_dead_ant_critic_channel(
     assert transferred.actor_body[0].weight.shape[0] == target_actor_obs_dim
     assert checkpoint["central_obs_dim"] == target_central_dim
     assert checkpoint["actor_obs_dim"] == target_actor_obs_dim
+
+
+def test_jax_strided_cnn_checkpoint_transfer_handles_repeating_identity_types(
+    tmp_path,
+) -> None:
+    write_bits = 4
+    radius = 1
+    hidden_size = 8
+    num_ants = 4
+    identity_types = 2
+    obs_height = 8
+    obs_width = 8
+    extra_entity_tail = 3
+    source_central_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+    )
+    target_central_dim = central_obs_dim_with_ants_count(
+        num_ants=num_ants,
+        obs_height=obs_height,
+        obs_width=obs_width,
+        include_dead_ants=True,
+    )
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+        num_ants=num_ants,
+        agent_identity_types=identity_types,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=radius,
+        num_ants=num_ants,
+        agent_identity_types=identity_types,
+        include_dead_ants=True,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=source_central_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+        critic_architecture="strided_cnn",
+        critic_num_ants=num_ants,
+        critic_obs_height=obs_height,
+        critic_obs_width=obs_width,
+    )
+    source_entity = source_params.critic_body.entity_dense
+    extra_rows = jnp.ones(
+        (extra_entity_tail, source_entity.weight.shape[1]),
+        dtype=source_entity.weight.dtype,
+    )
+    source_params = source_params._replace(
+        critic_body=source_params.critic_body._replace(
+            entity_dense=LinearParams(
+                weight=jnp.concatenate([source_entity.weight, extra_rows], axis=0),
+                bias=source_entity.bias,
+            )
+        )
+    )
+    source_path = tmp_path / "strided_repeating_identity.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=radius,
+            width=obs_width,
+            height=obs_height,
+            obs_width=obs_width,
+            obs_height=obs_height,
+            num_ants=num_ants,
+            agent_identity_types=identity_types,
+            critic_architecture="strided_cnn",
+            save_model=source_path,
+        ),
+        central_obs_dim=source_central_dim + extra_entity_tail,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="strided_repeating_identity",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=target_central_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=write_bits,
+        actor_vision_radius=radius,
+        target_num_ants=num_ants,
+        target_agent_identity_types=identity_types,
+        target_critic_architecture="strided_cnn",
+    )
+
+    transferred = checkpoint["params"]
+    assert transferred.actor_body[0].weight.shape == (target_actor_obs_dim, hidden_size)
+    assert transferred.critic_body.entity_dense.weight.shape == (7 * num_ants + 4, 128)
+    assert transferred.critic_body.conv_5x5.kernel.shape == (5, 5, 5, 32)
+    assert checkpoint["actor_obs_dim"] == target_actor_obs_dim
+    assert checkpoint["central_obs_dim"] == target_central_dim
 
 
 def test_jax_communication_probe_writes_checkpoint_schema(tmp_path) -> None:
