@@ -55,6 +55,7 @@ from ant_byte_env.workflows.args import (
     EXPLORATION_ARG_EXCLUDES,
     EXPLORATION_TO_FORAGE_ARG_EXCLUDES,
     SINGLE_CHECKPOINT_ARG_EXCLUDES,
+    VISION_RANGE_ARG_EXCLUDES,
     build_exploration_common_args,
     build_forage_common_args,
     build_maze_exploration_common_args,
@@ -662,6 +663,139 @@ def run_autocurriculum_training(
         "checkpoint_path": checkpoint_path,
         "stage_metrics": stage_metrics,
         "final_train_metrics": final_train_metrics,
+    }
+
+
+def validate_vision_range_stages(vision_radii: Sequence[int]) -> None:
+    if any(int(radius) <= 0 for radius in vision_radii):
+        raise ValueError("vision radii must be positive.")
+    if not all(
+        int(left) > int(right) for left, right in zip(vision_radii, vision_radii[1:])
+    ):
+        raise ValueError("vision radii must be strictly decreasing.")
+
+
+def vision_side(radius: int) -> int:
+    return 2 * int(radius) + 1
+
+
+def run_vision_range_curriculum(
+    *,
+    vision_radii: Sequence[int],
+    run_dir: Path,
+    common_args: Sequence[str],
+    experiment_name: str,
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    train_main: Callable[..., dict[str, float]],
+    render_rollouts: bool = True,
+    max_render_frames: int | None = 300,
+    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+) -> dict[str, Any]:
+    validate_vision_range_stages(vision_radii)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    media_dir = run_dir / "media"
+    media_dir.mkdir(exist_ok=True)
+
+    stage_metrics: list[dict[str, Any]] = []
+    stage_checkpoint_paths: list[Path] = []
+    rollout_paths: list[Path] = []
+    previous_checkpoint: Path | None = None
+    final_train_metrics: dict[str, float] = {}
+
+    for stage_index, radius in enumerate(vision_radii):
+        radius = int(radius)
+        side = vision_side(radius)
+        stage_name = f"{side}x{side}"
+        stage_run_dir = run_dir / stage_name
+        checkpoint_path = stage_run_dir / "checkpoints" / "model.pkl"
+        print(f"Training vision stage {stage_index + 1}/{len(vision_radii)}: {stage_name}")
+        if previous_checkpoint is not None:
+            print(f"Starting from: {previous_checkpoint}")
+
+        progress = stage_update_progress(stage_name, int(global_update_cap))
+        last_progress_update = 0
+
+        def record_progress(
+            update_index: int,
+            total_updates: int,
+            metrics: dict[str, float],
+        ) -> None:
+            nonlocal last_progress_update
+            last_progress_update = _advance_progress_to(
+                progress,
+                update_index=update_index,
+                previous_update_index=last_progress_update,
+            )
+            postfix = {
+                "loss": f"{metrics['loss']:.3f}",
+                "ret": f"{metrics['episode_return']:.3f}",
+            }
+            if "recent_episode_return" in metrics:
+                postfix["ret_avg"] = f"{metrics['recent_episode_return']:.3f}"
+            progress.set_postfix(**postfix)
+            stage_metrics.append(
+                {
+                    "actor_vision_radius": radius,
+                    "vision_side": side,
+                    **metrics,
+                    "stage_index": stage_index + 1,
+                    "stage_name": stage_name,
+                    "stage_update": int(update_index),
+                    "stage_total_updates": int(total_updates),
+                    "global_update_cap": int(global_update_cap),
+                    "checkpoint": str(checkpoint_path),
+                    "source_checkpoint": (
+                        str(previous_checkpoint) if previous_checkpoint is not None else None
+                    ),
+                    "run_dir": str(stage_run_dir),
+                }
+            )
+
+        train_args = [
+            *common_args,
+            "--exp-name",
+            f"{experiment_name}_{stage_name}",
+            "--actor-vision-radius",
+            str(radius),
+            "--total-timesteps",
+            str(int(update_timesteps_per_stage) * int(global_update_cap)),
+            "--run-dir",
+            str(stage_run_dir),
+        ]
+        if previous_checkpoint is not None:
+            train_args.extend(["--load-model", str(previous_checkpoint)])
+
+        try:
+            final_train_metrics = train_main(train_args, progress_callback=record_progress)
+        finally:
+            progress.close()
+
+        stage_checkpoint_paths.append(checkpoint_path)
+        if render_rollouts:
+            rollout_path = media_dir / f"vision_{stage_name}.gif"
+            rollout_paths.append(
+                render_checkpoint(
+                    checkpoint_path,
+                    rollout_path,
+                    backend="jax",
+                    seed_offset=NOTEBOOK_ROLLOUT_SEED_OFFSET + stage_index,
+                    reuse_existing=False,
+                    max_frames=max_render_frames,
+                    tile_size=tile_size,
+                    policy_temperature=policy_temperature,
+                )
+            )
+        previous_checkpoint = checkpoint_path
+
+    return {
+        "stage_metrics": stage_metrics,
+        "stage_checkpoint_paths": stage_checkpoint_paths,
+        "final_checkpoint": previous_checkpoint,
+        "final_checkpoint_path": previous_checkpoint,
+        "final_train_metrics": final_train_metrics,
+        "rollout_paths": rollout_paths,
     }
 
 

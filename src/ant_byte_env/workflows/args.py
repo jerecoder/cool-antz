@@ -58,6 +58,14 @@ EXPLORATION_TO_FORAGE_ARG_EXCLUDES = EXPLORATION_ARG_EXCLUDES | {
     "best_eval_shuffle_positions",
 }
 ANT_COUNT_ARG_EXCLUDES = COMMUNICATION_ARG_EXCLUDES | {"num_ants"}
+VISION_RANGE_ARG_EXCLUDES = {
+    "exp_name",
+    "actor_vision_radius",
+    "total_timesteps",
+    "save_model",
+    "load_model",
+    "run_dir",
+}
 
 
 def config_common_args(

@@ -24,6 +24,7 @@ EXPECTED_NOTEBOOKS = {
     Path("source_layouts/proximity_sources_50x50 cookie radius.ipynb"),
     Path("source_layouts/proximity_sources_50x50 maze.ipynb"),
     Path("source_layouts/proximity_sources_50x50.ipynb"),
+    Path("source_layouts/proximity_sources_50x50_random_walls.ipynb"),
     Path("source_layouts/scratch_smooth_sources_50x50.ipynb"),
     Path("timed_release/roles.ipynb"),
     Path("vision/vision_range_curriculum.ipynb"),

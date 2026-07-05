@@ -2004,6 +2004,86 @@ def test_jax_checkpoint_transfer_expands_actor_vision_radius(tmp_path) -> None:
     assert checkpoint["opt_state"].count.shape == ()
 
 
+def test_jax_checkpoint_transfer_shrinks_actor_vision_radius(tmp_path) -> None:
+    write_bits = 2
+    source_radius = 2
+    target_radius = 1
+    hidden_size = 8
+    central_obs_dim = 12
+    source_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=source_radius,
+    )
+    target_actor_obs_dim = actor_obs_dim_for_bits(
+        write_bits=write_bits,
+        actor_vision_radius=target_radius,
+    )
+    source_params = init_agent_params(
+        jax.random.PRNGKey(0),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        hidden_size=hidden_size,
+        write_value_count=write_value_count(write_bits),
+    )
+    source_path = tmp_path / "radius_two.pkl"
+    save_checkpoint(
+        source_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=argparse.Namespace(
+            write_bits=write_bits,
+            actor_vision_radius=source_radius,
+            save_model=source_path,
+        ),
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=source_actor_obs_dim,
+        run_name="radius_two",
+        metrics={},
+    )
+
+    checkpoint = load_checkpoint_for_training(
+        source_path,
+        central_obs_dim=central_obs_dim,
+        actor_obs_dim=target_actor_obs_dim,
+        target_write_bits=write_bits,
+        actor_vision_radius=target_radius,
+    )
+
+    transferred = checkpoint["params"]
+    source_weight = np.asarray(source_params.actor_body[0].weight)
+    target_weight = np.asarray(transferred.actor_body[0].weight)
+    source_patch_size = actor_vision_patch_size(source_radius)
+    target_patch_size = actor_vision_patch_size(target_radius)
+    source_width = 2 * source_radius + 1
+    target_width = 2 * target_radius + 1
+    channel_count = write_bits + 4
+
+    assert transferred.actor_body[0].weight.shape == (target_actor_obs_dim, hidden_size)
+    assert checkpoint["actor_obs_dim"] == target_actor_obs_dim
+    assert checkpoint["args"]["actor_vision_radius"] == target_radius
+    for channel_index in range(channel_count):
+        for offset_y in range(-target_radius, target_radius + 1):
+            for offset_x in range(-target_radius, target_radius + 1):
+                source_index = channel_index * source_patch_size
+                source_index += (offset_y + source_radius) * source_width
+                source_index += offset_x + source_radius
+                target_index = channel_index * target_patch_size
+                target_index += (offset_y + target_radius) * target_width
+                target_index += offset_x + target_radius
+                np.testing.assert_allclose(
+                    target_weight[target_index],
+                    source_weight[source_index],
+                )
+
+    source_tail_start = channel_count * source_patch_size
+    target_tail_start = channel_count * target_patch_size
+    np.testing.assert_allclose(
+        target_weight[target_tail_start : target_tail_start + MOVEMENT_ACTION_COUNT],
+        source_weight[source_tail_start : source_tail_start + MOVEMENT_ACTION_COUNT],
+    )
+    assert checkpoint["opt_state"].count.shape == ()
+
+
 def test_jax_checkpoint_transfer_can_reset_expanded_write_head(tmp_path) -> None:
     source_bits = 1
     target_bits = 3
