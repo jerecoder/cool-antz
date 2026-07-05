@@ -1472,7 +1472,7 @@
                     <li><code>delivery_difference</code>: ventaja directa del learner.</li>
                     <li><code>win_rate</code>: episodios con diferencia positiva.</li>
                     <li>Pickups por equipo y longitud de episodio.</li>
-                    <li><code>side-swapped gap</code> para detectar sesgos de lado/orden.</li>
+                    <li>Evaluaciones contra frozen, random y escenarios fijos.</li>
                   </ul>
                 </article>
               </div>
@@ -1518,16 +1518,95 @@
                 <h3>Aprender a competir sin olvidar cómo forrajear</h3>
               </div>
             </div>
-            <div class="step-layout">
-              <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
+            <div class="step-layout step-layout-wide adversarial-first-results-layout">
+              <div class="step-copy adversarial-diagnostic-copy">
+                <p class="step-claim">
+                  El primer obstáculo no fue vencer al rival: fue competir sin
+                  borrar la política que ya sabía forrajear.
+                </p>
                 <p>
-                  Mostrar los primeros rollouts: el entorno funciona, pero el
-                  learner pierde conducta útil antes de aprender una estrategia
-                  adversarial estable.
+                  Partíamos de un actor cooperativo útil, capaz de buscar comida
+                  y volver al hub en el ambiente del primer capítulo. Pero al
+                  optimizarlo con reward adversarial, PPO podía desplazar la
+                  política antes de que apareciera una estrategia competitiva
+                  estable.
+                </p>
+                <p>
+                  El target randomizado también endurecía el aprendizaje: muchas
+                  partidas arrancaban con hubs y fuentes muy separados, dejando
+                  poco contacto real entre equipos. En esas trayectorias el
+                  learner recibía señal por las entregas del rival, pero casi no
+                  tenía oportunidades locales de intervenir rutas, sobrescribir
+                  señales o disputar marcas compartidas.
                 </p>
               </div>
-              <div class="evidence-slot">primeros rollouts + métricas iniciales</div>
+
+              <div class="adversarial-first-results-grid">
+                <article class="adversarial-env-panel adversarial-drift-panel">
+                  <span class="kicker">diagnóstico</span>
+                  <h4>Target con más contacto</h4>
+                  <p>
+                    Aun después de hacer más probable el contacto con un
+                    curriculum de comida y hubs, el
+                    learner podía llegar al target sin sostener la conducta de
+                    forrajeo.
+                  </p>
+                  <dl class="metric-grid adversarial-drift-metrics" aria-label="Métricas del target del curriculum adversarial">
+                    <div>
+                      <dt>pickups learner</dt>
+                      <dd>0</dd>
+                    </div>
+                    <div>
+                      <dt>pickups frozen</dt>
+                      <dd>16</dd>
+                    </div>
+                    <div>
+                      <dt>entregas learner</dt>
+                      <dd>0</dd>
+                    </div>
+                    <div>
+                      <dt>entregas frozen</dt>
+                      <dd>20</dd>
+                    </div>
+                    <div>
+                      <dt>diferencia</dt>
+                      <dd>-20</dd>
+                    </div>
+                    <div>
+                      <dt>episode return</dt>
+                      <dd>-1.67</dd>
+                    </div>
+                  </dl>
+                  <p class="experiment-note-reading">
+                    En el resumen del stage: <code>0.33</code> comidas propias
+                    contra <code>27.58</code> del oponente.
+                  </p>
+                  <div class="experiment-note adversarial-drift-reading" aria-label="Lectura del primer entrenamiento adversarial">
+                    <span class="kicker">lectura</span>
+                    <p class="experiment-note-lead">
+                      La forma de entrenar era el problema, no la definición del
+                      ambiente.
+                    </p>
+                    <p>
+                      Necesitábamos aumentar el contacto, elegir checkpoints por
+                      evaluación y evitar que el entrenamiento borrara demasiado
+                      rápido la política de forrajeo que nos había costado aprender.
+                    </p>
+                  </div>
+                </article>
+
+                <figure class="step-media adversarial-drift-media">
+                  <video autoplay loop muted playsinline controls preload="metadata">
+                    <source src="report-site/assets/videos/adversarial-food-hub-side-contact-failure.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>
+                    <strong>Rollout con más contacto.</strong> Rojo = learner
+                    entrenado; azul = frozen opponent. Aun con comida y rival
+                    cerca, las rojas no convierten la situación en pickups
+                    confiables.
+                  </figcaption>
+                </figure>
+              </div>
             </div>
           </li>
 
@@ -1539,16 +1618,290 @@
                 <h3>Curriculum, evaluación y anclaje</h3>
               </div>
             </div>
-            <div class="step-layout">
-              <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
+            <div class="step-layout step-layout-wide adversarial-stabilizers-layout">
+                <div class="step-copy adversarial-stabilizers-copy">
+                  <p class="step-claim">
+                    El problema no era agregar más reward: era hacer que la
+                    competencia fuera aprendible sin borrar la política de forrajeo.
+                  </p>
+                  <p>
+                    El reward adversarial se mantuvo simple: sumar cuando el
+                    learner entrega comida y restar cuando entrega el rival. Lo que
+                    cambiamos fue la forma de exponer señal útil, elegir checkpoints
+                    y limitar la deriva de PPO para que el actor no perdiera la
+                    habilidad cooperativa que traía del Capítulo 1.
+                  </p>
+                  <p class="adversarial-eval-note">
+                    Las tablas resumen evaluaciones del stage o run correspondiente.
+                    Los videos son rollouts representativos para leer comportamiento,
+                    no la fuente exacta de cada número.
+                  </p>
+                </div>
+
+              <div class="adversarial-stabilizer-timeline" aria-label="Mejoras de entrenamiento adversarial">
+                <article class="adversarial-stabilizer-card">
+                  <div class="adversarial-stabilizer-copy">
+                    <span class="kicker">1. curriculum de contacto</span>
+                    <h4>Primero hicimos más probable encontrar señal útil</h4>
+                      <p>
+                        El target original era demasiado pobre para aprender desde
+                        feedback adversarial: poca comida, pocas fuentes, hubs
+                        aleatorizados y muchas trayectorias sin interacción. La
+                        primera corrección fue hacer un curriculum de comida. Cada
+                        etapa se lee como <code>comida total / fuentes</code>:
+                        <code>500/16</code>, <code>250/8</code> y recién después
+                        el target <code>125/2</code>.
+                      </p>
+                      <dl class="metric-grid adversarial-stabilizer-metrics" aria-label="Métricas del curriculum de comida">
+                        <div>
+                          <dt>dense eval</dt>
+                          <dd>
+                            <span class="metric-context"><code>500</code> comida / <code>16</code> fuentes</span>
+                            65 vs 91 entregas
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>medium eval</dt>
+                          <dd>
+                            <span class="metric-context"><code>250</code> comida / <code>8</code> fuentes</span>
+                            20 vs 28 entregas
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>target eval</dt>
+                          <dd>
+                            <span class="metric-context"><code>125</code> comida / <code>2</code> fuentes</span>
+                            9 vs 31 entregas
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>lectura</dt>
+                          <dd>más eventos, no solución</dd>
+                        </div>
+                      </dl>
+                      <p class="adversarial-metric-note">
+                        Hacer la tarea más densa aumentó los eventos observables,
+                        pero el learner siguió por debajo del frozen opponent en
+                        cada etapa. El curriculum daba contacto; no resolvía la
+                        competencia.
+                      </p>
+                    </div>
+                  <figure class="step-media adversarial-stabilizer-media">
+                    <video autoplay loop muted playsinline controls preload="metadata">
+                      <source src="report-site/assets/videos/adversarial-food-curriculum-dense.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>
+                      <strong>Curriculum de comida.</strong> Rojo = learner
+                      entrenado; azul = frozen opponent. Hacer más densa la tarea
+                      generó actividad y entregas, pero no alcanzó para sostener
+                      ventaja al volver al target.
+                    </figcaption>
+                  </figure>
+                </article>
+
+                <article class="adversarial-stabilizer-card">
+                  <div class="adversarial-stabilizer-copy">
+                    <span class="kicker">2. layout y critic warmup</span>
+                    <h4>Forzar contacto sin fijar un único mapa</h4>
+                      <p>
+                        Después controlamos cómo se muestreaban hubs y fuentes sin
+                        fijar un único mapa. El curriculum empezó con fuentes
+                        abundantes, hubs cercanos y comida cerca del punto medio,
+                        usando rangos como <code>hub_pair_distance_min/max</code>,
+                        <code>food_midpoint_window_size</code>,
+                        <code>layout_margin</code> y
+                        <code>hub_center_window_size</code>. Luego avanzó hacia el
+                        target: <code>125</code> comidas, <code>2</code> fuentes.
+                      </p>
+                      <p>
+                        Como el crítico arrancaba desde cero mientras la política ya
+                        tenía entrenamiento previo, agregamos un warmup inicial:
+                        congelamos las políticas de ambos hormigueros y entrenamos
+                        sólo el crítico durante los primeros rollouts. La idea era
+                        que el crítico entrara a la fase adversarial con algo de
+                        señal, en lugar de empezar a actualizar una política ya
+                        formada usando estimaciones completamente crudas.
+                      </p>
+                      <dl class="metric-grid adversarial-stabilizer-metrics" aria-label="Métricas con critic warmup en target">
+                        <div>
+                          <dt>target eval</dt>
+                          <dd>
+                            <span class="metric-context">comida / fuentes</span>
+                            <code>125/2</code>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>distancia hubs</dt>
+                          <dd>
+                            <span class="metric-context">rango sampleado</span>
+                            <code>20-36</code> tiles
+                          </dd>
+                        </div>
+	                        <div>
+	                          <dt>best chunk</dt>
+	                          <dd>6 vs 5 entregas</dd>
+	                        </div>
+	                      <div>
+	                        <dt>diferencia</dt>
+	                        <dd>+1 entrega</dd>
+	                      </div>
+	                      <div>
+	                        <dt>media final</dt>
+	                        <dd>23.25 vs 36.0 comidas</dd>
+	                      </div>
+                      <div>
+                        <dt>lectura</dt>
+                          <dd>señal débil, no resultado</dd>
+                        </div>
+                      </dl>
+                      <p class="adversarial-metric-note">
+                        Estas métricas son del stage target con layout controlado.
+                        El <code>+1</code> muestra que ya aparecía una señal de
+                        trainability, pero la media final todavía favorecía al
+                        frozen opponent.
+                      </p>
+                    </div>
+                  <figure class="step-media adversarial-stabilizer-media">
+                    <video autoplay loop muted playsinline controls preload="metadata">
+                      <source src="report-site/assets/videos/adversarial-critic-warmup-contact.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>
+                      <strong>Layout controlado + critic warmup.</strong> El
+                      rojo es el learner entrenado y el azul queda frozen. El
+                      contacto aparece con más claridad y el target deja de ser
+                      una pérdida absoluta, aunque todavía no es robusto.
+                    </figcaption>
+                  </figure>
+                </article>
+
+                <article class="adversarial-stabilizer-card">
+                  <div class="adversarial-stabilizer-copy">
+                    <span class="kicker">3. checkpoints por evaluación</span>
+                    <h4>No confiar en el último rollout</h4>
+                      <p>
+                        En esta rama, el último video podía ser una muestra mala o
+                        una muestra afortunada. Por eso agregamos checkpointing
+                        por evaluación: el runner guardaba el mejor modelo según
+                        una matriz de matchups, primero con
+                        <code>eval_learner_vs_frozen_mean_delivery_difference</code>.
+                      </p>
+                      <p>
+                        La idea era separar dos cosas que antes quedaban mezcladas:
+                        mirar un rollout para entender conducta, y seleccionar un
+                        checkpoint por desempeño medido contra el frozen opponent.
+                      </p>
+                    <dl class="metric-grid adversarial-stabilizer-metrics" aria-label="Métricas de eval gated anchor">
+	                      <div>
+	                        <dt>learner vs frozen</dt>
+	                        <dd>+2.44 entregas</dd>
+	                      </div>
+                      <div>
+                        <dt>win rate</dt>
+                        <dd>0.594</dd>
+                      </div>
+	                      <div>
+	                        <dt>deliveries</dt>
+	                        <dd>42.06 vs 39.63 entregas</dd>
+	                      </div>
+	                      <div>
+	                        <dt>vs random</dt>
+	                        <dd>+31.22 entregas</dd>
+	                      </div>
+                      </dl>
+                      <p class="adversarial-metric-note">
+                        Evaluación final de <code>32</code> episodios y
+                        <code>2000</code> pasos. La señal ya era positiva, aunque
+                        todavía no era el checkpoint final de la historia.
+                      </p>
+                    </div>
+                  <figure class="step-media adversarial-stabilizer-media">
+                    <video autoplay loop muted playsinline controls preload="metadata">
+                      <source src="report-site/assets/videos/adversarial-eval-gated-anchor.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>
+                      <strong>Eval-gated checkpointing.</strong> La selección
+                      por evaluación empezó a producir checkpoints positivos:
+                      rojo = learner entrenado, azul = frozen opponent.
+                    </figcaption>
+                  </figure>
+                </article>
+
+                <article class="adversarial-stabilizer-card">
+                  <div class="adversarial-stabilizer-copy">
+                    <span class="kicker">4. KL behavior anchor</span>
+                      <h4>Anclar el actor sin esconder el reward adversarial</h4>
+                      <p>
+                        Notamos que entrenar más no siempre mejoraba la política:
+                        después de cierto punto, el actor se alejaba del
+                        comportamiento forrajero original antes de aprender una
+                        estrategia adversarial estable. Para frenar esa deriva
+                        agregamos un término extra a la loss.
+                      </p>
+                      <p class="adversarial-anchor-equation">
+                        loss = PPO loss + <code>behavior_anchor_coef</code> *
+                        KL(anchor || actor)
+                      </p>
+                      <p>
+                        El anchor era la política frozen original, post-transfer,
+                        que ya sabía buscar y volver al hub. La penalización compara
+                        las distribuciones de movimiento y escritura del actor
+                        actual contra esa referencia. No cambia el reward ni agrega
+                        shaping: sólo hace más caro olvidar la política de forrajeo.
+                      </p>
+                    <dl class="metric-grid adversarial-stabilizer-metrics" aria-label="Métricas con KL behavior anchor">
+	                      <div>
+	                        <dt>learner vs frozen</dt>
+	                        <dd>+14.5 entregas</dd>
+	                      </div>
+                      <div>
+                        <dt>win rate</dt>
+                        <dd>0.625</dd>
+                      </div>
+	                      <div>
+	                        <dt>deliveries</dt>
+	                        <dd>47.94 vs 33.44 entregas</dd>
+	                      </div>
+                        <div>
+                          <dt>anchor</dt>
+                          <dd>0.005</dd>
+                        </div>
+                      </dl>
+                      <p class="adversarial-metric-note">
+                        Con <code>behavior_anchor_coef=0.005</code>,
+                        <code>lr=7.5e-05</code> y selección con
+                        <code>8</code> episodios de eval, la ventaja contra frozen
+                        se volvió bastante más consistente.
+                      </p>
+                    </div>
+                  <figure class="step-media adversarial-stabilizer-media">
+                    <video autoplay loop muted playsinline controls preload="metadata">
+                      <source src="report-site/assets/videos/adversarial-low-lr-anchor-target.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>
+                      <strong>LR baja + KL anchor.</strong> Rojo = learner
+                      entrenado; azul = frozen opponent. La política conserva
+                      forrajeo suficiente como para competir sin colapsar en el
+                      target.
+                    </figcaption>
+                  </figure>
+                </article>
+              </div>
+
+              <div class="experiment-note adversarial-stabilizer-reading" aria-label="Lectura de las mejoras adversariales">
+                <span class="kicker">lectura</span>
+                <p class="experiment-note-lead">
+                  La estabilidad apareció cuando dejamos de mirar sólo el
+                  rollout final.
+                </p>
                 <p>
-                  Separar las mejoras: curriculum de comida y layout,
-                  checkpointing por evaluación, side swaps y behavior anchor
-                  para sostener la política base.
+                  Curriculum y layout daban contacto; critic warmup protegía el
+                  arranque; eval-gated checkpointing separaba ruido de progreso;
+                  y el KL anchor penalizaba olvidar la política cooperativa antes
+                  de aprender a competir. Esta etapa no es el resultado final:
+                  es la receta que hizo razonable seleccionar un checkpoint
+                  competitivo en el siguiente bloque.
                 </p>
               </div>
-              <div class="evidence-slot">curvas, checkpoints y comparación</div>
             </div>
           </li>
 
@@ -1560,16 +1913,133 @@
                 <h3>Una ventaja real contra el frozen opponent</h3>
               </div>
             </div>
-            <div class="step-layout">
-              <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
+            <div class="step-layout step-layout-wide adversarial-selected-layout">
+              <div class="adversarial-selected-hero">
+                <div class="step-copy adversarial-selected-copy">
+                  <p class="step-claim">
+                    Después de curriculum, eval-gated checkpointing y KL anchor,
+                    apareció el primer comportamiento adversarial claro: el rojo
+                    seguía recolectando, pero también modificaba el mapa de una
+                    forma que perjudicaba el retorno del frozen.
+                  </p>
+                  <p>
+                    La evidencia más clara apareció en una escena fixed-center:
+                    hubs enfrentados, dos fuentes cerca del centro y
+                    <code>8</code> hormigas por equipo. En ese layout, el learner
+                    rojo no sólo entregó más galletas: dejó al frozen azul con
+                    muchas menos entregas que en una partida cooperativa normal.
+                  </p>
+                  <dl class="metric-grid adversarial-selected-metrics" aria-label="Métricas del checkpoint adversarial seleccionado">
+                    <div>
+                      <dt>fixed-center</dt>
+                      <dd>
+                        71.6 vs 15.2 entregas
+                        <span class="metric-context">pickups 76.2 vs 22.7</span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>diferencia</dt>
+                      <dd>+56.47</dd>
+                    </div>
+                    <div>
+                      <dt>win rate</dt>
+                      <dd>1.0</dd>
+                    </div>
+                    <div>
+                      <dt>randomizado</dt>
+                      <dd>+13.44, win 0.625</dd>
+                    </div>
+                  </dl>
+                  <p class="adversarial-metric-note">
+                    La métrica randomizada mantiene el resultado en escala:
+                    el checkpoint ya era mejor que el frozen en layouts nuevos,
+                    pero la ventaja más fuerte todavía aparecía cuando el layout
+                    generaba contacto repetible cerca del centro.
+                  </p>
+                </div>
+                <figure class="step-media adversarial-selected-media">
+                  <video autoplay loop muted playsinline controls preload="metadata">
+                    <source src="report-site/assets/videos/adversarial-selected-fixed-center.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>
+                    <strong>Fixed-center completo.</strong> Rojo = learner
+                    entrenado; azul = frozen opponent. El layout concentra el
+                    conflicto entre hubs y fuentes para volver visible el
+                    mecanismo.
+                  </figcaption>
+                </figure>
+              </div>
+
+              <div class="experiment-note adversarial-mechanism-note" aria-label="Mecanismo observado del checkpoint adversarial">
+                <span class="kicker">mecanismo observado</span>
+                <p class="experiment-note-lead">
+                  La memoria compartida dejó de ser sólo una ayuda cooperativa.
+                </p>
                 <p>
-                  Presentar métricas y videos del mejor checkpoint,
-                  distinguiendo evaluación randomizada, escena fixed-center y
-                  lectura de sensibilidad al layout.
+                  La lectura interesante no es sólo que el rojo entregue más.
+                  El render sugiere que también reescribe zonas de retorno usadas
+                  por el azul: la memoria externa deja de ser un soporte
+                  cooperativo y pasa a ser una superficie de manipulación. Es
+                  una hipótesis visual fuerte, no una prueba causal cerrada
+                  todavía.
                 </p>
               </div>
-              <div class="evidence-slot">video final + tabla de métricas</div>
+
+              <div class="adversarial-handicap-row">
+                <div class="step-copy adversarial-selected-copy">
+                  <span class="kicker">handicap</span>
+                  <h4>¿Se sostenía con menos hormigas activas?</h4>
+                  <p>
+                    El checkpoint fue entrenado con el setup completo de
+                    <code>8</code> hormigas por equipo. Después lo evaluamos
+                    reduciendo la cantidad de hormigas activas para ver si la
+                    conducta sobrevivía fuera de la escala exacta de
+                    entrenamiento.
+                  </p>
+                  <dl class="metric-grid adversarial-handicap-metrics" aria-label="Sweep de handicap del learner contra frozen">
+                    <div>
+                      <dt>4v4</dt>
+                      <dd>+35.81, win 1.0</dd>
+                    </div>
+                    <div>
+                      <dt>3v4</dt>
+                      <dd>+14.19, win 0.625</dd>
+                    </div>
+                    <div>
+                      <dt>2v4</dt>
+                      <dd>+2.56, win 0.75</dd>
+                    </div>
+                    <div>
+                      <dt>1v4</dt>
+                      <dd>-48.19, win 0.1875</dd>
+                    </div>
+                  </dl>
+                  <div class="experiment-note adversarial-selected-reading" aria-label="Lectura del resultado adversarial seleccionado">
+                    <span class="kicker">lectura</span>
+                    <p class="experiment-note-lead">
+                      Este es el primer resultado adversarial que vale como
+                      fenómeno.
+                    </p>
+                    <p>
+                      Las hormigas lograron aprovechar el medio compartido de
+                      forma adversarial. El mismo canal que antes servía para
+                      dejar memoria útil ahora podía modificarse a favor propio
+                      y en contra del otro equipo: ayudar al retorno rojo,
+                      confundir el retorno azul y reducir sus entregas.
+                    </p>
+                  </div>
+                </div>
+                <figure class="step-media adversarial-selected-media">
+                  <video autoplay loop muted playsinline controls preload="metadata">
+                    <source src="report-site/assets/videos/adversarial-selected-handicap-4v4.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>
+                    <strong>Handicap 4v4.</strong> Mismo checkpoint, misma
+                    escena fixed-center, pero con cuatro hormigas activas por
+                    equipo dentro del env compatible con <code>8</code> slots.
+                  </figcaption>
+                </figure>
+              </div>
             </div>
           </li>
 
@@ -1581,15 +2051,54 @@
                 <h3>De explotar un rival a entrenar juego adversarial</h3>
               </div>
             </div>
-            <div class="step-layout">
-              <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
+            <div class="step-layout adversarial-future-layout">
+              <div class="step-copy adversarial-future-copy">
+                <p class="step-claim">
+                  El resultado no cierra el problema adversarial; deja una
+                  dirección mucho más clara para seguir.
+                </p>
                 <p>
-                  Cerrar con ablations de escritura, pool de oponentes, métricas
-                  alrededor del hub rival y el paso pendiente hacia self-play.
+                  El frozen opponent partía con una desventaja evidente: era una
+                  política entrenada en un mundo cooperativo, no un rival
+                  entrenado para defender su memoria ni adaptarse a interferencia.
+                  Por eso este resultado no debe leerse como competencia
+                  equilibrada entre dos equipos inteligentes, sino como una
+                  primera prueba de que el canal compartido podía ser explotado.
+                </p>
+                <div class="experiment-note adversarial-future-why">
+                  <span class="kicker">por qué importa</span>
+                  <p>
+                    La parte importante no es haberle ganado a un frozen
+                    opponent. La parte importante es que el comportamiento
+                    aparece bajo la restricción central del proyecto: no hay
+                    memoria recurrente en la política, no hay estado interno
+                    persistente y cada hormiga decide desde su observación local
+                    del momento. Lo único que puede durar más que un paso es lo
+                    que queda escrito en el entorno.
+                  </p>
+                </div>
+                <p>
+                  Que una colonia aprenda a usar ese medio compartido para
+                  coordinar forrajeo y, al mismo tiempo, interferir el retorno
+                  rival, es una señal fuerte de que el mapa puede funcionar como
+                  memoria externa multiagente.
                 </p>
               </div>
-              <div class="evidence-slot">ablations pendientes + próximos pasos</div>
+              <aside class="adversarial-future-card" aria-label="Próximos pasos adversariales">
+                <span class="kicker">siguiente experimento</span>
+                <ul class="future-list">
+                  <li>Entrenar ambos equipos simultáneamente desde la misma semilla y el mismo checkpoint cooperativo.</li>
+                  <li>Observar si la memoria compartida se vuelve más estable, más agresiva o más defensiva cuando ambos lados se adaptan.</li>
+                  <li>Comparar snapshots del entrenamiento para ver cómo cambian rutas, escrituras y zonas disputadas a medida que cada equipo responde al otro.</li>
+                  <li>Evaluar si aparecen roles espontáneos: recolectar, escribir o limpiar rutas, e interferir al rival.</li>
+                </ul>
+                <p>
+                  El siguiente paso no es sólo volver la partida más justa: es
+                  ver qué lenguaje aparece en el mapa cuando los dos equipos
+                  aprenden al mismo tiempo a escribir, leer y romper señales
+                  compartidas.
+                </p>
+              </aside>
             </div>
           </li>
         </ol>
