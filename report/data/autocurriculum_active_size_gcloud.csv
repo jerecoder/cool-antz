@@ -1,0 +1,25 @@
+field,value
+source,Google Cloud antz-l4-runner / runs/gcloud/autocurriculum_active_size_20260705T195414Z
+wandb_mode,offline_then_synced
+wandb_run_id,e5ymgvil
+wandb_run_url,https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/e5ymgvil
+wandb_checkpoint_artifact,jax-mappo-checkpoint:v66
+wandb_offline_run,runs/gcloud/autocurriculum_active_size_20260705T195414Z/wandb/offline-run-20260705_195425-e5ymgvil
+config,experiments/autocurriculum.json
+global_step,1280000
+metric_rows,51
+final_episode_return,0.40625
+max_episode_return,2.90625
+final_env_return,0.3125
+final_delivery_events,5
+max_delivery_events_window,37
+final_pickup_events,6
+max_pickup_events_window,38
+final_completed_stages,3
+max_completed_stages_window,6
+final_mean_active_size,17.971094131469727
+final_max_active_size,19
+max_active_size_observed,19
+final_mean_stage_delivered_food,1.7218750715255737
+final_completed_episodes,16
+final_truncated_episodes,16

@@ -26,6 +26,8 @@ html {
 }
 
 body {
+  position: relative;
+  isolation: isolate;
   max-width: 72em;
   margin: 0 auto;
   padding: 20px;
@@ -35,6 +37,27 @@ body {
     Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia,
     serif;
   line-height: 1.6;
+}
+
+.ambient-ant-field {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  width: 100vw;
+  max-width: none;
+  height: clamp(260px, 58vh, 560px);
+  pointer-events: none;
+  opacity: var(--ambient-ant-opacity, 0.72);
+  mix-blend-mode: multiply;
+}
+
+header,
+main,
+footer {
+  position: relative;
+  z-index: 1;
 }
 
 a,
@@ -606,6 +629,31 @@ figcaption {
   text-decoration: none;
 }
 
+.reward-term-checklist {
+  max-width: 63em;
+  margin: 1.05em 0 1.15em;
+}
+
+.reward-term-checklist p {
+  max-width: none;
+  margin: 0 0 0.55em;
+}
+
+.reward-term-checklist ul {
+  display: grid;
+  gap: 0.35em;
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.reward-term-checklist li {
+  line-height: 1.38;
+}
+
+.reward-term-checklist ul + p {
+  margin-top: 0.75em;
+}
+
 #size-curriculum .experiment-note p,
 #size-curriculum .experiment-note a {
   font-weight: normal;
@@ -718,6 +766,27 @@ figcaption {
   display: block;
   cursor: zoom-in;
   outline-offset: 4px;
+}
+
+.reward-shaping-video-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 64.8rem;
+  margin-inline: auto;
+  padding-left: 0;
+}
+
+.reward-shaping-video-grid figcaption {
+  text-align: center;
+}
+
+.reward-shaping-reading {
+  width: 100%;
+  margin-top: 1.25em;
+  padding-left: 0;
+}
+
+.reward-shaping-reading p {
+  max-width: 72rem;
 }
 
 .zoomable-plot img {

@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="report-site/styles.css">
   </head>
   <body class="simple-report">
+    <canvas id="ambient-ant-field" class="ambient-ant-field" aria-hidden="true"></canvas>
     <header>
       <h1>
         Cool Antz:<br>
@@ -864,37 +865,267 @@
             </div>
           </li>
 
-          <li class="story-step" id="hub-shaping">
+          <li class="story-step" id="reward-shaping">
             <div class="step-header">
               <span class="step-index">1F</span>
               <div>
                 <span class="kicker">desbloqueo</span>
-                <h3>Reward shaping de retorno al hub</h3>
+                <h3>Reward shaping</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para explicar por qué premiar volver cargando cambia el aprendizaje.</p>
+                <p>
+                  Antes del cambio de crítico, casi toda esta línea todavía usaba
+                  crítico MLP y actor local. El problema no era que las hormigas
+                  no hicieran nada: con bonos de pickup ya podían detectar que
+                  levantar comida era una señal positiva. El cuello de botella
+                  era cerrar el ciclo completo. En mapas grandes aparecían
+                  pickups, escritura y movimiento, pero la vuelta al hormiguero
+                  seguía siendo frágil.
+                </p>
+                <p>
+                  Ahí empezamos a usar reward shaping como andamio de crédito.
+                  <code>pickup_bonus</code> separaba encontrar comida de
+                  entregarla; ayudaba a que la política no ignorara fuentes
+                  cercanas, pero por sí solo no enseñaba un protocolo de retorno.
+                  Los bonos de distancia, primero como
+                  <code>distance_bonus</code> y después como
+                  <code>carrying_hub_distance_bonus</code>, metían señal densa
+                  sobre moverse hacia comida o hacia el hub. Esa fue la primera
+                  mejora clara en <code>25x25</code>: <code>DISTANCE_SHAPE</code>
+                  llegó a <code>13.75/23</code> en greedy, y la combinación con
+                  cuatro hormigas en <code>DISTANCE_CAP4</code> resolvió
+                  <code>23/23</code> en modo muestreado.
+                </p>
+                <p>
+                  También probamos bonos de exploración, como
+                  <code>visit_reward_scale</code>, para evitar que la política se
+                  quedara orbitando comportamientos locales. Sirven para generar
+                  cobertura, pero son peligrosos si no se apagan o condicionan:
+                  pueden premiar deambular en lugar de entregar. La línea de
+                  escritura fue distinta. No había un premio simple por cualquier
+                  write; lo que aparece en código y planes son incentivos para
+                  escribir mientras se carga, seguir tiles marcados, entregar con
+                  una traza previa de bytes y balancear entropía de bits
+                  (<code>carrying_byte_write_bonus</code>,
+                  <code>byte_follow_bonus</code>,
+                  <code>delivery_byte_trail_bonus</code>,
+                  <code>write_bit_entropy_bonus</code>). Eso se puso porque las
+                  hormigas ya podían encontrar comida, pero necesitábamos probar
+                  si las marcas ayudaban a sostener rutas.
+                </p>
+                <div class="reward-term-checklist" aria-label="Definiciones de reward shaping">
+                  <p>Para leer los runs, estos son los términos operativos:</p>
+                  <ul>
+                    <li><code>pickup_bonus</code>: suma recompensa cuando una hormiga pasa de no cargar a cargar comida.</li>
+                    <li><code>distance_bonus</code>: suma progreso Manhattan normalizado hacia comida si la hormiga va vacía, o hacia el hub si ya venía cargando; el paso no cuenta cuando cambia de modo.</li>
+                    <li><code>carrying_hub_distance_bonus</code>: suma sólo el progreso Manhattan normalizado hacia el hub mientras la hormiga sigue cargando comida.</li>
+                    <li><code>visit_reward_scale</code> y <code>view_reward_scale</code>: premian celdas nuevas pisadas o vistas; el factor decae como <code>(1 - coverage) ** decay</code>.</li>
+                    <li><code>delivery_byte_trail_bonus</code>: agrega recompensa por delivery según cuántas celdas activas tenían bytes no cero antes de entregar, saturando en <code>delivery_byte_trail_target_tiles</code>.</li>
+                    <li><code>byte_follow_bonus</code>: premia a una hormiga vacía que entra a una celda ya marcada y reduce su distancia a la comida más cercana.</li>
+                    <li><code>carrying_byte_write_bonus</code>: premia a una hormiga cargando que aplica un write no cero sobre una celda fresca que no sea comida ni hub.</li>
+                    <li><code>write_entropy_bonus</code> y <code>write_bit_entropy_bonus</code>: el primero es terminal y mide entropía de valores no cero en el mapa; el segundo reparte bonus por rollout cuando las escrituras aplicadas usan los bits de manera balanceada.</li>
+                    <li><code>write_bit_penalty</code>: no es un premio; resta por bits escritos, con costo decreciente para bits más altos. No estuvo activo en la comparación por familias.</li>
+                  </ul>
+                  <p>
+                    En los videos nuevos, exploración activa sólo
+                    <code>visit_reward_scale</code>; forraje/retorno activa
+                    <code>pickup_bonus</code> y
+                    <code>carrying_hub_distance_bonus</code>; escritura/trazas
+                    activa los tres bonuses de bytes y
+                    <code>write_bit_entropy_bonus</code>.
+                  </p>
+                </div>
+                <p>
+                  La lectura histórica es mixta. El shaping de distancia fue el
+                  primer desbloqueo real, pero no era una prueba de comunicación.
+                  Los incentivos de bytes generaron actividad escrita y algunos
+                  resultados interesantes, como la corrida
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/ys8d01rd"
+                    target="_blank"
+                    rel="noreferrer"
+                  >DENSE2-TRAIL</a>,
+                  pero también introdujeron una trampa: subir retorno moldeado o
+                  llenar el mapa de marcas no garantiza que haya más entregas ni
+                  que los bytes sean causales.
+                </p>
+                <div class="experiment-note" aria-label="Familias de reward shaping">
+                  <span class="kicker">comparación por familias</span>
+                  <p>
+                    Para comparar reward shaping de forma más legible, corrimos
+                    <a
+                      href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/mtocj8nf"
+                      target="_blank"
+                      rel="noreferrer"
+                    >este</a>
+                    experimento por familias: una continuación sin shaping, un
+                    incentivo de exploración, un incentivo de forraje/retorno y
+                    un incentivo de escritura/trazas. Todas parten del mismo
+                    checkpoint <code>50x50</code> con crítico MLP, usan
+                    <code>2</code> bits de escritura y entrenan
+                    <code>120</code> updates antes de renderizar el rollout.
+                  </p>
+                  <p>
+                    La comparación que nos interesa no es solo cuál entrega más
+                    comida, sino qué sesgo de comportamiento parece inducir cada familia:
+                    deambular para cubrir mapa, perseguir comida cercana,
+                    volver cargando o dejar marcas que otros puedan explotar.
+                    Por eso la evidencia principal de esta parte son videos
+                    comparables, acompañados por métricas de entrega como control.
+                  </p>
+                </div>
               </div>
-              <div class="evidence-slot">25x25 / 23 de 23</div>
+            </div>
+            <div class="step-video-sequence reward-shaping-video-grid" aria-label="Videos por familia de reward shaping">
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Reward shaping sin shaping">
+                  <source src="report-site/assets/videos/reward-shaping-baseline.mp4" type="video/mp4">
+                </video>
+                <figcaption>Sin shaping · 12.9/48</figcaption>
+              </figure>
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Reward shaping de exploración">
+                  <source src="report-site/assets/videos/reward-shaping-exploration.mp4" type="video/mp4">
+                </video>
+                <figcaption>Exploración · 15.6/48</figcaption>
+              </figure>
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Reward shaping de forraje y retorno">
+                  <source src="report-site/assets/videos/reward-shaping-forage-return.mp4" type="video/mp4">
+                </video>
+                <figcaption>Forraje/retorno · 15.5/48</figcaption>
+              </figure>
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Reward shaping de escritura y trazas">
+                  <source src="report-site/assets/videos/reward-shaping-byte-trails.mp4" type="video/mp4">
+                </video>
+                <figcaption>Escritura/trazas · 18.4/48</figcaption>
+              </figure>
+            </div>
+            <div class="behavior-reading reward-shaping-reading" aria-label="Lectura de videos por familia de reward shaping">
+              <p>
+                Los videos no muestran comportamientos cualitativamente
+                separados. Lo que aparece son sesgos sutiles sobre una política
+                que ya venía con hábitos heredados del checkpoint inicial. Sin
+                shaping, la política conserva actividad y marcas diagonales,
+                pero entrega poco. El bonus de exploración parece abrir algo más
+                de cobertura lateral; forraje/retorno no se distingue con fuerza
+                en este presupuesto.
+              </p>
+              <p>
+                La familia de escritura/trazas es la mejor en entrega parcial
+                (<code>18.4/48</code> contra <code>12.9/48</code> de la
+                continuación sin shaping) y deja rutas algo más persistentes. Aun así,
+                ninguna configuración completa el mapa: todas tienen success
+                <code>0</code>. La conclusión no es que reward shaping resuelva
+                el problema, sino que cambia el régimen de comportamiento y que
+                los incentivos de marcas eran una hipótesis razonable para
+                investigar antes de cambiar el crítico.
+              </p>
             </div>
           </li>
 
-          <li class="story-step" id="autocurricula">
+          <li class="story-step" id="autocurriculum">
             <div class="step-header">
               <span class="step-index">1G</span>
               <div>
-                <span class="kicker">falso progreso</span>
-                <h3>Autocurrículos</h3>
+                <span class="kicker">dificultad adaptativa</span>
+                <h3>Autocurriculum por tamaño activo</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para contar por qué automatizar dificultad no resolvió el criterio de éxito.</p>
+                <p class="step-claim">
+                  La idea venía del curriculum de locomoción de ETH Zurich:
+                  subir la dificultad sólo cuando la política domina el terreno
+                  actual. En nuestro caso, esa regla hizo avanzar etapas, pero
+                  no alcanzó para transferir el ciclo de forrajeo a
+                  <code>50x50</code>.
+                </p>
+                <p>
+                  En Rudin et al., miles de robots ANYmal entrenan sobre tipos
+                  de terreno con niveles de dificultad. Si cruzan el terreno,
+                  suben de nivel en el siguiente reset; si no avanzan lo
+                  suficiente, bajan. Nuestro equivalente fue una grilla
+                  <code>50x50</code> acolchada: el área jugable empezaba en
+                  <code>4x4</code> y crecía después de seis entregas en la
+                  etapa, manteniendo fijo el formato de observación.
+                </p>
+                <p>
+                  El contrato fue deliberadamente chico: una hormiga, radio de
+                  visión <code>1</code>, dos fuentes con <code>12</code>
+                  bocados, <code>1</code> bit, crítico <code>mlp</code>,
+                  <code>pickup_bonus=0.25</code> y sin moldeado de distancia.
+                  La reproducción en Google Cloud quedó sincronizada en W&amp;B
+                  como
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/e5ymgvil"
+                    target="_blank"
+                    rel="noreferrer"
+                  >e5ymgvil</a>.
+                </p>
+                <div class="experiment-note" aria-label="Resultado del autocurriculum por tamaño activo">
+                  <span class="kicker">lectura</span>
+                  <p class="experiment-note-lead">
+                    El mecanismo de dificultad adaptativa funcionó, pero el
+                    comportamiento aprendido no escaló al objetivo final.
+                  </p>
+                  <p>
+                    En <code>1.28M</code> pasos, el run llegó a tamaño activo
+                    máximo <code>19x19</code> y cerró con <code>5</code>
+                    entregas y <code>6</code> pickups en la última ventana. La
+                    evidencia es negativa y útil: automatizar dificultad no
+                    reemplazó al moldeado de distancia, la cobertura por más
+                    agentes ni el cambio posterior a críticos espaciales.
+                  </p>
+                </div>
               </div>
-              <div class="evidence-slot">métricas de progreso aparente</div>
+            </div>
+            <div class="step-video-sequence step-video-sequence-single" aria-label="Rollout del autocurriculum por tamaño activo">
+              <figure>
+                <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/videos/autocurriculum-active-size-gcloud-poster.jpg" aria-label="Rollout del autocurriculum por tamaño activo">
+                  <source src="report-site/assets/videos/autocurriculum-active-size-gcloud.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>Rollout del checkpoint final.</strong> El video está
+                  recortado al sector activo observado del mapa acolchado para
+                  que se vea el crecimiento de la arena; no muestra una solución de
+                  <code>50x50</code>.
+                </figcaption>
+              </figure>
+            </div>
+            <div class="figure-grid size-curriculum-figures" aria-label="Métricas del autocurriculum por tamaño activo">
+              <figure>
+                <a
+                  class="zoomable-plot"
+                  href="report-site/assets/plots/fig_autocurriculum_active_size.svg"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Abrir gráfico del autocurriculum por tamaño activo en tamaño completo"
+                >
+                  <img
+                    src="report-site/assets/plots/fig_autocurriculum_active_size.svg"
+                    alt="Tamaño activo máximo y medio, pickups y entregas durante el autocurriculum por tamaño activo"
+                    loading="lazy"
+                  >
+                </a>
+                <figcaption>
+                  La señal importante no es sólo el máximo final de
+                  <code>19x19</code>, sino la forma de serrucho. En varias
+                  ventanas la política vuelve a resolver etapas chicas y empuja
+                  el tamaño activo hacia arriba, pero esos avances se reinician
+                  y no se convierten en dominio estable de arenas grandes. Los
+                  picos más altos de pickups y deliveries aparecen después de
+                  caídas a tamaños chicos, mientras que la última rampa hacia
+                  <code>19x19</code> termina con sólo <code>5</code> entregas y
+                  <code>6</code> pickups. Eso sugiere que el autocurriculum sí
+                  generaba dificultad adaptativa, pero la promoción era una señal
+                  demasiado local: aprendía tramos fáciles del episodio sin
+                  consolidar un protocolo transferible a escala completa.
+                </figcaption>
+              </figure>
             </div>
           </li>
 
@@ -1393,5 +1624,7 @@
         completa queda preservada en <a href="evidence-ledger.html">el ledger de evidencia</a>.
       </p>
     </footer>
+    <script src="report-site/assets/data/policy-runner-50x50-frontier.js"></script>
+    <script src="report-site/ambient-ant.js"></script>
   </body>
 </html>
