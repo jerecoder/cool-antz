@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cool Antz: Forrajeo Multiagente con Memoria Externa</title>
+    <title>Cool Antz: Foraging Multiagente con Memoria Externa</title>
     <meta
       name="description"
-      content="Sitio del proyecto Cool Antz: aprendizaje por refuerzo multiagente para forrajeo cooperativo con memoria externa en grilla."
+      content="Sitio del proyecto Cool Antz: aprendizaje por refuerzo multiagente para foraging cooperativo con memoria externa en grilla."
     >
     <link rel="icon" type="image/png" href="report-site/assets/sprites/ant-north.png">
     <link rel="stylesheet" href="report-site/styles.css">
@@ -15,7 +15,7 @@
     <header>
       <h1>
         Cool Antz:<br>
-        Forrajeo<br>
+        Foraging<br>
         Multiagente con<br>
         Memoria Externa
       </h1>
@@ -47,7 +47,7 @@
       <section class="lead-section project-overview">
         <h2>Qué investigamos</h2>
         <p class="summary">
-          Cool Antz estudia cómo aparece el forrajeo cooperativo en una colonia
+          Cool Antz estudia cómo aparece el foraging cooperativo en una colonia
           de políticas locales. Cada hormiga ve solo una pequeña ventana de la
           grilla, decide cómo moverse y puede escribir un valor discreto en la
           celda que visita. El objetivo no es tocar comida una vez: la comida se
@@ -1125,7 +1125,7 @@
               <h3>Objetivo / hipótesis</h3>
               <p>
                 Probar si más bits de escritura bastaban para mejorar el
-                forrajeo, o si el problema era primero de cobertura y crédito.
+                foraging, o si el problema era primero de cobertura y crédito.
               </p>
             </div>
             <div>
@@ -1504,7 +1504,7 @@
         <div class="chapter-header">
           <span class="chapter-number">4b</span>
           <div>
-            <h2>Laberinto: entrenamiento exploratorio, no forrajeo comparable</h2>
+            <h2>Laberinto: entrenamiento exploratorio, no foraging comparable</h2>
             <p>
               También hubo una línea de laberintos. Es importante incluirla
               porque fue una decisión de diseño distinta: entrenar exploración
@@ -1579,7 +1579,7 @@
               <h3>Lectura de resultados</h3>
               <p>
                 Esta rama sí tuvo política entrenada para laberintos, pero el
-                contrato experimental era exploración y no forrajeo cooperativo.
+                contrato experimental era exploración y no foraging cooperativo.
                 Por eso no se debe comparar contra las ramas principales usando
                 comida entregada, supervivencia o eficiencia de entrega. La
                 conclusión metodológica es más precisa: la infraestructura de
@@ -1615,7 +1615,7 @@
             <div>
               <h3>Cambio respecto de la línea base</h3>
               <p>
-                Se mantuvo el actor 50x50 entrenado en forrajeo abierto, pero
+                Se mantuvo el actor 50x50 entrenado en foraging abierto, pero
                 se ejecutó actor-only en una grilla 100x100 con paredes de
                 laberinto. El hormiguero quedó en <code>[6, 5]</code> y la
                 fuente efectiva en <code>[81, 70]</code>, a 172 pasos por los
@@ -1702,7 +1702,7 @@
               <h3>Qué medimos</h3>
               <p>
                 Entregas absolutas, brecha contra ablaciones, retorno, actividad
-                de escritura y desempeño de forrajeo. El criterio correcto era
+                de escritura y desempeño de foraging. El criterio correcto era
                 doble: que <code>normal</code> superara las ablaciones y que la
                 tarea principal no se degradara.
               </p>
@@ -1721,7 +1721,7 @@
                 El punto guardado sparse casi no dependía de bytes. R8 entregó bien
                 pero no por memoria: <code>normal=394</code>,
                 <code>no_byte_read=397</code>, <code>no_write=397</code>. R9
-                hizo más causal el uso de bytes pero dañó el forrajeo:
+                hizo más causal el uso de bytes pero dañó el foraging:
                 <code>normal=124</code> contra ablaciones de <code>56</code>.
                 R10 fue más liviano pero débil: <code>260</code> contra
                 <code>248</code>. R11 preservó conducta sparse sin ganancia
@@ -1929,7 +1929,7 @@
               <td>R8-R12 memoria</td>
               <td><code>normal</code> contra <code>no_byte_read</code> y <code>no_write</code></td>
               <td>R8 <code>394/397/397</code>; R9 <code>124/56/56</code></td>
-              <td>Hubo dependencia causal parcial solo cuando el forrajeo se dañó.</td>
+              <td>Hubo dependencia causal parcial solo cuando el foraging se dañó.</td>
             </tr>
             <tr>
               <td>Escritura compartida y costo</td>

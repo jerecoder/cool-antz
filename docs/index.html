@@ -6,7 +6,7 @@
     <title>Cool Antz: Buscando una política óptima</title>
     <meta
       name="description"
-      content="Historia principal del proyecto Cool Antz: cómo pasamos de entrenamientos fallidos a la primera política válida de forrajeo multiagente."
+      content="Historia principal del proyecto Cool Antz: cómo pasamos de entrenamientos fallidos a la primera política válida de foraging multiagente."
     >
     <link rel="icon" type="image/png" href="report-site/assets/sprites/ant-north.png">
     <link rel="stylesheet" href="report-site/styles.css">
@@ -16,7 +16,7 @@
     <header>
       <h1>
         Cool Antz:<br>
-        Forrajeo<br>
+        Foraging<br>
         Multiagente con<br>
         Memoria Externa
       </h1>
@@ -34,7 +34,7 @@
       <section class="lead-section project-overview">
         <h2>Qué investigamos</h2>
         <p class="summary">
-          Cool Antz estudia cómo aparece el forrajeo cooperativo en una colonia
+          Cool Antz estudia cómo aparece el foraging cooperativo en una colonia
           de políticas locales. Cada hormiga ve solo una pequeña ventana de la
           grilla, decide cómo moverse y puede escribir un valor discreto en la
           celda que visita. El objetivo no es tocar comida una vez: la comida se
@@ -91,7 +91,7 @@
           <article class="page-index-item">
             <a class="page-index-title" href="#environment" data-open-target="#environment">
               <span>Ambiente principal</span>
-              <strong>Forrajeo local con memoria escrita</strong>
+              <strong>Foraging local con memoria escrita</strong>
             </a>
             <p>Objetivo, observación, acciones, entrenamiento y perillas del entorno.</p>
           </article>
@@ -474,33 +474,14 @@
                 <div class="experiment-note" aria-label="Resultado del currículo de tamaño">
                   <span class="kicker">resultado</span>
                   <p>
-                    En una corrida del curriculum <code>8x8 -> 50x50</code>
-                    repetimos el entrenamiento sin
-                    shaping durante el probe: el reward de entrenamiento es
-                    reward de entorno, es decir, entrega de comida al
-                    hormiguero. El warm-start venía de un checkpoint anterior,
-                    así que no es una genealogía pura desde cero; aun así, la
-                    parte que usamos para medir escalado ya no agrega bonuses de
-                    pickup, visita, distancia ni bytes.
+                    En esta corrida el reward es la entrega al hormiguero: no
+                    hay bonuses de pickup, visita, distancia ni bytes.
                   </p>
                   <p>
-                    La matriz retrospectiva, evaluada de forma greedy para
-                    medir retención, deja al checkpoint final con 31% de su
-                    mejor valor en <code>8x8</code> y 67% en
-                    <code>16x16</code>, pero cae a 14% en
-                    <code>25x25</code> y a 0% en <code>35x35</code>. En
-                    <code>50x50</code> queda una señal no nula
-                    (<code>0.52</code> comidas cada 1000 pasos-hormiga), pero el
-                    valor absoluto es demasiado bajo para leerlo como una
-                    solución. Para los rollouts visuales usamos escritura greedy
-                    y movimiento sampleado con temperatura <code>0.525</code>.
-                  </p>
-                  <p>
-                    La lectura no fue descartar curriculum learning, sino aislar
-                    qué estaba fallando: crecer sólo el mapa volvía el reward
-                    más lejano, reducía la utilidad de las paredes como
-                    referencia y hacía que los rastros locales dejaran de
-                    alcanzar como protocolo de retorno.
+                    El resultado es simple: aunque la política aprende a
+                    recolectar en mapas chicos, no logra sostener ese aprendizaje
+                    a medida que crece el mapa. Queda actividad local, pero se
+                    pierde el protocolo de regreso.
                   </p>
                 </div>
                 <p>
@@ -525,7 +506,7 @@
                 >
                   <img
                     src="report-site/assets/plots/fig_size_curriculum_training.png"
-                    alt="Retorno del entorno y eventos de pickup y delivery durante el curriculum de tamaño sin shaping"
+                    alt="Retorno del entorno y eventos de pickup y delivery durante el curriculum de tamaño"
                     loading="lazy"
                   >
                 </a>
@@ -536,7 +517,7 @@
                 </figcaption>
               </figure>
             </div>
-            <div class="step-video-sequence stage-video-grid" aria-label="Rollouts del probe de tamaño con temperatura 0.525">
+            <div class="step-video-sequence stage-video-grid" aria-label="Rollouts del curriculum de tamaño con temperatura 0.525">
               <figure aria-label="Rollout 8x8">
                 <video muted playsinline controls preload="metadata" aria-label="Rollout 8x8">
                   <source src="report-site/assets/videos/size-probe-mt0525-08x08.mp4" type="video/mp4">
@@ -901,7 +882,7 @@
                   <p class="experiment-note-lead">
                     La etapa de visión completa no produjo una base estable para
                     transferir. Ver el mapa entero no alcanzó para aprender una
-                    política robusta de forrajeo.
+                    política robusta de foraging.
                   </p>
                   <p>
                     La curva resume el problema mejor que un único mejor punto:
@@ -923,7 +904,7 @@
                   no era lo mismo que “problema más fácil”. Con radio gigante, la
                   red tenía que aprender a seleccionar señales relevantes dentro
                   de una entrada enorme antes de poder aprender el comportamiento
-                  de forrajeo. Como esa base era frágil, el warm-start por
+                  de foraging. Como esa base era frágil, el warm-start por
                   recorte central no alcanzaba: al reducir el radio se preservaba
                   estructura, pero no una estrategia ya dominada.
                 </p>
@@ -1192,7 +1173,7 @@
               <div class="step-copy">
                 <p>
                   La rama de laberintos no fue un benchmark comparable de
-                  forrajeo. Cambiaba la geometría del mundo para forzar
+                  foraging. Cambiaba la geometría del mundo para forzar
                   exploración estructurada: paredes internas, pasillos anchos y
                   cobertura de celdas como señal principal. Eso era útil para
                   probar si la política podía moverse en entornos con obstáculos,
@@ -1214,12 +1195,12 @@
                   final reportó <code>episode_return=26.125</code>, pero
                   <code>0</code> pickups, <code>0</code> deliveries y
                   <code>45.5/48</code> comidas restantes. La métrica positiva
-                  era exploración, no forrajeo resuelto.
+                  era exploración, no foraging resuelto.
                 </p>
                 <p>
                   La lectura es negativa pero concreta: la infraestructura de
                   obstáculos funciona y el video entrenado muestra exploración
-                  en pasillos, pero no demuestra forrajeo resuelto. Para que
+                  en pasillos, pero no demuestra foraging resuelto. Para que
                   laberintos sean una línea principal habría que cambiar el
                   contrato: entrenar y evaluar entrega en laberinto, no sólo
                   cobertura.
@@ -1253,20 +1234,6 @@
                   conservar compatibilidad de observación y checkpoint, pero
                   restringir comida y hub a una ventana interior donde se
                   controla la dificultad.
-                </p>
-                <p>
-                  La evidencia se parte en dos. Antes de
-                  <code>strided_cnn</code>, estos runs prueban geometría de
-                  fuentes con crítico <code>mlp</code>. Después, el primer
-                  resultado útil ya no mide sólo sparse food: mide sparse food
-                  más un crítico espacial.
-                </p>
-                <p>
-                  La conclusión pre-CNN es negativa: esconder la tarea dentro de
-                  una ventana interior no alcanzó. La conclusión post-CNN es
-                  distinta: cuando aparece señal en proximity, no podemos
-                  atribuirla sólo al layout de fuentes porque el crítico también
-                  cambió.
                 </p>
               </div>
             </div>
@@ -1490,7 +1457,7 @@
             <span class="kicker">seguridad y evidencia social</span>
             <h2 id="chapter-3-title">Lethal Cookies - La traición de las galletas</h2>
             <p>
-              Esta rama agrega una dificultad distinta al forrajeo clásico:
+              Esta rama agrega una dificultad distinta al foraging clásico:
               algunas galletas se ven exactamente igual que las normales, pero
               matan a la hormiga que intenta tomarlas. La idea era ver si la
               colonia podía aprender una regla social simple: una galleta junto
@@ -2296,7 +2263,7 @@
                     Aun después de hacer más probable el contacto con un
                     curriculum de comida y hubs, el
                     learner podía llegar al target sin sostener la conducta de
-                    forrajeo.
+                    foraging.
                   </p>
                   <dl class="metric-grid adversarial-drift-metrics" aria-label="Métricas del target del curriculum adversarial">
                     <div>
@@ -2337,7 +2304,7 @@
                     <p>
                       Necesitábamos aumentar el contacto, elegir checkpoints por
                       evaluación y evitar que el entrenamiento borrara demasiado
-                      rápido la política de forrajeo que nos había costado aprender.
+                      rápido la política de foraging que nos había costado aprender.
                     </p>
                   </div>
                 </article>
@@ -2369,7 +2336,7 @@
                 <div class="step-copy adversarial-stabilizers-copy">
                   <p class="step-claim">
                     El problema no era agregar más reward: era hacer que la
-                    competencia fuera aprendible sin borrar la política de forrajeo.
+                    competencia fuera aprendible sin borrar la política de foraging.
                   </p>
                   <p>
                     El reward adversarial se mantuvo simple: sumar cuando el
@@ -2593,7 +2560,7 @@
                         que ya sabía buscar y volver al hub. La penalización compara
                         las distribuciones de movimiento y escritura del actor
                         actual contra esa referencia. No cambia el reward ni agrega
-                        shaping: sólo hace más caro olvidar la política de forrajeo.
+                        shaping: sólo hace más caro olvidar la política de foraging.
                       </p>
                     <dl class="metric-grid adversarial-stabilizer-metrics" aria-label="Métricas con KL behavior anchor">
 	                      <div>
@@ -2627,7 +2594,7 @@
                     <figcaption>
                       <strong>LR baja + KL anchor.</strong> Rojo = learner
                       entrenado; azul = frozen opponent. La política conserva
-                      forrajeo suficiente como para competir sin colapsar en el
+                      foraging suficiente como para competir sin colapsar en el
                       target.
                     </figcaption>
                   </figure>
@@ -2826,7 +2793,7 @@
                 </div>
                 <p>
                   Que una colonia aprenda a usar ese medio compartido para
-                  coordinar forrajeo y, al mismo tiempo, interferir el retorno
+                  coordinar foraging y, al mismo tiempo, interferir el retorno
                   rival, es una señal fuerte de que el mapa puede funcionar como
                   memoria externa multiagente.
                 </p>
@@ -2869,7 +2836,7 @@
               <span class="step-index">5A</span>
               <div>
                 <span class="kicker">nuevo entorno</span>
-                <h3>Forrajeo con liberación escalonada</h3>
+                <h3>Foraging con liberación escalonada</h3>
               </div>
             </div>
             <div class="step-layout temporal-roles-layout">
@@ -2881,7 +2848,7 @@
                   aprovechar lo que las primeras dejaron escrito.
                 </p>
                 <p>
-                  En este experimento no cambiamos el objetivo de forrajeo: la
+                  En este experimento no cambiamos el objetivo de foraging: la
                   colonia sigue teniendo que encontrar comida, llevarla al hub y
                   usar el mapa como memoria externa. La diferencia es temporal.
                   En vez de liberar a todas las hormigas desde el primer step,
@@ -2930,7 +2897,7 @@
             <div class="step-layout temporal-roles-layout">
               <div class="step-copy">
                 <p class="step-claim">
-                  La liberación temporal no rompió el forrajeo: la política
+                  La liberación temporal no rompió el foraging: la política
                   todavía puede recolectar, escribir y entregar. Pero la
                   evidencia todavía no alcanza para decir que aparecieron roles
                   temporales.
@@ -2939,7 +2906,7 @@
                   En la evaluación tuned de <code>16</code> episodios, la
                   colonia entregó <code>44.31</code> de <code>125</code>
                   comidas. Es suficiente para mostrar que el entorno sigue
-                  produciendo forrajeo bajo liberación temporal, pero queda
+                  produciendo foraging bajo liberación temporal, pero queda
                   lejos de una política robusta y no prueba roles por sí solo.
                 </p>
                 <dl class="metric-grid temporal-roles-metric" aria-label="Métricas tuned de roles temporales">
