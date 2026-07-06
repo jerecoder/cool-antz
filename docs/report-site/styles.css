@@ -617,6 +617,25 @@ figcaption {
   object-fit: contain;
 }
 
+.architecture-figure {
+  max-width: 68em;
+  margin: 1.1em auto;
+}
+
+.architecture-figure img {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.architecture-figure figcaption {
+  width: 82%;
+  margin: 0.65em auto 0;
+  color: var(--muted);
+  font-size: 0.95em;
+  text-align: center;
+}
+
 .evidence-pair h3,
 .result-columns h3 {
   margin: 0 0 0.35em;
@@ -665,6 +684,11 @@ figcaption {
   border: 1px solid var(--line);
   background: var(--paper-warm);
   object-fit: contain;
+}
+
+.critic-ablation-videos {
+  max-width: 52em;
+  margin: 1.1em auto;
 }
 
 .video-grid figcaption,

@@ -883,66 +883,98 @@
           <div>
             <h2>El límite causal de 50x50 fue el crítico</h2>
             <p>
-              La mejora grande de 50x50 no debe contarse como si solo hubieran
-              cambiado las fuentes, los bits o la cantidad de hormigas. También
-              cambió el crítico centralizado.
+              El salto de 50x50 no debe contarse como si solo hubieran cambiado
+              las fuentes, los bits o la cantidad de hormigas. En MAPPO, cambiar
+              el crítico centralizado cambia la señal de valor con la que se
+              entrena el actor local.
             </p>
           </div>
         </div>
 
-        <div class="evidence-pair">
+        <figure class="architecture-figure">
+          <img
+            src="report-site/assets/plots/fig_critic_strided_cnn_architecture.png"
+            alt="Diagrama del crítico centralizado strided CNN"
+          >
+          <figcaption>
+            Crítico <code>strided_cnn</code>: la rama espacial procesa planos
+            50x50 y se fusiona con rasgos globales antes de predecir el valor.
+          </figcaption>
+        </figure>
+
+        <div class="video-grid critic-ablation-videos">
           <figure>
-            <img
-              src="report-site/assets/plots/fig_critic_50x50.png"
-              alt="Frontera de arquitectura del crítico en 50x50"
-            >
-            <figcaption>
-              <strong>Video / evidencia visual.</strong> Figura de resultados
-              por rama. El video 50x50 posterior muestra el comportamiento de la
-              familia espacial, no un experimento de una sola variable.
-            </figcaption>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/critic-ablation-50x50-mlp.mp4" type="video/mp4">
+            </video>
+            <figcaption>crítico MLP · mejor update 7000</figcaption>
           </figure>
-          <div class="experiment-template">
-            <div>
-              <h3>Objetivo / hipótesis</h3>
-              <p>
-                Ver si una función de valor espacial ayudaba a entrenar políticas
-                locales en mapas más grandes.
-              </p>
-            </div>
-            <div>
-              <h3>Cambio respecto del baseline</h3>
-              <p>
-                La rama eficiente 50x50 usaba crítico MLP. La rama
-                proximity/full-layout pasó a <code>strided_cnn</code> y luego
-                agregó layout completo, shared writes, write cost, 8 bits y más
-                hormigas.
-              </p>
-            </div>
-            <div>
-              <h3>Qué medimos</h3>
-              <p>
-                Comida entregada, éxito y, en ramas posteriores, actividad de
-                escritura. El tiempo de convergencia se lee de curvas y
-                checkpoints, no como una constante.
-              </p>
-            </div>
-            <div>
-              <h3>Video / evidencia visual</h3>
-              <p>
-                La figura marca la frontera MLP versus <code>strided_cnn</code>;
-                los videos posteriores pertenecen a paquetes de intervención.
-              </p>
-            </div>
-            <div>
-              <h3>Lectura de resultados</h3>
-              <p>
-                MLP llegó a <code>21.5/48</code>. La rama espacial con 8
-                hormigas y write cost llegó a <code>69.375/125</code>. La rama
-                confirmada de 60 hormigas llegó a <code>123.90625/125</code>.
-                El crítico espacial es una frontera causal de primer orden.
-              </p>
-            </div>
+          <figure>
+            <video autoplay loop muted playsinline controls preload="metadata">
+              <source src="report-site/assets/videos/critic-ablation-50x50-strided-cnn.mp4" type="video/mp4">
+            </video>
+            <figcaption>crítico strided_cnn · mejor update 3000</figcaption>
+          </figure>
+        </div>
+
+        <div class="experiment-template template-wide">
+          <div>
+            <h3>Objetivo / hipótesis</h3>
+            <p>
+              Aislar si un crítico espacial mejora la continuación 50x50 cuando
+              el actor inicial es exactamente el mismo.
+            </p>
+          </div>
+          <div>
+            <h3>Cambio respecto del baseline</h3>
+            <p>
+              Partimos del mejor checkpoint 50x50 del currículo de mapa y
+              cargamos solo el actor. En ambas ramas el crítico y el optimizador
+              se inicializan de cero; una usa MLP y la otra
+              <code>strided_cnn</code>.
+            </p>
+          </div>
+          <div>
+            <h3>Qué medimos</h3>
+            <p>
+              Comida entregada, éxito y entregas normalizadas por pasos-hormiga.
+              Cortamos la comparación en <code>7500</code> updates para respetar
+              el presupuesto corto de media hora.
+            </p>
+          </div>
+          <div>
+            <h3>Video / evidencia visual</h3>
+            <p>
+              Runs de W&B:
+              <a href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/jl9plxp6">MLP</a>,
+              <a href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3a0ivn99">strided_cnn</a>
+              y
+              <a href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/h0q33zn5">videos</a>.
+              Los rollouts usan escritura greedy y movimiento muestreado con
+              temperatura <code>0.525</code>.
+            </p>
+          </div>
+          <div>
+            <h3>Lectura de resultados</h3>
+            <p>
+              Al final, las entregas crudas quedan cerca:
+              <code>42.25/48</code> con MLP y <code>41.75/48</code> con
+              <code>strided_cnn</code>. La diferencia aparece en el mejor
+              checkpoint seleccionado por eficiencia: el MLP llega a
+              <code>43.625/48</code>, <code>1.840</code> entregas por 1000
+              pasos-hormiga y éxito <code>0.125</code>; el
+              <code>strided_cnn</code> llega antes a <code>45.5/48</code>,
+              <code>2.276</code> y éxito <code>0.625</code>.
+            </p>
+          </div>
+          <div>
+            <h3>Interpretación</h3>
+            <p>
+              Esto no convierte al crítico en la única causa de la frontera
+              50x50, pero sí lo vuelve una frontera causal real: con el mismo
+              actor de partida, la función de valor espacial produce una mejor
+              selección temprana y más episodios completos.
+            </p>
           </div>
         </div>
       </section>
