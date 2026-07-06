@@ -1205,41 +1205,22 @@
                   <code>45.5/48</code> comidas restantes. La métrica positiva
                   era exploración, no forrajeo resuelto.
                 </p>
-                <div class="experiment-note" aria-label="Lectura del stress test de laberinto">
-                  <span class="kicker">stress test</span>
-                  <p>
-                    También desplegamos el actor abierto de <code>60</code>
-                    hormigas en un laberinto <code>100x100</code> con una fuente
-                    lejana. Ese actor sí observa paredes por el canal local de
-                    borde/obstáculo, pero no fue entrenado en laberintos. En
-                    <code>60000</code> pasos visitó <code>887</code> celdas y
-                    dejó <code>886</code> celdas con bytes no-cero, pero terminó
-                    con <code>0/125</code> comidas entregadas y sin pickups.
-                  </p>
-                </div>
                 <p>
                   La lectura es negativa pero concreta: la infraestructura de
                   obstáculos funciona y el video entrenado muestra exploración
-                  en pasillos, pero la política de forrajeo abierto no transfiere
-                  automáticamente a navegación con paredes internas. Para que
+                  en pasillos, pero no demuestra forrajeo resuelto. Para que
                   laberintos sean una línea principal habría que cambiar el
                   contrato: entrenar y evaluar entrega en laberinto, no sólo
                   cobertura.
                 </p>
               </div>
             </div>
-            <div class="step-video-sequence step-video-sequence-two story-evidence-grid maze-video-grid" aria-label="Videos de laberintos">
+            <div class="step-video-sequence step-video-sequence-single story-evidence-grid maze-video-grid" aria-label="Video de laberinto">
               <figure>
                 <video muted playsinline controls preload="metadata" aria-label="Política entrenada de exploración en laberinto 50x50">
                   <source src="report-site/assets/videos/maze-exploration-50x50-trained-policy.mp4" type="video/mp4">
                 </video>
                 <figcaption>W&amp;B 8ebnjq9f · etapa 50x50</figcaption>
-              </figure>
-              <figure>
-                <video muted playsinline controls preload="metadata" aria-label="Stress test en laberinto 100x100 con actor abierto de 60 hormigas">
-                  <source src="report-site/assets/videos/maze-100x100-60ants-one-far-source.mp4" type="video/mp4">
-                </video>
-                <figcaption>Stress 100x100 · 0/125</figcaption>
               </figure>
             </div>
           </li>
