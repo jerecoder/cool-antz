@@ -217,6 +217,11 @@ figcaption {
   text-align: left;
 }
 
+.project-overview .summary {
+  max-width: none;
+  margin-right: 0;
+}
+
 .intro-grid,
 .takeaway-grid {
   display: grid;
@@ -1052,6 +1057,63 @@ section + section.page-index {
 .future-chapter {
   border-top: 1px solid var(--line);
   padding-top: clamp(1.15em, 2.5vw, 1.7em);
+}
+
+.large-maps-chapter {
+  border-top: 1px solid var(--line);
+  padding-top: clamp(1.15em, 2.5vw, 1.7em);
+}
+
+.large-maps-chapter .chapter-header {
+  margin-bottom: 0.95em;
+}
+
+.large-maps-chapter .chapter-header h2 {
+  max-width: 24em;
+}
+
+.large-maps-chapter .chapter-header p {
+  max-width: 60em;
+}
+
+.large-map-brief {
+  display: grid;
+  gap: 1em;
+  margin-left: 4.2em;
+}
+
+.large-map-brief > p {
+  max-width: 68em;
+  margin: 0;
+}
+
+.large-map-videos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.05em;
+  width: min(100%, 68rem);
+  margin: 0.1em auto 0;
+}
+
+.large-map-videos figure {
+  margin: 0;
+}
+
+.large-map-videos video {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  background: var(--paper-warm);
+  object-fit: contain;
+}
+
+.large-map-videos figcaption {
+  width: 90%;
+  margin: 0.65em auto 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .future-chapter .chapter-header {
@@ -2412,6 +2474,14 @@ li + li {
 
   .chapter-placeholder {
     margin-left: 0;
+  }
+
+  .large-map-brief {
+    margin-left: 0;
+  }
+
+  .large-map-videos {
+    grid-template-columns: 1fr;
   }
 
   .lethal-mechanism-layout,

@@ -113,7 +113,7 @@
               <span>Capítulo 2</span>
               <strong>Mapas más grandes, hormigueros enormes</strong>
             </a>
-            <p>Escalado de tamaño, colonias grandes, cobertura y congestión.</p>
+            <p>Prueba de escala: despliegue solo-actor en 1000x1000.</p>
           </article>
           <article class="page-index-item">
             <a class="page-index-title" href="#chapter-3-lethal-cookies" data-open-target="#chapter-3-lethal-cookies">
@@ -1470,25 +1470,44 @@
         </div>
       </section>
 
-      <details id="chapter-2-large-maps" class="story-chapter simple-chapter future-chapter chapter-details" open aria-labelledby="chapter-2-title">
+      <details id="chapter-2-large-maps" class="story-chapter simple-chapter large-maps-chapter chapter-details" open aria-labelledby="chapter-2-title">
         <summary class="chapter-header chapter-summary">
           <span class="chapter-number">2</span>
           <div>
-            <span class="kicker">placeholder</span>
+            <span class="kicker">experimento de escala</span>
             <h2 id="chapter-2-title">Mapas más grandes, hormigueros enormes</h2>
             <p>
-              Capítulo para contar qué pasa después de obtener una política
-              válida: escalar tamaño de mapa, cantidad de hormigas, cobertura,
-              congestión y comunicación en colonias mucho más grandes.
+              Después de obtener una política fuerte en <code>50x50</code>,
+              hicimos una prueba de estrés: desplegar el mismo actor en una
+              escena <code>1000x1000</code>, con 500 hormigas y 5000 comidas.
             </p>
           </div>
         </summary>
-        <div class="chapter-placeholder">
-          <span class="kicker">pendiente</span>
+        <div class="large-map-brief">
           <p>
-            Acá van rollouts y métricas de escalado: mapas grandes, más agentes,
-            eficiencia por pasos-hormiga y límites de coordinación.
+            No es entrenamiento de punta a punta en el mapa gigante. Es un
+            experimento visual para ver si una política local conserva algo de
+            organización cuando el mapa crece varios órdenes de magnitud.
           </p>
+          <div class="large-map-videos" aria-label="Comparación entre entorno de entrenamiento y despliegue grande">
+            <figure>
+              <video muted playsinline controls preload="metadata" poster="report-site/assets/posters/tree-frontier50.jpg" aria-label="Rollout 50x50 de la política entrenada">
+                <source src="report-site/assets/videos/frontier-50x50.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                Entorno <code>50x50</code> en el que se entrenó la política.
+              </figcaption>
+            </figure>
+            <figure>
+              <video muted playsinline controls preload="metadata" poster="report-site/assets/posters/tree-bigmap.jpg" aria-label="Despliegue solo actor 1000x1000">
+                <source src="report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                Mismo actor desplegado en <code>1000x1000</code>, con 500
+                hormigas y 5000 comidas.
+              </figcaption>
+            </figure>
+          </div>
         </div>
       </details>
 
