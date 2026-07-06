@@ -609,7 +609,7 @@
         "Prueba actor-only corregida con la temperatura estándar: política abierta 50x50 de 60 hormigas, una fuente lejana y paredes de laberinto visibles por el canal local borde/obstáculo.",
       metrics: [
         ["política", "best estabilizado 50x50 / 60 hormigas / 8 bits"],
-        ["entrenada para", "forrajeo abierto 50x50, no laberinto"],
+        ["entrenada para", "foraging abierto 50x50, no laberinto"],
         ["grilla", "100x100"],
         ["laberinto", "layout efectivo seed 111"],
         ["hormigas", "60"],
