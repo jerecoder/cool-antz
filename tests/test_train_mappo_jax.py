@@ -43,6 +43,7 @@ from ant_byte_env.training.jax_mappo import (
     get_value,
     init_adam_state,
     init_agent_params,
+    load_actor_from_checkpoint_for_training,
     load_checkpoint_for_training,
     main,
     parse_args,
@@ -1907,6 +1908,98 @@ def test_jax_checkpoint_load_rejects_critic_architecture_mismatch(tmp_path) -> N
             target_num_ants=args.num_ants,
             target_critic_architecture="resnet_cnn",
         )
+
+
+def test_jax_actor_only_checkpoint_load_can_swap_critic_architecture(tmp_path) -> None:
+    source_args = _rollout_args()
+    env = JaxAntByteForagingEnv(
+        width=source_args.width,
+        height=source_args.height,
+        num_ants=source_args.num_ants,
+        food_count=source_args.food_count,
+        food_source_count=source_args.food_sources,
+        max_steps=source_args.max_steps,
+        random_food=source_args.random_food,
+        write_bits=source_args.write_bits,
+    )
+    source_params, _, obs = _params_for_args(source_args, env)
+    source_central_obs = build_central_observations(
+        obs,
+        food_scale=source_args.food_count,
+        write_bits=source_args.write_bits,
+        obs_width=source_args.obs_width,
+        obs_height=source_args.obs_height,
+    )
+    source_actor_obs = build_actor_observations(
+        obs,
+        food_scale=source_args.food_count,
+        actor_vision_radius=source_args.actor_vision_radius,
+        write_bits=source_args.write_bits,
+        obs_width=source_args.obs_width,
+        obs_height=source_args.obs_height,
+    )
+    checkpoint_path = tmp_path / "mlp_model.pkl"
+    save_checkpoint(
+        checkpoint_path,
+        params=source_params,
+        opt_state=init_adam_state(source_params),
+        args=source_args,
+        central_obs_dim=int(source_central_obs.shape[-1]),
+        actor_obs_dim=int(source_actor_obs.shape[-1]),
+        run_name="source",
+        metrics={},
+    )
+
+    target_args = _rollout_args(["--critic-architecture", "strided_cnn"])
+    target_params, _, target_obs = _params_for_args(target_args, env)
+    target_central_obs = build_central_observations(
+        target_obs,
+        food_scale=target_args.food_count,
+        write_bits=target_args.write_bits,
+        obs_width=target_args.obs_width,
+        obs_height=target_args.obs_height,
+    )
+    target_actor_obs = build_actor_observations(
+        target_obs,
+        food_scale=target_args.food_count,
+        actor_vision_radius=target_args.actor_vision_radius,
+        write_bits=target_args.write_bits,
+        obs_width=target_args.obs_width,
+        obs_height=target_args.obs_height,
+    )
+
+    loaded = load_actor_from_checkpoint_for_training(
+        checkpoint_path,
+        target_params=target_params,
+        central_obs_dim=int(target_central_obs.shape[-1]),
+        actor_obs_dim=int(target_actor_obs.shape[-1]),
+        target_write_bits=target_args.write_bits,
+        actor_vision_radius=target_args.actor_vision_radius,
+        target_num_ants=target_args.num_ants,
+        target_critic_architecture=target_args.critic_architecture,
+    )
+
+    assert loaded["args"]["actor_only_transfer"] is True
+    assert loaded["args"]["source_critic_architecture"] == "mlp"
+    assert loaded["args"]["critic_architecture"] == "strided_cnn"
+    assert type(loaded["params"].critic_body).__name__ == "StridedCNNCriticParams"
+    assert int(np.asarray(loaded["opt_state"].count)) == 0
+    np.testing.assert_allclose(
+        np.asarray(loaded["params"].actor_body[0].weight),
+        np.asarray(source_params.actor_body[0].weight),
+    )
+    np.testing.assert_allclose(
+        np.asarray(loaded["params"].move_head.weight),
+        np.asarray(source_params.move_head.weight),
+    )
+    np.testing.assert_allclose(
+        np.asarray(loaded["params"].write_head.weight),
+        np.asarray(source_params.write_head.weight),
+    )
+    np.testing.assert_allclose(
+        np.asarray(loaded["params"].value_head.weight),
+        np.asarray(target_params.value_head.weight),
+    )
 
 
 def test_jax_checkpoint_load_can_reset_optimizer_without_shape_change(tmp_path) -> None:
@@ -4276,6 +4369,18 @@ def test_jax_parse_args_accepts_write_head_transfer_modes() -> None:
 
 def test_jax_parse_args_accepts_optimizer_reset_on_load() -> None:
     assert parse_args(["--reset-optimizer-on-load"]).reset_optimizer_on_load is True
+
+
+def test_jax_parse_args_accepts_actor_only_load_with_checkpoint() -> None:
+    args = parse_args(["--load-model", "checkpoint.pkl", "--load-actor-only"])
+
+    assert args.load_model == Path("checkpoint.pkl")
+    assert args.load_actor_only is True
+
+
+def test_jax_parse_args_rejects_actor_only_load_without_checkpoint() -> None:
+    with pytest.raises(ValueError, match="load-actor-only"):
+        parse_args(["--load-actor-only"])
 
 
 def test_jax_parse_args_accepts_wandb_flags() -> None:

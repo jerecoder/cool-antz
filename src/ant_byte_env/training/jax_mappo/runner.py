@@ -33,7 +33,10 @@ from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.evaluation import evaluate_params
 from ant_byte_env.training.jax_mappo.layout_audit import LayoutAuditTracker
 from ant_byte_env.training.jax_mappo.rollout import collect_rollout
-from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
+from ant_byte_env.training.jax_mappo.transfer import (
+    load_actor_from_checkpoint_for_training,
+    load_checkpoint_for_training,
+)
 
 
 def _metrics_to_float(metrics: UpdateMetrics) -> dict[str, float]:
@@ -339,18 +342,28 @@ def main(
     )
     opt_state = init_adam_state(params)
     if args.load_model is not None:
-        checkpoint = load_checkpoint_for_training(
-            args.load_model,
-            central_obs_dim=central_obs_dim,
-            actor_obs_dim=actor_obs_dim,
-            target_write_bits=args.write_bits,
-            actor_vision_radius=args.actor_vision_radius,
-            target_num_ants=args.num_ants,
-            target_agent_identity_types=getattr(args, "agent_identity_types", None),
-            write_head_transfer=args.write_head_transfer,
-            target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
-            reset_optimizer=bool(getattr(args, "reset_optimizer_on_load", False)),
+        checkpoint_loader = (
+            load_actor_from_checkpoint_for_training
+            if bool(getattr(args, "load_actor_only", False))
+            else load_checkpoint_for_training
         )
+        checkpoint_kwargs = {
+            "central_obs_dim": central_obs_dim,
+            "actor_obs_dim": actor_obs_dim,
+            "target_write_bits": args.write_bits,
+            "actor_vision_radius": args.actor_vision_radius,
+            "target_num_ants": args.num_ants,
+            "target_agent_identity_types": getattr(args, "agent_identity_types", None),
+            "write_head_transfer": args.write_head_transfer,
+            "target_critic_architecture": getattr(args, "critic_architecture", "mlp"),
+        }
+        if bool(getattr(args, "load_actor_only", False)):
+            checkpoint_kwargs["target_params"] = params
+        else:
+            checkpoint_kwargs["reset_optimizer"] = bool(
+                getattr(args, "reset_optimizer_on_load", False)
+            )
+        checkpoint = checkpoint_loader(args.load_model, **checkpoint_kwargs)
         params = checkpoint["params"]
         opt_state = checkpoint["opt_state"]
 

@@ -1092,48 +1092,42 @@
             </div>
             <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="step-claim">
-                  La idea venía del curriculum de locomoción de ETH Zurich:
-                  subir la dificultad sólo cuando la política domina el terreno
-                  actual. En nuestro caso, esa regla hizo avanzar etapas, pero
-                  no alcanzó para transferir el ciclo de forrajeo a
-                  <code>50x50</code>.
+                <p>
+                  Este intento reemplazó el calendario fijo por autocurriculum:
+                  el mapa activo sólo crecía cuando la política hacía
+                  <code>6</code> entregas en la etapa actual. La idea era evitar
+                  pasar a mapas grandes antes de dominar el ciclo mínimo de
+                  buscar comida, recogerla y volver al hub.
                 </p>
                 <p>
-                  En Rudin et al., miles de robots ANYmal entrenan sobre tipos
-                  de terreno con niveles de dificultad. Si cruzan el terreno,
-                  suben de nivel en el siguiente reset; si no avanzan lo
-                  suficiente, bajan. Nuestro equivalente fue una grilla
-                  <code>50x50</code> acolchada: el área jugable empezaba en
-                  <code>4x4</code> y crecía después de seis entregas en la
-                  etapa, manteniendo fijo el formato de observación.
+                  La observación seguía acolchada a <code>50x50</code>, pero el
+                  área jugable arrancaba en <code>4x4</code>. El actor era una
+                  sola política feed-forward; no había una política por tamaño ni
+                  un cambio de arquitectura entre etapas. El contrato fue chico:
+                  una hormiga, radio local <code>1</code>, dos fuentes con
+                  <code>12</code> bocados totales, <code>1</code> bit de
+                  escritura, crítico <code>mlp</code>,
+                  <code>pickup_bonus=0.25</code> y sin shaping de distancia.
                 </p>
                 <p>
-                  El contrato fue deliberadamente chico: una hormiga, radio de
-                  visión <code>1</code>, dos fuentes con <code>12</code>
-                  bocados, <code>1</code> bit, crítico <code>mlp</code>,
-                  <code>pickup_bonus=0.25</code> y sin moldeado de distancia.
-                  La reproducción en Google Cloud quedó sincronizada en W&amp;B
-                  como
+                  En
                   <a
                     href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/e5ymgvil"
                     target="_blank"
                     rel="noreferrer"
-                  >e5ymgvil</a>.
+                  >este</a>
+                  run, la regla produjo progreso mecánico: en
+                  <code>1.28M</code> pasos el tamaño activo llegó a
+                  <code>19x19</code>. Pero el gráfico muestra una señal de
+                  serrucho, no una transferencia estable hacia tamaños grandes.
                 </p>
                 <div class="experiment-note" aria-label="Resultado del autocurriculum por tamaño activo">
                   <span class="kicker">lectura</span>
-                  <p class="experiment-note-lead">
-                    El mecanismo de dificultad adaptativa funcionó, pero el
-                    comportamiento aprendido no escaló al objetivo final.
-                  </p>
                   <p>
-                    En <code>1.28M</code> pasos, el run llegó a tamaño activo
-                    máximo <code>19x19</code> y cerró con <code>5</code>
-                    entregas y <code>6</code> pickups en la última ventana. La
-                    evidencia es negativa y útil: automatizar dificultad no
-                    reemplazó al moldeado de distancia, la cobertura por más
-                    agentes ni el cambio posterior a críticos espaciales.
+                    La falla no descarta curriculum learning; descarta este gate.
+                    Medía entregas locales en la etapa actual, pero no retención:
+                    después de crecer, la política podía volver a actividad local
+                    sin preservar un protocolo global de regreso.
                   </p>
                 </div>
               </div>
@@ -1144,9 +1138,8 @@
                   <source src="report-site/assets/videos/autocurriculum-active-size-gcloud.mp4" type="video/mp4">
                 </video>
                 <figcaption>
-                  <strong>Rollout del checkpoint final.</strong> El video está
-                  recortado al sector activo observado del mapa acolchado para
-                  que se vea el crecimiento de la arena; no muestra una solución de
+                  Rollout del checkpoint final, recortado al sector activo del
+                  mapa acolchado. Muestra crecimiento de la arena, no una solución de
                   <code>50x50</code>.
                 </figcaption>
               </figure>
@@ -1167,18 +1160,10 @@
                   >
                 </a>
                 <figcaption>
-                  La señal importante no es sólo el máximo final de
-                  <code>19x19</code>, sino la forma de serrucho. En varias
-                  ventanas la política vuelve a resolver etapas chicas y empuja
-                  el tamaño activo hacia arriba, pero esos avances se reinician
-                  y no se convierten en dominio estable de arenas grandes. Los
-                  picos más altos de pickups y deliveries aparecen después de
-                  caídas a tamaños chicos, mientras que la última rampa hacia
-                  <code>19x19</code> termina con sólo <code>5</code> entregas y
-                  <code>6</code> pickups. Eso sugiere que el autocurriculum sí
-                  generaba dificultad adaptativa, pero la promoción era una señal
-                  demasiado local: aprendía tramos fáciles del episodio sin
-                  consolidar un protocolo transferible a escala completa.
+                  El tamaño activo sube y vuelve a caer. Los picos de pickups y
+                  deliveries aparecen después de regresar a tamaños chicos; la
+                  última rampa hacia <code>19x19</code> termina con
+                  <code>5</code> entregas y <code>6</code> pickups.
                 </figcaption>
               </figure>
             </div>
@@ -1192,12 +1177,70 @@
                 <h3>Laberintos</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para presentar laberintos como intento de mejorar exploración, no como benchmark comparable.</p>
+                <p>
+                  La rama de laberintos no fue un benchmark comparable de
+                  forrajeo. Cambiaba la geometría del mundo para forzar
+                  exploración estructurada: paredes internas, pasillos anchos y
+                  cobertura de celdas como señal principal. Eso era útil para
+                  probar si la política podía moverse en entornos con obstáculos,
+                  pero no medía el ciclo completo de encontrar comida, volver al
+                  hub y entregar.
+                </p>
+                <p>
+                  En
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/8ebnjq9f"
+                    target="_blank"
+                    rel="noreferrer"
+                  >este</a>
+                  run de W&amp;B, el currículo entrenó laberintos de
+                  <code>10x10</code> a <code>50x50</code> con una hormiga,
+                  <code>48</code> comidas, <code>12</code> fuentes,
+                  <code>2</code> bits, radio local <code>1</code>, crítico
+                  <code>mlp</code> y <code>reward_mode=explore</code>. La etapa
+                  final reportó <code>episode_return=26.125</code>, pero
+                  <code>0</code> pickups, <code>0</code> deliveries y
+                  <code>45.5/48</code> comidas restantes. La métrica positiva
+                  era exploración, no forrajeo resuelto.
+                </p>
+                <div class="experiment-note" aria-label="Lectura del stress test de laberinto">
+                  <span class="kicker">stress test</span>
+                  <p>
+                    También desplegamos el actor abierto de <code>60</code>
+                    hormigas en un laberinto <code>100x100</code> con una fuente
+                    lejana. Ese actor sí observa paredes por el canal local de
+                    borde/obstáculo, pero no fue entrenado en laberintos. En
+                    <code>60000</code> pasos visitó <code>887</code> celdas y
+                    dejó <code>886</code> celdas con bytes no-cero, pero terminó
+                    con <code>0/125</code> comidas entregadas y sin pickups.
+                  </p>
+                </div>
+                <p>
+                  La lectura es negativa pero concreta: la infraestructura de
+                  obstáculos funciona y el video entrenado muestra exploración
+                  en pasillos, pero la política de forrajeo abierto no transfiere
+                  automáticamente a navegación con paredes internas. Para que
+                  laberintos sean una línea principal habría que cambiar el
+                  contrato: entrenar y evaluar entrega en laberinto, no sólo
+                  cobertura.
+                </p>
               </div>
-              <div class="evidence-slot">layout + video W&amp;B</div>
+            </div>
+            <div class="step-video-sequence step-video-sequence-two story-evidence-grid maze-video-grid" aria-label="Videos de laberintos">
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Política entrenada de exploración en laberinto 50x50">
+                  <source src="report-site/assets/videos/maze-exploration-50x50-trained-policy.mp4" type="video/mp4">
+                </video>
+                <figcaption>W&amp;B 8ebnjq9f · etapa 50x50</figcaption>
+              </figure>
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Stress test en laberinto 100x100 con actor abierto de 60 hormigas">
+                  <source src="report-site/assets/videos/maze-100x100-60ants-one-far-source.mp4" type="video/mp4">
+                </video>
+                <figcaption>Stress 100x100 · 0/125</figcaption>
+              </figure>
             </div>
           </li>
 
@@ -1209,12 +1252,106 @@
                 <h3>Fuentes dispersas</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para mostrar que el cuello deja de ser volver y pasa a ser encontrar fuentes sparse.</p>
+                <p>
+                  Después de mejorar retorno, apareció otro cuello: descubrir
+                  fuentes escasas. Esta rama es la misma familia conceptual que
+                  la prueba de inner grid: mantener una arena externa grande para
+                  conservar compatibilidad de observación y checkpoint, pero
+                  restringir comida y hub a una ventana interior donde se
+                  controla la dificultad.
+                </p>
+                <p>
+                  La evidencia se parte en dos. Antes de
+                  <code>strided_cnn</code>, estos runs prueban geometría de
+                  fuentes con crítico <code>mlp</code>. Después, el primer
+                  resultado útil ya no mide sólo sparse food: mide sparse food
+                  más un crítico espacial.
+                </p>
+                <p>
+                  La conclusión pre-CNN es negativa: esconder la tarea dentro de
+                  una ventana interior no alcanzó. La conclusión post-CNN es
+                  distinta: cuando aparece señal en proximity, no podemos
+                  atribuirla sólo al layout de fuentes porque el crítico también
+                  cambió.
+                </p>
               </div>
-              <div class="evidence-slot">clips de fuentes + curva</div>
+            </div>
+            <div class="source-layout-block" aria-label="Fuentes dispersas antes del crítico espacial">
+              <div class="experiment-note">
+                <span class="kicker">antes del crítico espacial</span>
+                <p>
+                  El intento más directo,
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/o4grnxc5"
+                    target="_blank"
+                    rel="noreferrer"
+                  >padded sources</a>,
+                  usó una arena <code>50x50</code> con tarea efectiva
+                  <code>20x20</code>, <code>18</code> unidades de comida y
+                  fuentes que bajaban de <code>12</code> posiciones a
+                  <code>2</code>. Mantuvo el crítico <code>mlp</code> y terminó
+                  con <code>0.25/18</code> en evaluación.
+                </p>
+              </div>
+              <div class="step-video-sequence source-layout-video-grid source-layout-subgrid" aria-label="Rollouts padded sources">
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Padded sources con 12 posiciones de fuente">
+                    <source src="report-site/assets/videos/padded-sources-12.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>12 fuentes</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Padded sources con 6 posiciones de fuente">
+                    <source src="report-site/assets/videos/padded-sources-06.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>6 fuentes</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Padded sources con 2 posiciones de fuente">
+                    <source src="report-site/assets/videos/padded-sources-02.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>2 fuentes</figcaption>
+                </figure>
+              </div>
+            </div>
+            <div class="source-layout-block" aria-label="Primer experimento de fuentes dispersas con crítico espacial">
+              <div class="experiment-note">
+                <span class="kicker">primer post-crítico espacial</span>
+                <p>
+                  La primera señal más útil apareció con
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                    target="_blank"
+                    rel="noreferrer"
+                  >proximity sources</a>: arena externa <code>50x50</code>,
+                  ventana interior <code>30x30</code>, dos macro-fuentes y
+                  footprints que se achican hasta dos celdas finales. Esa corrida
+                  ya usa <code>strided_cnn</code> y llegó a
+                  <code>40.875/250</code>.
+                </p>
+              </div>
+              <div class="step-video-sequence source-layout-video-grid source-layout-subgrid" aria-label="Rollouts proximity sources">
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Proximity sources con 50 posiciones de fuente">
+                    <source src="report-site/assets/videos/proximity-sources-50.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>50 posiciones</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Proximity sources con 8 posiciones de fuente">
+                    <source src="report-site/assets/videos/proximity-sources-08.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>8 posiciones</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Proximity sources con 2 posiciones de fuente">
+                    <source src="report-site/assets/videos/proximity-sources-02.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>2 posiciones</figcaption>
+                </figure>
+              </div>
             </div>
           </li>
 
@@ -1226,12 +1363,206 @@
                 <h3>El límite causal fue el crítico</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para cerrar con el cambio de representación espacial y la primera política válida.</p>
+                <p>
+                  El cambio de crítico no fue un detalle de implementación. El
+                  actor seguía siendo local, pero PPO aprendía con un crítico
+                  centralizado. Con crítico <code>mlp</code>, el mejor
+                  <code>50x50</code> eficiente de esta línea llegó a
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/g8u36g2a"
+                    target="_blank"
+                    rel="noreferrer"
+                  ><code>21.5/48</code></a>.
+                  La rama posterior cambió la representación del valor a
+                  <code>strided_cnn</code>: planos espaciales de la grilla,
+                  rasgos de entidades y fusión antes del value head.
+                </p>
+                <p>
+                  Ese salto reordenó la historia. El currículo de proximity con
+                  <code>strided_cnn</code> llegó a
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                    target="_blank"
+                    rel="noreferrer"
+                  ><code>40.875/250</code></a>.
+                  La continuación de <code>8</code> hormigas con escritura
+                  compartida y costo de bits llegó a
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/77z1vhpr"
+                    target="_blank"
+                    rel="noreferrer"
+                  ><code>69.375/125</code></a>.
+                  La estabilización de <code>60</code> hormigas en
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3p9be6hv"
+                    target="_blank"
+                    rel="noreferrer"
+                  >W&amp;B</a>
+                  cerró con summary <code>107.25/125</code>, y una confirmación
+                  local posterior del checkpoint seleccionado, sobre
+                  <code>64</code> episodios, midió <code>123.90625/125</code>
+                  con éxito <code>0.90625</code>. El rollout visual usa la
+                  temperatura de despliegue posterior, <code>0.525</code>.
+                </p>
+                <div class="experiment-note" aria-label="Advertencia causal sobre el crítico 50x50">
+                  <span class="kicker">lectura causal</span>
+                  <p>
+                    El resultado de <code>60</code> hormigas es la frontera
+                    conductual del proyecto, pero no una ablación limpia. Cambian
+                    a la vez cantidad de hormigas, <code>8</code> bits,
+                    identidades repetidas, escritura compartida, costo de bits,
+                    selección de checkpoint, temperatura de rollout y crítico
+                    espacial.
+                  </p>
+                </div>
+                <p>
+                  La conclusión correcta es más fuerte que “más tuning ayudó” y
+                  más débil que “apareció comunicación emergente”: el crítico
+                  espacial hizo aprendible una señal de valor que el MLP plano
+                  no estaba representando bien. Los bytes y la escritura siguen
+                  siendo parte del comportamiento visible, pero la evidencia
+                  principal de esta sección es una frontera de asignación de
+                  crédito.
+                </p>
               </div>
-              <div class="evidence-slot">plot crítico + rollout</div>
+            </div>
+            <div class="figure-grid story-evidence-grid critic-architecture-figure" aria-label="Comparación de arquitectura del crítico">
+              <figure>
+                <a
+                  class="zoomable-plot"
+                  href="report-site/assets/plots/fig_critic_architecture_comparison.svg"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Abrir diagrama de arquitectura del crítico en tamaño completo"
+                >
+                  <img
+                    src="report-site/assets/plots/fig_critic_architecture_comparison.svg"
+                    alt="Diagrama de arquitectura del crítico strided CNN"
+                    loading="lazy"
+                  >
+                </a>
+                <figcaption>
+                  El <code>strided_cnn</code> conserva estructura espacial con
+                  mapas convolucionales y fusiona esa rama con features de
+                  entidad antes de estimar el valor.
+                </figcaption>
+              </figure>
+            </div>
+            <div class="compact-table-wrap critic-evidence-table" aria-label="Hitos de la rama de crítico 50x50">
+              <table class="compact-evidence-table">
+                <thead>
+                  <tr>
+                    <th>hito</th>
+                    <th>contrato</th>
+                    <th>evidencia</th>
+                    <th>lectura</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>mlp</code></td>
+                    <td>4 hormigas, <code>50x50</code> eficiente, <code>48</code> comidas.</td>
+                    <td>
+                      <a
+                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/g8u36g2a"
+                        target="_blank"
+                        rel="noreferrer"
+                      ><code>21.5/48</code></a>
+                    </td>
+                    <td>Mejor punto local antes del crítico espacial.</td>
+                  </tr>
+                  <tr>
+                    <td><code>strided_cnn</code></td>
+                    <td>4 hormigas, ventana <code>30x30</code>, <code>250</code> comidas, proximity sources.</td>
+                    <td>
+                      <a
+                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                        target="_blank"
+                        rel="noreferrer"
+                      ><code>40.875/250</code></a>
+                    </td>
+                    <td>Primer indicio fuerte, pero ya mezclado con geometría sparse.</td>
+                  </tr>
+                  <tr>
+                    <td><code>8 ants</code></td>
+                    <td><code>125</code> comidas, escritura compartida y costo de bits.</td>
+                    <td>
+                      <a
+                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/77z1vhpr"
+                        target="_blank"
+                        rel="noreferrer"
+                      ><code>69.375/125</code></a>
+                    </td>
+                    <td>Progreso práctico dentro de la familia espacial.</td>
+                  </tr>
+                  <tr>
+                    <td><code>60 ants</code></td>
+                    <td><code>8</code> bits, continuación estabilizada, rollout posterior con temperatura <code>0.525</code>.</td>
+                    <td>
+                      <a
+                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3p9be6hv"
+                        target="_blank"
+                        rel="noreferrer"
+                      ><code>107.25/125</code></a>
+                      en W&amp;B; confirmación local <code>123.90625/125</code>.
+                    </td>
+                    <td>Frontera conductual, no ablación causal limpia.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="step-video-sequence step-video-sequence-two critic-video-grid" aria-label="Rollouts de la ablación de crítico 50x50">
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 50x50 entrenado con crítico MLP">
+                  <source src="report-site/assets/videos/critic-ablation-50x50-mlp.mp4" type="video/mp4">
+                </video>
+                <figcaption>MLP · mejor update 7000</figcaption>
+              </figure>
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Rollout 50x50 entrenado con crítico strided CNN">
+                  <source src="report-site/assets/videos/critic-ablation-50x50-strided-cnn.mp4" type="video/mp4">
+                </video>
+                <figcaption>strided_cnn · mejor update 3000</figcaption>
+              </figure>
+            </div>
+            <div class="experiment-note critic-ablation-note" aria-label="Estado de la comparación visual del crítico">
+              <span class="kicker">ablación controlada</span>
+              <p>
+                La comparación limpia ya está en W&amp;B:
+                <a
+                  href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/jl9plxp6"
+                  target="_blank"
+                  rel="noreferrer"
+                >MLP</a>,
+                <a
+                  href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3a0ivn99"
+                  target="_blank"
+                  rel="noreferrer"
+                >strided_cnn</a>
+                y
+                <a
+                  href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/h0q33zn5"
+                  target="_blank"
+                  rel="noreferrer"
+                >videos</a>.
+                Ambas ramas parten del mismo actor <code>50x50</code>; el
+                crítico y el optimizador se reinicializan. Cortamos en
+                <code>7500</code> updates para una ventana corta comparable, y
+                los rollouts usan escritura greedy con movimiento sampleado a
+                temperatura <code>0.525</code>.
+              </p>
+              <p>
+                Al final las entregas crudas quedan cerca:
+                <code>42.25/48</code> con MLP y <code>41.75/48</code> con
+                <code>strided_cnn</code>. La diferencia aparece en el mejor
+                checkpoint por eficiencia: MLP alcanza <code>43.625/48</code>,
+                <code>1.840</code> entregas por 1000 pasos-hormiga y éxito
+                <code>0.125</code>; <code>strided_cnn</code> alcanza antes
+                <code>45.5/48</code>, <code>2.276</code> y éxito
+                <code>0.625</code>.
+              </p>
             </div>
           </li>
         </ol>
@@ -1244,9 +1575,14 @@
             <span class="kicker">cierre del primer capítulo</span>
             <h2>Hasta acá llega el bloque de entrenamiento de política</h2>
             <p>
-              Slot de conclusión: después de baseline, currículos, reinicios y
-              falsos positivos, encontramos el cuello de botella y conseguimos
-              una primera política válida. Desde ahí empieza otra historia.
+              Después de baseline, currículos, reward shaping, laberintos y
+              fuentes dispersas, el cuello de botella más claro quedó en la
+              representación del crítico. La primera política fuerte de
+              <code>50x50</code> aparece cuando el entrenamiento deja de
+              comprimir el estado global en un MLP plano y empieza a usar una
+              representación espacial. Desde ahí empieza otra historia: escalar
+              sin confundir retorno moldeado, escritura saturada y comunicación
+              causal.
             </p>
           </div>
         </div>

@@ -42,6 +42,10 @@ _EXPORTS = {
     "init_adam_state": ("core", "init_adam_state"),
     "init_agent_params": ("core", "init_agent_params"),
     "init_layer": ("core", "init_layer"),
+    "load_actor_from_checkpoint_for_training": (
+        "transfer",
+        "load_actor_from_checkpoint_for_training",
+    ),
     "load_checkpoint": ("checkpointing", "load_checkpoint"),
     "load_checkpoint_for_training": ("transfer", "load_checkpoint_for_training"),
     "main": ("runner", "main"),

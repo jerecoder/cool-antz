@@ -911,6 +911,118 @@ section + section.page-index {
   max-width: 72rem;
 }
 
+.story-evidence-grid {
+  margin-top: 1.2em;
+  padding-left: 5rem;
+}
+
+.story-evidence-grid video {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  background: var(--paper-warm);
+  object-fit: contain;
+}
+
+.maze-evidence-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.source-layout-video-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.source-layout-block {
+  max-width: 72rem;
+  margin-top: 1.25em;
+  padding-left: 5rem;
+}
+
+.source-layout-block .experiment-note {
+  max-width: 63em;
+}
+
+.source-layout-subgrid {
+  max-width: 57rem;
+  padding-left: 0;
+}
+
+.source-layout-video-grid figcaption,
+.critic-video-grid figcaption {
+  text-align: center;
+}
+
+.critic-ablation-note {
+  max-width: 63em;
+  margin-top: 1em;
+  margin-left: 5rem;
+}
+
+.figure-grid.critic-architecture-figure {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.critic-architecture-figure figure {
+  justify-self: center;
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
+.critic-architecture-figure img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  background: var(--paper);
+  object-fit: contain;
+}
+
+.compact-table-wrap {
+  width: 100%;
+  max-width: 63em;
+  min-width: 0;
+  margin: 1.05em 0 1.15em;
+  overflow-x: auto;
+}
+
+.critic-evidence-table {
+  max-width: 72rem;
+}
+
+.compact-evidence-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.96rem;
+  line-height: 1.38;
+}
+
+.compact-evidence-table th,
+.compact-evidence-table td {
+  border-top: 1px solid var(--line);
+  overflow-wrap: normal;
+  padding: 0.55em 0.7em 0.55em 0;
+  vertical-align: top;
+  text-align: left;
+}
+
+.compact-evidence-table th {
+  color: var(--accent);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compact-evidence-table th:first-child,
+.compact-evidence-table td:first-child {
+  width: 6.8rem;
+  white-space: nowrap;
+}
+
 .zoomable-plot img {
   display: block;
   transition: border-color 160ms ease, filter 160ms ease;
@@ -2485,6 +2597,38 @@ li + li {
 
   .figure-grid.size-curriculum-figures {
     padding-left: 0;
+  }
+
+  .story-evidence-grid {
+    padding-left: 0;
+  }
+
+  .source-layout-block {
+    padding-left: 0;
+  }
+
+  .critic-ablation-note {
+    margin-left: 0;
+  }
+
+  .figure-grid.critic-architecture-figure {
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+    overflow: hidden;
+  }
+
+  .critic-architecture-figure figure {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .compact-table-wrap {
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+  }
+
+  .compact-evidence-table {
+    min-width: 36rem;
   }
 
   .behavior-reading {
