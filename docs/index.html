@@ -1335,35 +1335,49 @@
                   </p>
                 </div>
               </div>
-              <aside class="lethal-fact-panel" aria-label="Definición técnica del cambio lethal cookies">
-                <span class="kicker">definición técnica</span>
+              <aside class="lethal-fact-panel" aria-label="Señal y dinámica nueva de lethal cookies">
                 <dl class="metric-grid lethal-fact-grid">
                   <div>
-                    <dt>input actor</dt>
-                    <dd>canales locales orientados: <code>food</code>, <code>ants_count</code>, <code>dead_ants_count</code>, bits de <code>bytes</code>, hub y borde/obstáculos; más identidad, carga y facing</dd>
+                    <dt>señal nueva</dt>
+                    <dd>
+                      <p>
+                        La novedad observable es
+                        <code>dead_ants_count</code>. Es un nuevo canal espacial
+                        de la red de actor con la misma geometría que los demás
+                        mapas de la observación. Para el actor aparece como un
+                        parche local orientado por el <code>facing</code> de
+                        cada hormiga, igual que <code>food</code>,
+                        <code>ants_count</code>, <code>bytes</code>, hub y
+                        obstáculos. Cada celda del parche indica cuántas
+                        hormigas muertas hay en esa posición visible. Así, la
+                        política puede ver que hay cadáveres cerca de una
+                        galleta, pero sólo desde su perspectiva local.
+                      </p>
+                      <p>
+                        En el crítico, la misma señal entra como mapa global
+                        durante entrenamiento.
+                      </p>
+                    </dd>
                   </div>
                   <div>
-                    <dt>input crítico</dt>
-                    <dd>posiciones, carga, facing, mapas globales de vivas/muertas, comida visible, bytes, hub y tamaño de grilla</dd>
-                  </div>
-                  <div>
-                    <dt>output actor</dt>
-                    <dd><code>move</code> en 5 acciones + <code>write_value</code> en <code>2 ** write_bits</code></dd>
-                  </div>
-                  <div>
-                    <dt>output crítico</dt>
-                    <dd>un valor escalar para estimar ventaja durante MAPPO</dd>
-                  </div>
-                  <div>
-                    <dt>muerte</dt>
-                    <dd>pickup letal mata, congela el cuerpo y descuenta <code>death_penalty</code></dd>
+                    <dt>dinámica nueva</dt>
+                    <dd>
+                      <p>
+                        Un pickup sobre comida letal mata a la hormiga, congela
+                        su cuerpo como señal observable, la remueve de la
+                        población activa y aplica <code>death_penalty</code>.
+                      </p>
+                      <p>
+                        Entonces el cambio no es otro MAPPO ni otro espacio de
+                        acciones. El actor sigue eligiendo <code>move</code> y
+                        <code>write_value</code>; lo nuevo es que una fuente
+                        visualmente idéntica puede matar, y que esa muerte deja
+                        una señal espacial local que las demás hormigas pueden
+                        usar como evidencia.
+                      </p>
+                    </dd>
                   </div>
                 </dl>
-                <p>
-                  En la configuración base se usó una fuente segura y una fuente
-                  letal, ambas con 50 unidades, <code>death_penalty=1.0</code> y
-                  warm-start desde el checkpoint positivo.
-                </p>
               </aside>
             </div>
           </li>
@@ -1387,8 +1401,12 @@
                     mientras aprendía a no tomar la fuente peligrosa. El setting
                     era un mapa abierto de 50x50, con muchas galletas distribuidas
                     en el mapa y fuentes seguras y letales muestreadas en
-                    posiciones aleatorias. La fracción entregada mide qué proporción de las
-                    galletas seguras disponibles terminó efectivamente en el nido.
+                    posiciones aleatorias. La configuración base comparó una
+                    fuente segura y una fuente letal, ambas con 50 unidades,
+                    <code>death_penalty=1.0</code> y warm-start desde el checkpoint
+                    positivo. El porcentaje de galletas entregadas mide qué
+                    proporción de las galletas seguras disponibles terminó
+                    efectivamente en el nido.
                   </p>
                   <p>
                     La corrida larga de 160 mil updates terminó cerca de reward 0.
@@ -1404,9 +1422,9 @@
                     principal de entrega al nido; sólo incentiva que la política
                     vuelva a intentar pickups. Con ese empuje, el mejor checkpoint
                     de 80 mil updates vuelve a tomar riesgo, recupera entregas y
-                    mejora la fracción entregada. Aun así, la curva sigue siendo
-                    inestable: no es una convergencia limpia, sino una política
-                    parcialmente útil.
+                    mejora el porcentaje de galletas entregadas. Aun así, la
+                    curva sigue siendo inestable: no es una convergencia limpia,
+                    sino una política parcialmente útil.
                 </p>
                 <p>
                   El rollout de evaluación donde mejor se ve esa corrida de 80
@@ -1422,7 +1440,7 @@
                     <dd>4.75 entregas</dd>
                   </div>
                   <div>
-                    <dt>fracción entregada</dt>
+                    <dt>porcentaje de galletas entregadas</dt>
                     <dd>9.5%</dd>
                   </div>
                   <div>
@@ -1431,7 +1449,7 @@
                   </div>
                   <div>
                     <dt>lectura</dt>
-                    <dd>parcial, no resuelto</dd>
+                    <dd>parcialmente resuelto</dd>
                   </div>
                 </dl>
               </div>
@@ -1448,9 +1466,9 @@
             </div>
             <div class="lethal-figure-grid">
               <figure>
-                <img src="report-site/assets/lethal-cookies/figures/lethal_open_fraction.png" alt="Fracción entregada en lethal cookies abierto">
+                <img src="report-site/assets/lethal-cookies/figures/lethal_open_fraction.png" alt="Porcentaje de galletas entregadas en lethal cookies abierto">
                 <figcaption>
-                  La mejor fracción queda por debajo del 10%; esto es señal
+                  El mejor porcentaje queda por debajo del 10%; esto es señal
                   parcial, no solución del entorno abierto.
                 </figcaption>
               </figure>
@@ -1547,7 +1565,7 @@
                     <dd>2.5</dd>
                   </div>
                   <div>
-                    <dt>fracción</dt>
+                    <dt>porcentaje de galletas entregadas</dt>
                     <dd>5%</dd>
                   </div>
                   <div>
@@ -1606,7 +1624,7 @@
                     <dd>12/12</dd>
                   </div>
                   <div>
-                    <dt>fracción</dt>
+                    <dt>porcentaje de galletas entregadas</dt>
                     <dd>100%</dd>
                   </div>
                   <div>
@@ -1627,13 +1645,6 @@
               </figure>
             </div>
             <div class="lethal-figure-grid">
-              <figure>
-                <img src="report-site/assets/lethal-cookies/figures/lethal_curriculum_fraction.png" alt="Fracción entregada en variantes con veneno">
-                  <figcaption>
-                    La fracción deja clara la diferencia entre la señal parcial de
-                    random walls y el éxito acotado de near-nest.
-                  </figcaption>
-              </figure>
               <figure>
                 <img src="report-site/assets/lethal-cookies/figures/lethal_curriculum_delivered_food.png" alt="Entregas en variantes con veneno">
                 <figcaption>

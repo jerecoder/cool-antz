@@ -312,7 +312,7 @@
             <p>
               “Mejor checkpoint” no significa “último checkpoint”. Puede estar
               seleccionado por entrenamiento o evaluación held-out, por entregas,
-              fracción entregada o eficiencia por pasos-hormiga.
+              porcentaje de galletas entregadas o eficiencia por pasos-hormiga.
             </p>
           </div>
           <div>
@@ -736,11 +736,11 @@
             <div>
               <h3>Qué medimos</h3>
               <p>
-                Entrega media, fracción entregada, éxito, largo de episodio y
-                retorno. El resultado principal fue la evaluación shuffled tras
-                <code>12.8M</code> pasos: tanto en modo determinista como
-                muestreado entregó <code>0.0/48</code> y tuvo éxito
-                <code>0.0</code>.
+                Entrega media, porcentaje de galletas entregadas, éxito, largo
+                de episodio y retorno. El resultado principal fue la evaluación
+                shuffled tras <code>12.8M</code> pasos: tanto en modo
+                determinista como muestreado entregó <code>0.0/48</code> y tuvo
+                éxito <code>0.0</code>.
               </p>
             </div>
             <div>
@@ -1056,8 +1056,8 @@
               <h3>Cambio respecto del curriculum anterior</h3>
               <p>
                 Se agregaron gates en evaluación determinista y muestreada:
-                fracción entregada, success rate, pickup-to-delivery y largo de
-                episodio menor a una fracción del horizonte máximo.
+                porcentaje de galletas entregadas, success rate, pickup-to-delivery
+                y largo de episodio menor a una fracción del horizonte máximo.
               </p>
             </div>
             <div>

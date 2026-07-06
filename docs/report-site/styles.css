@@ -1066,7 +1066,7 @@ section + section.page-index {
 
 .lethal-fact-grid {
   grid-template-columns: minmax(0, 1fr);
-  margin: 0.75em 0 0;
+  margin: 0;
 }
 
 .lethal-metric-grid {
