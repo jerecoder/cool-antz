@@ -430,6 +430,19 @@ section + section.page-index {
   color: var(--accent-dark);
 }
 
+.page-index-final {
+  display: grid;
+  gap: 0.35em;
+  margin-top: 0.9em;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 0.9em;
+}
+
+.page-index-final p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .simple-report {
   max-width: 76em;
 }
@@ -1141,6 +1154,7 @@ section + section.page-index {
   color: var(--muted);
 }
 
+#chapter-2-large-maps > .chapter-header,
 #chapter-3-lethal-cookies > .chapter-header {
   grid-template-columns: 4.5rem minmax(0, 1fr);
   margin-bottom: 1.6em;
@@ -1148,12 +1162,14 @@ section + section.page-index {
   padding: 1.2em 0 1.3em;
 }
 
+#chapter-2-large-maps > .chapter-header .chapter-number,
 #chapter-3-lethal-cookies > .chapter-header .chapter-number {
   width: 3.1rem;
   height: 3.1rem;
   font-size: 1.1rem;
 }
 
+#chapter-2-large-maps > .chapter-header h2,
 #chapter-3-lethal-cookies > .chapter-header h2 {
   max-width: 20em;
   margin: 0.05em 0 0.35em;
@@ -1161,6 +1177,7 @@ section + section.page-index {
   line-height: 1.05;
 }
 
+#chapter-2-large-maps > .chapter-header p,
 #chapter-3-lethal-cookies > .chapter-header p {
   max-width: 60em;
   font-size: 1.08rem;
@@ -1267,7 +1284,8 @@ section + section.page-index {
 }
 
 #chapter-4-adversarial > .chapter-header,
-#chapter-5-temporal-roles > .chapter-header {
+#chapter-5-temporal-roles > .chapter-header,
+#sandbox > .chapter-header {
   grid-template-columns: 4.5rem minmax(0, 1fr);
   margin-bottom: 1.6em;
   border-block: 2px solid var(--line);
@@ -1275,14 +1293,16 @@ section + section.page-index {
 }
 
 #chapter-4-adversarial > .chapter-header .chapter-number,
-#chapter-5-temporal-roles > .chapter-header .chapter-number {
+#chapter-5-temporal-roles > .chapter-header .chapter-number,
+#sandbox > .chapter-header .chapter-number {
   width: 3.1rem;
   height: 3.1rem;
   font-size: 1.1rem;
 }
 
 #chapter-4-adversarial > .chapter-header h2,
-#chapter-5-temporal-roles > .chapter-header h2 {
+#chapter-5-temporal-roles > .chapter-header h2,
+#sandbox > .chapter-header h2 {
   max-width: 20em;
   margin: 0.05em 0 0.35em;
   font-size: clamp(2rem, 4vw, 3.1rem);
@@ -1290,7 +1310,8 @@ section + section.page-index {
 }
 
 #chapter-4-adversarial > .chapter-header p,
-#chapter-5-temporal-roles > .chapter-header p {
+#chapter-5-temporal-roles > .chapter-header p,
+#sandbox > .chapter-header p {
   max-width: 58em;
   font-size: 1.08rem;
 }
