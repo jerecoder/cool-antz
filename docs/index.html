@@ -28,26 +28,6 @@
       <div class="notes">
         <span class="institution">Proyecto final de aprendizaje por refuerzo</span>
       </div>
-      <div class="links">
-        <span class="link">
-          <a class="button" href="report-site/assets/report-draft.pdf">Informe en PDF</a>
-        </span>
-        <span class="link">
-          <a class="button" href="#environment">Ambiente principal</a>
-        </span>
-        <span class="link">
-          <a class="button" href="#policy-search">Política óptima</a>
-        </span>
-        <span class="link">
-          <a class="button" href="#chapter-3-lethal-cookies">Cap. 3 lethal cookies</a>
-        </span>
-        <span class="link">
-          <a class="button" href="#chapter-4-adversarial">Cap. 4 adversarial</a>
-        </span>
-        <span class="link">
-          <a class="button" href="evidence-ledger.html">Ledger de evidencia</a>
-        </span>
-      </div>
     </header>
 
     <main>
@@ -97,8 +77,85 @@
         </div>
       </section>
 
-      <section id="environment" class="environment-section simple-chapter" aria-labelledby="environment-title">
-        <div class="section-intro">
+      <section id="reading-index" class="page-index" aria-labelledby="reading-index-title">
+        <div class="page-index-head">
+          <span class="kicker">índice conectado</span>
+          <h2 id="reading-index-title">Mapa de la página</h2>
+          <p>
+            La página queda organizada como una historia de investigación:
+            primero el ambiente, después la búsqueda de una política válida y
+            luego las ramas alternativas que abren nuevas preguntas.
+          </p>
+        </div>
+        <div class="page-index-grid" aria-label="Índice de capítulos">
+          <article class="page-index-item page-index-item-main">
+            <a class="page-index-title" href="#environment" data-open-target="#environment">
+              <span>Ambiente principal</span>
+              <strong>Forrajeo local con memoria escrita</strong>
+            </a>
+            <p>Objetivo, observación, acciones, entrenamiento y perillas del entorno.</p>
+          </article>
+          <article class="page-index-item">
+            <a class="page-index-title" href="#policy-search" data-open-target="#policy-search">
+              <span>Capítulo 1</span>
+              <strong>Buscando una política óptima</strong>
+            </a>
+            <nav class="page-index-sublinks" aria-label="Saltos del capítulo 1">
+              <a href="#direct-baseline" data-open-target="#direct-baseline">1A Baseline</a>
+              <a href="#size-curriculum" data-open-target="#size-curriculum">1B Mapa</a>
+              <a href="#more-ants-more-map" data-open-target="#more-ants-more-map">1C Mapa + hormigas</a>
+              <a href="#validation-gates" data-open-target="#validation-gates">1D Gates</a>
+              <a href="#critic50" data-open-target="#critic50">1J Crítico</a>
+            </nav>
+          </article>
+          <article class="page-index-item">
+            <a class="page-index-title" href="#chapter-2-large-maps" data-open-target="#chapter-2-large-maps">
+              <span>Capítulo 2</span>
+              <strong>Mapas más grandes, hormigueros enormes</strong>
+            </a>
+            <p>Escalado de tamaño, colonias grandes, cobertura y congestión.</p>
+          </article>
+          <article class="page-index-item">
+            <a class="page-index-title" href="#chapter-3-lethal-cookies" data-open-target="#chapter-3-lethal-cookies">
+              <span>Capítulo 3</span>
+              <strong>Lethal Cookies</strong>
+            </a>
+            <nav class="page-index-sublinks" aria-label="Saltos del capítulo 3">
+              <a href="#lethal-mechanism" data-open-target="#lethal-mechanism">3A Mecanismo</a>
+              <a href="#lethal-open-results" data-open-target="#lethal-open-results">3B Resultados</a>
+              <a href="#lethal-random-walls" data-open-target="#lethal-random-walls">3C Paredes</a>
+              <a href="#lethal-transfer" data-open-target="#lethal-transfer">3D Transferencia</a>
+            </nav>
+          </article>
+          <article class="page-index-item">
+            <a class="page-index-title" href="#chapter-4-adversarial" data-open-target="#chapter-4-adversarial">
+              <span>Capítulo 4</span>
+              <strong>Entrenamiento adversarial</strong>
+            </a>
+            <nav class="page-index-sublinks" aria-label="Saltos del capítulo 4">
+              <a href="#adversarial-env" data-open-target="#adversarial-env">4A Env</a>
+              <a href="#adversarial-setup" data-open-target="#adversarial-setup">4B Setup</a>
+              <a href="#adversarial-first-results" data-open-target="#adversarial-first-results">4C Problema</a>
+              <a href="#adversarial-stabilizers" data-open-target="#adversarial-stabilizers">4D Mejoras</a>
+              <a href="#adversarial-selected-result" data-open-target="#adversarial-selected-result">4E Resultado</a>
+            </nav>
+          </article>
+          <article class="page-index-item">
+            <a class="page-index-title" href="#chapter-5-temporal-roles" data-open-target="#chapter-5-temporal-roles">
+              <span>Capítulo 5</span>
+              <strong>Roles temporales</strong>
+            </a>
+            <nav class="page-index-sublinks" aria-label="Saltos del capítulo 5">
+              <a href="#temporal-roles-env" data-open-target="#temporal-roles-env">5A Entorno</a>
+              <a href="#temporal-roles-results" data-open-target="#temporal-roles-results">5B Resultados</a>
+              <a href="#temporal-roles-future" data-open-target="#temporal-roles-future">5C Futuro</a>
+            </nav>
+          </article>
+        </div>
+      </section>
+
+      <details id="environment" class="environment-section simple-chapter chapter-details" open aria-labelledby="environment-title">
+        <summary class="section-intro chapter-summary">
           <span class="kicker">ambiente principal</span>
           <h2 id="environment-title">El ambiente principal de entrenamiento</h2>
           <p>
@@ -117,7 +174,7 @@
             crítico podía usar información global para asignar crédito, pero la
             política evaluada era local y feed-forward.
           </p>
-        </div>
+        </summary>
 
         <div class="environment-layout">
           <div class="environment-media-stack">
@@ -270,10 +327,10 @@
             </article>
           </div>
         </div>
-      </section>
+      </details>
 
-      <section id="policy-search" class="story-chapter simple-chapter">
-        <div class="chapter-header">
+      <details id="policy-search" class="story-chapter simple-chapter chapter-details" open>
+        <summary class="chapter-header chapter-summary">
           <span class="chapter-number">1</span>
           <div>
             <span class="kicker">primer capítulo</span>
@@ -284,7 +341,7 @@
               crítico.
             </p>
           </div>
-        </div>
+        </summary>
 
         <ol class="story-steps" aria-label="Estructura de la primera historia">
           <li class="story-step" id="direct-baseline">
@@ -1178,7 +1235,7 @@
             </div>
           </li>
         </ol>
-      </section>
+      </details>
 
       <section id="training-close" class="story-chapter simple-chapter closing-block">
         <div class="chapter-header">
@@ -1195,8 +1252,8 @@
         </div>
       </section>
 
-      <section id="chapter-2-large-maps" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-2-title">
-        <div class="chapter-header">
+      <details id="chapter-2-large-maps" class="story-chapter simple-chapter future-chapter chapter-details" open aria-labelledby="chapter-2-title">
+        <summary class="chapter-header chapter-summary">
           <span class="chapter-number">2</span>
           <div>
             <span class="kicker">placeholder</span>
@@ -1207,7 +1264,7 @@
               congestión y comunicación en colonias mucho más grandes.
             </p>
           </div>
-        </div>
+        </summary>
         <div class="chapter-placeholder">
           <span class="kicker">pendiente</span>
           <p>
@@ -1215,10 +1272,10 @@
             eficiencia por pasos-hormiga y límites de coordinación.
           </p>
         </div>
-      </section>
+      </details>
 
-      <section id="chapter-3-lethal-cookies" class="story-chapter simple-chapter lethal-chapter" aria-labelledby="chapter-3-title">
-        <div class="chapter-header">
+      <details id="chapter-3-lethal-cookies" class="story-chapter simple-chapter lethal-chapter chapter-details" open aria-labelledby="chapter-3-title">
+        <summary class="chapter-header chapter-summary">
           <span class="chapter-number">3</span>
           <div>
             <span class="kicker">seguridad y evidencia social</span>
@@ -1232,7 +1289,7 @@
               cadáveres alrededor.
             </p>
           </div>
-        </div>
+        </summary>
 
         <ol class="story-steps chapter-steps lethal-steps" aria-label="Subsecciones del capítulo lethal cookies">
           <li class="story-step" id="lethal-mechanism">
@@ -1709,10 +1766,10 @@
             </div>
           </li>
         </ol>
-      </section>
+      </details>
 
-      <section id="chapter-4-adversarial" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-4-title">
-        <div class="chapter-header">
+      <details id="chapter-4-adversarial" class="story-chapter simple-chapter future-chapter chapter-details" open aria-labelledby="chapter-4-title">
+        <summary class="chapter-header chapter-summary">
           <span class="chapter-number">4</span>
           <div>
             <span class="kicker">placeholder</span>
@@ -1724,7 +1781,7 @@
               primer resultado estable con un equipo freeze y otro en training.
             </p>
           </div>
-        </div>
+        </summary>
         <ol class="story-steps chapter-steps" aria-label="Bloques pendientes del capítulo adversarial">
           <li class="story-step" id="adversarial-env">
             <div class="step-header">
@@ -2571,38 +2628,211 @@
             </div>
           </li>
         </ol>
-      </section>
+      </details>
 
-      <section id="chapter-5-temporal-roles" class="story-chapter simple-chapter future-chapter" aria-labelledby="chapter-5-title">
-        <div class="chapter-header">
+      <details id="chapter-5-temporal-roles" class="story-chapter simple-chapter future-chapter chapter-details" open aria-labelledby="chapter-5-title">
+        <summary class="chapter-header chapter-summary">
           <span class="chapter-number">5</span>
           <div>
-            <span class="kicker">placeholder</span>
+            <span class="kicker">capítulo 5</span>
             <h2 id="chapter-5-title">Roles temporales</h2>
             <p>
-              Capítulo para separar otra línea de investigación: roles que
-              cambian en el tiempo, especialización transitoria y coordinación
-              cuando no todos los agentes deberían hacer lo mismo en cada fase.
+              Una línea alternativa para estudiar si la memoria escrita en el
+              mapa cambia cuando las hormigas no aparecen todas al mismo tiempo.
             </p>
           </div>
-        </div>
-        <div class="chapter-placeholder">
-          <span class="kicker">pendiente</span>
-          <p>
-            Acá irán los entornos de roles temporales, resultados prematuros y
-            preguntas abiertas.
-          </p>
-        </div>
-      </section>
+        </summary>
+        <ol class="story-steps chapter-steps" aria-label="Bloques pendientes del capítulo de roles temporales">
+          <li class="story-step" id="temporal-roles-env">
+            <div class="step-header">
+              <span class="step-index">5A</span>
+              <div>
+                <span class="kicker">nuevo entorno</span>
+                <h3>Forrajeo con liberación escalonada</h3>
+              </div>
+            </div>
+            <div class="step-layout temporal-roles-layout">
+              <div class="step-copy">
+                <p class="step-claim">
+                  La liberación temporal cambia la presión del entorno sin
+                  cambiar la arquitectura: si el mapa funciona como memoria
+                  compartida, las hormigas que aparecen tarde deberían poder
+                  aprovechar lo que las primeras dejaron escrito.
+                </p>
+                <p>
+                  En este experimento no cambiamos el objetivo de forrajeo: la
+                  colonia sigue teniendo que encontrar comida, llevarla al hub y
+                  usar el mapa como memoria externa. La diferencia es temporal.
+                  En vez de liberar a todas las hormigas desde el primer step,
+                  el entorno arranca con una sola hormiga activa y va
+                  habilitando una nueva cada <code>150</code> steps.
+                </p>
+                <p>
+                  Esa modificación crea una presión distinta. Las primeras
+                  hormigas exploran y escriben sobre un mundo que las siguientes
+                  van a heredar. Si la memoria compartida realmente tiene valor,
+                  el orden de aparición debería importar: no sólo por tener más
+                  o menos tiempo activo, sino porque cada rank entra a un mapa
+                  con historia.
+                </p>
+                <div class="experiment-note temporal-roles-spec">
+                  <span class="kicker">configuración</span>
+                  <ul class="environment-spec-list">
+                    <li><code>8</code> hormigas, mapa <code>50x50</code>, <code>125</code> comidas y <code>2</code> fuentes.</li>
+                    <li>Rank <code>0</code> activo desde step <code>0</code>; después entra una hormiga nueva cada <code>150</code> steps.</li>
+                    <li>Las hormigas inactivas quedan en el hub: no escriben, no recolectan, no entregan y no cuentan como agentes activos.</li>
+                    <li>No agregamos features nuevas: el one-hot de identidad pasa a funcionar como rank temporal.</li>
+                  </ul>
+                </div>
+              </div>
+              <figure class="step-media temporal-roles-media">
+                <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/videos/timed-release-roles-tuned-poster.jpg">
+                  <source src="report-site/assets/videos/timed-release-roles-tuned-excerpt.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>Liberación escalonada.</strong> El rollout empieza
+                  con una fracción de la colonia activa; las primeras marcas del
+                  mapa aparecen antes de que entren todos los ranks.
+                </figcaption>
+              </figure>
+            </div>
+          </li>
+
+          <li class="story-step" id="temporal-roles-results">
+            <div class="step-header">
+              <span class="step-index">5B</span>
+              <div>
+                <span class="kicker">resultados preliminares</span>
+                <h3>Señal inicial, todavía sin cierre</h3>
+              </div>
+            </div>
+            <div class="step-layout temporal-roles-layout">
+              <div class="step-copy">
+                <p class="step-claim">
+                  La liberación temporal no rompió el forrajeo: la política
+                  todavía puede recolectar, escribir y entregar. Pero la
+                  evidencia todavía no alcanza para decir que aparecieron roles
+                  temporales.
+                </p>
+                <p>
+                  En la evaluación tuned de <code>16</code> episodios, la
+                  colonia entregó <code>44.31</code> de <code>125</code>
+                  comidas. Es suficiente para mostrar que el entorno sigue
+                  produciendo forrajeo bajo liberación temporal, pero queda
+                  lejos de una política robusta y no prueba roles por sí solo.
+                </p>
+                <dl class="metric-grid temporal-roles-metric" aria-label="Métricas tuned de roles temporales">
+                  <div>
+                    <dt>evaluación tuned</dt>
+                    <dd><code>44.31/125</code> entregas</dd>
+                  </div>
+                  <div>
+                    <dt>rank 0</dt>
+                    <dd><code>10.19</code> entregas · <code>773</code> celdas</dd>
+                  </div>
+                  <div>
+                    <dt>rank 7</dt>
+                    <dd><code>2.25</code> entregas · <code>448</code> celdas</dd>
+                  </div>
+                </dl>
+                <div class="experiment-note temporal-roles-reading">
+                  <span class="kicker">lectura</span>
+                  <p>
+                    La diferencia entre ranks es visible, pero todavía es una
+                    evidencia ambigua. El rank <code>0</code> estuvo activo desde
+                    el inicio; el rank <code>7</code> recién entró después de que
+                    el mapa ya tenía escrituras y rutas parciales. La separación
+                    puede ser el comienzo de roles temporales, o simplemente el
+                    efecto mecánico de tener menos tiempo disponible.
+                  </p>
+                </div>
+              </div>
+              <figure class="step-media temporal-roles-media">
+                <video autoplay loop muted playsinline controls preload="metadata" poster="report-site/assets/videos/timed-release-roles-tuned-full-poster.jpg">
+                  <source src="report-site/assets/videos/timed-release-roles-tuned-full.mp4" type="video/mp4">
+                </video>
+                <figcaption>
+                  <strong>Rollout tuned completo.</strong> El video permite ver
+                  la transición desde pocas hormigas activas hasta la colonia
+                  completa, con escrituras extendidas y entregas visibles.
+                </figcaption>
+              </figure>
+            </div>
+          </li>
+
+          <li class="story-step terminal-step" id="temporal-roles-future">
+            <div class="step-header">
+              <span class="step-index">5C</span>
+              <div>
+                <span class="kicker">trabajo futuro</span>
+                <h3>Qué falta para llamarlo roles</h3>
+              </div>
+            </div>
+            <div class="step-layout step-layout-wide temporal-roles-closing">
+              <div class="step-copy">
+                <p class="step-claim">
+                  El resultado no cierra la pregunta de roles temporales; la
+                  deja mejor formulada.
+                </p>
+                <p>
+                  La corrida tuned muestra que el entorno es entrenable y que
+                  los ranks se separan, pero todavía falta bastante trabajo
+                  antes de leer esa separación como especialización.
+                </p>
+                <p>
+                  Primero falta entrenamiento: más updates, más seeds, mejor
+                  tuning de learning rate, write penalty e intervalo de
+                  liberación. También hace falta evaluar checkpoints con más
+                  episodios y comparar contra baselines diseñadas para esta
+                  pregunta.
+                </p>
+                <div class="experiment-note temporal-roles-next">
+                  <span class="kicker">controles pendientes</span>
+                  <dl class="temporal-roles-controls">
+                    <div>
+                      <dt>all-active</dt>
+                      <dd>Comparar contra la misma política sin liberación escalonada.</dd>
+                    </div>
+                    <div>
+                      <dt>orden</dt>
+                      <dd>Randomizar el orden de release manteniendo identidad.</dd>
+                    </div>
+                    <div>
+                      <dt>memoria</dt>
+                      <dd>Apagar escrituras para medir cuánto depende del mapa.</dd>
+                    </div>
+                    <div>
+                      <dt>tiempo</dt>
+                      <dd>Barrer intervalos como <code>75</code>, <code>150</code> y <code>300</code>.</dd>
+                    </div>
+                    <div>
+                      <dt>seeds</dt>
+                      <dd>Repetir para ver si la separación por rank es estable.</dd>
+                    </div>
+                  </dl>
+                </div>
+                <p class="temporal-roles-final-line">
+                  Si esos controles separan tiempo activo de comportamiento
+                  aprendido, este entorno puede volverse una herramienta limpia
+                  para estudiar roles emergentes sin agregar memoria recurrente
+                  ni señales globales nuevas.
+                </p>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </details>
     </main>
 
     <footer>
       <p>
-        Esta home es la versión narrativa en construcción. La página acumulativa
-        completa queda preservada en <a href="evidence-ledger.html">el ledger de evidencia</a>.
+        Esta página es la versión narrativa en construcción del proyecto: una
+        lectura conectada de los experimentos, sus fallas útiles y los próximos
+        problemas abiertos.
       </p>
     </footer>
     <script src="report-site/assets/data/policy-runner-50x50-frontier.js"></script>
     <script src="report-site/ambient-ant.js"></script>
+    <script src="report-site/page-index.js"></script>
   </body>
 </html>

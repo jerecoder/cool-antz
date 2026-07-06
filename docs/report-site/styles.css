@@ -151,11 +151,15 @@ div {
   min-width: 0;
 }
 
-section {
+section,
+main > details {
   padding: 0 1em;
 }
 
-section + section {
+section + section,
+section + details,
+details + section,
+details + details {
   margin: 2.2em 0 0;
   border-top: 2px solid #e9e1d2;
   padding-top: 1.25em;
@@ -188,38 +192,6 @@ footer {
   margin-bottom: 1ex;
   color: var(--muted);
   font-size: 13pt;
-}
-
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 0.8em;
-  margin-top: 20px;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  border: 1px solid #2f3f47;
-  border-radius: 6px;
-  background-color: #314551;
-  color: #fffdf8;
-  padding: calc(0.5em - 1px) calc(1.25em - 1px);
-  font-size: 1rem;
-  line-height: 1.5;
-  text-align: center;
-  text-decoration: none;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.button:hover {
-  background-color: var(--accent-dark);
-  color: #fffdf8;
 }
 
 .summary,
@@ -347,12 +319,166 @@ figcaption {
   color: var(--muted);
 }
 
+.page-index {
+  margin-top: 2.7em;
+  border-block: 2px solid var(--line);
+  padding-block: 1.25em 1.45em;
+}
+
+section + section.page-index {
+  border-top: 0;
+}
+
+.page-index + #environment {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.page-index + #environment > .section-intro {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.page-index h2 {
+  margin: 0.15em 0 0.3em;
+  color: #243039;
+  text-align: left;
+}
+
+.page-index-head {
+  max-width: 60em;
+  margin-bottom: 0.9em;
+}
+
+.page-index-head p {
+  max-width: 58em;
+  margin: 0;
+  color: var(--muted);
+}
+
+.page-index-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1.45em;
+}
+
+.page-index-item {
+  display: grid;
+  align-content: start;
+  gap: 0.55em;
+  border-top: 1px solid var(--line);
+  padding: 1em 0 1.05em;
+}
+
+.page-index-item-main {
+  grid-column: 1 / -1;
+  border-top-color: var(--line-strong);
+  border-bottom: 1px solid var(--line);
+}
+
+.page-index-title {
+  display: grid;
+  gap: 0.15em;
+  color: var(--blue-ink);
+}
+
+.page-index-title span {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.page-index-title strong {
+  max-width: 22em;
+  color: #243039;
+  font-size: clamp(1.08rem, 2vw, 1.28rem);
+  line-height: 1.22;
+}
+
+.page-index-title:hover strong {
+  color: var(--accent-dark);
+}
+
+.page-index-item p {
+  max-width: 32em;
+  margin: 0;
+  color: var(--muted);
+}
+
+.page-index-sublinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em 0.72em;
+  align-items: center;
+  margin-top: 0.05em;
+}
+
+.page-index-sublinks a {
+  border-bottom: 1px solid rgba(167, 134, 86, 0.55);
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.page-index-sublinks a:hover {
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
+}
+
 .simple-report {
   max-width: 76em;
 }
 
 .simple-chapter {
   margin-top: 3.2em;
+}
+
+.chapter-details {
+  scroll-margin-top: 1.5em;
+}
+
+.chapter-details > summary {
+  list-style: none;
+}
+
+.chapter-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chapter-summary {
+  position: relative;
+  padding-right: 3.4rem;
+  cursor: url("assets/sprites/ant-cursor.png") 20 4, pointer;
+}
+
+.chapter-summary::after {
+  position: absolute;
+  top: 1.05rem;
+  right: 0;
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--accent);
+  content: "-";
+  font-family: Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chapter-details:not([open]) > .chapter-summary {
+  margin-bottom: 0;
+}
+
+.chapter-details:not([open]) > .chapter-summary::after {
+  content: "+";
 }
 
 .section-intro {
@@ -1017,27 +1143,31 @@ figcaption {
   line-height: 1.35;
 }
 
-#chapter-4-adversarial > .chapter-header {
+#chapter-4-adversarial > .chapter-header,
+#chapter-5-temporal-roles > .chapter-header {
   grid-template-columns: 4.5rem minmax(0, 1fr);
   margin-bottom: 1.6em;
   border-block: 2px solid var(--line);
   padding: 1.2em 0 1.3em;
 }
 
-#chapter-4-adversarial > .chapter-header .chapter-number {
+#chapter-4-adversarial > .chapter-header .chapter-number,
+#chapter-5-temporal-roles > .chapter-header .chapter-number {
   width: 3.1rem;
   height: 3.1rem;
   font-size: 1.1rem;
 }
 
-#chapter-4-adversarial > .chapter-header h2 {
+#chapter-4-adversarial > .chapter-header h2,
+#chapter-5-temporal-roles > .chapter-header h2 {
   max-width: 20em;
   margin: 0.05em 0 0.35em;
   font-size: clamp(2rem, 4vw, 3.1rem);
   line-height: 1.05;
 }
 
-#chapter-4-adversarial > .chapter-header p {
+#chapter-4-adversarial > .chapter-header p,
+#chapter-5-temporal-roles > .chapter-header p {
   max-width: 58em;
   font-size: 1.08rem;
 }
@@ -1445,6 +1575,96 @@ figcaption {
   line-height: 1.45;
 }
 
+#chapter-5-temporal-roles .chapter-steps {
+  margin-top: 0.2em;
+}
+
+.temporal-roles-layout {
+  grid-template-columns: minmax(0, 0.98fr) minmax(18rem, 0.72fr);
+  align-items: stretch;
+}
+
+.temporal-roles-layout .step-copy p,
+.temporal-roles-closing .step-copy p {
+  max-width: none;
+}
+
+.temporal-roles-slot {
+  min-height: 12.5rem;
+  border-style: solid;
+  background:
+    linear-gradient(135deg, rgba(49, 69, 81, 0.06), rgba(178, 142, 83, 0.08)),
+    #fffaf0;
+  color: #5f5141;
+  font-weight: bold;
+}
+
+.temporal-roles-spec {
+  max-width: none;
+  margin-top: 1em;
+}
+
+.temporal-roles-spec .environment-spec-list {
+  margin-top: 0.65em;
+}
+
+.temporal-roles-metric {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: none;
+  margin: 1.05em 0;
+}
+
+.temporal-roles-reading {
+  max-width: none;
+}
+
+.temporal-roles-reading p {
+  max-width: none;
+}
+
+.temporal-roles-next {
+  max-width: 58em;
+  margin-top: 1em;
+}
+
+.temporal-roles-next p {
+  max-width: none;
+}
+
+.temporal-roles-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.8em;
+  margin: 0.75em 0 0;
+}
+
+.temporal-roles-controls div {
+  border-top: 1px solid rgba(178, 142, 83, 0.42);
+  padding-top: 0.55em;
+}
+
+.temporal-roles-controls dt {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.temporal-roles-controls dd {
+  margin: 0.28em 0 0;
+  color: #243039;
+  font-weight: bold;
+  line-height: 1.32;
+}
+
+.temporal-roles-final-line {
+  max-width: 58em;
+  margin-top: 1em;
+  color: #243039;
+  font-weight: bold;
+}
+
 .tree-svg {
   display: block;
   min-width: 1120px;
@@ -1566,7 +1786,8 @@ figcaption {
 
 .tree-link:focus-visible .tree-node-frame,
 .story-nav a:focus-visible,
-.button:focus-visible,
+.page-index a:focus-visible,
+.chapter-summary:focus-visible,
 .policy-tabs button:focus-visible,
 .runner-controls button:focus-visible,
 .runner-form select:focus-visible,
@@ -2144,7 +2365,8 @@ li + li {
     padding-left: 0;
   }
 
-  .lethal-metric-grid {
+  .lethal-metric-grid,
+  .temporal-roles-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -2164,6 +2386,7 @@ li + li {
   header,
   main,
   section,
+  main > details,
   footer {
     max-width: 100%;
   }
@@ -2188,22 +2411,8 @@ li + li {
     margin-top: 0.1em;
   }
 
-  .links {
-    display: grid;
-    grid-template-columns: 1fr;
-    width: 100%;
-    max-width: 18rem;
-    margin-right: auto;
-    margin-left: auto;
-  }
-
-  .link,
-  .button {
-    width: 100%;
-    min-width: 0;
-  }
-
-  section {
+  section,
+  main > details {
     padding: 0;
   }
 
@@ -2237,6 +2446,28 @@ li + li {
   }
 
   .order-list {
+    grid-template-columns: 1fr;
+  }
+
+  .page-index-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-index-item-main {
+    grid-column: auto;
+  }
+
+  .chapter-summary {
+    padding-right: 2.85rem;
+  }
+
+  .chapter-summary::after {
+    width: 2.1rem;
+    height: 2.1rem;
+    font-size: 1.1rem;
+  }
+
+  .temporal-roles-controls {
     grid-template-columns: 1fr;
   }
 
