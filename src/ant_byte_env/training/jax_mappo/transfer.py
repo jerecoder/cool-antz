@@ -159,57 +159,6 @@ def load_checkpoint_for_training(
     }
 
 
-def load_actor_from_checkpoint_for_training(
-    path: Path,
-    *,
-    target_params: JaxMAPPOParams,
-    central_obs_dim: int,
-    actor_obs_dim: int,
-    target_write_bits: int,
-    actor_vision_radius: int,
-    target_num_ants: int = 1,
-    target_agent_identity_types: int | None = None,
-    write_head_transfer: str = "repeat",
-    target_critic_architecture: str = "mlp",
-) -> dict[str, Any]:
-    raw_checkpoint = read_checkpoint(path)
-    source_args = raw_checkpoint.get("args", {})
-    source_critic_architecture = str(source_args.get("critic_architecture", "mlp"))
-    actor_checkpoint = load_checkpoint_for_training(
-        path,
-        central_obs_dim=int(raw_checkpoint["central_obs_dim"]),
-        actor_obs_dim=actor_obs_dim,
-        target_write_bits=target_write_bits,
-        actor_vision_radius=actor_vision_radius,
-        target_num_ants=target_num_ants,
-        target_agent_identity_types=target_agent_identity_types,
-        write_head_transfer=write_head_transfer,
-        target_critic_architecture=source_critic_architecture,
-        reset_optimizer=True,
-    )
-    actor_params = actor_checkpoint["params"]
-    params = target_params._replace(
-        actor_body=actor_params.actor_body,
-        move_head=actor_params.move_head,
-        write_head=actor_params.write_head,
-    )
-    target_args = {
-        **actor_checkpoint.get("args", {}),
-        "transfer_source_checkpoint": str(path),
-        "actor_only_transfer": True,
-        "critic_architecture": str(target_critic_architecture),
-        "source_critic_architecture": source_critic_architecture,
-    }
-    return {
-        **actor_checkpoint,
-        "params": params,
-        "opt_state": init_adam_state(params),
-        "central_obs_dim": central_obs_dim,
-        "actor_obs_dim": actor_obs_dim,
-        "args": target_args,
-    }
-
-
 def validate_write_head_transfer(mode: str) -> str:
     if mode not in WRITE_HEAD_TRANSFER_MODES:
         choices = ", ".join(WRITE_HEAD_TRANSFER_MODES)

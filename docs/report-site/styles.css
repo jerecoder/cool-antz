@@ -952,12 +952,6 @@ section + section.page-index {
   text-align: center;
 }
 
-.critic-ablation-note {
-  max-width: 63em;
-  margin-top: 1em;
-  margin-left: 5rem;
-}
-
 .figure-grid.critic-architecture-figure {
   display: block;
   width: 100%;
@@ -980,47 +974,6 @@ section + section.page-index {
   height: auto;
   background: var(--paper);
   object-fit: contain;
-}
-
-.compact-table-wrap {
-  width: 100%;
-  max-width: 63em;
-  min-width: 0;
-  margin: 1.05em 0 1.15em;
-  overflow-x: auto;
-}
-
-.critic-evidence-table {
-  max-width: 72rem;
-}
-
-.compact-evidence-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.96rem;
-  line-height: 1.38;
-}
-
-.compact-evidence-table th,
-.compact-evidence-table td {
-  border-top: 1px solid var(--line);
-  overflow-wrap: normal;
-  padding: 0.55em 0.7em 0.55em 0;
-  vertical-align: top;
-  text-align: left;
-}
-
-.compact-evidence-table th {
-  color: var(--accent);
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.compact-evidence-table th:first-child,
-.compact-evidence-table td:first-child {
-  width: 6.8rem;
-  white-space: nowrap;
 }
 
 .zoomable-plot img {
@@ -2607,10 +2560,6 @@ li + li {
     padding-left: 0;
   }
 
-  .critic-ablation-note {
-    margin-left: 0;
-  }
-
   .figure-grid.critic-architecture-figure {
     width: calc(100vw - 28px);
     max-width: calc(100vw - 28px);
@@ -2620,15 +2569,6 @@ li + li {
   .critic-architecture-figure figure {
     width: 100%;
     max-width: 100%;
-  }
-
-  .compact-table-wrap {
-    width: calc(100vw - 28px);
-    max-width: calc(100vw - 28px);
-  }
-
-  .compact-evidence-table {
-    min-width: 36rem;
   }
 
   .behavior-reading {

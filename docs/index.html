@@ -1366,65 +1366,53 @@
             <div class="step-layout step-layout-wide">
               <div class="step-copy">
                 <p>
-                  El cambio de crítico no fue un detalle de implementación. El
-                  actor seguía siendo local, pero PPO aprendía con un crítico
-                  centralizado. Con crítico <code>mlp</code>, el mejor
-                  <code>50x50</code> eficiente de esta línea llegó a
+                  El cambio de crítico no fue un detalle menor. El actor seguía
+                  viendo sólo su observación local, pero PPO entrenaba con un
+                  crítico centralizado. El mejor punto <code>50x50</code> con
+                  crítico <code>mlp</code> llegó a
                   <a
                     href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/g8u36g2a"
                     target="_blank"
                     rel="noreferrer"
                   ><code>21.5/48</code></a>.
-                  La rama posterior cambió la representación del valor a
-                  <code>strided_cnn</code>: planos espaciales de la grilla,
-                  rasgos de entidades y fusión antes del value head.
+                  Era actividad útil, pero todavía no una política fuerte de
+                  escala.
                 </p>
                 <p>
-                  Ese salto reordenó la historia. El currículo de proximity con
-                  <code>strided_cnn</code> llegó a
+                  La primera política realmente buena de este linaje aparece
+                  cuando el experimento de fuentes dispersas pasa a
+                  <code>strided_cnn</code>. Ese run de
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                    target="_blank"
+                    rel="noreferrer"
+                  >proximity sources</a>
+                  usa arena externa <code>50x50</code>, ventana interior
+                  <code>30x30</code>, dos macro-fuentes y footprints que se
+                  achican hasta dos posiciones. Llegó a
                   <a
                     href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
                     target="_blank"
                     rel="noreferrer"
                   ><code>40.875/250</code></a>.
-                  La continuación de <code>8</code> hormigas con escritura
-                  compartida y costo de bits llegó a
-                  <a
-                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/77z1vhpr"
-                    target="_blank"
-                    rel="noreferrer"
-                  ><code>69.375/125</code></a>.
-                  La estabilización de <code>60</code> hormigas en
-                  <a
-                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3p9be6hv"
-                    target="_blank"
-                    rel="noreferrer"
-                  >W&amp;B</a>
-                  cerró con summary <code>107.25/125</code>, y una confirmación
-                  local posterior del checkpoint seleccionado, sobre
-                  <code>64</code> episodios, midió <code>123.90625/125</code>
-                  con éxito <code>0.90625</code>. El rollout visual usa la
-                  temperatura de despliegue posterior, <code>0.525</code>.
                 </p>
                 <div class="experiment-note" aria-label="Advertencia causal sobre el crítico 50x50">
                   <span class="kicker">lectura causal</span>
                   <p>
-                    El resultado de <code>60</code> hormigas es la frontera
-                    conductual del proyecto, pero no una ablación limpia. Cambian
-                    a la vez cantidad de hormigas, <code>8</code> bits,
-                    identidades repetidas, escritura compartida, costo de bits,
-                    selección de checkpoint, temperatura de rollout y crítico
-                    espacial.
+                    Esto no prueba que el crítico por sí solo explique todo: en
+                    fuentes también cambió la geometría de descubrimiento. Pero
+                    sí marca una frontera real. Antes del crítico espacial no
+                    teníamos una política 50x50 convincente; después aparece el
+                    primer comportamiento útil.
                   </p>
                 </div>
                 <p>
-                  La conclusión correcta es más fuerte que “más tuning ayudó” y
-                  más débil que “apareció comunicación emergente”: el crítico
-                  espacial hizo aprendible una señal de valor que el MLP plano
-                  no estaba representando bien. Los bytes y la escritura siguen
-                  siendo parte del comportamiento visible, pero la evidencia
-                  principal de esta sección es una frontera de asignación de
-                  crédito.
+                  Las mejoras posteriores con <code>8</code> y
+                  <code>60</code> hormigas pertenecen a esta familia espacial,
+                  pero ya mezclan más agentes, escritura compartida, costos,
+                  selección de checkpoint y temperatura de rollout. Por eso esta
+                  sección se queda con el primer punto claro: fuentes dispersas
+                  con buen crítico.
                 </p>
               </div>
             </div>
@@ -1450,119 +1438,13 @@
                 </figcaption>
               </figure>
             </div>
-            <div class="compact-table-wrap critic-evidence-table" aria-label="Hitos de la rama de crítico 50x50">
-              <table class="compact-evidence-table">
-                <thead>
-                  <tr>
-                    <th>hito</th>
-                    <th>contrato</th>
-                    <th>evidencia</th>
-                    <th>lectura</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><code>mlp</code></td>
-                    <td>4 hormigas, <code>50x50</code> eficiente, <code>48</code> comidas.</td>
-                    <td>
-                      <a
-                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/g8u36g2a"
-                        target="_blank"
-                        rel="noreferrer"
-                      ><code>21.5/48</code></a>
-                    </td>
-                    <td>Mejor punto local antes del crítico espacial.</td>
-                  </tr>
-                  <tr>
-                    <td><code>strided_cnn</code></td>
-                    <td>4 hormigas, ventana <code>30x30</code>, <code>250</code> comidas, proximity sources.</td>
-                    <td>
-                      <a
-                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
-                        target="_blank"
-                        rel="noreferrer"
-                      ><code>40.875/250</code></a>
-                    </td>
-                    <td>Primer indicio fuerte, pero ya mezclado con geometría sparse.</td>
-                  </tr>
-                  <tr>
-                    <td><code>8 ants</code></td>
-                    <td><code>125</code> comidas, escritura compartida y costo de bits.</td>
-                    <td>
-                      <a
-                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/77z1vhpr"
-                        target="_blank"
-                        rel="noreferrer"
-                      ><code>69.375/125</code></a>
-                    </td>
-                    <td>Progreso práctico dentro de la familia espacial.</td>
-                  </tr>
-                  <tr>
-                    <td><code>60 ants</code></td>
-                    <td><code>8</code> bits, continuación estabilizada, rollout posterior con temperatura <code>0.525</code>.</td>
-                    <td>
-                      <a
-                        href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3p9be6hv"
-                        target="_blank"
-                        rel="noreferrer"
-                      ><code>107.25/125</code></a>
-                      en W&amp;B; confirmación local <code>123.90625/125</code>.
-                    </td>
-                    <td>Frontera conductual, no ablación causal limpia.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="step-video-sequence step-video-sequence-two critic-video-grid" aria-label="Rollouts de la ablación de crítico 50x50">
+            <div class="step-video-sequence step-video-sequence-single critic-video-grid" aria-label="Primer rollout bueno de la rama con crítico espacial">
               <figure>
-                <video muted playsinline controls preload="metadata" aria-label="Rollout 50x50 entrenado con crítico MLP">
-                  <source src="report-site/assets/videos/critic-ablation-50x50-mlp.mp4" type="video/mp4">
+                <video muted playsinline controls preload="metadata" poster="report-site/assets/videos/proximity-sources-02-poster.jpg" aria-label="Rollout de proximity sources con crítico strided CNN">
+                  <source src="report-site/assets/videos/proximity-sources-02.mp4" type="video/mp4">
                 </video>
-                <figcaption>MLP · mejor update 7000</figcaption>
+                <figcaption>proximity sources + strided_cnn · 2 posiciones</figcaption>
               </figure>
-              <figure>
-                <video muted playsinline controls preload="metadata" aria-label="Rollout 50x50 entrenado con crítico strided CNN">
-                  <source src="report-site/assets/videos/critic-ablation-50x50-strided-cnn.mp4" type="video/mp4">
-                </video>
-                <figcaption>strided_cnn · mejor update 3000</figcaption>
-              </figure>
-            </div>
-            <div class="experiment-note critic-ablation-note" aria-label="Estado de la comparación visual del crítico">
-              <span class="kicker">ablación controlada</span>
-              <p>
-                La comparación limpia ya está en W&amp;B:
-                <a
-                  href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/jl9plxp6"
-                  target="_blank"
-                  rel="noreferrer"
-                >MLP</a>,
-                <a
-                  href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/3a0ivn99"
-                  target="_blank"
-                  rel="noreferrer"
-                >strided_cnn</a>
-                y
-                <a
-                  href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/h0q33zn5"
-                  target="_blank"
-                  rel="noreferrer"
-                >videos</a>.
-                Ambas ramas parten del mismo actor <code>50x50</code>; el
-                crítico y el optimizador se reinicializan. Cortamos en
-                <code>7500</code> updates para una ventana corta comparable, y
-                los rollouts usan escritura greedy con movimiento sampleado a
-                temperatura <code>0.525</code>.
-              </p>
-              <p>
-                Al final las entregas crudas quedan cerca:
-                <code>42.25/48</code> con MLP y <code>41.75/48</code> con
-                <code>strided_cnn</code>. La diferencia aparece en el mejor
-                checkpoint por eficiencia: MLP alcanza <code>43.625/48</code>,
-                <code>1.840</code> entregas por 1000 pasos-hormiga y éxito
-                <code>0.125</code>; <code>strided_cnn</code> alcanza antes
-                <code>45.5/48</code>, <code>2.276</code> y éxito
-                <code>0.625</code>.
-              </p>
             </div>
           </li>
         </ol>

@@ -541,15 +541,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--load-actor-only",
-        action="store_true",
-        help=(
-            "When loading a checkpoint, copy only actor parameters into the newly "
-            "initialized target model and reinitialize critic and optimizer state. "
-            "Use this for critic-architecture ablations from a shared actor."
-        ),
-    )
-    parser.add_argument(
         "--run-dir",
         type=Path,
         default=None,
@@ -615,8 +606,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         raise ValueError("--hidden-size must be positive.")
     if args.log_interval <= 0:
         raise ValueError("--log-interval must be positive.")
-    if args.load_actor_only and args.load_model is None:
-        raise ValueError("--load-actor-only requires --load-model.")
     if args.training_rollout_temperature <= 0.0:
         raise ValueError("--training-rollout-temperature must be positive.")
     if args.max_grad_norm < 0.0:
