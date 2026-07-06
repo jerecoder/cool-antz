@@ -8,13 +8,14 @@ import datetime as dt
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PYTHON = "/home/jerefigo/miniconda3/envs/tp1-rl/bin/python"
+DEFAULT_PYTHON = sys.executable
 WANDB_PROJECT = "cool-antz"
 WANDB_RUN_ID = "coolantz100x100progressvideossingle"
 WANDB_RUN_NAME = "100x100 progress videos"

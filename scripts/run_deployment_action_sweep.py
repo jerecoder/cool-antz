@@ -15,7 +15,7 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PYTHON = "/home/jerefigo/miniconda3/envs/tp1-rl/bin/python"
+DEFAULT_PYTHON = sys.executable
 EVAL_WORKER = PROJECT_ROOT / "scripts" / "run_overnight_efficiency_sweep.py"
 BASELINE_CHECKPOINT = (
     PROJECT_ROOT

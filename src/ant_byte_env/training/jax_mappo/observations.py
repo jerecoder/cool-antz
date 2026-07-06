@@ -549,4 +549,3 @@ def flatten_agent_actions(actions: jax.Array) -> jax.Array:
     if actions.ndim != 3 or actions.shape[-1] != 2:
         raise ValueError(f"joint actions must have shape (batch, ants, 2), got {actions.shape}.")
     return actions.astype(jnp.int32).reshape(actions.shape[0], actions.shape[1] * 2)
-

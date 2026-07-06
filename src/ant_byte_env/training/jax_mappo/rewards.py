@@ -407,4 +407,3 @@ def _applied_write_values(
         return write_values
     move_actions = actions[..., 0]
     return jnp.where(move_actions == ACTION_STAY, write_values, 0).astype(jnp.uint32)
-

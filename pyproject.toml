@@ -46,7 +46,10 @@ wandb = [
 ]
 dev = [
   "jax>=0.4",
+  "matplotlib>=3.8",
   "notebook>=7.0",
+  "pandas>=2.0",
+  "Pillow>=10.0",
   "pytz>=2024.1",
   "pytest>=8.0",
   "pytest-cov>=5.0",

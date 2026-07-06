@@ -107,4 +107,3 @@ def get_action_and_value(
         critic_obs_width=critic_obs_width,
     )
     return actions, logprob, entropy, value
-
