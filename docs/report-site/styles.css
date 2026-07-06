@@ -359,7 +359,9 @@ section + section.page-index {
 .page-index-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 1.45em;
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
+  gap: 0 1.55em;
 }
 
 .page-index-item {
@@ -367,13 +369,7 @@ section + section.page-index {
   align-content: start;
   gap: 0.55em;
   border-top: 1px solid var(--line);
-  padding: 1em 0 1.05em;
-}
-
-.page-index-item-main {
-  grid-column: 1 / -1;
-  border-top-color: var(--line-strong);
-  border-bottom: 1px solid var(--line);
+  padding: 1em 0 1.1em;
 }
 
 .page-index-title {
@@ -2451,10 +2447,8 @@ li + li {
 
   .page-index-grid {
     grid-template-columns: 1fr;
-  }
-
-  .page-index-item-main {
-    grid-column: auto;
+    grid-template-rows: auto;
+    grid-auto-flow: row;
   }
 
   .chapter-summary {
