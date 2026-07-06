@@ -55,6 +55,7 @@ from ant_byte_env.workflows.args import (
     EXPLORATION_ARG_EXCLUDES,
     EXPLORATION_TO_FORAGE_ARG_EXCLUDES,
     SINGLE_CHECKPOINT_ARG_EXCLUDES,
+    VISION_RANGE_ARG_EXCLUDES,
     build_exploration_common_args,
     build_forage_common_args,
     build_maze_exploration_common_args,
@@ -77,6 +78,7 @@ from ant_byte_env.workflows.checkpoints import (
 from ant_byte_env.workflows.cli import (
     WANDB_CLI_VALUE_ARGS as _WANDB_CLI_VALUE_ARGS,
     WANDB_CLI_VARARGS as _WANDB_CLI_VARARGS,
+    argv_int as _argv_int,
     strip_wandb_cli_args as _strip_wandb_cli_args,
 )
 from ant_byte_env.workflows.experiments import (
@@ -670,6 +672,139 @@ def run_autocurriculum_training(
     }
 
 
+def validate_vision_range_stages(vision_radii: Sequence[int]) -> None:
+    if any(int(radius) <= 0 for radius in vision_radii):
+        raise ValueError("vision radii must be positive.")
+    if not all(
+        int(left) > int(right) for left, right in zip(vision_radii, vision_radii[1:])
+    ):
+        raise ValueError("vision radii must be strictly decreasing.")
+
+
+def vision_side(radius: int) -> int:
+    return 2 * int(radius) + 1
+
+
+def run_vision_range_curriculum(
+    *,
+    vision_radii: Sequence[int],
+    run_dir: Path,
+    common_args: Sequence[str],
+    experiment_name: str,
+    update_timesteps_per_stage: int,
+    global_update_cap: int,
+    train_main: Callable[..., dict[str, float]],
+    render_rollouts: bool = True,
+    max_render_frames: int | None = 300,
+    tile_size: int | None = NOTEBOOK_ROLLOUT_TILE_SIZE,
+    policy_temperature: float = NOTEBOOK_ROLLOUT_POLICY_TEMPERATURE,
+) -> dict[str, Any]:
+    validate_vision_range_stages(vision_radii)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    media_dir = run_dir / "media"
+    media_dir.mkdir(exist_ok=True)
+
+    stage_metrics: list[dict[str, Any]] = []
+    stage_checkpoint_paths: list[Path] = []
+    rollout_paths: list[Path] = []
+    previous_checkpoint: Path | None = None
+    final_train_metrics: dict[str, float] = {}
+
+    for stage_index, radius in enumerate(vision_radii):
+        radius = int(radius)
+        side = vision_side(radius)
+        stage_name = f"{side}x{side}"
+        stage_run_dir = run_dir / stage_name
+        checkpoint_path = stage_run_dir / "checkpoints" / "model.pkl"
+        print(f"Training vision stage {stage_index + 1}/{len(vision_radii)}: {stage_name}")
+        if previous_checkpoint is not None:
+            print(f"Starting from: {previous_checkpoint}")
+
+        progress = stage_update_progress(stage_name, int(global_update_cap))
+        last_progress_update = 0
+
+        def record_progress(
+            update_index: int,
+            total_updates: int,
+            metrics: dict[str, float],
+        ) -> None:
+            nonlocal last_progress_update
+            last_progress_update = _advance_progress_to(
+                progress,
+                update_index=update_index,
+                previous_update_index=last_progress_update,
+            )
+            postfix = {
+                "loss": f"{metrics['loss']:.3f}",
+                "ret": f"{metrics['episode_return']:.3f}",
+            }
+            if "recent_episode_return" in metrics:
+                postfix["ret_avg"] = f"{metrics['recent_episode_return']:.3f}"
+            progress.set_postfix(**postfix)
+            stage_metrics.append(
+                {
+                    "actor_vision_radius": radius,
+                    "vision_side": side,
+                    **metrics,
+                    "stage_index": stage_index + 1,
+                    "stage_name": stage_name,
+                    "stage_update": int(update_index),
+                    "stage_total_updates": int(total_updates),
+                    "global_update_cap": int(global_update_cap),
+                    "checkpoint": str(checkpoint_path),
+                    "source_checkpoint": (
+                        str(previous_checkpoint) if previous_checkpoint is not None else None
+                    ),
+                    "run_dir": str(stage_run_dir),
+                }
+            )
+
+        train_args = [
+            *common_args,
+            "--exp-name",
+            f"{experiment_name}_{stage_name}",
+            "--actor-vision-radius",
+            str(radius),
+            "--total-timesteps",
+            str(int(update_timesteps_per_stage) * int(global_update_cap)),
+            "--run-dir",
+            str(stage_run_dir),
+        ]
+        if previous_checkpoint is not None:
+            train_args.extend(["--load-model", str(previous_checkpoint)])
+
+        try:
+            final_train_metrics = train_main(train_args, progress_callback=record_progress)
+        finally:
+            progress.close()
+
+        stage_checkpoint_paths.append(checkpoint_path)
+        if render_rollouts:
+            rollout_path = media_dir / f"vision_{stage_name}.gif"
+            rollout_paths.append(
+                render_checkpoint(
+                    checkpoint_path,
+                    rollout_path,
+                    backend="jax",
+                    seed_offset=NOTEBOOK_ROLLOUT_SEED_OFFSET + stage_index,
+                    reuse_existing=False,
+                    max_frames=max_render_frames,
+                    tile_size=tile_size,
+                    policy_temperature=policy_temperature,
+                )
+            )
+        previous_checkpoint = checkpoint_path
+
+    return {
+        "stage_metrics": stage_metrics,
+        "stage_checkpoint_paths": stage_checkpoint_paths,
+        "final_checkpoint": previous_checkpoint,
+        "final_checkpoint_path": previous_checkpoint,
+        "final_train_metrics": final_train_metrics,
+        "rollout_paths": rollout_paths,
+    }
+
+
 def validate_communication_stages(bit_stages: Sequence[int]) -> None:
     if any(bits <= 1 or bits > MAX_WRITE_BITS for bits in bit_stages):
         raise ValueError(f"bit stages must contain integers from 2 to {MAX_WRITE_BITS}.")
@@ -1010,7 +1145,7 @@ def expand_critic_input_for_ant_count(
 ) -> Any:
     import jax.numpy as jnp
 
-    from ant_byte_env.training.jax_mappo.core import JaxMAPPOParams, LinearParams
+    from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams, LinearParams
 
     source_num_ants = int(source_num_ants)
     target_num_ants = int(target_num_ants)
@@ -1056,10 +1191,9 @@ def expand_critic_input_for_ant_count(
 def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     import jax
 
-    from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
-    from ant_byte_env.jax_env import JaxAntByteForagingEnv
     from ant_byte_env.training.jax_mappo.cli import parse_args
-    from ant_byte_env.training.jax_mappo.core import (
+    from ant_byte_env.training.jax_mappo.env_factory import make_jax_mappo_env
+    from ant_byte_env.training.jax_mappo.observations import (
         build_actor_observations,
         build_central_observations,
         food_observation_scale,
@@ -1067,44 +1201,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
     from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 
     args = parse_args(list(argv))
-    env_kwargs = {
-        "width": args.width,
-        "height": args.height,
-        "num_ants": args.num_ants,
-        "food_count": args.food_count,
-        "food_source_count": args.food_sources,
-        "max_steps": args.max_steps,
-        "random_food": args.random_food,
-        "random_hub": args.random_hub,
-        "random_ant_spawn": args.random_ant_spawn,
-        "random_ant_spawn_radius": args.random_ant_spawn_radius,
-        "step_penalty": args.step_penalty,
-        "completion_bonus": getattr(args, "completion_bonus", 0.0),
-        "write_penalty": args.write_penalty,
-        "write_bits": args.write_bits,
-        "write_while_moving": args.write_while_moving,
-        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
-    }
-    if bool(getattr(args, "autocurriculum", False)):
-        env = JaxAntByteAutoCurriculumEnv(
-            **env_kwargs,
-            start_size=args.autocurriculum_start_size,
-            success_cookies=args.autocurriculum_success_cookies,
-            actor_vision_radius=args.actor_vision_radius,
-        )
-    else:
-        env = JaxAntByteForagingEnv(
-            **env_kwargs,
-            hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
-            terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
-            terminate_on_full_coverage=bool(
-                getattr(args, "terminate_on_full_coverage", False)
-            ),
-            maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
-            maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
-            maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
-            maze_seed=int(getattr(args, "maze_seed", 0)),
-        )
+    env = make_jax_mappo_env(args)
     _, obs = reset_batch(args=args, env=env, key=jax.random.PRNGKey(args.seed))
     food_scale = food_observation_scale(
         food_count=args.food_count,
@@ -1122,6 +1219,7 @@ def training_dimensions(argv: Sequence[str]) -> tuple[Any, int, int]:
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -1137,7 +1235,7 @@ def prepare_ant_count_checkpoint(
     expected_write_bits: int,
 ) -> Path:
     from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint, save_checkpoint
-    from ant_byte_env.training.jax_mappo.core import init_adam_state
+    from ant_byte_env.training.jax_mappo.updates import init_adam_state
     from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
     source_checkpoint = Path(source_checkpoint)
@@ -1152,6 +1250,7 @@ def prepare_ant_count_checkpoint(
             target_write_bits=expected_write_bits,
             actor_vision_radius=target_args.actor_vision_radius,
             target_num_ants=target_args.num_ants,
+            target_agent_identity_types=getattr(target_args, "agent_identity_types", None),
         )
     source_args = checkpoint.get("args", {})
     source_num_ants = int(source_args.get("num_ants", fallback_source_num_ants))

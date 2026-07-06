@@ -3,21 +3,31 @@ from pathlib import Path
 
 
 EXPECTED_NOTEBOOKS = {
+    Path("adversarial/capability_audit.ipynb"),
+    Path("adversarial/frozen_opponent.ipynb"),
     Path("baselines/direct_goal.ipynb"),
     Path("communication/bit_curriculum.ipynb"),
     Path("curriculum/autocurriculum.ipynb"),
+    Path("curriculum/distance_autocurriculum_250x250.ipynb"),
     Path("curriculum/exploration.ipynb"),
     Path("curriculum/forage.ipynb"),
     Path("curriculum/maze_exploration.ipynb"),
     Path("exploration_to_forage/base_50x50.ipynb"),
+    Path("historical/map_ant_gated_mlp_curriculum.ipynb"),
     Path("scaling/ant_count_curriculum.ipynb"),
+    Path("scaling/full_layout_60ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_shared_writes_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_shared_writes_write_cost_50x50.ipynb"),
     Path("scaling/full_layout_8ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb"),
     Path("source_layouts/padded_sources_50x50.ipynb"),
+    Path("source_layouts/proximity_sources_50x50 cookie radius.ipynb"),
+    Path("source_layouts/proximity_sources_50x50 maze.ipynb"),
     Path("source_layouts/proximity_sources_50x50.ipynb"),
+    Path("source_layouts/proximity_sources_50x50_random_walls.ipynb"),
     Path("source_layouts/scratch_smooth_sources_50x50.ipynb"),
+    Path("timed_release/roles.ipynb"),
+    Path("vision/vision_range_curriculum.ipynb"),
 }
 
 

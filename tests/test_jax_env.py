@@ -167,6 +167,47 @@ def test_jax_maze_obstacles_block_movement_and_are_observed() -> None:
     assert int(info.visited_cell_count) == 1
 
 
+def test_jax_random_wall_obstacles_block_movement_and_are_observed() -> None:
+    env = JaxAntByteForagingEnv(
+        width=12,
+        height=12,
+        num_ants=1,
+        food_count=0,
+        max_steps=250,
+        random_wall_obstacles=True,
+        random_wall_count_min=2,
+        random_wall_count_max=3,
+        random_wall_length_min=4,
+        random_wall_length_max=8,
+        random_wall_width=1,
+        random_wall_l_turn_probability=1.0,
+        maze_seed=17,
+        terminate_on_food_delivery=False,
+        terminate_on_full_coverage=True,
+    )
+    start_pos, wall_action = _open_cell_next_to_wall(np.asarray(env.obstacles))
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(5),
+        hub_pos=jnp.asarray(start_pos, dtype=jnp.int32),
+        obstacles=env.obstacles,
+    )
+
+    assert env.open_cell_count < env.width * env.height
+    assert int(jnp.sum(obs["obstacles"])) > 0
+    assert int(info.visited_cell_count) == 1
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.asarray(start_pos))
+
+    _, obs, _, terminated, truncated, info = env.step(
+        state,
+        jnp.array([wall_action, 0], dtype=jnp.int32),
+    )
+
+    np.testing.assert_array_equal(np.asarray(obs["ants_pos"][0]), np.asarray(start_pos))
+    assert not bool(terminated)
+    assert not bool(truncated)
+    assert int(info.visited_cell_count) == 1
+
+
 def test_jax_autocurriculum_reset_uses_fixed_shape_start_stage() -> None:
     env = JaxAntByteAutoCurriculumEnv(
         width=50,
@@ -636,6 +677,68 @@ def test_jax_food_state_tracks_remaining_bite_counts() -> None:
     assert int(state.food[0, 1]) == 1
     assert int(obs["food"][0, 1]) == 1
     assert int(info.remaining_food) == 1
+
+
+def test_jax_lethal_food_reset_samples_separate_sources() -> None:
+    env = JaxAntByteForagingEnv(
+        width=5,
+        height=5,
+        num_ants=1,
+        food_count=2,
+        food_source_count=1,
+        lethal_food_count=2,
+        lethal_food_source_count=1,
+        random_food=False,
+    )
+
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(4),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+
+    assert int(jnp.sum(state.food)) == 2
+    assert int(jnp.sum(state.lethal_food)) == 2
+    assert not bool(jnp.any(jnp.logical_and(state.food > 0, state.lethal_food > 0)))
+    assert int(info.remaining_food) == 2
+    assert int(info.remaining_lethal_food) == 2
+    assert int(jnp.sum(obs["food"])) == 4
+
+
+def test_jax_lethal_food_metrics_track_death() -> None:
+    env = JaxAntByteForagingEnv(
+        width=3,
+        height=1,
+        num_ants=1,
+        food_count=0,
+        food_source_count=1,
+        lethal_food_count=1,
+        lethal_food_source_count=1,
+        random_food=False,
+        death_penalty=1.5,
+    )
+    state, obs, info = env.reset(
+        jax.random.PRNGKey(7),
+        hub_pos=jnp.array([0, 0], dtype=jnp.int32),
+        lethal_food_positions=jnp.array([[1, 0]], dtype=jnp.int32),
+    )
+
+    assert int(info.remaining_lethal_food) == 1
+    assert "dead_ants_count" in obs
+
+    state, obs, reward, terminated, _, info = env.step(
+        state,
+        jnp.array([ACTION_RIGHT, 0], dtype=jnp.int32),
+    )
+
+    assert bool(terminated)
+    assert float(reward) == -1.5
+    assert bool(state.ants_alive[0]) is False
+    assert int(info.death_events) == 1
+    assert int(info.remaining_lethal_food) == 0
+    assert int(info.alive_ant_count) == 0
+    assert int(info.dead_ant_count) == 1
+    assert int(jnp.sum(obs["dead_ants_count"])) == 1
 
 
 def test_jax_core_matches_gym_env_for_fixed_rollout() -> None:

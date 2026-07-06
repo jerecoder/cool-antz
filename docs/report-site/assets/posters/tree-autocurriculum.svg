@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img" aria-label="Esquema de autocurriculo con progreso aparente y entrega cero">
+  <rect width="320" height="220" fill="#f3efe5"/>
+  <rect x="24" y="28" width="272" height="158" fill="#fffdf8" stroke="#d8ceb9" stroke-width="3"/>
+  <path d="M46 158 C82 116 106 126 138 92 C166 62 198 66 246 46" fill="none" stroke="#3566a8" stroke-width="9" stroke-linecap="round"/>
+  <path d="M46 166 C92 164 126 164 164 166 C200 168 232 168 274 166" fill="none" stroke="#8d3f2f" stroke-width="9" stroke-linecap="round"/>
+  <rect x="44" y="134" width="46" height="34" fill="#314551" opacity="0.92"/>
+  <rect x="220" y="42" width="46" height="34" fill="#7b8f4c" opacity="0.92"/>
+  <circle cx="122" cy="118" r="7" fill="#d08a2d"/>
+  <circle cx="148" cy="112" r="7" fill="#d08a2d"/>
+  <circle cx="174" cy="108" r="7" fill="#d08a2d"/>
+  <circle cx="198" cy="106" r="7" fill="#d08a2d"/>
+  <path d="M228 154 l18 18 M246 154 l-18 18" stroke="#8d3f2f" stroke-width="7" stroke-linecap="round"/>
+</svg>

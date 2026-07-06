@@ -329,6 +329,7 @@ def main() -> int:
             target_write_bits=int(train_args.write_bits),
             actor_vision_radius=int(train_args.actor_vision_radius),
             target_num_ants=int(getattr(train_args, "num_ants", 1)),
+            target_agent_identity_types=getattr(train_args, "agent_identity_types", None),
             target_critic_architecture=_target_critic_architecture(critic_kwargs),
         )
         params = jax.tree_util.tree_map(jnp.asarray, checkpoint["params"])

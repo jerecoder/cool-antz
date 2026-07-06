@@ -460,6 +460,8 @@ def test_env_from_args_passes_hub_center_window_size() -> None:
         random_hub=True,
         layout_margin=10,
         hub_center_window_size=4,
+        random_wall_obstacles=True,
+        random_wall_center_window_size=12,
         step_penalty=0.0,
         write_penalty=0.0,
         write_bits=1,
@@ -470,9 +472,37 @@ def test_env_from_args_passes_hub_center_window_size() -> None:
     hub_x, hub_y = obs["hub_pos"]
 
     assert env.hub_center_window_size == 4
+    assert env.random_wall_obstacles is True
+    assert env.random_wall_center_window_size == 12
     assert 23 <= int(hub_x) < 27
     assert 23 <= int(hub_y) < 27
     env.close()
+
+
+def test_env_from_args_rejects_unsupported_jax_env_modes() -> None:
+    base_args = dict(
+        width=5,
+        height=4,
+        num_ants=1,
+        food_count=2,
+        food_sources=1,
+        max_steps=12,
+        random_food=True,
+        step_penalty=0.0,
+        write_penalty=0.0,
+        write_bits=1,
+    )
+
+    with pytest.raises(ValueError, match="distance-autocurriculum"):
+        _env_from_args(
+            argparse.Namespace(**base_args, distance_autocurriculum=True),
+            render_mode="rgb_array",
+        )
+    with pytest.raises(ValueError, match="lethal-food"):
+        _env_from_args(
+            argparse.Namespace(**base_args, lethal_food_count=1),
+            render_mode="rgb_array",
+        )
 
 
 def test_env_from_args_passes_render_style() -> None:

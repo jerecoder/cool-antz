@@ -10,20 +10,23 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ant_byte_env.jax_autocurriculum_env import JaxAntByteAutoCurriculumEnv
-from ant_byte_env.jax_env import JaxAntByteForagingEnv
 from ant_byte_env.training.jax_mappo.checkpointing import read_checkpoint
 from ant_byte_env.training.jax_mappo.cli import parse_args
-from ant_byte_env.training.jax_mappo.core import (
-    JaxMAPPOParams,
+from ant_byte_env.training.jax_mappo.env_factory import JaxMappoEnv, make_jax_mappo_env
+from ant_byte_env.training.jax_mappo.models import (
+    critic_forward_kwargs_from_args,
+    get_action_logits,
+)
+from ant_byte_env.training.jax_mappo.observations import (
     build_actor_observations,
     build_central_observations,
-    critic_forward_kwargs_from_args,
     flatten_agent_actions,
     food_observation_scale,
-    get_action_logits,
+)
+from ant_byte_env.training.jax_mappo.policy import (
     get_action_and_value,
 )
+from ant_byte_env.training.jax_mappo.types import JaxMAPPOParams
 from ant_byte_env.training.jax_mappo.curriculum import reset_batch
 from ant_byte_env.training.jax_mappo.transfer import load_checkpoint_for_training
 
@@ -93,6 +96,12 @@ def evaluate_params(
     episode_lengths: list[int] = []
     delivered_food: list[float] = []
     delivered_fractions: list[float] = []
+    pickups: list[float] = []
+    pickup_to_delivery_rates: list[float] = []
+    write_action_rates: list[float] = []
+    applied_write_rates: list[float] = []
+    applied_nonzero_write_rates: list[float] = []
+    overwrite_rates: list[float] = []
     steps_per_delivered_food: list[float] = []
     ant_steps_per_delivered_food: list[float] = []
     delivered_per_1000_ant_steps: list[float] = []
@@ -112,21 +121,43 @@ def evaluate_params(
         episode_return = 0.0
         episode_length = int(eval_args.max_steps)
         episode_terminated = False
+        episode_nonzero_write_actions = 0.0
+        episode_applied_writes = 0.0
+        episode_overwrites = 0.0
 
         for step_index in range(int(eval_args.max_steps)):
             key, action_key = jax.random.split(key)
-            state, obs, reward, terminated, truncated = step_fn(state, obs, action_key)
+            state, obs, reward, terminated, truncated, infos, actions = step_fn(
+                state,
+                obs,
+                action_key,
+            )
             episode_return += float(np.asarray(reward)[0])
+            write_values = np.asarray(actions)[0, :, 1]
+            episode_nonzero_write_actions += float(np.count_nonzero(write_values))
+            episode_applied_writes += float(np.asarray(infos.num_writes)[0])
+            episode_overwrites += float(np.asarray(infos.num_overwrites)[0])
             episode_terminated = bool(np.asarray(terminated)[0])
             if episode_terminated or bool(np.asarray(truncated)[0]):
                 episode_length = step_index + 1
                 break
 
-        delivered = float(np.asarray(state.delivered_food)[0])
+        delivered = _first_env_value(state.delivered_food)
+        remaining = _first_env_sum(state.food)
+        initial = _first_env_value(state.initial_food_total)
+        picked_up = max(0.0, initial - remaining)
         delivered_denominator = max(delivered, 1.0)
         ant_steps = float(episode_length) * max(float(eval_args.num_ants), 1.0)
         delivered_food.append(delivered)
         delivered_fractions.append(delivered / max(float(eval_args.food_count), 1.0))
+        pickups.append(picked_up)
+        pickup_to_delivery_rates.append(delivered / max(picked_up, 1.0))
+        write_action_rates.append(episode_nonzero_write_actions / max(ant_steps, 1.0))
+        applied_write_rates.append(episode_applied_writes / max(ant_steps, 1.0))
+        applied_nonzero_write_rates.append(
+            episode_nonzero_write_actions / max(ant_steps, 1.0)
+        )
+        overwrite_rates.append(episode_overwrites / max(ant_steps, 1.0))
         steps_per_delivered_food.append(float(episode_length) / delivered_denominator)
         ant_steps_per_delivered_food.append(ant_steps / delivered_denominator)
         delivered_per_1000_ant_steps.append(
@@ -142,6 +173,14 @@ def evaluate_params(
         "eval_success_rate": float(np.mean(successes)),
         "eval_mean_delivered_food": float(np.mean(delivered_food)),
         "eval_mean_delivered_fraction": float(np.mean(delivered_fractions)),
+        "eval_mean_pickups": float(np.mean(pickups)),
+        "eval_mean_pickup_to_delivery_rate": float(np.mean(pickup_to_delivery_rates)),
+        "eval_mean_write_action_rate": float(np.mean(write_action_rates)),
+        "eval_mean_applied_write_rate": float(np.mean(applied_write_rates)),
+        "eval_mean_applied_nonzero_write_rate": float(
+            np.mean(applied_nonzero_write_rates)
+        ),
+        "eval_mean_write_overwrite_rate": float(np.mean(overwrite_rates)),
         "eval_mean_episode_return": float(np.mean(episode_returns)),
         "eval_mean_episode_length": float(np.mean(episode_lengths)),
         "eval_mean_steps_per_delivered_food": float(np.mean(steps_per_delivered_food)),
@@ -165,7 +204,7 @@ def _evaluation_step(
     action_mode: str,
     move_temperature: float,
     write_temperature: float,
-) -> tuple[Any, Any, Any, Any, Any]:
+) -> tuple[Any, Any, Any, Any, Any, Any, Any]:
     food_scale = food_observation_scale(
         food_count=args.food_count,
         food_sources=getattr(args, "food_sources", None),
@@ -182,6 +221,7 @@ def _evaluation_step(
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
@@ -207,7 +247,21 @@ def _evaluation_step(
             "newly_visited_cells",
             jnp.zeros_like(reward, dtype=jnp.int32),
         ).astype(jnp.float32)
-    return state, obs, reward, terminated, truncated
+    return state, obs, reward, terminated, truncated, infos, actions
+
+
+def _first_env_value(value: Any) -> float:
+    array = np.asarray(value)
+    if array.ndim == 0:
+        return float(array)
+    return float(array[0])
+
+
+def _first_env_sum(value: Any) -> float:
+    array = np.asarray(value)
+    if array.ndim == 0:
+        return float(array)
+    return float(np.sum(array[0]))
 
 
 def evaluate_checkpoint(
@@ -231,6 +285,7 @@ def evaluate_checkpoint(
         target_write_bits=args.write_bits,
         actor_vision_radius=args.actor_vision_radius,
         target_num_ants=args.num_ants,
+        target_agent_identity_types=getattr(args, "agent_identity_types", None),
         target_critic_architecture=getattr(args, "critic_architecture", "mlp"),
     )
     return evaluate_params(
@@ -373,49 +428,15 @@ def _checkpoint_observation_dims(args: argparse.Namespace) -> tuple[int, int]:
         food_scale=food_scale,
         actor_vision_radius=args.actor_vision_radius,
         write_bits=args.write_bits,
+        agent_identity_types=getattr(args, "agent_identity_types", None),
         obs_width=args.obs_width,
         obs_height=args.obs_height,
     )
     return central_obs.shape[-1], actor_obs.shape[-1]
 
 
-def _make_eval_env(args: argparse.Namespace) -> JaxAntByteForagingEnv | JaxAntByteAutoCurriculumEnv:
-    common_kwargs = {
-        "width": args.width,
-        "height": args.height,
-        "num_ants": args.num_ants,
-        "food_count": args.food_count,
-        "food_source_count": args.food_sources,
-        "max_steps": args.max_steps,
-        "random_food": args.random_food,
-        "random_hub": args.random_hub,
-        "random_ant_spawn": bool(getattr(args, "random_ant_spawn", False)),
-        "random_ant_spawn_radius": getattr(args, "random_ant_spawn_radius", None),
-        "step_penalty": args.step_penalty,
-        "completion_bonus": getattr(args, "completion_bonus", 0.0),
-        "write_penalty": args.write_penalty,
-        "write_bits": args.write_bits,
-        "write_while_moving": bool(getattr(args, "write_while_moving", False)),
-        "per_ant_write_channels": bool(getattr(args, "per_ant_write_channels", False)),
-        "actor_vision_radius": int(getattr(args, "actor_vision_radius", 1)),
-    }
-    if bool(getattr(args, "autocurriculum", False)):
-        return JaxAntByteAutoCurriculumEnv(
-            **common_kwargs,
-            start_size=int(getattr(args, "autocurriculum_start_size", 4)),
-            success_cookies=int(getattr(args, "autocurriculum_success_cookies", 6)),
-        )
-    return JaxAntByteForagingEnv(
-        **common_kwargs,
-        layout_margin=int(getattr(args, "layout_margin", 0)),
-        hub_center_window_size=int(getattr(args, "hub_center_window_size", 0)),
-        terminate_on_food_delivery=bool(getattr(args, "food_termination", True)),
-        terminate_on_full_coverage=bool(getattr(args, "terminate_on_full_coverage", False)),
-        maze_obstacles=bool(getattr(args, "maze_obstacles", False)),
-        maze_corridor_width=int(getattr(args, "maze_corridor_width", 3)),
-        maze_wall_width=int(getattr(args, "maze_wall_width", 1)),
-        maze_seed=int(getattr(args, "maze_seed", 0)),
-    )
+def _make_eval_env(args: argparse.Namespace) -> JaxMappoEnv:
+    return make_jax_mappo_env(args)
 
 
 def _checkpoint_args_with_defaults(saved_args: dict[str, object]) -> argparse.Namespace:

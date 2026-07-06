@@ -6,6 +6,8 @@ Large generated files are not committed; they live under ignored `runs/`.
 - `index.json` lists curated entries and the run paths they came from.
 - `runs/<experiment>/<run_id>/` contains generated configs, metrics,
   checkpoints, and media.
+- `autoresearch/REPORT.md` is indexed here as the durable summary of the forage
+  autoresearch loop; the heavy generated payloads remain ignored.
 
 For a metadata scan of generated runs, use:
 

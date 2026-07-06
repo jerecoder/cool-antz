@@ -109,6 +109,9 @@ ant-byte train jax --config experiments/forage_curriculum.json --dry-run
 ant-byte train jax --config experiments/direct_goal_baseline.json --dry-run
 ```
 
+See `docs/experiments.md` for the maintained notebook/config/result map and
+`docs/integration_audit.md` for the current branch-integration policy.
+
 From a source checkout without reinstalling, prefix commands with
 `PYTHONPATH=src`.
 

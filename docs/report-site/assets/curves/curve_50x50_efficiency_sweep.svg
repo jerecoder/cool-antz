@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="430" viewBox="0 0 920 430" role="img" aria-label="50x50 efficiency sweep evaluation">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="460.0" y="28" text-anchor="middle" font-family="Georgia, serif" font-size="21" font-weight="700" fill="#2c3e50">50x50 efficiency sweep evaluation</text>
+<line x1="68" y1="56.0" x2="896" y2="56.0" stroke="#eeeeee"/>
+<text x="58" y="60.0" text-anchor="end" font-family="Georgia, serif" font-size="12" fill="#666">1.2e+02</text>
+<line x1="68" y1="134.0" x2="896" y2="134.0" stroke="#eeeeee"/>
+<text x="58" y="138.0" text-anchor="end" font-family="Georgia, serif" font-size="12" fill="#666">93</text>
+<line x1="68" y1="212.0" x2="896" y2="212.0" stroke="#eeeeee"/>
+<text x="58" y="216.0" text-anchor="end" font-family="Georgia, serif" font-size="12" fill="#666">62</text>
+<line x1="68" y1="290.0" x2="896" y2="290.0" stroke="#eeeeee"/>
+<text x="58" y="294.0" text-anchor="end" font-family="Georgia, serif" font-size="12" fill="#666">31</text>
+<line x1="68" y1="368.0" x2="896" y2="368.0" stroke="#eeeeee"/>
+<text x="58" y="372.0" text-anchor="end" font-family="Georgia, serif" font-size="12" fill="#666">0</text>
+<line x1="68" y1="368" x2="896" y2="368" stroke="#999"/>
+<line x1="68" y1="56" x2="68" y2="368" stroke="#999"/>
+<text x="68.0" y="392" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#666">-2.2</text>
+<text x="275.0" y="392" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#666">5.7</text>
+<text x="482.0" y="392" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#666">14</text>
+<text x="689.0" y="392" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#666">21</text>
+<text x="896.0" y="392" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#666">29</text>
+<text x="460.0" y="418" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#555">candidate index</text>
+<text transform="translate(18 215.0) rotate(-90)" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#555">delivered food / 125</text>
+<polyline fill="none" stroke="#27579a" stroke-width="2.4" points="125.10,61.77 151.54,74.44 177.98,60.12 204.41,61.14 230.85,63.74 257.29,69.01 310.16,66.10 336.60,63.03 363.03,66.97 389.47,62.09 415.91,66.65 442.34,62.24 468.78,58.78 495.22,67.36 521.66,62.24 548.09,65.71 574.53,63.58 600.97,64.53 627.40,59.96 653.84,71.76 680.28,65.94 706.71,63.90 733.15,59.65 759.59,64.13 786.02,69.40 812.46,63.35 838.90,57.37"/>
+<circle cx="838.90" cy="57.37" r="3.2" fill="#27579a"/>
+<line x1="78" y1="74" x2="102" y2="74" stroke="#27579a" stroke-width="3"/>
+<text x="110" y="78" font-family="Georgia, serif" font-size="13" fill="#333">eval delivered food</text>
+<text x="896" y="418" text-anchor="end" font-family="Georgia, serif" font-size="11" fill="#777">overnight sweep candidates</text>
+</svg>

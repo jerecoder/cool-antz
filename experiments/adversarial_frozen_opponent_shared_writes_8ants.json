@@ -1,0 +1,92 @@
+{
+  "name": "adversarial_frozen_opponent_shared_writes_8ants",
+  "backend": "jax",
+  "description": "Local-safe adversarial frozen-opponent MAPPO pilot actor-warm-started from the best 8-ant 50x50 shared-write cooperative checkpoint.",
+  "args": {
+    "exp_name": "jax_mappo_adversarial_frozen_shared_writes_8ants",
+    "seed": 4,
+    "learner_load_model": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_from_64env_best/checkpoints/best_full_layout_proximity_8ants_half_food_shared_writes.pkl",
+    "total_timesteps": 1152000,
+    "num_envs": 12,
+    "num_steps": 96,
+    "num_minibatches": 4,
+    "update_epochs": 1,
+    "log_interval": 10,
+    "gamma": 0.997,
+    "training_rollout_temperature": 0.75,
+    "width": 50,
+    "height": 50,
+    "layout_margin": 0,
+    "hub_center_window_size": 0,
+    "num_ants_per_team": 8,
+    "food_count": 125,
+    "food_sources": 2,
+    "max_steps": 2000,
+    "actor_vision_radius": 2,
+    "write_bits": 4,
+    "write_while_moving": true,
+    "random_food": true,
+    "random_hub": true,
+    "opponent_action_mode": "sampled_move_greedy_write",
+    "eval_episodes": 0,
+    "eval_action_mode": "sampled_move_greedy_write",
+    "side_swap_eval": true,
+    "hidden_size": 128,
+    "quiet": true
+  },
+  "metadata": {
+    "workflow": "adversarial_frozen_opponent",
+    "status": "experimental",
+    "source_experiment": "experiments/exploration_to_forage_full_layout_8ants_half_food_50x50_shared_writes.json",
+    "source_checkpoint": "runs/notebooks/exploration_to_forage_proximity_sources_full_layout_50x50_8ants_half_food_2src_shared_writes_from_64env_best/checkpoints/best_full_layout_proximity_8ants_half_food_shared_writes.pkl",
+    "source_seed": 4,
+    "source_actor_obs_dim": 213,
+    "source_write_policy": "shared_write_space",
+    "source_training_scale": {
+      "total_timesteps": 327680000,
+      "num_envs": 64,
+      "num_steps": 256,
+      "num_minibatches": 4,
+      "update_epochs": 1,
+      "log_interval": 25,
+      "best_eval_episodes": 8
+    },
+    "local_pilot_scale": {
+      "total_timesteps": 1152000,
+      "num_envs": 12,
+      "num_steps": 96,
+      "num_minibatches": 4,
+      "update_epochs": 1,
+      "updates": 1000,
+      "eval_episodes": 0
+    },
+    "local_hardware_profile": {
+      "cpu": "AMD Ryzen 5 3600 6-Core Processor",
+      "hardware_threads": 12,
+      "memory_total": "15Gi",
+      "jax_backend": "cpu",
+      "gpu": "none detected",
+      "swap": "none"
+    },
+    "local_benchmark": {
+      "selected_candidate": "12env_x96step",
+      "selected_peak_rss_mb": 709.4,
+      "candidate_env_steps_per_second_including_compile": {
+        "6env_x64step": 210.76,
+        "8env_x64step": 268.93,
+        "12env_x64step": 398.62,
+        "16env_x64step": 496.9,
+        "12env_x96step": 570.88
+      }
+    },
+    "guardrails": [
+      "actor warm-start only",
+      "fresh adversarial critic",
+      "frozen opponent defaults to the same checkpoint actor",
+      "matched source seed, gamma, rollout temperature, num_ants_per_team, write_bits, actor_vision_radius, and hidden_size",
+      "matched source best eval policy mode sampled_move_greedy_write for frozen opponent diagnostics",
+      "reduced rollout parallelism from the 64-env source run for local CPU safety",
+      "selected 12 envs to match the local machine's 12 hardware threads without GPU assumptions"
+    ]
+  }
+}

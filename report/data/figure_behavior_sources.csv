@@ -1,0 +1,7 @@
+label,path,frame_fraction,extracted
+Azar: sin retorno estable,docs/report-site/assets/videos/random-rollout.mp4,0.55,True
+25x25: cobertura multi-hormiga,docs/report-site/assets/videos/forage-25x25-4ants.mp4,0.62,True
+50x50: frontera de 60 hormigas,docs/report-site/assets/videos/frontier-50x50.mp4,0.55,True
+100x100: continuación seleccionada,docs/report-site/assets/videos/bridge-100x100.mp4,0.55,True
+250x250: reset-boundary local,docs/report-site/assets/videos/reset-boundary-250x250.mp4,0.6,True
+1000x1000: despliegue solo actor,docs/report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4,0.45,True
