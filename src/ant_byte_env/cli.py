@@ -38,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
             action_mode=args.action_mode,
             move_temperature=args.move_temperature,
             write_temperature=args.write_temperature,
+            render_style=args.render_style,
         )
         print(f"render saved to {args.output}")
         return 0
@@ -213,6 +214,15 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=1.0,
         help="Write-head sampling temperature when --action-mode samples writes.",
+    )
+    render.add_argument(
+        "--render-style",
+        type=str,
+        default=None,
+        help=(
+            "Optional renderer style, such as big_scale_old_three_color for large-map "
+            "flat videos."
+        ),
     )
 
     results = subparsers.add_parser("results", help="Manage curated result metadata.")

@@ -8,7 +8,18 @@ import numpy as np
 import pytest
 
 from ant_byte_env import cli as ant_cli
-from ant_byte_env.env import AntByteForagingEnv, facing_rotation_degrees, food_alpha
+from ant_byte_env.env import (
+    BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE,
+    OLD_STYLE_CARRYING_ANT_COLOR,
+    OLD_STYLE_COLONY_COLOR,
+    OLD_STYLE_FOOD_CENTER_COLOR,
+    OLD_STYLE_FOOD_OUTER_COLOR,
+    OLD_STYLE_NORMAL_ANT_COLOR,
+    AntByteForagingEnv,
+    facing_rotation_degrees,
+    food_alpha,
+    normalize_render_style,
+)
 from ant_byte_env.rendering import (
     _can_reuse_render,
     _compile_jax_action_selector,
@@ -43,6 +54,51 @@ def test_rgb_array_render_returns_numpy_image() -> None:
     env.close()
 
 
+def test_big_scale_old_three_color_render_uses_flat_palette() -> None:
+    tile_size = 4
+    env = AntByteForagingEnv(
+        width=14,
+        height=14,
+        num_ants=2,
+        food_count=3,
+        food_source_count=1,
+        render_mode="rgb_array",
+        tile_size=tile_size,
+        random_food=False,
+        render_style=BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE,
+    )
+    env.reset(seed=21, options={"hub_pos": (5, 5), "food_positions": [(10, 2)]})
+    env.ants_pos = np.array([[1, 12], [3, 12]], dtype=np.int32)
+    env.ants_carrying = np.array([False, True])
+
+    frame = env.render()
+
+    assert frame is not None
+    assert frame.shape == (14 * tile_size, 14 * tile_size, 3)
+    assert _render_cell(frame, x_pos=5, y_pos=5, tile_size=tile_size) == OLD_STYLE_COLONY_COLOR
+    assert _render_cell(frame, x_pos=7, y_pos=2, tile_size=tile_size) == (
+        OLD_STYLE_FOOD_OUTER_COLOR
+    )
+    assert _render_cell(frame, x_pos=10, y_pos=2, tile_size=tile_size) == (
+        OLD_STYLE_FOOD_CENTER_COLOR
+    )
+    assert _render_cell(frame, x_pos=1, y_pos=12, tile_size=tile_size) == (
+        OLD_STYLE_NORMAL_ANT_COLOR
+    )
+    assert _render_cell(frame, x_pos=3, y_pos=12, tile_size=tile_size) == (
+        OLD_STYLE_CARRYING_ANT_COLOR
+    )
+    env.close()
+
+
+def test_render_style_aliases_normalize_to_big_scale_preset() -> None:
+    assert normalize_render_style("original-style-three-color-only") == (
+        BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE
+    )
+    with pytest.raises(ValueError, match="Unsupported render_style"):
+        normalize_render_style("neon")
+
+
 def test_checkpoint_render_frame_overlays_ant_vision_square() -> None:
     env = AntByteForagingEnv(
         width=4,
@@ -72,6 +128,17 @@ def test_checkpoint_render_frame_overlays_ant_vision_square() -> None:
     assert not np.array_equal(plain_frame[0, 15], vision_frame[0, 15])
     assert np.array_equal(plain_frame[15, 15], vision_frame[15, 15])
     env.close()
+
+
+def _render_cell(
+    frame: np.ndarray,
+    *,
+    x_pos: int,
+    y_pos: int,
+    tile_size: int,
+) -> tuple[int, int, int]:
+    pixel = frame[y_pos * tile_size + tile_size // 2, x_pos * tile_size + tile_size // 2]
+    return tuple(int(channel) for channel in pixel)
 
 
 def test_render_reuse_requires_nonempty_output_newer_than_checkpoint(tmp_path: Path) -> None:
@@ -438,6 +505,35 @@ def test_env_from_args_rejects_unsupported_jax_env_modes() -> None:
         )
 
 
+def test_env_from_args_passes_render_style() -> None:
+    args = argparse.Namespace(
+        width=14,
+        height=14,
+        num_ants=1,
+        food_count=2,
+        food_sources=1,
+        max_steps=12,
+        random_food=False,
+        random_hub=False,
+        layout_margin=0,
+        hub_center_window_size=0,
+        step_penalty=0.0,
+        write_penalty=0.0,
+        write_bits=1,
+    )
+
+    env = _env_from_args(
+        args,
+        render_mode="rgb_array",
+        tile_size=6,
+        render_style=BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE,
+    )
+
+    assert env.tile_size == 6
+    assert env.render_style == BIG_SCALE_OLD_THREE_COLOR_RENDER_STYLE
+    env.close()
+
+
 def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
 
@@ -449,6 +545,7 @@ def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> N
         captured["action_mode"] = kwargs["action_mode"]
         captured["move_temperature"] = kwargs["move_temperature"]
         captured["write_temperature"] = kwargs["write_temperature"]
+        captured["render_style"] = kwargs["render_style"]
         return tmp_path / "rollout.mp4"
 
     monkeypatch.setattr(ant_cli, "render_checkpoint", fake_render_checkpoint)
@@ -473,6 +570,8 @@ def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> N
             "0.95",
             "--write-temperature",
             "1.0",
+            "--render-style",
+            "big_scale_old_three_color",
         ]
     )
 
@@ -484,6 +583,7 @@ def test_render_cli_passes_render_policy_flags(monkeypatch, tmp_path: Path) -> N
         "action_mode": "sampled_move_greedy_write",
         "move_temperature": 0.95,
         "write_temperature": 1.0,
+        "render_style": "big_scale_old_three_color",
     }
 
 

@@ -45,6 +45,7 @@ def render_checkpoint(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    render_style: str | None = None,
 ) -> Path:
     actual_backend = backend or infer_checkpoint_backend(checkpoint_path)
     if actual_backend not in {"torch", "jax"}:
@@ -68,6 +69,7 @@ def render_checkpoint(
             max_frames=max_frames,
             tile_size=tile_size,
             policy_temperature=policy_temperature,
+            render_style=render_style,
         )
     if actual_backend == "jax":
         return render_jax_checkpoint(
@@ -82,6 +84,7 @@ def render_checkpoint(
             action_mode=action_mode,
             move_temperature=move_temperature,
             write_temperature=write_temperature,
+            render_style=render_style,
         )
     raise ValueError("backend must be 'torch' or 'jax'.")
 
@@ -99,6 +102,7 @@ def render_torch_checkpoint(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    render_style: str | None = None,
 ) -> Path:
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
@@ -153,7 +157,12 @@ def render_torch_checkpoint(
     )
     agent.eval()
 
-    env = _env_from_args(args, render_mode="rgb_array", tile_size=tile_size)
+    env = _env_from_args(
+        args,
+        render_mode="rgb_array",
+        tile_size=tile_size,
+        render_style=render_style,
+    )
     writer = imageio.get_writer(output_path, fps=AntByteForagingEnv.metadata["render_fps"])
     try:
         obs, _ = env.reset(
@@ -211,6 +220,7 @@ def render_jax_checkpoint(
     action_mode: str | None = None,
     move_temperature: float = 1.0,
     write_temperature: float = 1.0,
+    render_style: str | None = None,
 ) -> Path:
     if _can_reuse_render(
         checkpoint_path=checkpoint_path,
@@ -227,7 +237,12 @@ def render_jax_checkpoint(
     deterministic = _deterministic_from_temperature(policy_temperature)
     food_scale = _jax_render_food_scale(args)
 
-    env = _env_from_args(args, render_mode="rgb_array", tile_size=tile_size)
+    env = _env_from_args(
+        args,
+        render_mode="rgb_array",
+        tile_size=tile_size,
+        render_style=render_style,
+    )
     writer = imageio.get_writer(output_path, fps=AntByteForagingEnv.metadata["render_fps"])
     jax_module: Any | None = None
     try:
@@ -490,6 +505,7 @@ def _env_from_args(
     *,
     render_mode: str,
     tile_size: int | None = None,
+    render_style: str | None = None,
 ) -> AntByteForagingEnv | AntByteAutoCurriculumEnv:
     if bool(getattr(args, "distance_autocurriculum", False)):
         raise ValueError(
@@ -519,6 +535,8 @@ def _env_from_args(
         }
         if tile_size is not None:
             env_kwargs["tile_size"] = int(tile_size)
+        if render_style is not None:
+            env_kwargs["render_style"] = render_style
         return AntByteAutoCurriculumEnv(**env_kwargs)
 
     env_kwargs: dict[str, Any] = {
@@ -564,6 +582,8 @@ def _env_from_args(
     }
     if tile_size is not None:
         env_kwargs["tile_size"] = int(tile_size)
+    if render_style is not None:
+        env_kwargs["render_style"] = render_style
     return AntByteForagingEnv(**env_kwargs)
 
 
