@@ -45,8 +45,10 @@ Recommended structure:
 
 Required doc corrections already identified:
 
-- `docs/integration_audit.md` still treats `origin/main` at `554ee8d` as the base;
-  update it after integrating the newer main/write-cost work.
+- `docs/integration_audit.md` should keep the historical fork point
+  (`554ee8d`) separate from the current remote main used for merge readiness
+  checks. Refresh its current-main hash and conflict list after integrating the
+  newer main/write-cost work.
 - `docs/experiments.md` currently lacks write-cost, multi-device, timed-release,
   adversarial, lethal-cookie, direct-goal sweep evidence, and 12x12 conv-critic
   evidence entries.

@@ -1,14 +1,16 @@
 # Integration Audit
 
-This branch (`repo/research-integration-cleanup`) starts from `origin/main` at
-`554ee8d`. Its purpose is to make the repository easier to understand, rerun,
-and audit while preserving reproductive experiment behavior.
+This branch (`repo/research-integration-cleanup`) was cut from `origin/main` at
+`554ee8d`. The current merge-readiness audit fetched `origin/main` at `a6ba235`,
+so the branch still needs a reconciliation pass before it can land on main. Its
+purpose is to make the repository easier to understand, rerun, and audit while
+preserving reproducible experiment behavior.
 
 ## Branch Inventory
 
 | Ref | Role | Integration decision |
 | --- | --- | --- |
-| `origin/main` | Current best-organized base. It already contains grouped notebooks, experiment JSON files, workflow modules, runtime resource checks, curated results, and the archived forage autoresearch report. | Use as the base for integration. |
+| `origin/main` | Current best-organized base. In this audit it resolves to `a6ba235`, four commits beyond the branch fork point. It already contains grouped notebooks, experiment JSON files, workflow modules, runtime resource checks, curated results, and the archived forage autoresearch report. | Reconcile before merge; keep the newer write-cost continuation and render/test updates unless a conflict proves they duplicate this branch's newer surfaces. |
 | `research/direct-goal-repro-sweep` | Older direct-goal/autoresearch line with flat notebook names, direct-goal sweep artifacts, and the original gated map-ant MLP curriculum. | Selectively port durable artifacts only. The gated map-ant MLP curriculum is preserved as a documented historical experiment; do not merge wholesale because this branch would remove newer workflow and notebook organization. |
 | `autoresearch/map-ant-12x12-conv-critic` | Failed/new-critic map-ant autoresearch line. It includes useful evidence and some diagnostics, but did not produce a solved curriculum. | Preserve as branch evidence. Do not make its autoresearch loop a mainline workflow. Keep the maintained map-growth and ant-scaling experiments in `experiments/` and `notebooks/`; port only isolated, tested utilities if they improve those workflows without changing the environment or actor information surface. |
 | `origin/vision_shrink_curriculum` | Vision-range curriculum experiment branch. | Ported as exploratory configs plus a grouped notebook. It remains deferred evidence; do not change default actor vision or baseline semantics. |
@@ -41,13 +43,28 @@ These refs were fetched before the final integration pass on
 
 ## Current Cleanup State
 
-- Test collection passes under Python 3.10 after replacing `datetime.UTC` with `timezone.utc`.
+- Full test validation passes under Python 3.10 with
+  `PYTHONPATH=src PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q`.
 - `.vscode/` is ignored so editor state does not pollute branch status.
 - `autoresearch/REPORT.md` is the durable historical evidence for the forage autoresearch loop; long autoresearch matrices are archival, not the primary user-facing workflow.
 - `experiments/*.json` and grouped notebooks are the canonical reproduction surfaces.
 - Committed experiment JSON files and notebooks are the reproduction surface.
   Small scripts may remain for report assets, checkpoint transfer, or one-shot
   audits when they are cited by docs; raw generated payloads stay ignored.
+
+## Current Merge Readiness
+
+As of `origin/main@a6ba235` and branch head `8090fd8`, this branch is not a
+clean merge yet. The integration pass must resolve conflicts in:
+
+- `notebooks/README.md`
+- `notebooks/scaling/full_layout_8ants_half_food_shared_writes_write_cost_8bits_50x50.ipynb`
+- `scripts/render_jax_channel_grid_video.py`
+- `src/ant_byte_env/env.py`
+- `tests/test_render.py`
+
+After resolving those conflicts, rerun the validation ladder before treating the
+branch as merge-ready.
 
 ## Next Integration Decisions
 
