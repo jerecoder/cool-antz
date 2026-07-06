@@ -1393,20 +1393,16 @@
             <div class="step-layout lethal-media-layout">
               <div class="step-copy">
                 <p class="step-claim">
-                  El mapa abierto no se resolvió de forma robusta, pero sí dejó
-                  una señal visual útil.
+                  El mapa abierto no se resolvió de forma robusta, pero sí
+                  mostró resultados interesantes.
                 </p>
                   <p>
                     En este primer escenario, la política debía seguir forrajeando
-                    mientras aprendía a no tomar la fuente peligrosa. El setting
-                    era un mapa abierto de 50x50, con muchas galletas distribuidas
-                    en el mapa y fuentes seguras y letales muestreadas en
-                    posiciones aleatorias. La configuración base comparó una
-                    fuente segura y una fuente letal, ambas con 50 unidades,
-                    <code>death_penalty=1.0</code> y warm-start desde el checkpoint
-                    positivo. El porcentaje de galletas entregadas mide qué
-                    proporción de las galletas seguras disponibles terminó
-                    efectivamente en el nido.
+                    mientras aprendía a no tomar las galletas peligrosas. Se
+                    configuró un mapa abierto de 50x50, con muchas galletas
+                    distribuidas en el mapa y fuentes seguras y letales muestreadas
+                    en posiciones aleatorias. La configuración base para este
+                    experimento fue con <code>death_penalty=1.0</code>.
                   </p>
                   <p>
                     La corrida larga de 160 mil updates terminó cerca de reward 0.
@@ -1418,21 +1414,21 @@
                   <p>
                     Para corregir ese colapso se subió el <code>pickup_bonus</code>:
                     un término de reward de shaping que se suma cuando una hormiga
-                    levanta una galleta. Sí es reward, pero no es la reward
-                    principal de entrega al nido; sólo incentiva que la política
-                    vuelva a intentar pickups. Con ese empuje, el mejor checkpoint
-                    de 80 mil updates vuelve a tomar riesgo, recupera entregas y
-                    mejora el porcentaje de galletas entregadas. Aun así, la
-                    curva sigue siendo inestable: no es una convergencia limpia,
-                    sino una política parcialmente útil.
+                    levanta una galleta. De esta forma se incentiva que la política
+                    vuelva a intentar recolectar galletas aunque haya un riesgo
+                    asociado. Con este enfoque, el mejor checkpoint de 80 mil
+                    updates vuelve a tomar riesgo, recupera entregas y mejora el
+                    porcentaje de galletas entregadas. Aún así, la curva de
+                    recompensa sigue siendo inestable: no es una convergencia
+                    limpia, sino una política parcialmente útil.
                 </p>
                 <p>
                   El rollout de evaluación donde mejor se ve esa corrida de 80
-                  mil updates es el anillo controlado: muchas galletas seguras
-                  alrededor del nido y una fuente letal cercana. Ahí se ve que,
-                  aunque el entrenamiento sea irregular, la política sí aprende
-                  a ignorar la galleta letal asociada a cadáveres mientras sigue
-                  explotando comida segura.
+                  mil updates es el anillo de galletas. En este, se posicionaron
+                  muchas galletas seguras alrededor del nido y una fuente letal
+                  cercana. Ahí se ve que, aunque el entrenamiento sea irregular,
+                  la política sí aprende a ignorar la galleta letal asociada a
+                  cadáveres mientras sigue explotando comida segura.
                 </p>
                 <dl class="metric-grid lethal-metric-grid" aria-label="Métricas de lethal cookies abierto">
                   <div>
@@ -1466,15 +1462,19 @@
             </div>
             <div class="lethal-figure-grid">
               <figure>
-                <img src="report-site/assets/lethal-cookies/figures/lethal_open_fraction.png" alt="Porcentaje de galletas entregadas en lethal cookies abierto">
+                <img src="report-site/assets/lethal-cookies/figures/lethal_open_fraction.png" alt="Fracción de galletas entregadas en lethal cookies abierto">
                 <figcaption>
+                  <strong>Mapa abierto con veneno: fracción de galletas entregadas por intento.</strong>
                   El mejor porcentaje queda por debajo del 10%; esto es señal
-                  parcial, no solución del entorno abierto.
+                  parcial, no solución del entorno abierto. La barra
+                  <code>1 update</code> es el intento inicial, evaluado después
+                  de una sola actualización de entrenamiento.
                 </figcaption>
               </figure>
               <figure>
                 <img src="report-site/assets/lethal-cookies/figures/training_return_lethal_open.png" alt="Retornos de entrenamiento en lethal cookies abierto">
                 <figcaption>
+                  <strong>Mapa abierto con veneno: retorno durante entrenamiento.</strong>
                   La corrida de 160 mil updates cae hacia una política de no
                   agarrar galletas; con más <code>pickup_bonus</code>, la de 80
                   mil updates vuelve a explorar pickups, aunque todavía con
@@ -1546,14 +1546,21 @@
                     Como subresultado, en una escena con una única fuente letal
                     cerca de comida segura se ve que el cadáver puede inducir una
                     zona local de exclusión, incluso cuando la hormiga muerta no
-                    está exactamente en el mismo tile que la galleta.
+                    está exactamente en el mismo tile que la galleta. En el GIF
+                    de evaluación se puede ver cómo, si bien muchas veces ambas
+                    hormigas mueren por agarrar galletas letales sin evidencia,
+                    en muchas ocasiones se crea esta zona de exclusión y se deja
+                    de agarrar galletas cuando se tiene un cadáver cercano.
                   </p>
                   <p>
-                    El límite fue la navegación. Todavía no se veían trayectorias
-                    satisfactorias alrededor de paredes: con varias galletas cerca
-                    del hormiguero, la política podía conseguir reward sin aprender
+                    Sin embargo, esta configuración no resuelve el problema de la
+                    navegación. Todavía no se ven trayectorias satisfactorias
+                    alrededor de paredes, ya que con varias galletas cerca del
+                    hormiguero, la política podía conseguir reward sin aprender
                     recorridos largos condicionados por obstáculos. Ese diagnóstico
-                    motivó el siguiente experimento.
+                    motivó el siguiente experimento. El porcentaje bajo de galletas
+                    entregadas refleja que el mapa contiene muchas galletas, por lo
+                    que pocas entregas absolutas pesan poco sobre el total.
                 </p>
                 <dl class="metric-grid lethal-metric-grid" aria-label="Métricas de random walls">
                   <div>
@@ -1644,15 +1651,6 @@
                 </figcaption>
               </figure>
             </div>
-            <div class="lethal-figure-grid">
-              <figure>
-                <img src="report-site/assets/lethal-cookies/figures/lethal_curriculum_delivered_food.png" alt="Entregas en variantes con veneno">
-                <figcaption>
-                  Near-nest es el resultado completo dentro de esta familia, no
-                  una prueba de generalización universal.
-                </figcaption>
-              </figure>
-            </div>
           </li>
 
           <li class="story-step terminal-step" id="lethal-transfer">
@@ -1686,10 +1684,10 @@
                     fine-tuning empeoró la navegación: la política sacrificó
                     cobertura del mapa y pickups para reducir la probabilidad de
                     tocar una cookie letal.
-                  </p>
+                </p>
                 <p>
-                  La comparación corta contra larga resume el problema. Con 100
-                  updates, la transferencia todavía conserva parte del
+                  Al comparar la evolución del entrenamiento el problema se hace
+                  evidente. Con 100 updates, todavía se conserva parte del
                   comportamiento útil: 8.125 entregas y 67.7% de la tarea. Con
                   1000 updates, cae a 3.875 entregas, 32.3% y retorno de
                   evaluación negativo. La métrica agregada no alcanza para
@@ -1768,13 +1766,15 @@
               </div>
               <div class="lethal-figure-grid">
                 <figure>
-                  <img src="report-site/assets/lethal-cookies/figures/summary_delivered_food.png" alt="Entregas absolutas incluyendo transferencia">
+                  <img src="report-site/assets/lethal-cookies/figures/lethal_curriculum_delivered_food.png" alt="Entregas en variantes con veneno">
                   <figcaption>
-                  Las entregas absolutas deben leerse junto con los videos: más
-                  recompensa no siempre implica mejor política.
-                </figcaption>
-              </figure>
-            </div>
+                    <strong>Cantidad de galletas entregadas por variante.</strong>
+                    La más exitosa resulta ser near-nest walls, aunque esta técnica
+                    no se traduzca satisfactoriamente si en lugar de entrenar desde
+                    0 se entrena desde un checkpoint ya convergido.
+                  </figcaption>
+                </figure>
+              </div>
           </li>
         </ol>
       </details>
