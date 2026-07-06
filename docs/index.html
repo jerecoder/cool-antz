@@ -105,6 +105,11 @@
               <a href="#size-curriculum" data-open-target="#size-curriculum">1B Mapa</a>
               <a href="#more-ants-more-map" data-open-target="#more-ants-more-map">1C Mapa + hormigas</a>
               <a href="#validation-gates" data-open-target="#validation-gates">1D Gates</a>
+              <a href="#vision-radius-curriculum" data-open-target="#vision-radius-curriculum">1E Visión</a>
+              <a href="#reward-shaping" data-open-target="#reward-shaping">1F Shaping</a>
+              <a href="#autocurriculum" data-open-target="#autocurriculum">1G Autocurrículo</a>
+              <a href="#maze-exploration" data-open-target="#maze-exploration">1H Laberintos</a>
+              <a href="#source-layouts" data-open-target="#source-layouts">1I Fuentes</a>
               <a href="#critic50" data-open-target="#critic50">1J Crítico</a>
             </nav>
           </article>
@@ -113,7 +118,7 @@
               <span>Capítulo 2</span>
               <strong>Mapas más grandes, hormigueros enormes</strong>
             </a>
-            <p>Escalado de tamaño, colonias grandes, cobertura y congestión.</p>
+            <p>Prueba de escala: despliegue solo-actor en 1000x1000.</p>
           </article>
           <article class="page-index-item">
             <a class="page-index-title" href="#chapter-3-lethal-cookies" data-open-target="#chapter-3-lethal-cookies">
@@ -151,6 +156,13 @@
               <a href="#temporal-roles-future" data-open-target="#temporal-roles-future">5C Futuro</a>
             </nav>
           </article>
+        </div>
+        <div class="page-index-final">
+          <a class="page-index-title" href="#sandbox" data-open-target="#sandbox">
+            <span>Sandbox final</span>
+            <strong>Política real 50x50 en el navegador</strong>
+          </a>
+          <p>Interactuar con el actor exportado: mapa, fuentes, paredes, velocidad y modo de acción.</p>
         </div>
       </section>
 
@@ -484,22 +496,21 @@
                     y movimiento sampleado con temperatura <code>0.525</code>.
                   </p>
                   <p>
-                    La lectura no fue descartar curriculum learning, sino hacerlo
-                    más exigente: no alcanzaba con subir el tamaño del mapa por
-                    calendario. Hacían falta gates de validación por tamaño,
-                    métricas normalizadas por pasos-hormiga y una representación
-                    que no obligara a resolver comunicación global con un canal
-                    local tan estrecho.
+                    La lectura no fue descartar curriculum learning, sino aislar
+                    qué estaba fallando: crecer sólo el mapa volvía el reward
+                    más lejano, reducía la utilidad de las paredes como
+                    referencia y hacía que los rastros locales dejaran de
+                    alcanzar como protocolo de retorno.
                   </p>
                 </div>
                 <p>
-                  Si el mapa crecía antes de validar maestría, la política podía
-                  arrastrar hábitos frágiles hacia etapas más difíciles. El
-                  resultado era actividad visible, pero no necesariamente un
-                  protocolo de regreso estable. La falla no era “mapa grande” en
-                  abstracto: el experimento mezclaba dos problemas que después
-                  tuvimos que separar, cobertura multi-agente y descubrimiento
-                  de fuentes escasas.
+                  El siguiente paso fue probar si esa falla era sólo de escala
+                  del tablero o también de densidad de colonia. Si el mapa
+                  crecía pero la cantidad de hormigas quedaba fija, la
+                  exploración se volvía demasiado pobre; si había demasiadas
+                  hormigas en mapas chicos, la tarea podía parecer resuelta por
+                  saturación. Eso motivó el currículo manual de más mapa y más
+                  hormigas.
                 </p>
               </div>
             </div>
@@ -1092,48 +1103,42 @@
             </div>
             <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="step-claim">
-                  La idea venía del curriculum de locomoción de ETH Zurich:
-                  subir la dificultad sólo cuando la política domina el terreno
-                  actual. En nuestro caso, esa regla hizo avanzar etapas, pero
-                  no alcanzó para transferir el ciclo de forrajeo a
-                  <code>50x50</code>.
+                <p>
+                  Este intento reemplazó el calendario fijo por autocurriculum:
+                  el mapa activo sólo crecía cuando la política hacía
+                  <code>6</code> entregas en la etapa actual. La idea era evitar
+                  pasar a mapas grandes antes de dominar el ciclo mínimo de
+                  buscar comida, recogerla y volver al hub.
                 </p>
                 <p>
-                  En Rudin et al., miles de robots ANYmal entrenan sobre tipos
-                  de terreno con niveles de dificultad. Si cruzan el terreno,
-                  suben de nivel en el siguiente reset; si no avanzan lo
-                  suficiente, bajan. Nuestro equivalente fue una grilla
-                  <code>50x50</code> acolchada: el área jugable empezaba en
-                  <code>4x4</code> y crecía después de seis entregas en la
-                  etapa, manteniendo fijo el formato de observación.
+                  La observación seguía acolchada a <code>50x50</code>, pero el
+                  área jugable arrancaba en <code>4x4</code>. El actor era una
+                  sola política feed-forward; no había una política por tamaño ni
+                  un cambio de arquitectura entre etapas. El contrato fue chico:
+                  una hormiga, radio local <code>1</code>, dos fuentes con
+                  <code>12</code> bocados totales, <code>1</code> bit de
+                  escritura, crítico <code>mlp</code>,
+                  <code>pickup_bonus=0.25</code> y sin shaping de distancia.
                 </p>
                 <p>
-                  El contrato fue deliberadamente chico: una hormiga, radio de
-                  visión <code>1</code>, dos fuentes con <code>12</code>
-                  bocados, <code>1</code> bit, crítico <code>mlp</code>,
-                  <code>pickup_bonus=0.25</code> y sin moldeado de distancia.
-                  La reproducción en Google Cloud quedó sincronizada en W&amp;B
-                  como
+                  En
                   <a
                     href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/e5ymgvil"
                     target="_blank"
                     rel="noreferrer"
-                  >e5ymgvil</a>.
+                  >este</a>
+                  run, la regla produjo progreso mecánico: en
+                  <code>1.28M</code> pasos el tamaño activo llegó a
+                  <code>19x19</code>. Pero el gráfico muestra una señal de
+                  serrucho, no una transferencia estable hacia tamaños grandes.
                 </p>
                 <div class="experiment-note" aria-label="Resultado del autocurriculum por tamaño activo">
                   <span class="kicker">lectura</span>
-                  <p class="experiment-note-lead">
-                    El mecanismo de dificultad adaptativa funcionó, pero el
-                    comportamiento aprendido no escaló al objetivo final.
-                  </p>
                   <p>
-                    En <code>1.28M</code> pasos, el run llegó a tamaño activo
-                    máximo <code>19x19</code> y cerró con <code>5</code>
-                    entregas y <code>6</code> pickups en la última ventana. La
-                    evidencia es negativa y útil: automatizar dificultad no
-                    reemplazó al moldeado de distancia, la cobertura por más
-                    agentes ni el cambio posterior a críticos espaciales.
+                    La falla no descarta curriculum learning; descarta este gate.
+                    Medía entregas locales en la etapa actual, pero no retención:
+                    después de crecer, la política podía volver a actividad local
+                    sin preservar un protocolo global de regreso.
                   </p>
                 </div>
               </div>
@@ -1144,9 +1149,8 @@
                   <source src="report-site/assets/videos/autocurriculum-active-size-gcloud.mp4" type="video/mp4">
                 </video>
                 <figcaption>
-                  <strong>Rollout del checkpoint final.</strong> El video está
-                  recortado al sector activo observado del mapa acolchado para
-                  que se vea el crecimiento de la arena; no muestra una solución de
+                  Rollout del checkpoint final, recortado al sector activo del
+                  mapa acolchado. Muestra crecimiento de la arena, no una solución de
                   <code>50x50</code>.
                 </figcaption>
               </figure>
@@ -1167,18 +1171,10 @@
                   >
                 </a>
                 <figcaption>
-                  La señal importante no es sólo el máximo final de
-                  <code>19x19</code>, sino la forma de serrucho. En varias
-                  ventanas la política vuelve a resolver etapas chicas y empuja
-                  el tamaño activo hacia arriba, pero esos avances se reinician
-                  y no se convierten en dominio estable de arenas grandes. Los
-                  picos más altos de pickups y deliveries aparecen después de
-                  caídas a tamaños chicos, mientras que la última rampa hacia
-                  <code>19x19</code> termina con sólo <code>5</code> entregas y
-                  <code>6</code> pickups. Eso sugiere que el autocurriculum sí
-                  generaba dificultad adaptativa, pero la promoción era una señal
-                  demasiado local: aprendía tramos fáciles del episodio sin
-                  consolidar un protocolo transferible a escala completa.
+                  El tamaño activo sube y vuelve a caer. Los picos de pickups y
+                  deliveries aparecen después de regresar a tamaños chicos; la
+                  última rampa hacia <code>19x19</code> termina con
+                  <code>5</code> entregas y <code>6</code> pickups.
                 </figcaption>
               </figure>
             </div>
@@ -1192,12 +1188,51 @@
                 <h3>Laberintos</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para presentar laberintos como intento de mejorar exploración, no como benchmark comparable.</p>
+                <p>
+                  La rama de laberintos no fue un benchmark comparable de
+                  forrajeo. Cambiaba la geometría del mundo para forzar
+                  exploración estructurada: paredes internas, pasillos anchos y
+                  cobertura de celdas como señal principal. Eso era útil para
+                  probar si la política podía moverse en entornos con obstáculos,
+                  pero no medía el ciclo completo de encontrar comida, volver al
+                  hub y entregar.
+                </p>
+                <p>
+                  En
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/8ebnjq9f"
+                    target="_blank"
+                    rel="noreferrer"
+                  >este</a>
+                  run de W&amp;B, el currículo entrenó laberintos de
+                  <code>10x10</code> a <code>50x50</code> con una hormiga,
+                  <code>48</code> comidas, <code>12</code> fuentes,
+                  <code>2</code> bits, radio local <code>1</code>, crítico
+                  <code>mlp</code> y <code>reward_mode=explore</code>. La etapa
+                  final reportó <code>episode_return=26.125</code>, pero
+                  <code>0</code> pickups, <code>0</code> deliveries y
+                  <code>45.5/48</code> comidas restantes. La métrica positiva
+                  era exploración, no forrajeo resuelto.
+                </p>
+                <p>
+                  La lectura es negativa pero concreta: la infraestructura de
+                  obstáculos funciona y el video entrenado muestra exploración
+                  en pasillos, pero no demuestra forrajeo resuelto. Para que
+                  laberintos sean una línea principal habría que cambiar el
+                  contrato: entrenar y evaluar entrega en laberinto, no sólo
+                  cobertura.
+                </p>
               </div>
-              <div class="evidence-slot">layout + video W&amp;B</div>
+            </div>
+            <div class="step-video-sequence step-video-sequence-single story-evidence-grid maze-video-grid" aria-label="Video de laberinto">
+              <figure>
+                <video muted playsinline controls preload="metadata" aria-label="Política entrenada de exploración en laberinto 50x50">
+                  <source src="report-site/assets/videos/maze-exploration-50x50-trained-policy.mp4" type="video/mp4">
+                </video>
+                <figcaption>W&amp;B 8ebnjq9f · etapa 50x50</figcaption>
+              </figure>
             </div>
           </li>
 
@@ -1209,12 +1244,106 @@
                 <h3>Fuentes dispersas</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para mostrar que el cuello deja de ser volver y pasa a ser encontrar fuentes sparse.</p>
+                <p>
+                  Después de mejorar retorno, apareció otro cuello: descubrir
+                  fuentes escasas. Esta rama es la misma familia conceptual que
+                  la prueba de inner grid: mantener una arena externa grande para
+                  conservar compatibilidad de observación y checkpoint, pero
+                  restringir comida y hub a una ventana interior donde se
+                  controla la dificultad.
+                </p>
+                <p>
+                  La evidencia se parte en dos. Antes de
+                  <code>strided_cnn</code>, estos runs prueban geometría de
+                  fuentes con crítico <code>mlp</code>. Después, el primer
+                  resultado útil ya no mide sólo sparse food: mide sparse food
+                  más un crítico espacial.
+                </p>
+                <p>
+                  La conclusión pre-CNN es negativa: esconder la tarea dentro de
+                  una ventana interior no alcanzó. La conclusión post-CNN es
+                  distinta: cuando aparece señal en proximity, no podemos
+                  atribuirla sólo al layout de fuentes porque el crítico también
+                  cambió.
+                </p>
               </div>
-              <div class="evidence-slot">clips de fuentes + curva</div>
+            </div>
+            <div class="source-layout-block" aria-label="Fuentes dispersas antes del crítico espacial">
+              <div class="experiment-note">
+                <span class="kicker">antes del crítico espacial</span>
+                <p>
+                  El intento más directo,
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/o4grnxc5"
+                    target="_blank"
+                    rel="noreferrer"
+                  >padded sources</a>,
+                  usó una arena <code>50x50</code> con tarea efectiva
+                  <code>20x20</code>, <code>18</code> unidades de comida y
+                  fuentes que bajaban de <code>12</code> posiciones a
+                  <code>2</code>. Mantuvo el crítico <code>mlp</code> y terminó
+                  con <code>0.25/18</code> en evaluación.
+                </p>
+              </div>
+              <div class="step-video-sequence source-layout-video-grid source-layout-subgrid" aria-label="Rollouts padded sources">
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Padded sources con 12 posiciones de fuente">
+                    <source src="report-site/assets/videos/padded-sources-12.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>12 fuentes</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Padded sources con 6 posiciones de fuente">
+                    <source src="report-site/assets/videos/padded-sources-06.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>6 fuentes</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Padded sources con 2 posiciones de fuente">
+                    <source src="report-site/assets/videos/padded-sources-02.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>2 fuentes</figcaption>
+                </figure>
+              </div>
+            </div>
+            <div class="source-layout-block" aria-label="Primer experimento de fuentes dispersas con crítico espacial">
+              <div class="experiment-note">
+                <span class="kicker">primer post-crítico espacial</span>
+                <p>
+                  La primera señal más útil apareció con
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                    target="_blank"
+                    rel="noreferrer"
+                  >proximity sources</a>: arena externa <code>50x50</code>,
+                  ventana interior <code>30x30</code>, dos macro-fuentes y
+                  footprints que se achican hasta dos celdas finales. Esa corrida
+                  ya usa <code>strided_cnn</code> y llegó a
+                  <code>40.875/250</code>.
+                </p>
+              </div>
+              <div class="step-video-sequence source-layout-video-grid source-layout-subgrid" aria-label="Rollouts proximity sources">
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Proximity sources con 50 posiciones de fuente">
+                    <source src="report-site/assets/videos/proximity-sources-50.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>50 posiciones</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Proximity sources con 8 posiciones de fuente">
+                    <source src="report-site/assets/videos/proximity-sources-08.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>8 posiciones</figcaption>
+                </figure>
+                <figure>
+                  <video muted playsinline controls preload="metadata" aria-label="Proximity sources con 2 posiciones de fuente">
+                    <source src="report-site/assets/videos/proximity-sources-02.mp4" type="video/mp4">
+                  </video>
+                  <figcaption>2 posiciones</figcaption>
+                </figure>
+              </div>
             </div>
           </li>
 
@@ -1226,51 +1355,131 @@
                 <h3>El límite causal fue el crítico</h3>
               </div>
             </div>
-            <div class="step-layout">
+            <div class="step-layout step-layout-wide">
               <div class="step-copy">
-                <p class="draft-note">Frase central pendiente.</p>
-                <p>Slot para cerrar con el cambio de representación espacial y la primera política válida.</p>
+                <p>
+                  El cambio de crítico no fue un detalle menor. El actor seguía
+                  viendo sólo su observación local, pero PPO entrenaba con un
+                  crítico centralizado. El mejor punto <code>50x50</code> con
+                  crítico <code>mlp</code> llegó a
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/g8u36g2a"
+                    target="_blank"
+                    rel="noreferrer"
+                  ><code>21.5/48</code></a>.
+                  Era actividad útil, pero todavía no una política fuerte de
+                  escala.
+                </p>
+                <p>
+                  La primera política realmente buena de este linaje aparece
+                  cuando el experimento de fuentes dispersas pasa a
+                  <code>strided_cnn</code>. Ese run de
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                    target="_blank"
+                    rel="noreferrer"
+                  >proximity sources</a>
+                  usa arena externa <code>50x50</code>, ventana interior
+                  <code>30x30</code>, dos macro-fuentes y footprints que se
+                  achican hasta dos posiciones. Llegó a
+                  <a
+                    href="https://wandb.ai/jerefigueiredo-universidad-de-san-andr-s/cool-antz/runs/fhnv5vt7"
+                    target="_blank"
+                    rel="noreferrer"
+                  ><code>40.875/250</code></a>.
+                </p>
+                <div class="experiment-note" aria-label="Advertencia causal sobre el crítico 50x50">
+                  <span class="kicker">lectura causal</span>
+                  <p>
+                    Esto no prueba que el crítico por sí solo explique todo: en
+                    fuentes también cambió la geometría de descubrimiento. Pero
+                    sí marca una frontera real. Antes del crítico espacial no
+                    teníamos una política 50x50 convincente; después aparece el
+                    primer comportamiento útil.
+                  </p>
+                </div>
+                <p>
+                  Las mejoras posteriores con <code>8</code> y
+                  <code>60</code> hormigas pertenecen a esta familia espacial,
+                  pero ya mezclan más agentes, escritura compartida, costos,
+                  selección de checkpoint y temperatura de rollout. Por eso esta
+                  sección se queda con el primer punto claro: fuentes dispersas
+                  con buen crítico.
+                </p>
               </div>
-              <div class="evidence-slot">plot crítico + rollout</div>
+            </div>
+            <div class="figure-grid story-evidence-grid critic-architecture-figure" aria-label="Comparación de arquitectura del crítico">
+              <figure>
+                <a
+                  class="zoomable-plot"
+                  href="report-site/assets/plots/fig_critic_architecture_comparison.svg"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Abrir diagrama de arquitectura del crítico en tamaño completo"
+                >
+                  <img
+                    src="report-site/assets/plots/fig_critic_architecture_comparison.svg"
+                    alt="Diagrama de arquitectura del crítico strided CNN"
+                    loading="lazy"
+                  >
+                </a>
+                <figcaption>
+                  El <code>strided_cnn</code> conserva estructura espacial con
+                  mapas convolucionales y fusiona esa rama con features de
+                  entidad antes de estimar el valor.
+                </figcaption>
+              </figure>
+            </div>
+            <div class="step-video-sequence step-video-sequence-single critic-video-grid" aria-label="Primer rollout bueno de la rama con crítico espacial">
+              <figure>
+                <video muted playsinline controls preload="metadata" poster="report-site/assets/videos/critic-proximity-sources-good-policy-poster.jpg" aria-label="Rollout de proximity sources con crítico strided CNN">
+                  <source src="report-site/assets/videos/critic-proximity-sources-good-policy.mp4" type="video/mp4">
+                </video>
+                <figcaption>proximity sources + strided_cnn · rollout largo</figcaption>
+              </figure>
             </div>
           </li>
         </ol>
       </details>
 
-      <section id="training-close" class="story-chapter simple-chapter closing-block">
-        <div class="chapter-header">
-          <span class="chapter-number">1</span>
-          <div>
-            <span class="kicker">cierre del primer capítulo</span>
-            <h2>Hasta acá llega el bloque de entrenamiento de política</h2>
-            <p>
-              Slot de conclusión: después de baseline, currículos, reinicios y
-              falsos positivos, encontramos el cuello de botella y conseguimos
-              una primera política válida. Desde ahí empieza otra historia.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <details id="chapter-2-large-maps" class="story-chapter simple-chapter future-chapter chapter-details" open aria-labelledby="chapter-2-title">
+      <details id="chapter-2-large-maps" class="story-chapter simple-chapter large-maps-chapter chapter-details" open aria-labelledby="chapter-2-title">
         <summary class="chapter-header chapter-summary">
           <span class="chapter-number">2</span>
           <div>
-            <span class="kicker">placeholder</span>
+            <span class="kicker">experimento de escala</span>
             <h2 id="chapter-2-title">Mapas más grandes, hormigueros enormes</h2>
             <p>
-              Capítulo para contar qué pasa después de obtener una política
-              válida: escalar tamaño de mapa, cantidad de hormigas, cobertura,
-              congestión y comunicación en colonias mucho más grandes.
+              Después de obtener una política fuerte en <code>50x50</code>,
+              hicimos una prueba de estrés: desplegar el mismo actor en una
+              escena <code>1000x1000</code>, con 500 hormigas y 5000 comidas.
             </p>
           </div>
         </summary>
-        <div class="chapter-placeholder">
-          <span class="kicker">pendiente</span>
+        <div class="large-map-brief">
           <p>
-            Acá van rollouts y métricas de escalado: mapas grandes, más agentes,
-            eficiencia por pasos-hormiga y límites de coordinación.
+            No es entrenamiento de punta a punta en el mapa gigante. Es un
+            experimento visual para ver si una política local conserva algo de
+            organización cuando el mapa crece varios órdenes de magnitud.
           </p>
+          <div class="large-map-videos" aria-label="Comparación entre entorno de entrenamiento y despliegue grande">
+            <figure>
+              <video muted playsinline controls preload="metadata" poster="report-site/assets/posters/tree-frontier50.jpg" aria-label="Rollout 50x50 de la política entrenada">
+                <source src="report-site/assets/videos/frontier-50x50.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                Entorno <code>50x50</code> en el que se entrenó la política.
+              </figcaption>
+            </figure>
+            <figure>
+              <video muted playsinline controls preload="metadata" poster="report-site/assets/posters/tree-bigmap.jpg" aria-label="Despliegue solo actor 1000x1000">
+                <source src="report-site/assets/videos/bigmap-50x50-policy-1000x1000.mp4" type="video/mp4">
+              </video>
+              <figcaption>
+                Mismo actor desplegado en <code>1000x1000</code>, con 500
+                hormigas y 5000 comidas.
+              </figcaption>
+            </figure>
+          </div>
         </div>
       </details>
 
@@ -1793,7 +2002,7 @@
             </p>
           </div>
         </summary>
-        <ol class="story-steps chapter-steps" aria-label="Bloques pendientes del capítulo adversarial">
+        <ol class="story-steps chapter-steps" aria-label="Subsecciones del capítulo adversarial">
           <li class="story-step" id="adversarial-env">
             <div class="step-header">
               <span class="step-index">4A</span>
@@ -2653,7 +2862,7 @@
             </p>
           </div>
         </summary>
-        <ol class="story-steps chapter-steps" aria-label="Bloques pendientes del capítulo de roles temporales">
+        <ol class="story-steps chapter-steps" aria-label="Subsecciones del capítulo de roles temporales">
           <li class="story-step" id="temporal-roles-env">
             <div class="step-header">
               <span class="step-index">5A</span>
@@ -2798,7 +3007,7 @@
                   pregunta.
                 </p>
                 <div class="experiment-note temporal-roles-next">
-                  <span class="kicker">controles pendientes</span>
+                  <span class="kicker">controles necesarios</span>
                   <dl class="temporal-roles-controls">
                     <div>
                       <dt>all-active</dt>
@@ -2833,17 +3042,130 @@
           </li>
         </ol>
       </details>
+
+      <details id="sandbox" class="story-chapter simple-chapter sandbox-chapter chapter-details" open aria-labelledby="sandbox-title">
+        <summary class="chapter-header chapter-summary">
+          <span class="chapter-number">S</span>
+          <div>
+            <span class="kicker">sandbox final</span>
+            <h2 id="sandbox-title">Sandbox interactivo: política real 50x50</h2>
+            <p>
+              El cierre práctico de la página: correr en el navegador el actor
+              exportado del checkpoint fuerte y modificar el entorno sin
+              reentrenar la política.
+            </p>
+          </div>
+        </summary>
+
+        <p class="summary sandbox-summary">
+          Checkpoint fuente:
+          <code>runs/notebooks/fl50_60ants_half_food_sw_wc_8bits_stabilize_from_60best/checkpoints/best_full_layout_proximity_60ants_half_food_shared_writes_write_cost_8bits_stabilized.pkl</code>.
+        </p>
+
+        <div class="runner-shell">
+          <div class="runner-stage">
+            <canvas
+              id="runner-canvas"
+              width="600"
+              height="600"
+              aria-label="Sandbox interactivo de política 50x50"
+            ></canvas>
+          </div>
+          <aside class="runner-panel">
+            <h3>50x50 / 60 hormigas / 8 bits</h3>
+            <p class="caption">
+              Los pesos no cambian: es el actor <em>best</em> 50x50 de 60
+              hormigas exportado desde el checkpoint estabilizado. Los controles
+              modifican el entorno simulado para explorar generalización local,
+              no para declarar una política reentrenada en otro tamaño.
+            </p>
+
+            <div class="control-block">
+              <span class="control-label">ubicar</span>
+              <div class="policy-tabs runner-tabs" role="tablist" aria-label="Modo de ubicación">
+                <button type="button" data-place-mode="hub">Hormiguero</button>
+                <button type="button" class="active" data-place-mode="food">Cookie +1</button>
+                <button type="button" data-place-mode="obstacle">Pared</button>
+                <button type="button" data-place-mode="erase">Borrar</button>
+              </div>
+            </div>
+
+            <div class="runner-controls">
+              <button type="button" id="runner-run">Correr</button>
+              <button type="button" id="runner-step-once">Paso</button>
+              <button type="button" id="runner-reset-run">Reiniciar corrida</button>
+              <button type="button" id="runner-reset-layout">Reiniciar mapa</button>
+            </div>
+
+            <div class="runner-form">
+              <label for="runner-action-mode">modo de acción</label>
+              <select id="runner-action-mode">
+                <option value="sampled_move_greedy_write">movimiento muestreado / escritura greedy</option>
+                <option value="greedy_move_greedy_write">movimiento greedy / escritura greedy</option>
+                <option value="sampled_move_sampled_write">movimiento muestreado / escritura muestreada</option>
+              </select>
+
+              <label for="runner-palette">paleta</label>
+              <select id="runner-palette">
+                <option value="natural">natural</option>
+                <option value="paper">papel</option>
+                <option value="night">nocturna</option>
+                <option value="contrast">contraste</option>
+              </select>
+
+              <div class="runner-config-grid">
+                <label>
+                  <span>tamaño de grilla</span>
+                  <input id="runner-grid-size" type="number" min="15" step="1" value="50" inputmode="numeric">
+                </label>
+                <label>
+                  <span>hormigas</span>
+                  <input id="runner-ant-count" type="number" min="1" step="1" value="60" inputmode="numeric">
+                </label>
+                <label>
+                  <span>cookies en el mapa</span>
+                  <input id="runner-food-count" type="number" min="0" step="1" value="125" inputmode="numeric">
+                </label>
+                <label>
+                  <span>posiciones de cookies</span>
+                  <input id="runner-source-count" type="number" min="0" step="1" value="2" inputmode="numeric">
+                </label>
+                <label>
+                  <span>límite de truncación</span>
+                  <input id="runner-max-steps" type="number" min="1" step="100" value="2000" inputmode="numeric">
+                </label>
+              </div>
+
+              <label for="runner-speed">pasos por cuadro</label>
+              <input id="runner-speed" type="range" min="1" max="6" value="1">
+            </div>
+
+            <dl class="metrics-list runner-metrics">
+              <dt>paso</dt>
+              <dd id="runner-step">0 / 2000</dd>
+              <dt>entregado</dt>
+              <dd id="runner-delivered">0 / 125</dd>
+              <dt>en mapa</dt>
+              <dd id="runner-remaining">125</dd>
+              <dt>cargando</dt>
+              <dd id="runner-carrying">0 / 60</dd>
+              <dt>bytes no nulos</dt>
+              <dd id="runner-bytes">0 celdas</dd>
+              <dt>paredes</dt>
+              <dd id="runner-obstacles">0 celdas</dd>
+              <dt>fuentes</dt>
+              <dd id="runner-sources">2 / 2</dd>
+              <dt>estado</dt>
+              <dd id="runner-status">cargando</dd>
+            </dl>
+          </aside>
+        </div>
+      </details>
     </main>
 
-    <footer>
-      <p>
-        Esta página es la versión narrativa en construcción del proyecto: una
-        lectura conectada de los experimentos, sus fallas útiles y los próximos
-        problemas abiertos.
-      </p>
-    </footer>
     <script src="report-site/assets/data/policy-runner-50x50-frontier.js"></script>
     <script src="report-site/ambient-ant.js"></script>
     <script src="report-site/page-index.js"></script>
+    <script src="report-site/runner.js"></script>
   </body>
 </html>
