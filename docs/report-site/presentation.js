@@ -2,7 +2,6 @@
   const chapterSelector = "main > details.chapter-details";
   const stepSelector = ".story-step[id]";
   const presentationRootId = "presentation-view";
-  const storageKey = "cool-antz:presentation-edits:v2";
 
   const body = document.body;
   const header = document.querySelector("body > header");
@@ -13,29 +12,9 @@
     "(prefers-reduced-motion: reduce)",
   ).matches;
 
-  const normalizeText = (value) => (value || "").replace(/\s+/g, " ").trim();
-
   const textFrom = (node, selector) => {
-    if (!node) return "";
     const target = node.querySelector(selector);
-    return target ? normalizeText(target.textContent) : "";
-  };
-
-  const shorten = (value, maxLength = 150) => {
-    const text = normalizeText(value).replace(/[.;:]$/, "");
-    if (text.length <= maxLength) return text;
-    return `${text.slice(0, maxLength).replace(/\s+\S*$/, "")}...`;
-  };
-
-  const uniqueTexts = (values) => {
-    const seen = new Set();
-    return values.filter((value) => {
-      const normalized = normalizeText(value);
-      const key = normalized.toLowerCase();
-      if (!normalized || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return target ? target.textContent.trim().replace(/\s+/g, " ") : "";
   };
 
   const stripDuplicateReferences = (root) => {
@@ -69,116 +48,13 @@
     return clone;
   };
 
-  const splitIntoSentences = (text) => {
-    const protectedText = normalizeText(text).replace(
-      /(\d)\.(\d)/g,
-      "$1__decimal_dot__$2",
-    );
-    return (protectedText.match(/[^.!?]+[.!?]?/g) || [])
-      .map((sentence) =>
-        normalizeText(sentence)
-          .replace(/__decimal_dot__/g, ".")
-          .replace(/[.!?]$/, ""),
-      )
-      .filter(Boolean);
-  };
-
-  const candidateSelectors = [
-    ".step-copy > p",
-    ".experiment-note p",
-    ".summary",
-    ".abstract p",
-    ".takeaway-card p",
-    ".metric-card",
-    ".result-card",
-    ".finding-card p",
-    ".runner-panel p",
-    "figcaption",
-  ];
-
-  const collectTextCandidates = (source) => {
-    if (!source) return [];
-    const nodes = [];
-    candidateSelectors.forEach((selector) => {
-      source.querySelectorAll(selector).forEach((node) => nodes.push(node));
-    });
-
-    if (nodes.length === 0) {
-      source.querySelectorAll("p, li, dd").forEach((node) => nodes.push(node));
-    }
-
-    return uniqueTexts(
-      nodes
-        .map((node) => normalizeText(node.textContent))
-        .filter((text) => text.length >= 24),
-    );
-  };
-
-  const makeDefaultBullets = (slide, limit = 3) => {
-    const rejected = new Set(
-      [slide.title, slide.chapterTitle, slide.number]
-        .filter(Boolean)
-        .map((value) => normalizeText(value).toLowerCase()),
-    );
-    const candidates = collectTextCandidates(slide.source);
-    const bullets = [];
-
-    candidates.forEach((candidate) => {
-      splitIntoSentences(candidate).forEach((sentence) => {
-        const bullet = shorten(sentence, 145);
-        const key = bullet.toLowerCase();
-        if (bullet.length < 18 || rejected.has(key)) return;
-        bullets.push(bullet);
-      });
-    });
-
-    return uniqueTexts(bullets).slice(0, limit);
-  };
-
-  const makeVisual = (slide) => {
-    if (!slide.source || slide.kind === "cover" || slide.kind === "chapter-title") {
-      return null;
-    }
-
-    const visual = slide.source.querySelector(
-      [
-        ".step-media",
-        ".media-frame",
-        ".evidence-pair",
-        ".large-map-videos",
-        ".figure-grid",
-        "figure",
-        "video",
-        "img",
-      ].join(", "),
-    );
-    if (!visual) return null;
-
-    const wrapper = document.createElement("aside");
-    wrapper.className = "presentation-visual";
-    wrapper.append(cloneClean(visual));
-    return wrapper;
-  };
-
-  const readStoredEdits = () => {
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem(storageKey));
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return {};
-    }
-  };
-
-  const writeStoredEdits = (edits) => {
-    try {
-      if (Object.keys(edits).length === 0) {
-        window.localStorage.removeItem(storageKey);
-        return;
-      }
-      window.localStorage.setItem(storageKey, JSON.stringify(edits));
-    } catch {
-      // Local storage can be unavailable in restricted browsing modes.
-    }
+  const cloneChapterBody = (chapter) => {
+    const bodyClone = document.createElement("div");
+    bodyClone.className = "presentation-chapter-body";
+    Array.from(chapter.children)
+      .filter((child) => child.tagName.toLowerCase() !== "summary")
+      .forEach((child) => bodyClone.append(cloneClean(child)));
+    return bodyClone;
   };
 
   const makeHeaderSlide = () => ({
@@ -187,6 +63,11 @@
     number: "0",
     title: textFrom(header, "h1") || document.title,
     source: header,
+    render() {
+      const clone = cloneClean(header);
+      clone.classList.add("presentation-cover-card");
+      return clone;
+    },
   });
 
   const makeLeadSlide = () => {
@@ -198,6 +79,11 @@
       number: "Intro",
       title: textFrom(lead, "h2"),
       source: lead,
+      render() {
+        const clone = cloneClean(lead);
+        clone.classList.add("presentation-lead-card");
+        return clone;
+      },
     };
   };
 
@@ -211,6 +97,14 @@
         textFrom(summary || chapter, ".kicker"),
       title: textFrom(summary || chapter, "h2"),
       source: summary || chapter,
+      render() {
+        const wrapper = document.createElement("section");
+        wrapper.className = "presentation-chapter-title";
+        if (summary) {
+          wrapper.append(cloneClean(summary));
+        }
+        return wrapper;
+      },
     };
   };
 
@@ -220,7 +114,325 @@
     number: textFrom(chapter, ".chapter-number") || textFrom(chapter, ".kicker"),
     title: textFrom(chapter, "h2"),
     source: chapter,
+    render() {
+      return cloneChapterBody(chapter);
+    },
   });
+
+  const asset = (path) => `report-site/assets/${path}`;
+
+  const bulletStepContent = {
+    "vision-radius-curriculum": {
+      groups: [
+        {
+          bullets: [
+            "Usar el radio de vision como curriculo: empezar con una politica que observa casi todo el tablero y despues exigirle operar con observacion local.",
+            "La hipotesis inicial era que ver todas las galletas hacia mas facil aprender foraging antes de achicar la ventana.",
+            "Radio <code>25</code> implica una observacion <code>51x51</code>: <code>2601</code> celdas con comida, hormigas, bits, hub, borde/obstaculos y senales propias.",
+            "El critic centralizado estima valor durante entrenamiento, pero las acciones ejecutadas salen del actor local de cada hormiga.",
+          ],
+        },
+        {
+          heading: "Transferencia entre radios",
+          bullets: [
+            "En la version densa, al pasar de <code>51x51</code> a <code>41x41</code>, se copiaba el sub-tensor central de la primera capa.",
+            "Las capas internas, heads de accion y critic quedaban como estaban; solo cambiaba la entrada compatible con el nuevo radio.",
+            "Tambien se probo un actor convolucional para leer la grilla con filtros compartidos antes del MLP.",
+          ],
+        },
+        {
+          heading: "Lectura",
+          bullets: [
+            "La ventana <code>51x51</code> no era una pista pequena: agrandaba el espacio visual sin resolver exploracion ni asignacion de credito.",
+            "Incluso con entorno denso en galletas, no aparecio una conducta greedy de pickup estable ni retorno confiable al hub.",
+            "La etapa de vision completa no produjo una base estable para transferir.",
+          ],
+        },
+      ],
+      media: [
+        {
+          type: "image",
+          src: asset("plots/fig_vision_range_51x51_reward.png"),
+          alt: "Retorno real durante el entrenamiento con radio de vision 25",
+          caption:
+            "<strong>Radio 25 / ventana 51x51.</strong> El retorno queda cerca de cero; los picos tardios no forman una meseta estable.",
+        },
+        {
+          type: "video",
+          src: asset("videos/vision-range-51x51.mp4"),
+          caption:
+            "<strong>Rollout greedy 51x51.</strong> La politica no muestra pickups claros ni retorno confiable al hub.",
+        },
+      ],
+    },
+    "lethal-mechanism": {
+      groups: [
+        {
+          bullets: [
+            "La galleta letal no esta marcada en la observacion: para la politica se ve como comida comun hasta que una hormiga muere.",
+            "Internamente el entorno guarda comida segura y letal en grillas separadas.",
+            "En la observacion ambas se proyectan al mismo canal visible: el actor no recibe un canal que diga <em>esto es veneno</em>.",
+            "La novedad observable es <code>dead_ants_count</code>, un canal espacial local con la misma geometria que comida, hormigas, bytes, hub y obstaculos.",
+          ],
+        },
+        {
+          heading: "Que cambia en la dinamica",
+          bullets: [
+            "Un pickup sobre comida letal mata a la hormiga, congela su cuerpo y la remueve de la poblacion activa.",
+            "Esa muerte deja una senal espacial local que otras hormigas pueden ver desde su propia orientacion.",
+            "El actor sigue eligiendo las mismas dos acciones: <code>move</code> y <code>write_value</code>.",
+            "La diferencia no es otro MAPPO: es una fuente visualmente identica que puede matar y dejar evidencia social.",
+          ],
+        },
+      ],
+    },
+    "lethal-open-results": {
+      groups: [
+        {
+          bullets: [
+            "El mapa abierto no se resolvio de forma robusta, pero mostro una senal interesante.",
+            "El primer escenario tenia mapa <code>50x50</code>, una fuente normal de <code>50</code> cookies y una fuente letal de <code>50</code> cookies.",
+            "Con <code>death_penalty=1.0</code>, la corrida larga tendia a una solucion conservadora: no agarrar galletas para no arriesgar muerte.",
+            "Subir el <code>pickup_bonus</code> recupero riesgo: la politica volvio a intentar pickups, aumento entregas y mejoro el porcentaje entregado.",
+          ],
+        },
+        {
+          heading: "Lectura",
+          bullets: [
+            "El mejor caso abierto queda en <code>4.75/50</code> entregas, alrededor de <code>9.5%</code>.",
+            "En el anillo de galletas se ve que puede ignorar la fuente letal asociada a cadaveres y seguir tomando comida segura.",
+            "Aun asi, la curva sigue irregular: es una politica parcialmente util, no una convergencia limpia.",
+          ],
+        },
+      ],
+      metrics: [
+        ["mejor caso abierto", "4.75 entregas"],
+        ["porcentaje entregado", "9.5%"],
+        ["retorno evaluacion", "4.375"],
+      ],
+      media: [
+        {
+          type: "video",
+          src: asset("presentation/lethal-open-two-source.mp4"),
+          caption:
+            "<strong>Mapa abierto, dos fuentes.</strong> Una fuente segura de 50 cookies y una letal de 50 cookies.",
+        },
+        {
+          type: "video",
+          src: asset("lethal-cookies/media/hub_ring.mp4"),
+          poster: asset("lethal-cookies/media/hub_ring_poster.jpg"),
+          caption:
+            "<strong>Anillo seguro con fuente letal cercana.</strong> Explota comida segura y evita la zona con cadaveres.",
+        },
+        {
+          type: "image",
+          src: asset("presentation/lethal-open-gray-return.png"),
+          alt: "Reward evolution del mapa abierto con fuente segura y letal",
+          caption:
+            "<strong>Reward evolution.</strong> Retornos ruidosos: hay mejora parcial, pero no meseta robusta.",
+        },
+      ],
+    },
+    "lethal-random-walls": {
+      groups: [
+        {
+          heading: "Falla al salir del mapa abierto",
+          bullets: [
+            "Al evaluar la politica abierta en laberintos fijos aparecio una falla doble: navegacion inconsistente y asociacion fragil entre cadaveres y fuente letal.",
+            "La politica habia visto veneno en una geometria demasiado especifica, normalmente cerca del hormiguero y lejos de paredes.",
+            "Una cookie letal cerca de pasillos o cuartos laterales degradaba tanto la navegacion como la lectura de riesgo.",
+          ],
+        },
+        {
+          heading: "Random walls",
+          bullets: [
+            "La solucion siguiente fue incluir paredes en la distribucion de entrenamiento.",
+            "Random walls mezcla segmentos de pared, comida segura y comida letal en el mismo mapa.",
+            "Vuelve a aparecer una senal positiva: la colonia puede dejar zonas de exclusion alrededor de cadaveres.",
+            "Pero no resuelve bien navegacion: con galletas cerca del hormiguero todavia puede conseguir reward sin aprender recorridos largos alrededor de paredes.",
+          ],
+        },
+        {
+          heading: "Near-nest walls",
+          bullets: [
+            "Near-nest walls reduce comida segura a <code>12</code> fuentes y fuerza trayectorias mas largas alrededor de paredes.",
+            "La fuente letal se mantiene presente para que la politica no olvide el problema original.",
+            "En evaluacion completa <code>12/12</code> entregas y conserva la fuente letal sin explotar.",
+            "Es el resultado mas fuerte de paredes, pero sigue acotado a una distribucion guiada.",
+          ],
+        },
+      ],
+      metrics: [
+        ["random walls", "2.5 entregas / 5%"],
+        ["near-nest walls", "12/12 entregas"],
+        ["near-nest retorno", "11"],
+      ],
+      media: [
+        {
+          type: "video",
+          src: asset("lethal-cookies/media/random_walls.mp4"),
+          poster: asset("lethal-cookies/media/random_walls_poster.jpg"),
+          caption:
+            "<strong>Random walls.</strong> Peligro social mas obstaculos aleatorios.",
+        },
+        {
+          type: "image",
+          src: asset("presentation/random-walls-blue-return.png"),
+          alt: "Curvas azules de retorno en random walls",
+          caption:
+            "<strong>Random walls.</strong> Senal positiva, pero retornos bajos e inestables.",
+        },
+        {
+          type: "video",
+          src: asset("lethal-cookies/media/near_nest.mp4"),
+          poster: asset("lethal-cookies/media/near_nest_poster.jpg"),
+          caption:
+            "<strong>Near-nest walls.</strong> Rutas activas alrededor de paredes con fuente letal presente.",
+        },
+        {
+          type: "image",
+          src: asset("presentation/near-nest-red-return.png"),
+          alt: "Curvas rojas de retorno en near-nest walls",
+          caption:
+            "<strong>Near-nest walls.</strong> Salto a retorno alto y entregas completas en la distribucion controlada.",
+        },
+      ],
+    },
+    "lethal-transfer": {
+      groups: [
+        {
+          bullets: [
+            "La idea era combinar navegacion ya convergida con aprendizaje de paredes y cookies letales.",
+            "Se partio de un checkpoint de mapa abierto sin lethal cookies que entregaba el <code>100%</code> y recorria el mapa con conducta reconocible.",
+            "La hipotesis era que esa navegacion sobreviviria al fine-tuning con paredes y veneno.",
+            "En las curvas la continuacion parece prometedora, pero visualmente aparece un modo de falla: evitar pickups y sesgarse espacialmente para reducir riesgo.",
+          ],
+        },
+        {
+          heading: "Comparacion temporal",
+          bullets: [
+            "Con <code>100</code> updates todavia conserva parte del comportamiento util: <code>8.125</code> entregas y <code>67.7%</code>.",
+            "Ese video temprano muestra una trampa: hay alta tasa de exito, pero las hormigas todavia agarran cookies letales pese a los cadaveres.",
+            "Con <code>1000</code> updates cae a <code>3.875</code> entregas, <code>32.3%</code> y retorno negativo.",
+            "La metrica agregada no alcanza para describir la perdida de navegacion.",
+          ],
+        },
+        {
+          heading: "Trabajo futuro",
+          bullets: [
+            "La penalizacion por muerte deberia entrar como curriculum, no como castigo rigido desde el comienzo.",
+            "Tambien conviene elegir checkpoints con metricas de cobertura o diversidad de trayectorias, no solo retorno agregado.",
+          ],
+        },
+      ],
+      metrics: [
+        ["100 updates", "8.125 entregas / 67.7%"],
+        ["1000 updates", "3.875 entregas / 32.3%"],
+        ["retorno 1000", "-46.125"],
+      ],
+      media: [
+        {
+          type: "image",
+          src: asset("presentation/transfer-60-orange-return.png"),
+          alt: "Curvas naranjas de retorno para Transfer 60",
+          caption:
+            "<strong>Transfer 60.</strong> El retorno mejora, pero no garantiza que la politica haya aprendido peligro correctamente.",
+        },
+        {
+          type: "video",
+          src: asset("presentation/transfer-60-early-100-updates.mp4"),
+          caption:
+            "<strong>100 updates.</strong> Buen desempeno agregado, pero todavia toma cookies letales.",
+        },
+        {
+          type: "video",
+          src: asset("lethal-cookies/media/random_walls_active.mp4"),
+          poster: asset("lethal-cookies/media/random_walls_active_poster.jpg"),
+          caption:
+            "<strong>Transferencia tardia.</strong> Hay navegacion parcial, pero tambien evitacion que reduce foraging.",
+        },
+      ],
+    },
+  };
+
+  const fromHTML = (template) => {
+    const wrapper = document.createElement("template");
+    wrapper.innerHTML = template.trim();
+    return wrapper.content.firstElementChild;
+  };
+
+  const renderBulletGroups = (groups) =>
+    groups
+      .map(
+        (group) => `
+          <section class="presentation-bullet-group">
+            ${group.heading ? `<h4>${group.heading}</h4>` : ""}
+            <ul>
+              ${group.bullets.map((bullet) => `<li>${bullet}</li>`).join("")}
+            </ul>
+          </section>
+        `,
+      )
+      .join("");
+
+  const renderBulletMetrics = (metrics = []) => {
+    if (metrics.length === 0) return "";
+    return `
+      <dl class="presentation-bullet-metrics">
+        ${metrics
+          .map(
+            ([label, value]) => `
+              <div>
+                <dt>${label}</dt>
+                <dd>${value}</dd>
+              </div>
+            `,
+          )
+          .join("")}
+      </dl>
+    `;
+  };
+
+  const renderBulletMedia = (media = []) => {
+    if (media.length === 0) return "";
+    return `
+      <div class="presentation-bullet-media">
+        ${media
+          .map((item) => {
+            const visual =
+              item.type === "video"
+                ? `<video autoplay loop muted playsinline controls preload="metadata"${item.poster ? ` poster="${item.poster}"` : ""}><source src="${item.src}" type="video/mp4"></video>`
+                : `<img src="${item.src}" alt="${item.alt || ""}">`;
+            return `
+              <figure>
+                ${visual}
+                <figcaption>${item.caption || ""}</figcaption>
+              </figure>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  };
+
+  const renderBulletStep = (step, content) => {
+    const article = document.createElement("article");
+    article.className = "presentation-step-card presentation-bullet-step";
+    const header = step.querySelector(":scope > .step-header");
+    if (header) article.append(cloneClean(header));
+    article.append(
+      fromHTML(`
+        <div class="presentation-bullet-layout">
+          <div class="presentation-bullet-copy">
+            ${renderBulletGroups(content.groups)}
+            ${renderBulletMetrics(content.metrics)}
+          </div>
+          ${renderBulletMedia(content.media)}
+        </div>
+      `),
+    );
+    return article;
+  };
 
   const makeStepSlide = (step, chapter) => ({
     id: step.id,
@@ -229,6 +441,15 @@
     title: textFrom(step, "h3"),
     chapterTitle: textFrom(chapter, "h2"),
     source: step,
+    render() {
+      const customContent = bulletStepContent[step.id];
+      if (customContent) {
+        return renderBulletStep(step, customContent);
+      }
+      const clone = cloneClean(step);
+      clone.classList.add("presentation-step-card");
+      return clone;
+    },
   });
 
   const collectSlides = () => {
@@ -249,57 +470,8 @@
     return slides.filter(Boolean);
   };
 
-  const makeDefaultContent = (slide) => {
-    const authors = textFrom(header, ".authors");
-    const subtitle = textFrom(header, ".subtitle");
-    const candidates = collectTextCandidates(slide.source);
-    const fallbackLede = candidates.length > 0 ? shorten(candidates[0], 135) : "";
-    const bullets = makeDefaultBullets(slide, slide.kind === "chapter-title" ? 2 : 3);
-
-    if (slide.kind === "cover") {
-      return {
-        kicker: subtitle || "Proyecto final de aprendizaje por refuerzo",
-        title: slide.title,
-        lede: authors,
-        bullets: [],
-      };
-    }
-
-    if (slide.kind === "chapter-title") {
-      return {
-        kicker: slide.number,
-        title: slide.title,
-        lede: fallbackLede,
-        bullets,
-      };
-    }
-
-    return {
-      kicker: [slide.number, slide.chapterTitle].filter(Boolean).join(" / "),
-      title: slide.title,
-      lede: slide.kind === "lead" || slide.kind === "chapter-body" ? fallbackLede : "",
-      bullets,
-    };
-  };
-
   const slides = collectSlides();
   if (slides.length === 0) return;
-
-  const defaultContent = new Map(
-    slides.map((slide) => [slide.id, makeDefaultContent(slide)]),
-  );
-  const storedEdits = readStoredEdits();
-
-  const contentForSlide = (slide) => {
-    const defaults = defaultContent.get(slide.id) || makeDefaultContent(slide);
-    const edits = storedEdits[slide.id] || {};
-    return {
-      kicker: edits.kicker ?? defaults.kicker,
-      title: edits.title ?? defaults.title,
-      lede: edits.lede ?? defaults.lede,
-      bullets: Array.isArray(edits.bullets) ? edits.bullets : defaults.bullets,
-    };
-  };
 
   const root = document.createElement("div");
   root.id = presentationRootId;
@@ -313,11 +485,8 @@
           <span class="presentation-counter"></span>
           <strong id="presentation-title"></strong>
         </div>
-        <button type="button" class="presentation-button" data-presentation-edit>Editar</button>
-        <button type="button" class="presentation-button presentation-edit-only" data-presentation-add-bullet hidden>+ bullet</button>
-        <button type="button" class="presentation-button presentation-edit-only" data-presentation-reset hidden>Restaurar</button>
         <button type="button" class="presentation-button" data-presentation-next aria-label="Diapositiva siguiente">Siguiente</button>
-        <button type="button" class="presentation-close" data-presentation-close aria-label="Salir de presentacion">Salir</button>
+        <button type="button" class="presentation-close" data-presentation-close aria-label="Salir de presentación">Salir</button>
       </div>
       <div class="presentation-progress" aria-hidden="true"><span></span></div>
       <div class="presentation-slide-frame" tabindex="-1"></div>
@@ -339,23 +508,12 @@
   const progress = root.querySelector(".presentation-progress span");
   const prevButton = root.querySelector("[data-presentation-prev]");
   const nextButton = root.querySelector("[data-presentation-next]");
-  const editButton = root.querySelector("[data-presentation-edit]");
-  const addBulletButton = root.querySelector("[data-presentation-add-bullet]");
-  const resetButton = root.querySelector("[data-presentation-reset]");
   const closeButton = root.querySelector("[data-presentation-close]");
-  const controls = [
-    prevButton,
-    editButton,
-    addBulletButton,
-    resetButton,
-    nextButton,
-    closeButton,
-  ];
+  const controls = [prevButton, nextButton, closeButton];
 
   let currentIndex = 0;
   let lastFocused = null;
   let scrollY = 0;
-  let editMode = false;
 
   const slideIndexForHash = () => {
     if (!window.location.hash) return 0;
@@ -368,129 +526,18 @@
     return nested >= 0 ? nested : 0;
   };
 
-  const editableText = (tagName, className, value, field, placeholder) => {
-    const node = document.createElement(tagName);
-    node.className = className;
-    node.dataset.editField = field;
-    node.dataset.placeholder = placeholder;
-    node.textContent = value;
-    node.contentEditable = editMode ? "true" : "false";
-    node.spellcheck = editMode;
-    return node;
-  };
-
-  const editableBullet = (value = "") => {
-    const item = document.createElement("li");
-    item.dataset.editBullet = "true";
-    item.dataset.placeholder = "Nuevo bullet";
-    item.textContent = value;
-    item.contentEditable = editMode ? "true" : "false";
-    item.spellcheck = editMode;
-    return item;
-  };
-
-  const renderSlideContent = (slide) => {
-    const content = contentForSlide(slide);
-    const card = document.createElement("article");
-    card.className = `presentation-deck-card presentation-deck-${slide.kind}`;
-    if (editMode) card.classList.add("is-editing");
-
-    const copy = document.createElement("div");
-    copy.className = "presentation-deck-copy";
-
-    copy.append(
-      editableText("p", "presentation-deck-kicker", content.kicker, "kicker", "Kicker"),
-      editableText("h2", "presentation-deck-title", content.title, "title", "Titulo"),
-    );
-
-    if (content.lede || editMode) {
-      copy.append(
-        editableText(
-          "p",
-          "presentation-deck-lede",
-          content.lede,
-          "lede",
-          "Frase de apertura",
-        ),
-      );
-    }
-
-    const bullets = editMode && content.bullets.length === 0 ? [""] : content.bullets;
-    if (bullets.length > 0) {
-      const list = document.createElement("ul");
-      list.className = "presentation-bullet-list";
-      bullets.forEach((bullet) => list.append(editableBullet(bullet)));
-      copy.append(list);
-    }
-
-    const visual = makeVisual(slide);
-    if (visual) card.classList.add("has-visual");
-    card.append(copy);
-    if (visual) card.append(visual);
-    return card;
-  };
-
-  const getEditedContentFromFrame = () => {
-    const field = (name) =>
-      normalizeText(frame.querySelector(`[data-edit-field="${name}"]`)?.textContent);
-    const bullets = Array.from(frame.querySelectorAll("[data-edit-bullet]"))
-      .map((item) => normalizeText(item.textContent))
-      .filter(Boolean);
-    return {
-      kicker: field("kicker"),
-      title: field("title"),
-      lede: field("lede"),
-      bullets,
-    };
-  };
-
-  const contentMatchesDefault = (slide, content) => {
-    const defaults = defaultContent.get(slide.id) || makeDefaultContent(slide);
-    const sameText =
-      normalizeText(content.kicker) === normalizeText(defaults.kicker) &&
-      normalizeText(content.title) === normalizeText(defaults.title) &&
-      normalizeText(content.lede) === normalizeText(defaults.lede);
-    const contentBullets = content.bullets.map(normalizeText);
-    const defaultBullets = defaults.bullets.map(normalizeText);
-    const sameBullets =
-      contentBullets.length === defaultBullets.length &&
-      contentBullets.every((bullet, index) => bullet === defaultBullets[index]);
-    return sameText && sameBullets;
-  };
-
-  const saveCurrentSlide = () => {
-    if (!editMode || frame.children.length === 0) return;
-    const slide = slides[currentIndex];
-    const content = getEditedContentFromFrame();
-    if (contentMatchesDefault(slide, content)) {
-      delete storedEdits[slide.id];
-    } else {
-      storedEdits[slide.id] = content;
-    }
-    writeStoredEdits(storedEdits);
-  };
-
-  const syncEditControls = () => {
-    root.classList.toggle("is-editing", editMode);
-    editButton.textContent = editMode ? "Listo" : "Editar";
-    addBulletButton.hidden = !editMode;
-    resetButton.hidden = !editMode;
-  };
-
   const renderSlide = () => {
     const slide = slides[currentIndex];
-    const content = contentForSlide(slide);
     frame.replaceChildren();
     frame.scrollTop = 0;
     frame.dataset.slideKind = slide.kind;
-    frame.append(renderSlideContent(slide));
+    frame.append(slide.render());
 
     counter.textContent = `${currentIndex + 1} / ${slides.length}`;
-    title.textContent = [content.kicker, content.title].filter(Boolean).join(" - ");
+    title.textContent = [slide.number, slide.title].filter(Boolean).join(" - ");
     progress.style.inlineSize = `${((currentIndex + 1) / slides.length) * 100}%`;
     prevButton.disabled = currentIndex === 0;
     nextButton.disabled = currentIndex === slides.length - 1;
-    syncEditControls();
 
     frame.querySelectorAll("video[autoplay]").forEach((video) => {
       if (prefersReducedMotion) return;
@@ -499,7 +546,6 @@
   };
 
   const goTo = (index) => {
-    saveCurrentSlide();
     currentIndex = Math.min(Math.max(index, 0), slides.length - 1);
     renderSlide();
     frame.focus({ preventScroll: true });
@@ -516,7 +562,6 @@
   };
 
   const closePresentation = () => {
-    saveCurrentSlide();
     root.hidden = true;
     body.classList.remove("presentation-open");
     window.scrollTo({ top: scrollY, behavior: "auto" });
@@ -526,7 +571,7 @@
   };
 
   const focusAdjacentControl = (direction) => {
-    const enabledControls = controls.filter((control) => !control.hidden && !control.disabled);
+    const enabledControls = controls.filter((control) => !control.disabled);
     const activeIndex = enabledControls.indexOf(document.activeElement);
     const fallback = direction > 0 ? 0 : enabledControls.length - 1;
     const nextIndex =
@@ -536,67 +581,10 @@
     enabledControls[nextIndex].focus();
   };
 
-  const appendBullet = () => {
-    let list = frame.querySelector(".presentation-bullet-list");
-    if (!list) {
-      list = document.createElement("ul");
-      list.className = "presentation-bullet-list";
-      frame.querySelector(".presentation-deck-copy")?.append(list);
-    }
-    const item = editableBullet("");
-    list.append(item);
-    item.focus();
-    saveCurrentSlide();
-  };
-
   launchButton.addEventListener("click", () => openPresentation());
   prevButton.addEventListener("click", () => goTo(currentIndex - 1));
   nextButton.addEventListener("click", () => goTo(currentIndex + 1));
   closeButton.addEventListener("click", closePresentation);
-
-  editButton.addEventListener("click", () => {
-    saveCurrentSlide();
-    editMode = !editMode;
-    renderSlide();
-    if (editMode) {
-      frame.querySelector("[data-edit-field='title']")?.focus();
-    } else {
-      frame.focus({ preventScroll: true });
-    }
-  });
-
-  addBulletButton.addEventListener("click", appendBullet);
-
-  resetButton.addEventListener("click", () => {
-    const slide = slides[currentIndex];
-    delete storedEdits[slide.id];
-    writeStoredEdits(storedEdits);
-    renderSlide();
-  });
-
-  frame.addEventListener("input", () => {
-    if (editMode) saveCurrentSlide();
-  });
-
-  frame.addEventListener("keydown", (event) => {
-    if (!editMode || !document.activeElement?.matches("[data-edit-bullet]")) return;
-    const item = document.activeElement;
-    if (event.key === "Enter") {
-      event.preventDefault();
-      const next = editableBullet("");
-      item.after(next);
-      next.focus();
-      saveCurrentSlide();
-    } else if (event.key === "Backspace" && normalizeText(item.textContent) === "") {
-      const previous = item.previousElementSibling || item.nextElementSibling;
-      if (previous) {
-        event.preventDefault();
-        item.remove();
-        previous.focus();
-        saveCurrentSlide();
-      }
-    }
-  });
 
   root.addEventListener("click", (event) => {
     if (event.target === root) closePresentation();
@@ -604,13 +592,9 @@
 
   document.addEventListener("keydown", (event) => {
     if (root.hidden) return;
-    const active = document.activeElement;
-    const tagName = active?.tagName?.toLowerCase();
+    const tagName = document.activeElement?.tagName?.toLowerCase();
     const isTyping =
-      active?.isContentEditable ||
-      tagName === "input" ||
-      tagName === "textarea" ||
-      tagName === "select";
+      tagName === "input" || tagName === "textarea" || tagName === "select";
     if (isTyping) return;
 
     if (event.key === "Escape") {
@@ -632,9 +616,13 @@
     } else if (event.key === "End") {
       event.preventDefault();
       goTo(slides.length - 1);
-    } else if (event.key === "Tab" && !editMode) {
+    } else if (event.key === "Tab") {
       event.preventDefault();
       focusAdjacentControl(event.shiftKey ? -1 : 1);
     }
   });
+
+  if (new URLSearchParams(window.location.search).get("presentation") === "1") {
+    window.requestAnimationFrame(() => openPresentation());
+  }
 })();
