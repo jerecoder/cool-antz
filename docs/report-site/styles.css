@@ -1935,9 +1935,245 @@ section + section.page-index {
 .policy-tabs button:focus-visible,
 .runner-controls button:focus-visible,
 .runner-form select:focus-visible,
-.runner-form input:focus-visible {
+.runner-form input:focus-visible,
+.presentation-launch:focus-visible,
+.presentation-button:focus-visible,
+.presentation-close:focus-visible,
+.presentation-slide-frame:focus-visible {
   outline: 3px solid #c79c58;
   outline-offset: 3px;
+}
+
+.presentation-launch {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 20;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(141, 103, 53, 0.46);
+  border-radius: 6px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: 0 10px 26px rgba(57, 41, 21, 0.16);
+  color: var(--blue-ink);
+  padding: 0.72rem 0.95rem;
+  font: inherit;
+  font-weight: bold;
+}
+
+.presentation-launch:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.presentation-view[hidden] {
+  display: none;
+}
+
+.presentation-open {
+  overflow: hidden;
+}
+
+.presentation-view {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background:
+    linear-gradient(180deg, rgba(251, 250, 245, 0.97), rgba(243, 239, 229, 0.98)),
+    var(--paper);
+  color: var(--ink);
+}
+
+.presentation-shell {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.presentation-topbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.65rem;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 253, 248, 0.92);
+  padding: 0.7rem clamp(0.75rem, 2vw, 1.35rem);
+}
+
+.presentation-button,
+.presentation-close {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--blue-ink);
+  padding: 0.55rem 0.8rem;
+  font: inherit;
+  font-weight: bold;
+}
+
+.presentation-button:hover,
+.presentation-close:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.presentation-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.presentation-close {
+  background: #314551;
+  color: #fffdf8;
+}
+
+.presentation-status {
+  min-width: 0;
+  color: var(--muted);
+  line-height: 1.25;
+  text-align: center;
+}
+
+.presentation-status strong {
+  display: block;
+  color: #243039;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-counter {
+  display: block;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.presentation-progress {
+  height: 0.28rem;
+  background: #e9e1d2;
+}
+
+.presentation-progress span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: inline-size 180ms ease;
+}
+
+.presentation-slide-frame {
+  overflow: auto;
+  width: min(100%, 1180px);
+  justify-self: center;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  scroll-padding: 1rem;
+}
+
+.presentation-slide-frame > * {
+  max-width: 100%;
+}
+
+.presentation-slide-frame[data-slide-kind="cover"],
+.presentation-slide-frame[data-slide-kind="chapter-title"] {
+  display: grid;
+  align-items: center;
+}
+
+.presentation-cover-card {
+  display: grid;
+  min-height: min(72vh, 48rem);
+  place-items: center;
+  border-block: 1px solid var(--line);
+  text-align: center;
+}
+
+.presentation-cover-card h1 {
+  font-size: clamp(2.6rem, 8vw, 6.4rem);
+}
+
+.presentation-lead-card {
+  border: 0;
+  padding: 0;
+}
+
+.presentation-chapter-title {
+  display: grid;
+  min-height: min(72vh, 48rem);
+  align-items: center;
+}
+
+.presentation-slide-frame .chapter-summary {
+  pointer-events: none;
+  padding-right: 0;
+}
+
+.presentation-slide-frame .chapter-summary::after {
+  content: none;
+}
+
+.presentation-slide-frame .chapter-header {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.presentation-slide-frame .chapter-header h2 {
+  font-size: clamp(2.25rem, 5vw, 4.9rem);
+  line-height: 1.02;
+}
+
+.presentation-slide-frame .chapter-header p {
+  max-width: 58rem;
+  font-size: clamp(1.08rem, 2vw, 1.38rem);
+}
+
+.presentation-chapter-body,
+.presentation-step-card {
+  border: 0;
+  padding: 0;
+}
+
+.presentation-slide-frame .story-step {
+  border: 0;
+  list-style: none;
+  padding: 0;
+}
+
+.presentation-slide-frame .step-header {
+  margin-bottom: 1rem;
+}
+
+.presentation-slide-frame .step-header h3 {
+  font-size: clamp(1.8rem, 3.5vw, 3.1rem);
+}
+
+.presentation-slide-frame .step-layout {
+  padding-left: 0;
+}
+
+.presentation-slide-frame .step-copy p,
+.presentation-slide-frame .step-layout-wide .step-copy p,
+.presentation-slide-frame .experiment-note,
+.presentation-slide-frame .experiment-note p {
+  max-width: 68rem;
+}
+
+.presentation-slide-frame .media-frame,
+.presentation-slide-frame .step-media,
+.presentation-slide-frame .large-map-videos figure,
+.presentation-slide-frame figure {
+  max-width: 100%;
+}
+
+.presentation-slide-frame video,
+.presentation-slide-frame img {
+  max-height: 68vh;
+  object-fit: contain;
 }
 
 .story-chapter {
